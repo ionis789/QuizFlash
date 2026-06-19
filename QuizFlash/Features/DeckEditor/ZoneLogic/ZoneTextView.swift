@@ -567,6 +567,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var waitsForSettledTextLayoutCaret = false
     private var pendingTextEditCaretSource: ZoneEditorCaretScrollSource?
     private var settlingTextEditCaretSource: ZoneEditorCaretScrollSource?
+    private var lastTextChangeWasRejected = false
     fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
@@ -820,7 +821,10 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             return false
         }
 
-        guard text == "\n" else { return true }
+        guard text == "\n" else {
+            pendingTextEditCaretSource = .textInput
+            return true
+        }
 
         insertForcedLineBreak(in: textView)
         return false
@@ -832,8 +836,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard let displayText = textView.text else { return }
         guard !isUpdating else { return }
 
+        lastTextChangeWasRejected = false
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
         if shouldRejectCurrentText(modelText, in: textView) {
+            lastTextChangeWasRejected = true
+            pendingTextEditCaretSource = nil
+            settlingTextEditCaretSource = nil
+            waitsForSettledTextLayoutCaret = false
             recordCaretProbe("caret.reject-overflow-before-restore", textView: textView)
             restoreLastAcceptedText(in: textView)
             recordCaretProbe("caret.reject-overflow-after-restore", textView: textView)
@@ -864,6 +873,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard !isUpdating else { return }
         guard textView.isFirstResponder else { return }
         normalizeTypingAttributes(in: textView)
+
+        if let caretSource = pendingTextEditCaretSource {
+            recordCaretProbe("caret.selection-change-pending-text-edit", textView: textView)
+            reportCursorPosition(from: textView, includeCaretAnchor: false, source: caretSource)
+            return
+        }
 
         guard !waitsForSettledTextLayoutCaret else {
             let caretSource = settlingTextEditCaretSource ?? pendingTextEditCaretSource ?? .textInput
@@ -1189,12 +1204,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length)"
             )
             UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-            reportCursorPosition(
-                from: textView,
-                includeCaretAnchor: true,
-                forceCaretGeometry: true,
-                source: .newline
-            )
+            recordCaretProbe("caret.forced-break-report-skipped-adjacent-marker", textView: textView)
             return
         }
 
@@ -1234,6 +1244,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         pendingTextEditCaretSource = .newline
         textViewDidChange(textView)
         recordCaretProbe("caret.forced-break-after-did-change", textView: textView)
+        guard !lastTextChangeWasRejected else {
+            recordCaretProbe("caret.forced-break-report-skipped-rejected", textView: textView)
+            lastTextChangeWasRejected = false
+            return
+        }
         reportCursorPosition(
             from: textView,
             includeCaretAnchor: true,
