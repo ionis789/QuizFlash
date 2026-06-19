@@ -7,6 +7,131 @@
 
 import SwiftUI
 import UIKit
+#if DEBUG
+import ObjectiveC.runtime
+
+/// Captures the UIKit request that moves the watched editor scroll view upward.
+/// The normal driver never makes a large upward move, so this stays quiet until
+/// UIKit or SwiftUI restores the focused zone to its top edge.
+private enum ZoneEditorScrollMutationTracer {
+    private static var watchedScrollViewIDs = Set<ObjectIdentifier>()
+    private static var isInstalled = false
+
+    static func watch(_ scrollView: UIScrollView) {
+        installIfNeeded()
+        watchedScrollViewIDs.insert(ObjectIdentifier(scrollView))
+    }
+
+    static func stopWatching(_ scrollView: UIScrollView?) {
+        guard let scrollView else { return }
+        watchedScrollViewIDs.remove(ObjectIdentifier(scrollView))
+    }
+
+    fileprivate static func recordOffsetRequest(
+        for scrollView: UIScrollView,
+        target: CGPoint,
+        selector: String,
+        animated: Bool?
+    ) {
+        guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
+        guard target.y < scrollView.contentOffset.y - 48 else { return }
+
+        let stack = Thread.callStackSymbols.prefix(14).joined(separator: " || ")
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-native-upward-setter",
+            zoneID: nil,
+            details: "selector=\(selector) animated=\(animated.map { $0 ? "1" : "0" } ?? "nil") from=\(pointDescription(scrollView.contentOffset)) to=\(pointDescription(target)) class=\(String(describing: type(of: scrollView))) stack=\(stack)"
+        )
+    }
+
+    fileprivate static func recordScrollRectRequest(
+        for scrollView: UIScrollView,
+        rect: CGRect,
+        animated: Bool
+    ) {
+        guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
+
+        let stack = Thread.callStackSymbols.prefix(14).joined(separator: " || ")
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-native-rect-request",
+            zoneID: nil,
+            details: "rect=\(rectDescription(rect)) animated=\(animated ? "1" : "0") offset=\(pointDescription(scrollView.contentOffset)) class=\(String(describing: type(of: scrollView))) stack=\(stack)"
+        )
+    }
+
+    private static func pointDescription(_ point: CGPoint) -> String {
+        String(format: "%.1f,%.1f", Double(point.x), Double(point.y))
+    }
+
+    private static func rectDescription(_ rect: CGRect) -> String {
+        String(
+            format: "%.1f,%.1f,%.1fx%.1f",
+            Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height)
+        )
+    }
+
+    private static func installIfNeeded() {
+        guard !isInstalled else { return }
+        isInstalled = true
+
+        exchange(
+            original: NSSelectorFromString("setContentOffset:"),
+            replacement: #selector(UIScrollView.qfZoneEditorTraceSetContentOffset(_:))
+        )
+        exchange(
+            original: NSSelectorFromString("setContentOffset:animated:"),
+            replacement: #selector(UIScrollView.qfZoneEditorTraceSetContentOffset(_:animated:))
+        )
+        exchange(
+            original: NSSelectorFromString("scrollRectToVisible:animated:"),
+            replacement: #selector(UIScrollView.qfZoneEditorTraceScrollRectToVisible(_:animated:))
+        )
+    }
+
+    private static func exchange(original: Selector, replacement: Selector) {
+        guard let originalMethod = class_getInstanceMethod(UIScrollView.self, original),
+              let replacementMethod = class_getInstanceMethod(UIScrollView.self, replacement) else {
+            return
+        }
+
+        method_exchangeImplementations(originalMethod, replacementMethod)
+    }
+}
+
+private extension UIScrollView {
+    @objc(qf_zoneEditor_trace_setContentOffset:)
+    func qfZoneEditorTraceSetContentOffset(_ contentOffset: CGPoint) {
+        ZoneEditorScrollMutationTracer.recordOffsetRequest(
+            for: self,
+            target: contentOffset,
+            selector: "setContentOffset:",
+            animated: nil
+        )
+        qfZoneEditorTraceSetContentOffset(contentOffset)
+    }
+
+    @objc(qf_zoneEditor_trace_setContentOffset:animated:)
+    func qfZoneEditorTraceSetContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+        ZoneEditorScrollMutationTracer.recordOffsetRequest(
+            for: self,
+            target: contentOffset,
+            selector: "setContentOffset:animated:",
+            animated: animated
+        )
+        qfZoneEditorTraceSetContentOffset(contentOffset, animated: animated)
+    }
+
+    @objc(qf_zoneEditor_trace_scrollRectToVisible:animated:)
+    func qfZoneEditorTraceScrollRectToVisible(_ rect: CGRect, animated: Bool) {
+        ZoneEditorScrollMutationTracer.recordScrollRectRequest(
+            for: self,
+            rect: rect,
+            animated: animated
+        )
+        qfZoneEditorTraceScrollRectToVisible(rect, animated: animated)
+    }
+}
+#endif
 
 @MainActor
 final class ZoneEditorScrollDriver {
@@ -63,6 +188,9 @@ final class ZoneEditorScrollDriver {
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
         invalidateObservations()
+#if DEBUG
+        ZoneEditorScrollMutationTracer.stopWatching(self.scrollView)
+#endif
         self.scrollView = scrollView
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
@@ -70,6 +198,9 @@ final class ZoneEditorScrollDriver {
             lockedOffset = nil
             return
         }
+#if DEBUG
+        ZoneEditorScrollMutationTracer.watch(scrollView)
+#endif
         observeOffset(in: scrollView)
         reportScrollOffset(in: scrollView, force: true)
         applyContentInsetsIfNeeded()
@@ -77,6 +208,9 @@ final class ZoneEditorScrollDriver {
 
     func detach() {
         invalidateObservations()
+#if DEBUG
+        ZoneEditorScrollMutationTracer.stopWatching(scrollView)
+#endif
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
         offsetLockTask?.cancel()
