@@ -21,14 +21,6 @@ final class ZoneEditorScrollDriver {
         let oldValue: CGPoint?
         let newValue: CGPoint?
         let presentationY: CGFloat?
-        let callStack: String?
-    }
-
-    private struct DebugGeometryObservation: Sendable {
-        let property: String
-        let oldValue: String
-        let newValue: String
-        let callStack: String
     }
 
     private weak var scrollView: UIScrollView?
@@ -37,9 +29,6 @@ final class ZoneEditorScrollDriver {
     private var appliedTopInset: CGFloat = 0
     private var appliedBottomInset: CGFloat = 0
     private var offsetObservation: NSKeyValueObservation?
-    private var contentSizeObservation: NSKeyValueObservation?
-    private var contentInsetObservation: NSKeyValueObservation?
-    private var boundsObservation: NSKeyValueObservation?
     private var lockedOffset: CGPoint?
     private var offsetLockTask: Task<Void, Never>?
     private var isRestoringLockedOffset = false
@@ -408,7 +397,8 @@ final class ZoneEditorScrollDriver {
         bottomBuffer: CGFloat,
         animationDuration: TimeInterval,
         animationOptions: UIView.AnimationOptions,
-        zoneID: UUID?
+        zoneID: UUID?,
+        keepsOffsetLocked: Bool = true
     ) -> Bool {
         guard let scrollView,
               scrollView.window != nil,
@@ -463,7 +453,7 @@ final class ZoneEditorScrollDriver {
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-apply",
             zoneID: zoneID,
-            details: "request=\(requestID) rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) chromeTop=\(debugOptionalValue(bottomChromeTopY)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
+            details: "request=\(requestID) rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) chromeTop=\(debugOptionalValue(bottomChromeTopY)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer)) locks=\(keepsOffsetLocked ? 1 : 0) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
         )
         setContentOffset(
             CGPoint(x: scrollView.contentOffset.x, y: targetY),
@@ -471,7 +461,8 @@ final class ZoneEditorScrollDriver {
             duration: animationDuration,
             options: animationOptions,
             debugRequestID: requestID,
-            debugZoneID: zoneID
+            debugZoneID: zoneID,
+            keepsOffsetLocked: keepsOffsetLocked
         )
         return true
     }
@@ -533,7 +524,8 @@ final class ZoneEditorScrollDriver {
         duration: TimeInterval,
         options: UIView.AnimationOptions,
         debugRequestID: Int?,
-        debugZoneID: UUID?
+        debugZoneID: UUID?,
+        keepsOffsetLocked: Bool = true
     ) {
         let before = scrollView.contentOffset
         debugOffsetCommandSequence += 1
@@ -547,7 +539,7 @@ final class ZoneEditorScrollDriver {
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-set-offset-start",
             zoneID: debugZoneID,
-            details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
+            details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) locks=\(keepsOffsetLocked ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
         )
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
@@ -607,13 +599,15 @@ final class ZoneEditorScrollDriver {
                     CGPoint(x: offset.x, y: self.clampedOffsetY(offset.y, in: scrollView)),
                     animated: false
                 )
-                self.lockOffset(
-                    scrollView.contentOffset,
-                    in: scrollView,
-                    duration: .milliseconds(1400),
-                    reason: "programmatic-scroll-complete",
-                    zoneID: debugZoneID
-                )
+                if keepsOffsetLocked {
+                    self.lockOffset(
+                        scrollView.contentOffset,
+                        in: scrollView,
+                        duration: .milliseconds(1400),
+                        reason: "programmatic-scroll-complete",
+                        zoneID: debugZoneID
+                    )
+                }
             }
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-set-offset-complete",
@@ -629,13 +623,7 @@ final class ZoneEditorScrollDriver {
 
     private func invalidateObservations() {
         offsetObservation?.invalidate()
-        contentSizeObservation?.invalidate()
-        contentInsetObservation?.invalidate()
-        boundsObservation?.invalidate()
         offsetObservation = nil
-        contentSizeObservation = nil
-        contentInsetObservation = nil
-        boundsObservation = nil
     }
 
     private nonisolated static func captureOffsetObservation(
@@ -643,47 +631,11 @@ final class ZoneEditorScrollDriver {
         newValue: CGPoint?,
         presentationY: CGFloat?
     ) -> DebugOffsetObservation {
-        let offsetDelta = abs((newValue?.y ?? 0) - (oldValue?.y ?? 0))
-        let callStack = offsetDelta > 8 ? compactCallStack() : nil
         return DebugOffsetObservation(
             oldValue: oldValue,
             newValue: newValue,
-            presentationY: presentationY,
-            callStack: callStack
+            presentationY: presentationY
         )
-    }
-
-    private nonisolated static func captureGeometryObservation(
-        property: String,
-        oldValue: String,
-        newValue: String
-    ) -> DebugGeometryObservation {
-        DebugGeometryObservation(
-            property: property,
-            oldValue: oldValue,
-            newValue: newValue,
-            callStack: compactCallStack()
-        )
-    }
-
-    private nonisolated static func compactCallStack() -> String {
-        Thread.callStackSymbols
-            .prefix(10)
-            .map { $0.replacingOccurrences(of: "\n", with: " ") }
-            .joined(separator: " || ")
-    }
-
-    private nonisolated static func captureDebugSize(_ size: CGSize) -> String {
-        "\(captureDebugValue(size.width))x\(captureDebugValue(size.height))"
-    }
-
-    private nonisolated static func captureDebugInsets(_ insets: UIEdgeInsets) -> String {
-        "\(captureDebugValue(insets.top)),\(captureDebugValue(insets.left)),\(captureDebugValue(insets.bottom)),\(captureDebugValue(insets.right))"
-    }
-
-    private nonisolated static func captureDebugValue(_ value: CGFloat) -> String {
-        guard value.isFinite else { return value.description }
-        return String(format: "%.1f", Double(value))
     }
 
     private func observeOffset(in scrollView: UIScrollView) {
@@ -699,45 +651,6 @@ final class ZoneEditorScrollDriver {
             }
         }
 
-        contentSizeObservation = scrollView.observe(\.contentSize, options: [.old, .new]) { [weak self, weak scrollView] _, change in
-            let observation = Self.captureGeometryObservation(
-                property: "contentSize",
-                oldValue: change.oldValue.map(Self.captureDebugSize) ?? "nil",
-                newValue: change.newValue.map(Self.captureDebugSize) ?? "nil"
-            )
-            Task { @MainActor [weak self, weak scrollView] in
-                guard let self, let scrollView else { return }
-                self.handleGeometryObservation(observation, in: scrollView)
-            }
-        }
-
-        contentInsetObservation = scrollView.observe(\.contentInset, options: [.old, .new]) { [weak self, weak scrollView] _, change in
-            let observation = Self.captureGeometryObservation(
-                property: "contentInset",
-                oldValue: change.oldValue.map(Self.captureDebugInsets) ?? "nil",
-                newValue: change.newValue.map(Self.captureDebugInsets) ?? "nil"
-            )
-            Task { @MainActor [weak self, weak scrollView] in
-                guard let self, let scrollView else { return }
-                self.handleGeometryObservation(observation, in: scrollView)
-            }
-        }
-
-        boundsObservation = scrollView.observe(\.bounds, options: [.old, .new]) { [weak self, weak scrollView] _, change in
-            guard let oldBounds = change.oldValue,
-                  let newBounds = change.newValue,
-                  abs(oldBounds.width - newBounds.width) > 0.5 || abs(oldBounds.height - newBounds.height) > 0.5
-            else { return }
-            let observation = Self.captureGeometryObservation(
-                property: "boundsSize",
-                oldValue: Self.captureDebugSize(oldBounds.size),
-                newValue: Self.captureDebugSize(newBounds.size)
-            )
-            Task { @MainActor [weak self, weak scrollView] in
-                guard let self, let scrollView else { return }
-                self.handleGeometryObservation(observation, in: scrollView)
-            }
-        }
     }
 
     private func handleObservedOffset(
@@ -755,18 +668,6 @@ final class ZoneEditorScrollDriver {
         }
 
         restoreLockedOffsetIfNeeded(in: scrollView, reason: "observed-offset", zoneID: nil)
-    }
-
-    private func handleGeometryObservation(
-        _ observation: DebugGeometryObservation,
-        in scrollView: UIScrollView
-    ) {
-        guard let debugTraceContext else { return }
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            "scroll-host-geometry-mutation",
-            zoneID: lastDebugScrollRequestZoneID,
-            details: "property=\(observation.property) old=\(observation.oldValue) new=\(observation.newValue) context=\(debugTraceContext) stack=\(observation.callStack) \(scrollSnapshotDetails(in: scrollView))"
-        )
     }
 
     private func reportScrollOffset(
@@ -791,7 +692,7 @@ final class ZoneEditorScrollDriver {
                 origin = "unowned-uikit-or-swiftui"
             }
             let mutationDetails = observation.map {
-                "mutationOld=\(debugOptionalPoint($0.oldValue)) mutationNew=\(debugOptionalPoint($0.newValue)) mutationPresentationY=\(debugOptionalValue($0.presentationY)) mutationStack=\($0.callStack ?? "not-captured")"
+                "mutationOld=\(debugOptionalPoint($0.oldValue)) mutationNew=\(debugOptionalPoint($0.newValue)) mutationPresentationY=\(debugOptionalValue($0.presentationY))"
             } ?? "mutation=none"
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-offset-observed",
