@@ -1312,7 +1312,11 @@ struct QuizCardEditorView: View {
         scheduledCaretScrollTask?.cancel()
         scheduledCaretScrollTask = Task { @MainActor in
             for (index, delay) in delays.enumerated() {
-                try? await Task.sleep(for: delay)
+                if delay > .zero {
+                    try? await Task.sleep(for: delay)
+                } else {
+                    await Task.yield()
+                }
                 guard !Task.isCancelled else {
                     recordQuizScroll(
                         "quiz.scroll-run-cancelled",
@@ -1383,6 +1387,7 @@ struct QuizCardEditorView: View {
         let bottomBuffer = quizCaretBottomChromeBuffer(forSource: activeQuizCaretSource)
         let visibleBottomY = quizVisibleBottomWindowY(bottomBuffer: bottomBuffer)
         let proposedDelta = caretRect.maxY - visibleBottomY
+        let animationDuration = quizCaretScrollAnimationDuration(for: activeQuizCaretSource)
         let probeID = isQuizDebugRecordingActive ? "\(pathID)-\(Int(Date().timeIntervalSince1970 * 1_000))" : nil
 
         recordQuizScrollState(
@@ -1412,7 +1417,7 @@ struct QuizCardEditorView: View {
             visibleBottomY: visibleBottomY,
             proposedDelta: proposedDelta,
             normalizedOffsetY: quizScrollDriver.currentNormalizedOffsetY,
-            animationDuration: quizCaretScrollAnimationDuration
+            animationDuration: animationDuration
         ) {
             recordQuizScroll(
                 "quiz.scroll-skip-duplicate-request",
@@ -1428,7 +1433,7 @@ struct QuizCardEditorView: View {
             keyboardHeight: keyboardMonitor.visibleHeight,
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
             bottomBuffer: bottomBuffer,
-            animationDuration: quizCaretScrollAnimationDuration,
+            animationDuration: animationDuration,
             animationOptions: keyboardMonitor.animationOptions,
             zoneID: currentSelectedZoneID,
             keepsOffsetLocked: activeQuizCaretSource != .newline
@@ -1528,8 +1533,14 @@ struct QuizCardEditorView: View {
 
     private func quizCaretScrollDelays(for source: ZoneEditorCaretScrollSource) -> [Duration] {
         source == .newline
-            ? [.milliseconds(16)]
+            ? [.zero]
             : [.milliseconds(16), .milliseconds(96)]
+    }
+
+    private func quizCaretScrollAnimationDuration(
+        for source: ZoneEditorCaretScrollSource?
+    ) -> TimeInterval {
+        source == .newline ? 0 : quizCaretScrollAnimationDuration
     }
 
     private func quizCaretBottomChromeBuffer(forSource source: ZoneEditorCaretScrollSource?) -> CGFloat {
