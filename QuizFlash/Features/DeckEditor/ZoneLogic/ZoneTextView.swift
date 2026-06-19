@@ -92,7 +92,10 @@ private enum ZoneTextViewEmptyCaret {
 final class FullHitTextView: UITextView {
     var usesCompactCaret: Bool = true
     var debugZoneID: UUID?
+    var estimatedLineAdvanceY: CGFloat = 0
     private var lastStableCaretRect: CGRect?
+    private var transientTailCaretSynthesisDeadline: CFTimeInterval = 0
+    private var transientTailCaretAdvanceY: CGFloat?
 
     override func caretRect(for position: UITextPosition) -> CGRect {
         let proposedRect = super.caretRect(for: position)
@@ -101,6 +104,18 @@ final class FullHitTextView: UITextView {
 
         rect.size.width = 2.1
         if let invalidReason = unstableCaretRectReason(proposedRect) {
+            if let synthesizedRect = synthesizedTailCaretRect(for: proposedRect) {
+                lastStableCaretRect = synthesizedRect
+                if AppFeatures.current.showsVisualDebugOverlays {
+                    ZoneEditorDebugStore.shared.recordLayoutEvent(
+                        "caret.invalid-rect-synthesized",
+                        zoneID: debugZoneID,
+                        details: "reason=\(invalidReason) selected=\(selectedRange.location):\(selectedRange.length) textLen=\(((text ?? "") as NSString).length) proposed=\(debugRect(proposedRect)) synthesized=\(debugRect(synthesizedRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
+                    )
+                }
+                return synthesizedRect
+            }
+
             if let lastStableCaretRect {
                 if AppFeatures.current.showsVisualDebugOverlays {
                     ZoneEditorDebugStore.shared.recordLayoutEvent(
@@ -125,7 +140,19 @@ final class FullHitTextView: UITextView {
         }
 
         lastStableCaretRect = rect
+        transientTailCaretSynthesisDeadline = 0
+        transientTailCaretAdvanceY = nil
         return rect
+    }
+
+    func beginTransientTailCaretSynthesis(advanceY: CGFloat) {
+        transientTailCaretAdvanceY = max(advanceY, 1)
+        transientTailCaretSynthesisDeadline = CACurrentMediaTime() + 0.25
+    }
+
+    func refineTransientTailCaretSynthesis(advanceY: CGFloat) {
+        guard transientTailCaretSynthesisDeadline > CACurrentMediaTime() else { return }
+        transientTailCaretAdvanceY = max(advanceY, 1)
     }
 
     private func isStableCaretRect(_ rect: CGRect) -> Bool {
@@ -147,6 +174,32 @@ final class FullHitTextView: UITextView {
         guard isStableCaretRect(rect) else { return "geometry" }
         guard isTransientTailResetCaretRect(rect) else { return nil }
         return "tail-reset"
+    }
+
+    private func synthesizedTailCaretRect(for proposedRect: CGRect) -> CGRect? {
+        guard transientTailCaretSynthesisDeadline > CACurrentMediaTime(),
+              let lastStableCaretRect,
+              selectedRange.length == 0,
+              isSelectionNearEditableTail(),
+              proposedRect.maxY <= textContainerInset.top + 4 else {
+            return nil
+        }
+
+        let advanceY = transientTailCaretAdvanceY ?? estimatedLineAdvanceY
+        guard advanceY > 1 else { return nil }
+
+        var rect = lastStableCaretRect
+        rect.origin.x = textContainerInset.left
+        rect.origin.y = lastStableCaretRect.minY + advanceY
+        rect.size.width = 2.1
+        return rect
+    }
+
+    private func isSelectionNearEditableTail() -> Bool {
+        let displayText = text ?? ""
+        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: displayText)
+        guard editableLength > 0 else { return false }
+        return selectedRange.location >= max(editableLength - 2, 0)
     }
 
     private func isTransientTailResetCaretRect(_ rect: CGRect) -> Bool {
@@ -1388,6 +1441,9 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             fromModelRange: modelCaretRange,
             modelText: modelText
         )
+        (textView as? FullHitTextView)?.beginTransientTailCaretSynthesis(
+            advanceY: font.lineHeight + max(lineSpacing, 0)
+        )
         isUpdating = true
         replaceDisplayTextIncrementally(
             in: textView,
@@ -1405,6 +1461,9 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         applyForcedLineBreakMarkerStyle(to: textView)
         let nextMeasuredHeight = measuredTextHeight(in: textView)
+        (textView as? FullHitTextView)?.refineTransientTailCaretSynthesis(
+            advanceY: max(nextMeasuredHeight - previousMeasuredHeight, 0)
+        )
         postNewlineLayoutShiftIfNeeded(
             deltaY: max(nextMeasuredHeight - previousMeasuredHeight, 0),
             caretRectInWindow: preChangeCaretWindowRect,
@@ -2031,6 +2090,9 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     }
     
     private func updateStyling(of textView: UITextView) {
+        if let textView = textView as? FullHitTextView {
+            textView.estimatedLineAdvanceY = font.lineHeight + max(lineSpacing, 0)
+        }
         if textView.font != font {
             textView.font = font
         }
