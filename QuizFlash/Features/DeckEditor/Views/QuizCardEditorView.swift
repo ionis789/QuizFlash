@@ -30,6 +30,8 @@ struct QuizCardEditorView: View {
     @State private var markedCorrectIndicatorTask: Task<Void, Never>?
     @State private var pendingDeleteChoiceID: UUID?
     @State private var pendingDeleteTask: Task<Void, Never>?
+    @State private var showUnsavedChangesDialog = false
+    @State private var initialQuizContent: QuizCardContent
     @State private var floatingFormatBarKeyboardHeight: CGFloat = 0
     @State private var isFloatingFormatBarPresented = false
     @State private var floatingFormatBarPresentationTask: Task<Void, Never>?
@@ -98,7 +100,9 @@ struct QuizCardEditorView: View {
         onSave: @escaping (QuizCardContent) -> Void
     ) {
         self.textSize = textSize
-        _session = StateObject(wrappedValue: QuizEditorSession(initialContent: initialContent))
+        let editorSession = QuizEditorSession(initialContent: initialContent)
+        _session = StateObject(wrappedValue: editorSession)
+        _initialQuizContent = State(initialValue: Self.snapshotContent(from: editorSession))
 
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             _highlightContext = State(initialValue: HighlightContext(query: query))
@@ -192,6 +196,9 @@ struct QuizCardEditorView: View {
 
     private var canSave: Bool {
         validationMessage == nil
+    }
+    private var hasUnsavedChanges: Bool {
+        currentQuizContent != initialQuizContent
     }
     private var canUseInteractiveDismiss: Bool {
         !showSketchModal && !isPhotoPickerPresented
@@ -368,7 +375,22 @@ struct QuizCardEditorView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
         .swipeBack(enabled: canUseInteractiveDismiss) {
-            dismiss()
+            closeEditor()
+        }
+        .confirmationDialog(
+            localized("Save changes before leaving?"),
+            isPresented: $showUnsavedChangesDialog,
+            titleVisibility: .visible
+        ) {
+            if canSave {
+                Button(localized("Save Changes")) {
+                    saveCard()
+                }
+            }
+            Button(localized("Discard Changes"), role: .destructive) {
+                closeEditorDiscardingChanges()
+            }
+            Button(localized("Cancel"), role: .cancel) { }
         }
         .onAppear {
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(isQuizDebugRecordingActive)
@@ -1038,6 +1060,7 @@ struct QuizCardEditorView: View {
                         Spacer(minLength: UIConstants.Spacing.standard)
 
                         Button(role: .destructive) {
+                            emitTrashHaptic(confirming: true)
                             removeExplanation()
                         } label: {
                             Image(systemName: "trash.fill")
@@ -1831,12 +1854,14 @@ struct QuizCardEditorView: View {
 
     private func handleDeleteTap(for choiceID: UUID) {
         if pendingDeleteChoiceID == choiceID {
+            emitTrashHaptic(confirming: true)
             pendingDeleteTask?.cancel()
             pendingDeleteTask = nil
             deleteChoice(choiceID)
             return
         }
 
+        emitTrashHaptic(confirming: false)
         pendingDeleteTask?.cancel()
         withAnimation(.easeOut(duration: 0.16)) {
             pendingDeleteChoiceID = choiceID
@@ -1871,6 +1896,7 @@ struct QuizCardEditorView: View {
 
     private func toggleCorrect(for choiceID: UUID) {
         guard let targetChoice = choice(for: choiceID) else { return }
+        emitCorrectToggleHaptic()
         let willMarkCorrect = !targetChoice.isCorrect
         targetChoice.isCorrect.toggle()
 
@@ -2001,8 +2027,19 @@ struct QuizCardEditorView: View {
     }
 
     private func closeEditor() {
+        guard !hasUnsavedChanges else {
+            focusManager.forceReleaseKeyboard()
+            zoneController.forceReleaseKeyboard()
+            showUnsavedChangesDialog = true
+            return
+        }
+        closeEditorDiscardingChanges()
+    }
+
+    private func closeEditorDiscardingChanges() {
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
+        zoneController.clearHeightCache()
         dismiss()
     }
 
@@ -2014,6 +2051,46 @@ struct QuizCardEditorView: View {
         focusManager.forceReleaseKeyboard()
         zoneController.clearHeightCache()
         dismiss()
+    }
+
+    private static func snapshotContent(from session: QuizEditorSession) -> QuizCardContent {
+        let cleanedExplanationZone: ZoneModel?
+        if let explanationContent = session.explanationContent, explanationContent.hasContent {
+            cleanedExplanationZone = explanationContent.rootZone
+        } else {
+            cleanedExplanationZone = nil
+        }
+
+        return QuizCardContent(
+            questionZone: session.questionContent.rootZone,
+            choices: session.choices.map {
+                QuizChoiceDraft(
+                    id: $0.id,
+                    contentZone: $0.content.rootZone,
+                    isCorrect: $0.isCorrect
+                )
+            },
+            explanationZone: cleanedExplanationZone,
+            allowsMultipleCorrect: session.choices.filter(\.isCorrect).count > 1
+        )
+    }
+
+    private func emitCorrectToggleHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.58)
+    }
+
+    private func emitTrashHaptic(confirming: Bool) {
+        if confirming {
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.warning)
+        } else {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.62)
+        }
     }
 
     private func choice(for choiceID: UUID) -> QuizChoiceEditorItem? {
