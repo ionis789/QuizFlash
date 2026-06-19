@@ -614,7 +614,7 @@ struct ZoneContentView: View {
                     )
                 }
 
-                contentView(maxVisibleTextHeight: maximumResizableHeight)
+                contentView(maxVisibleTextHeight: contentFrameHeight ?? maximumResizableHeight)
                     .frame(
                         width: contentPlacement.width,
                         height: contentFrameHeight,
