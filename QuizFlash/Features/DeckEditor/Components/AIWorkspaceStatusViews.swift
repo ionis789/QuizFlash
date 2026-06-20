@@ -73,7 +73,6 @@ struct FloatingAIWorkspaceStatusMenu: View {
                         ChromeSoftCircleSymbol(
                             systemName: "xmark",
                             size: 22,
-                            symbolSize: 16
                         )
                     }
                     .buttonStyle(.plain)

@@ -83,7 +83,6 @@ struct LibraryTopBarTrailingAccessory: View {
                 accessibilityLabel: AppLocalization.string("Clear search text", locale: appPreferences.resolvedLocale),
                 action: clearAction,
                 size: 28,
-                symbolSize: 17
             )
         }
     }

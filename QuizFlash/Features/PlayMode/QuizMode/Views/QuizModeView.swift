@@ -249,7 +249,6 @@ private struct QuizModeSessionView: View {
             accessibilityLabel: "Edit current quiz",
             action: openCurrentQuizEditor,
             size: UIConstants.Size.capsuleHeight,
-            symbolSize: 23,
             tint: ThemeManager.shared.accentColor.color
         )
         .disabled(viewModel.currentCard == nil)
@@ -772,7 +771,6 @@ private struct QuizModeSessionView: View {
             accessibilityLabel: "Close",
             action: dismissSheet,
             size: UIConstants.Size.actionButton,
-            symbolSize: UIConstants.Size.navigationChromeIcon
         )
     }
 

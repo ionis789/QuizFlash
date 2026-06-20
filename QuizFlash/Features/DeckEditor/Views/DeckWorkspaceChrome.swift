@@ -344,7 +344,6 @@ extension DeckWorkspaceView {
                         ChromeSoftCircleSymbol(
                             systemName: "xmark",
                             size: 22,
-                            symbolSize: 16
                         )
                     }
                     .buttonStyle(.plain)
@@ -381,7 +380,6 @@ extension DeckWorkspaceView {
             ChromeSoftCircleSymbol(
                 systemName: "plus",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard,
                 tint: themeManager.roleColor(.buttonDangerForeground)
             )
         }

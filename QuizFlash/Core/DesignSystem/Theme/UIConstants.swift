@@ -85,6 +85,8 @@ enum UIConstants {
         static let iconSmall: CGFloat = 16
         /// 20 pt — unified symbol size for top navigation and action buttons.
         static let navigationChromeIcon: CGFloat = 20
+        /// 20 pt — single symbol size for shared circular chrome buttons.
+        static let circularChromeSymbol: CGFloat = navigationChromeIcon
         /// 13 pt — unified text size for navigation capsule labels.
         static let navigationChromeLabel: CGFloat = 13
         /// 20 pt — default icon size for circular and capsule action chrome.

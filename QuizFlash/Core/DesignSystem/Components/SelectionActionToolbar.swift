@@ -196,7 +196,6 @@ struct SelectionModeMenuButton: View {
             ChromeSoftCircleSymbol(
                 systemName: "ellipsis",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard
             )
             .opacity(isVisuallySelecting || shouldHideMenuButtonWhilePresented ? 0 : 1)
             .scaleEffect(isVisuallySelecting ? 0.86 : 1)
@@ -206,7 +205,6 @@ struct SelectionModeMenuButton: View {
             ChromeSoftCircleSymbol(
                 systemName: "checkmark",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard
             )
             .opacity(isVisuallySelecting ? 1 : 0)
             .scaleEffect(isVisuallySelecting ? 1 : 0.86)

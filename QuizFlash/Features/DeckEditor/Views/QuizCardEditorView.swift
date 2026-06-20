@@ -851,7 +851,6 @@ struct QuizCardEditorView: View {
                 ChromeSoftCircleSymbol(
                     systemName: "checkmark",
                     size: UIConstants.Size.actionButton,
-                    symbolSize: UIConstants.Size.navigationChromeIcon,
                     tint: canSave ? successAccent : .secondary,
                     backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
                 )
@@ -967,7 +966,6 @@ struct QuizCardEditorView: View {
             accessibilityLabel: localized("Close"),
             action: closeEditor,
             size: UIConstants.Size.actionButton,
-            symbolSize: UIConstants.Size.navigationChromeIcon,
             tint: topChromeUtilityForeground,
             backgroundTint: topChromeUtilityFill
         )
@@ -978,7 +976,6 @@ struct QuizCardEditorView: View {
             ChromeSoftCircleSymbol(
                 systemName: "eye",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.navigationChromeIcon,
                 tint: accent,
                 backgroundTint: topChromeUtilityFill
             )
@@ -992,7 +989,6 @@ struct QuizCardEditorView: View {
             ChromeSoftCircleSymbol(
                 systemName: "wand.and.stars",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.navigationChromeIcon,
                 tint: isActiveTargetRendered ? .black : accent,
                 backgroundTint: isActiveTargetRendered
                     ? accent.opacity(0.88)

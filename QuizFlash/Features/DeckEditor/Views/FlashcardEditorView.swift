@@ -1182,7 +1182,6 @@ struct FlashcardEditorView: View {
             accessibilityLabel: localized("Close"),
             action: closeEditor,
             size: UIConstants.Size.actionButton,
-            symbolSize: UIConstants.Size.navigationChromeIcon,
             tint: topChromeUtilityForeground,
             backgroundTint: topChromeUtilityFill
         )
@@ -1193,7 +1192,6 @@ struct FlashcardEditorView: View {
             ChromeSoftCircleSymbol(
                 systemName: "eye",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.navigationChromeIcon,
                 tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
                 backgroundTint: topChromeUtilityFill
             )
@@ -1208,7 +1206,6 @@ struct FlashcardEditorView: View {
             ChromeSoftCircleSymbol(
                 systemName: "wand.and.stars",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.navigationChromeIcon,
                 tint: hasSavableContent ? (showsRenderedContent ? .black : topChromeUtilityForeground) : .secondary,
                 backgroundTint: showsRenderedContent ? accent : topChromeUtilityFill
             )
@@ -1223,7 +1220,6 @@ struct FlashcardEditorView: View {
             ChromeSoftCircleSymbol(
                 systemName: "checkmark",
                 size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.navigationChromeIcon,
                 tint: canSave ? successAccent : .secondary,
                 backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
             )

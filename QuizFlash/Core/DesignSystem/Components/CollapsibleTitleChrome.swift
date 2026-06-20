@@ -235,7 +235,7 @@ struct ChromeCircleIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
+                .font(.system(size: UIConstants.Size.circularChromeSymbol, weight: .bold))
                 .fontDesign(.rounded)
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
@@ -250,20 +250,14 @@ struct ChromeSoftCircleSymbolButton: View {
     let accessibilityLabel: String
     let action: () -> Void
     var size: CGFloat = UIConstants.Size.actionButton
-    var symbolSize: CGFloat? = nil
     var tint: Color? = nil
     var backgroundTint: Color? = nil
-
-    private var resolvedSymbolSize: CGFloat {
-        symbolSize ?? UIConstants.Size.navigationChromeIcon
-    }
 
     var body: some View {
         Button(action: action) {
             ChromeSoftCircleSymbol(
                 systemName: systemName,
                 size: size,
-                symbolSize: resolvedSymbolSize,
                 tint: tint,
                 backgroundTint: backgroundTint
             )
@@ -279,7 +273,6 @@ struct ChromeSoftCircleSymbol: View {
 
     let systemName: String
     let size: CGFloat
-    let symbolSize: CGFloat
     var tint: Color? = nil
     var backgroundTint: Color? = nil
 
@@ -293,7 +286,7 @@ struct ChromeSoftCircleSymbol: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: symbolSize, weight: .bold))
+            .font(.system(size: UIConstants.Size.circularChromeSymbol, weight: .bold))
             .fontDesign(.rounded)
             .foregroundStyle(resolvedTint)
             .frame(width: size, height: size)

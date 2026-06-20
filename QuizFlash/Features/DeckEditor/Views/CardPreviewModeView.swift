@@ -461,7 +461,6 @@ struct CardPreviewModeView: View {
             accessibilityLabel: localized("Close"),
             action: { handleDone() },
             size: UIConstants.Size.actionButton,
-            symbolSize: UIConstants.Size.navigationChromeIcon
         )
     }
 
