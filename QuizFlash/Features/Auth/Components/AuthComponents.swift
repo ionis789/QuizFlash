@@ -102,7 +102,18 @@ private struct AuthSecureTextField: UIViewRepresentable {
 
         @objc func textDidChange(_ textField: UITextField) {
             AuthSecureTextField.applyDisplayStyle(to: textField)
+            DispatchQueue.main.async {
+                AuthSecureTextField.applyDisplayStyle(to: textField)
+            }
             text = textField.text ?? ""
+        }
+
+        func textFieldDidBeginEditing(_ textField: UITextField) {
+            AuthSecureTextField.applyDisplayStyle(to: textField)
+        }
+
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            AuthSecureTextField.applyDisplayStyle(to: textField)
         }
     }
 
@@ -113,27 +124,68 @@ private struct AuthSecureTextField: UIViewRepresentable {
             .foregroundColor: UIColor.black
         ]
 
-        textField.font = font
-        textField.textColor = .black
-        textField.tintColor = .label
-        textField.defaultTextAttributes = textAttributes
-        textField.typingAttributes = textAttributes
+        if textField.font != font {
+            textField.font = font
+        }
+
+        if textField.textColor != .black {
+            textField.textColor = .black
+        }
+
+        if textField.tintColor != .label {
+            textField.tintColor = .label
+        }
+
+        if !textField.textAttributesMatch(textAttributes, key: .font)
+            || !textField.textAttributesMatch(textAttributes, key: .foregroundColor) {
+            textField.defaultTextAttributes = textAttributes
+        }
+
+        if !textField.typingAttributesMatch(textAttributes, key: .font)
+            || !textField.typingAttributesMatch(textAttributes, key: .foregroundColor) {
+            textField.typingAttributes = textAttributes
+        }
 
         if let placeholder {
-            textField.attributedPlaceholder = NSAttributedString(
-                string: placeholder,
-                attributes: [
-                    .foregroundColor: UIColor.secondaryLabel
-                ]
-            )
+            let currentPlaceholder = textField.attributedPlaceholder
+            let placeholderColor = currentPlaceholder?.attribute(
+                .foregroundColor,
+                at: 0,
+                effectiveRange: nil
+            ) as? UIColor
+
+            if currentPlaceholder?.string != placeholder || placeholderColor != .secondaryLabel {
+                textField.attributedPlaceholder = NSAttributedString(
+                    string: placeholder,
+                    attributes: [
+                        .foregroundColor: UIColor.secondaryLabel
+                    ]
+                )
+            }
         }
     }
 }
 
-private final class AuthSecureUITextField: UITextField {
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        AuthSecureTextField.applyDisplayStyle(to: self)
+private final class AuthSecureUITextField: UITextField { }
+
+private extension UITextField {
+    func textAttributesMatch(_ expected: [NSAttributedString.Key: Any], key: NSAttributedString.Key) -> Bool {
+        attributesMatch(defaultTextAttributes[key], expected[key])
+    }
+
+    func typingAttributesMatch(_ expected: [NSAttributedString.Key: Any], key: NSAttributedString.Key) -> Bool {
+        attributesMatch(typingAttributes?[key], expected[key])
+    }
+
+    private func attributesMatch(_ current: Any?, _ expected: Any?) -> Bool {
+        switch (current, expected) {
+        case let (current as NSObject, expected as NSObject):
+            return current.isEqual(expected)
+        case (.none, .none):
+            return true
+        default:
+            return false
+        }
     }
 }
 
