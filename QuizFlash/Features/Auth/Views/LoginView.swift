@@ -47,6 +47,15 @@ struct LoginView: View {
                     onCancel: {
                         try await authManager.logout()
                     },
+                    onResendSuccess: {
+                        presentNotice(
+                            title: AppLocalization.string("Email sent", locale: locale),
+                            message: AppLocalization.string(
+                                "Verification link sent. Check Inbox and Spam.",
+                                locale: locale
+                            )
+                        )
+                    },
                     onError: presentError
                 )
             case .checking:
@@ -441,6 +450,7 @@ private struct EmailVerificationRequiredView: View {
     let onResend: @MainActor @Sendable () async throws -> Void
     let onReload: @MainActor @Sendable () async throws -> Void
     let onCancel: @MainActor @Sendable () async throws -> Void
+    let onResendSuccess: @MainActor @Sendable () -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
     private var locale: Locale {
@@ -489,6 +499,7 @@ private struct EmailVerificationRequiredView: View {
                     foreground: .primary
                 ) {
                     try await onResend()
+                    onResendSuccess()
                 } onError: { error in
                     onError(error)
                 }

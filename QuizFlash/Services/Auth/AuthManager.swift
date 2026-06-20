@@ -212,7 +212,6 @@ final class AuthManager {
             email: normalizedEmail(email),
             password: password
         )
-        try await authProvider.sendEmailVerification()
         apply(user)
     }
 
@@ -321,6 +320,7 @@ private final class FirebaseAuthClient: AuthProviding {
 
     func createAccount(email: String, password: String) async throws -> AuthUserSnapshot {
         let result = try await Auth.auth().createUser(withEmail: email, password: password)
+        try await result.user.sendEmailVerification()
         return result.user.authSnapshot
     }
 

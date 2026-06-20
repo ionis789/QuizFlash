@@ -187,6 +187,7 @@ private final class MockAuthProvider: AuthProviding {
 
     func createAccount(email: String, password: String) async throws -> AuthUserSnapshot {
         createdEmail = email
+        sentVerificationCount += 1
         currentUser = createAccountResult
         return createAccountResult
     }

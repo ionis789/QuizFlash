@@ -128,8 +128,8 @@ All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -188,8 +188,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -511,8 +511,8 @@ Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -702,6 +702,7 @@ Upcoming	Upcoming	Următoarele	Дальше
 Use a stronger password.	Use a stronger password.	Folosește o parolă mai puternică.	Используйте более надежный пароль.
 Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
 Verbose	Verbose	Detaliat	Подробно
+Verification link sent. Check Inbox and Spam.	Verification link sent. Check Inbox and Spam.	Linkul de verificare a fost trimis. Verifică Inbox și Spam.	Ссылка для подтверждения отправлена. Проверьте входящие и спам.
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали
 Vision: %@	Vision: %@	Viziune: %@	Видение: %@
 Visual surface only.	Visual surface only.	Doar suprafața vizuală.	Только визуальная поверхность.

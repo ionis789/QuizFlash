@@ -703,6 +703,7 @@
 "Please wait a moment and try again." = "Подождите немного и попробуйте снова.";
 "Resend Email" = "Отправить снова";
 "Send Reset Link" = "Отправить ссылку";
+"Verification link sent. Check Inbox and Spam." = "Ссылка для подтверждения отправлена. Проверьте входящие и спам.";
 "Sign In" = "Войти";
 "Sign-in is not ready yet. Please try again later." = "Вход пока не готов. Попробуйте позже.";
 "Sign-in was cancelled." = "Вход был отменен.";
