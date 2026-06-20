@@ -2031,12 +2031,9 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
         let calculatedSize = uiView.sizeThatFits(targetSize)
         let measuredHeight = max(ceil(calculatedSize.height), ceil(font.lineHeight))
-        let cappedHeight = maximumVisibleHeight
-            .map { min(measuredHeight, max(ceil($0), ceil(font.lineHeight))) }
-            ?? measuredHeight
         let result = CGSize(
             width: width,
-            height: cappedHeight
+            height: measuredHeight
         )
 
         if AppFeatures.current.showsVisualDebugOverlays {
@@ -2051,24 +2048,8 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     }
 
     private func updateScrollBehavior(of textView: UITextView) {
-        guard let maximumVisibleHeight,
-              maximumVisibleHeight > 0,
-              textView.bounds.width > 1 else {
-            if textView.isScrollEnabled {
-                textView.isScrollEnabled = false
-            }
-            return
-        }
-
-        textView.layoutIfNeeded()
-        let targetSize = CGSize(
-            width: textView.bounds.width,
-            height: UIView.layoutFittingCompressedSize.height
-        )
-        let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
-        let shouldScroll = requiredHeight > ceil(maximumVisibleHeight) + 0.5
-        if textView.isScrollEnabled != shouldScroll {
-            textView.isScrollEnabled = shouldScroll
+        if textView.isScrollEnabled {
+            textView.isScrollEnabled = false
         }
     }
 
