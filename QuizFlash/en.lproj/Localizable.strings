@@ -683,11 +683,13 @@
 "Delete Account" = "Delete Account";
 "Don't have an account?" = "Don't have an account?";
 "Email Address" = "Email Address";
+"Email sent" = "Email sent";
 "Forgot Password?" = "Forgot Password?";
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
 "No signed-in user was found." = "No signed-in user was found.";
 "or" = "or";
 "Password" = "Password";
+"Password reset link sent." = "Password reset link sent.";
 "Passwords do not match." = "Passwords do not match.";
 "Resend Email" = "Resend Email";
 "Send Reset Link" = "Send Reset Link";

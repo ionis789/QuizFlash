@@ -683,11 +683,13 @@
 "Delete Account" = "Șterge contul";
 "Don't have an account?" = "Nu ai cont?";
 "Email Address" = "Adresă de email";
+"Email sent" = "Email trimis";
 "Forgot Password?" = "Ai uitat parola?";
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
 "No signed-in user was found." = "Nu s-a găsit niciun utilizator conectat.";
 "or" = "sau";
 "Password" = "Parolă";
+"Password reset link sent." = "Linkul de resetare a fost trimis.";
 "Passwords do not match." = "Parolele nu coincid.";
 "Resend Email" = "Retrimite emailul";
 "Send Reset Link" = "Trimite link";

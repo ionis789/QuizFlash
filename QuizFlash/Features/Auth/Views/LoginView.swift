@@ -19,6 +19,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var activeSheet: AuthSheet?
+    @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showAlert = false
     @State private var presentingViewController: UIViewController?
@@ -65,13 +66,21 @@ struct LoginView: View {
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.background)
             case .forgotPassword:
-                ForgotPasswordView(onError: presentError)
+                ForgotPasswordView(
+                    onSuccess: {
+                        presentNotice(
+                            title: AppLocalization.string("Email sent", locale: locale),
+                            message: AppLocalization.string("Password reset link sent.", locale: locale)
+                        )
+                    },
+                    onError: presentError
+                )
                     .presentationDetents([.height(300), .medium])
                     .presentationBackground(.background)
             }
         }
         .alert(
-            AppLocalization.string("Something went wrong", locale: locale),
+            alertTitle,
             isPresented: $showAlert
         ) {
             Button(AppLocalization.string("Done", locale: locale), role: .cancel) { }
@@ -81,131 +90,117 @@ struct LoginView: View {
     }
 
     private var loginForm: some View {
-        ScrollViewReader { proxy in
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    Spacer(minLength: keyboardMonitor.isVisible ? UIConstants.Spacing.small : UIConstants.Spacing.huge)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                Spacer(minLength: UIConstants.Spacing.huge)
 
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 46, weight: .heavy, design: .rounded))
-                            .foregroundStyle(themeManager.accentColor.color)
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 46, weight: .heavy, design: .rounded))
+                        .foregroundStyle(themeManager.accentColor.color)
 
-                        Text("QuizFlash")
-                            .font(.system(size: 40, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.primary)
+                    Text("QuizFlash")
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
 
-                        Text(AppLocalization.string("Welcome back", locale: locale))
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.medium : UIConstants.Spacing.large)
+                    Text(AppLocalization.string("Welcome back", locale: locale))
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, UIConstants.Spacing.large)
 
-                    VStack(spacing: UIConstants.Spacing.medium) {
-                        AuthIconTextField(
-                            title: AppLocalization.string("Email Address", locale: locale),
-                            icon: "envelope",
-                            text: $email
-                        )
-                        .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
+                VStack(spacing: UIConstants.Spacing.medium) {
+                    AuthIconTextField(
+                        title: AppLocalization.string("Email Address", locale: locale),
+                        icon: "envelope",
+                        text: $email
+                    )
+                    .keyboardType(.emailAddress)
+                    .textContentType(.emailAddress)
 
-                        AuthIconTextField(
-                            title: AppLocalization.string("Password", locale: locale),
-                            icon: "lock",
-                            isPassword: true,
-                            text: $password
-                        )
-                        .textContentType(.password)
-                    }
+                    AuthIconTextField(
+                        title: AppLocalization.string("Password", locale: locale),
+                        icon: "lock",
+                        isPassword: true,
+                        text: $password
+                    )
+                }
+
+                Button {
+                    activeSheet = .forgotPassword
+                } label: {
+                    Text(AppLocalization.string("Forgot Password?", locale: locale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .buttonStyle(.plain)
+
+                AuthAsyncButton(
+                    title: AppLocalization.string("Sign In", locale: locale),
+                    icon: "arrow.right",
+                    tint: themeManager.accentColor.color,
+                    isEnabled: canSignIn
+                ) {
+                    try await authManager.signIn(email: email, password: password)
+                } onError: { error in
+                    presentError(error)
+                }
+                .padding(.top, UIConstants.Spacing.small)
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(height: 1)
+
+                    Text(AppLocalization.string("or", locale: locale))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(height: 1)
+                }
+                .padding(.vertical, UIConstants.Spacing.small)
+
+                AuthAsyncButton(
+                    title: AppLocalization.string("Continue with Google", locale: locale),
+                    icon: "globe",
+                    tint: Color.primary.opacity(0.08),
+                    foreground: .primary
+                ) {
+                    try await authManager.signInWithGoogle(
+                        presentingViewController: presentingViewController
+                    )
+                } onError: { error in
+                    presentError(error)
+                }
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(AppLocalization.string("Don't have an account?", locale: locale))
+                        .foregroundStyle(.secondary)
 
                     Button {
-                        activeSheet = .forgotPassword
+                        activeSheet = .createAccount
                     } label: {
-                        Text(AppLocalization.string("Forgot Password?", locale: locale))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        Text(AppLocalization.string("Sign Up", locale: locale))
+                            .fontWeight(.semibold)
                     }
                     .buttonStyle(.plain)
-
-                    AuthAsyncButton(
-                        title: AppLocalization.string("Sign In", locale: locale),
-                        icon: "arrow.right",
-                        tint: themeManager.accentColor.color,
-                        isEnabled: canSignIn
-                    ) {
-                        try await authManager.signIn(email: email, password: password)
-                    } onError: { error in
-                        presentError(error)
-                    }
-                    .id("signInButton")
-                    .padding(.top, UIConstants.Spacing.small)
-
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Rectangle()
-                            .fill(Color.primary.opacity(0.10))
-                            .frame(height: 1)
-
-                        Text(AppLocalization.string("or", locale: locale))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Rectangle()
-                            .fill(Color.primary.opacity(0.10))
-                            .frame(height: 1)
-                    }
-                    .padding(.vertical, UIConstants.Spacing.small)
-
-                    AuthAsyncButton(
-                        title: AppLocalization.string("Continue with Google", locale: locale),
-                        icon: "globe",
-                        tint: Color.primary.opacity(0.08),
-                        foreground: .primary
-                    ) {
-                        try await authManager.signInWithGoogle(
-                            presentingViewController: presentingViewController
-                        )
-                    } onError: { error in
-                        presentError(error)
-                    }
-
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Text(AppLocalization.string("Don't have an account?", locale: locale))
-                            .foregroundStyle(.secondary)
-
-                        Button {
-                            activeSheet = .createAccount
-                        } label: {
-                            Text(AppLocalization.string("Sign Up", locale: locale))
-                                .fontWeight(.semibold)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(themeManager.accentColor.color)
-                    }
-                    .font(.callout)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, UIConstants.Spacing.small)
+                    .foregroundStyle(themeManager.accentColor.color)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.vertical, keyboardMonitor.isVisible ? UIConstants.Spacing.medium : UIConstants.Spacing.huge)
-                .frame(maxWidth: 460)
+                .font(.callout)
                 .frame(maxWidth: .infinity)
+                .padding(.top, UIConstants.Spacing.small)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear
-                    .frame(height: keyboardMonitor.isVisible ? UIConstants.Spacing.huge * 3 : 0)
-            }
-            .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
-                guard isVisible else { return }
-                withAnimation(.easeOut(duration: keyboardMonitor.animationDuration)) {
-                    proxy.scrollTo("signInButton", anchor: .bottom)
-                }
-            }
-            .animation(.easeOut(duration: keyboardMonitor.animationDuration), value: keyboardMonitor.isVisible)
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.top, UIConstants.Spacing.huge)
+            .padding(.bottom, UIConstants.Spacing.huge * 3)
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var canSignIn: Bool {
@@ -214,7 +209,14 @@ struct LoginView: View {
     }
 
     private func presentError(_ error: Error) {
+        alertTitle = AppLocalization.string("Something went wrong", locale: locale)
         alertMessage = localizedError(error)
+        showAlert = true
+    }
+
+    private func presentNotice(title: String, message: String) {
+        alertTitle = title
+        alertMessage = message
         showAlert = true
     }
 
@@ -282,7 +284,6 @@ private struct CreateAccountView: View {
                         isPassword: true,
                         text: $password
                     )
-                    .textContentType(.password)
 
                     AuthIconTextField(
                         title: AppLocalization.string("Confirm Password", locale: locale),
@@ -290,7 +291,6 @@ private struct CreateAccountView: View {
                         isPassword: true,
                         text: $passwordConfirmation
                     )
-                    .textContentType(.password)
                 }
 
                 AuthAsyncButton(
@@ -312,12 +312,11 @@ private struct CreateAccountView: View {
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.extraLarge)
-            .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.huge * 3 : UIConstants.Spacing.large)
+            .padding(.bottom, UIConstants.Spacing.huge * 3)
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
-        .animation(.easeOut(duration: keyboardMonitor.animationDuration), value: keyboardMonitor.isVisible)
     }
 
     private var canCreateAccount: Bool {
@@ -338,6 +337,7 @@ private struct ForgotPasswordView: View {
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var email = ""
 
+    let onSuccess: @MainActor @Sendable () -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
     private var locale: Locale {
@@ -372,18 +372,19 @@ private struct ForgotPasswordView: View {
                 ) {
                     try await authManager.sendPasswordReset(email: email)
                     dismiss()
+                    try? await Task.sleep(for: .milliseconds(250))
+                    onSuccess()
                 } onError: { error in
                     onError(error)
                 }
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.extraLarge)
-            .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.huge * 3 : UIConstants.Spacing.large)
+            .padding(.bottom, UIConstants.Spacing.huge * 2)
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
-        .animation(.easeOut(duration: keyboardMonitor.animationDuration), value: keyboardMonitor.isVisible)
     }
 }
 

@@ -683,11 +683,13 @@
 "Delete Account" = "Удалить аккаунт";
 "Don't have an account?" = "Нет аккаунта?";
 "Email Address" = "Email";
+"Email sent" = "Email отправлен";
 "Forgot Password?" = "Забыли пароль?";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "No signed-in user was found." = "Пользователь не найден.";
 "or" = "или";
 "Password" = "Пароль";
+"Password reset link sent." = "Ссылка для сброса пароля отправлена.";
 "Passwords do not match." = "Пароли не совпадают.";
 "Resend Email" = "Отправить снова";
 "Send Reset Link" = "Отправить ссылку";

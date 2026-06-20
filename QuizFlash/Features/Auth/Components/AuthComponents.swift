@@ -25,7 +25,7 @@ struct AuthIconTextField: View {
 
             Group {
                 if isPassword {
-                    SecureField(title, text: $text)
+                    AuthSecureTextField(title: title, text: $text)
                 } else {
                     TextField(title, text: $text)
                 }
@@ -39,6 +39,64 @@ struct AuthIconTextField: View {
         .overlay {
             Capsule()
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        }
+    }
+}
+
+// MARK: - Auth Secure Text Field
+
+private struct AuthSecureTextField: UIViewRepresentable {
+    let title: String
+    @Binding var text: String
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.delegate = context.coordinator
+        textField.borderStyle = .none
+        textField.backgroundColor = .clear
+        textField.textColor = .label
+        textField.tintColor = .label
+        textField.font = .preferredFont(forTextStyle: .body)
+        textField.adjustsFontForContentSizeCategory = true
+        textField.isSecureTextEntry = true
+        textField.textContentType = nil
+        textField.passwordRules = nil
+        textField.autocorrectionType = .no
+        textField.autocapitalizationType = .none
+        textField.spellCheckingType = .no
+        textField.smartDashesType = .no
+        textField.smartQuotesType = .no
+        textField.smartInsertDeleteType = .no
+        textField.clearButtonMode = .never
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textDidChange(_:)),
+            for: .editingChanged
+        )
+        return textField
+    }
+
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+        uiView.placeholder = title
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        @Binding private var text: String
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        @objc func textDidChange(_ textField: UITextField) {
+            text = textField.text ?? ""
         }
     }
 }
