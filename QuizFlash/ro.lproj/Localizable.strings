@@ -685,6 +685,7 @@
 "Email Address" = "Adresă de email";
 "Email sent" = "Email trimis";
 "Forgot Password?" = "Ai uitat parola?";
+"Generate Password" = "Generează parola";
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
 "No signed-in user was found." = "Nu s-a găsit niciun utilizator conectat.";
 "or" = "sau";

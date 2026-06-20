@@ -16,7 +16,7 @@ struct AuthIconTextField: View {
     let title: String
     let icon: String
     var isPassword = false
-    var passwordTextContentType: UITextContentType = .password
+    var passwordTextContentType: UITextContentType? = .password
     @Binding var text: String
 
     @State private var isPasswordVisible = false

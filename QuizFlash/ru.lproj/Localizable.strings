@@ -685,6 +685,7 @@
 "Email Address" = "Email";
 "Email sent" = "Email отправлен";
 "Forgot Password?" = "Забыли пароль?";
+"Generate Password" = "Сгенерировать пароль";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "No signed-in user was found." = "Пользователь не найден.";
 "or" = "или";
