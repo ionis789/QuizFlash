@@ -96,6 +96,10 @@ private struct QuizModeSessionView: View {
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
     private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
+    private var questionContentHiddenScale: CGFloat { 0.952 }
+    private var questionContentTransition: Animation {
+        .spring(response: 0.36, dampingFraction: 0.84)
+    }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
     }
@@ -347,6 +351,8 @@ private struct QuizModeSessionView: View {
             if let currentCard = viewModel.currentCard {
                 questionFlow(for: currentCard, safeBottomInset: safeBottomInset)
                     .opacity(isQuestionContentVisible ? 1 : 0.001)
+                    .scaleEffect(isQuestionContentVisible ? 1 : questionContentHiddenScale)
+                    .animation(questionContentTransition, value: isQuestionContentVisible)
             } else {
                 centeredMessageCard(
                     icon: "questionmark.circle",
@@ -1220,12 +1226,14 @@ private struct QuizModeSessionView: View {
         showsExplanationSheet = false
 
         questionTransitionTask = Task { @MainActor in
-            setQuestionContentVisible(false)
+            withAnimation(questionContentTransition) {
+                isQuestionContentVisible = false
+            }
             withBottomChromeAnimation {
                 areFloatingControlsVisible = false
             }
 
-            try? await Task.sleep(nanoseconds: 35_000_000)
+            try? await Task.sleep(nanoseconds: 160_000_000)
             guard !Task.isCancelled else { return }
 
             viewModel.advance()
@@ -1233,12 +1241,14 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            setQuestionContentVisible(true)
+            withAnimation(questionContentTransition) {
+                isQuestionContentVisible = true
+            }
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
 
-            try? await Task.sleep(nanoseconds: 35_000_000)
+            try? await Task.sleep(nanoseconds: 320_000_000)
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
@@ -1259,20 +1269,14 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            setQuestionContentVisible(true)
+            withAnimation(questionContentTransition) {
+                isQuestionContentVisible = true
+            }
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
 
             questionTransitionTask = nil
-        }
-    }
-
-    private func setQuestionContentVisible(_ isVisible: Bool) {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            isQuestionContentVisible = isVisible
         }
     }
 }
