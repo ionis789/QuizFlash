@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import GoogleSignIn
 import UIKit
 
 // MARK: - Login View
@@ -209,6 +210,8 @@ struct LoginView: View {
     }
 
     private func presentError(_ error: Error) {
+        guard !isUserCancelledSignIn(error) else { return }
+
         alertTitle = AppLocalization.string("Something went wrong", locale: locale)
         alertMessage = localizedError(error)
         showAlert = true
@@ -226,6 +229,12 @@ struct LoginView: View {
         }
 
         return error.localizedDescription
+    }
+
+    private func isUserCancelledSignIn(_ error: Error) -> Bool {
+        let error = error as NSError
+        return error.domain == kGIDSignInErrorDomain
+            && error.code == GIDSignInError.canceled.rawValue
     }
 }
 

@@ -53,12 +53,10 @@ private struct AuthSecureTextField: UIViewRepresentable {
     @Binding var text: String
 
     func makeUIView(context: Context) -> AuthSecureTextFieldContainer {
-        let textField = UITextField()
+        let textField = AuthSecureUITextField()
         textField.delegate = context.coordinator
         textField.borderStyle = .none
         textField.backgroundColor = .clear
-        textField.textColor = .black
-        textField.tintColor = .label
         textField.font = .preferredFont(forTextStyle: .body)
         textField.adjustsFontForContentSizeCategory = true
         textField.isSecureTextEntry = true
@@ -77,6 +75,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
             action: #selector(Coordinator.textDidChange(_:)),
             for: .editingChanged
         )
+        Self.applyDisplayStyle(to: textField, placeholder: title)
 
         let container = AuthSecureTextFieldContainer()
         container.install(textField: textField)
@@ -87,12 +86,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
         if uiView.textField.text != text {
             uiView.textField.text = text
         }
-        uiView.textField.attributedPlaceholder = NSAttributedString(
-            string: title,
-            attributes: [
-                .foregroundColor: UIColor.secondaryLabel
-            ]
-        )
+        Self.applyDisplayStyle(to: uiView.textField, placeholder: title)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -107,8 +101,39 @@ private struct AuthSecureTextField: UIViewRepresentable {
         }
 
         @objc func textDidChange(_ textField: UITextField) {
+            AuthSecureTextField.applyDisplayStyle(to: textField)
             text = textField.text ?? ""
         }
+    }
+
+    fileprivate static func applyDisplayStyle(to textField: UITextField, placeholder: String? = nil) {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.black
+        ]
+
+        textField.font = font
+        textField.textColor = .black
+        textField.tintColor = .label
+        textField.defaultTextAttributes = textAttributes
+        textField.typingAttributes = textAttributes
+
+        if let placeholder {
+            textField.attributedPlaceholder = NSAttributedString(
+                string: placeholder,
+                attributes: [
+                    .foregroundColor: UIColor.secondaryLabel
+                ]
+            )
+        }
+    }
+}
+
+private final class AuthSecureUITextField: UITextField {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        AuthSecureTextField.applyDisplayStyle(to: self)
     }
 }
 
