@@ -47,7 +47,7 @@ struct CardPreviewModeView: View {
     }
     private var quizPreviewTextScale: CGFloat { CGFloat(textSize.playModeScale) }
     private var quizContentHorizontalPadding: CGFloat { 8 }
-    private var quizContentTopPadding: CGFloat { 12 }
+    private var quizContentTopPadding: CGFloat { 44 }
     private var quizContentBottomPadding: CGFloat { 12 }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {

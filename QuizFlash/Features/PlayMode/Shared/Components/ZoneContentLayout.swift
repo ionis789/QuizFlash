@@ -1323,8 +1323,10 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private var shouldRenderZoneBlockSurface: Bool {
-        showsZoneSurfaces
-            && appPreferences.zoneSurfaceStyle.showsZoneSurfaces
+        let hasBorderOnlyHighlight = usesBorderOnlyZoneHighlights && zone.highlightColor != .none
+
+        return showsZoneSurfaces
+            && (appPreferences.zoneSurfaceStyle.showsZoneSurfaces || hasBorderOnlyHighlight)
             && (!rendersCodeBlock || showsCodeBlockZoneSurfaces || zone.highlightColor != .none)
     }
 
