@@ -947,9 +947,18 @@ struct QuizCardEditorView: View {
             let availableWidth = renderedContentWidths[target].map(debugValue) ?? "pending"
             let rawAlignment = content.rootZone.blockAlignment.rawValue
             let resolvedAlignment = resolvedRenderedAlignment(for: content.rootZone).rawValue
-            return "target=\(debugTargetID(target)) root=\(shortDebugID(content.rootZone.id)) rawAlignment=\(rawAlignment) resolvedAlignment=\(resolvedAlignment) availableWidth=\(availableWidth) rootFrame=\(frame) textPadding=h\(debugValue(ZoneContentMetrics.textHorizontalPadding)) v\(debugValue(ZoneContentMetrics.textVerticalPadding))"
+            let padding = renderedTextPadding(for: target)
+            return "target=\(debugTargetID(target)) root=\(shortDebugID(content.rootZone.id)) rawAlignment=\(rawAlignment) resolvedAlignment=\(resolvedAlignment) availableWidth=\(availableWidth) rootFrame=\(frame) textPadding=h\(debugValue(padding.horizontal)) v\(debugValue(padding.vertical))"
         }
         .joined(separator: "\n")
+    }
+
+    private func renderedTextPadding(for target: QuizEditorTarget) -> (horizontal: CGFloat, vertical: CGFloat) {
+        if case .question = target {
+            return (0, 0)
+        }
+
+        return (ZoneContentMetrics.textHorizontalPadding, ZoneContentMetrics.textVerticalPadding)
     }
 
     private var closeTopButton: some View {
@@ -1006,6 +1015,8 @@ struct QuizCardEditorView: View {
                 alignmentFeedback: renderedAlignmentFeedback(for: target),
                 fontScale: editorTextScale,
                 availableWidth: availableWidth,
+                textVerticalPadding: 0,
+                textHorizontalPaddingOverride: 0,
                 alignLeftLabel: localized("Align Left"),
                 alignRightLabel: localized("Align Right"),
                 onSelect: {
@@ -3094,6 +3105,8 @@ private struct QuizRenderedZoneCard: View {
     let alignmentFeedback: ZoneAlignmentFeedback
     let fontScale: CGFloat
     let availableWidth: CGFloat
+    var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
+    var textHorizontalPaddingOverride: CGFloat? = nil
     let alignLeftLabel: String
     let alignRightLabel: String
     let onSelect: () -> Void
@@ -3111,6 +3124,8 @@ private struct QuizRenderedZoneCard: View {
                 centersLeafBlocks: true,
                 showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: false,
                 leafTapBehavior: .all,

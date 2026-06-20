@@ -379,6 +379,8 @@ private struct QuizModeSessionView: View {
                         centersLeafBlocks: true,
                         alignLeafBlocksToGroupLeading: false,
                         showsZoneSurfaces: false,
+                        textVerticalPadding: 0,
+                        textHorizontalPaddingOverride: 0,
                         showsLayoutDebug: showsQuizLayoutDebug,
                         onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
                         onBlockBoundsChange: updateQuestionBlockDebugBounds
