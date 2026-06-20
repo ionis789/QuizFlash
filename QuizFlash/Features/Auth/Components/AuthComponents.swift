@@ -26,6 +26,7 @@ struct AuthIconTextField: View {
             Group {
                 if isPassword {
                     AuthSecureTextField(title: title, text: $text)
+                        .frame(height: AuthSecureTextField.highlightHeight)
                 } else {
                     TextField(title, text: $text)
                 }
@@ -46,15 +47,17 @@ struct AuthIconTextField: View {
 // MARK: - Auth Secure Text Field
 
 private struct AuthSecureTextField: UIViewRepresentable {
+    static let highlightHeight: CGFloat = 28
+
     let title: String
     @Binding var text: String
 
-    func makeUIView(context: Context) -> UITextField {
+    func makeUIView(context: Context) -> AuthSecureTextFieldContainer {
         let textField = UITextField()
         textField.delegate = context.coordinator
         textField.borderStyle = .none
         textField.backgroundColor = .clear
-        textField.textColor = .label
+        textField.textColor = .black
         textField.tintColor = .label
         textField.font = .preferredFont(forTextStyle: .body)
         textField.adjustsFontForContentSizeCategory = true
@@ -74,14 +77,22 @@ private struct AuthSecureTextField: UIViewRepresentable {
             action: #selector(Coordinator.textDidChange(_:)),
             for: .editingChanged
         )
-        return textField
+
+        let container = AuthSecureTextFieldContainer()
+        container.install(textField: textField)
+        return container
     }
 
-    func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
+    func updateUIView(_ uiView: AuthSecureTextFieldContainer, context: Context) {
+        if uiView.textField.text != text {
+            uiView.textField.text = text
         }
-        uiView.placeholder = title
+        uiView.textField.attributedPlaceholder = NSAttributedString(
+            string: title,
+            attributes: [
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -98,6 +109,25 @@ private struct AuthSecureTextField: UIViewRepresentable {
         @objc func textDidChange(_ textField: UITextField) {
             text = textField.text ?? ""
         }
+    }
+}
+
+private final class AuthSecureTextFieldContainer: UIView {
+    private(set) var textField = UITextField()
+
+    func install(textField: UITextField) {
+        self.textField.removeFromSuperview()
+        self.textField = textField
+
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(textField)
+
+        NSLayoutConstraint.activate([
+            textField.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textField.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textField.centerYAnchor.constraint(equalTo: centerYAnchor),
+            textField.heightAnchor.constraint(equalToConstant: AuthSecureTextField.highlightHeight)
+        ])
     }
 }
 
