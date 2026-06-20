@@ -96,8 +96,6 @@ private struct QuizModeSessionView: View {
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
     private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
-    private var questionContentHiddenScale: CGFloat { 1 }
-    private var questionContentFade: Animation { .easeInOut(duration: 0.16) }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
     }
@@ -349,8 +347,6 @@ private struct QuizModeSessionView: View {
             if let currentCard = viewModel.currentCard {
                 questionFlow(for: currentCard, safeBottomInset: safeBottomInset)
                     .opacity(isQuestionContentVisible ? 1 : 0.001)
-                    .scaleEffect(isQuestionContentVisible ? 1 : questionContentHiddenScale)
-                    .animation(questionContentFade, value: isQuestionContentVisible)
             } else {
                 centeredMessageCard(
                     icon: "questionmark.circle",
@@ -1224,14 +1220,12 @@ private struct QuizModeSessionView: View {
         showsExplanationSheet = false
 
         questionTransitionTask = Task { @MainActor in
-            withAnimation(questionContentFade) {
-                isQuestionContentVisible = false
-            }
+            setQuestionContentVisible(false)
             withBottomChromeAnimation {
                 areFloatingControlsVisible = false
             }
 
-            try? await Task.sleep(nanoseconds: 160_000_000)
+            try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
             viewModel.advance()
@@ -1239,14 +1233,12 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            withAnimation(questionContentFade) {
-                isQuestionContentVisible = true
-            }
+            setQuestionContentVisible(true)
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
 
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
@@ -1267,14 +1259,20 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            withAnimation(questionContentFade) {
-                isQuestionContentVisible = true
-            }
+            setQuestionContentVisible(true)
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
 
             questionTransitionTask = nil
+        }
+    }
+
+    private func setQuestionContentVisible(_ isVisible: Bool) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            isQuestionContentVisible = isVisible
         }
     }
 }
@@ -1466,6 +1464,7 @@ private struct QuizChoiceRow: View {
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
     @State private var tappableZoneFrame: CGRect = .zero
+    @State private var wrongWiggleOffset: CGFloat = 0
     @State private var wrongScale: CGFloat = 1
     @State private var correctFeedbackAnimationTrigger = 0
 
@@ -1526,10 +1525,12 @@ private struct QuizChoiceRow: View {
                 }
         )
         .opacity(isEvaluated || isSelected ? 1 : 0.98)
+        .offset(x: wrongWiggleOffset)
         .scaleEffect(wrongFeedback ? wrongScale : 1, anchor: .center)
         .zIndex(correctFeedback ? 1 : 0)
         .onChange(of: wrongFeedback) { _, isActive in
             if !isActive {
+                wrongWiggleOffset = 0
                 wrongScale = 1
             }
         }
@@ -1654,8 +1655,12 @@ private struct QuizChoiceRow: View {
     }
 
     private func runWrongFeedbackSequence() {
+        wrongWiggleOffset = 0
         withAnimation(.easeOut(duration: 0.16)) {
             wrongScale = 0.96
+        }
+        withAnimation(.linear(duration: 0.055).repeatCount(3, autoreverses: true)) {
+            wrongWiggleOffset = 6
         }
     }
 
