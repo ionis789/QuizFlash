@@ -16,7 +16,6 @@ struct LoginView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
-    @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var email = ""
     @State private var password = ""
     @State private var activeSheet: AuthSheet?
@@ -53,7 +52,6 @@ struct LoginView: View {
                 loginForm
             }
         }
-        .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
         .background {
             AuthPresentingViewControllerReader { controller in
                 presentingViewController = controller
@@ -201,7 +199,7 @@ struct LoginView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.never)
     }
 
     private var canSignIn: Bool {
@@ -260,7 +258,6 @@ private struct CreateAccountView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var email = ""
     @State private var password = ""
     @State private var passwordConfirmation = ""
@@ -324,8 +321,7 @@ private struct CreateAccountView: View {
             .padding(.bottom, UIConstants.Spacing.huge * 3)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
-        .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
+        .scrollDismissesKeyboard(.never)
     }
 
     private var canCreateAccount: Bool {
@@ -343,7 +339,6 @@ private struct ForgotPasswordView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var email = ""
 
     let onSuccess: @MainActor @Sendable () -> Void
@@ -392,8 +387,7 @@ private struct ForgotPasswordView: View {
             .padding(.bottom, UIConstants.Spacing.huge * 2)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
-        .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
+        .scrollDismissesKeyboard(.never)
     }
 }
 

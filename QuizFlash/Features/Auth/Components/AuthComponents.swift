@@ -11,11 +11,15 @@ import UIKit
 // MARK: - Auth Icon Text Field
 
 struct AuthIconTextField: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let title: String
     let icon: String
     var isPassword = false
     var passwordTextContentType: UITextContentType = .password
     @Binding var text: String
+
+    @State private var isPasswordVisible = false
 
     var body: some View {
         HStack(spacing: UIConstants.Spacing.small) {
@@ -29,6 +33,7 @@ struct AuthIconTextField: View {
                     AuthSecureTextField(
                         title: title,
                         textContentType: passwordTextContentType,
+                        isTextVisible: isPasswordVisible,
                         text: $text
                     )
                         .frame(height: AuthSecureTextField.highlightHeight)
@@ -38,6 +43,19 @@ struct AuthIconTextField: View {
             }
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+
+            if isPassword {
+                Button {
+                    isPasswordVisible.toggle()
+                } label: {
+                    Text(passwordVisibilityTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, alignment: .trailing)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(passwordVisibilityTitle)
+            }
         }
         .padding(.horizontal, UIConstants.Spacing.standard)
         .frame(height: UIConstants.Size.buttonHeight)
@@ -46,6 +64,11 @@ struct AuthIconTextField: View {
             Capsule()
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         }
+    }
+
+    private var passwordVisibilityTitle: String {
+        let key = isPasswordVisible ? "Hide" : "Show"
+        return AppLocalization.string(key, locale: appPreferences.resolvedLocale)
     }
 }
 
@@ -56,6 +79,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
 
     let title: String
     let textContentType: UITextContentType
+    let isTextVisible: Bool
     @Binding var text: String
 
     func makeUIView(context: Context) -> AuthSecureTextFieldContainer {
@@ -65,7 +89,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
         textField.backgroundColor = .clear
         textField.font = .preferredFont(forTextStyle: .body)
         textField.adjustsFontForContentSizeCategory = true
-        textField.isSecureTextEntry = true
+        textField.isSecureTextEntry = !isTextVisible
         textField.textContentType = textContentType
         textField.passwordRules = nil
         textField.autocorrectionType = .no
@@ -95,6 +119,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
         if uiView.textField.textContentType != textContentType {
             uiView.textField.textContentType = textContentType
         }
+        uiView.textField.setSecureEntry(!isTextVisible)
         Self.applyDisplayStyle(to: uiView.textField, placeholder: title)
     }
 
@@ -176,6 +201,21 @@ private struct AuthSecureTextField: UIViewRepresentable {
 }
 
 private final class AuthSecureUITextField: UITextField { }
+
+private extension UITextField {
+    func setSecureEntry(_ secure: Bool) {
+        guard isSecureTextEntry != secure else { return }
+
+        let wasFirstResponder = isFirstResponder
+        let selectedRange = selectedTextRange
+        isSecureTextEntry = secure
+
+        if wasFirstResponder {
+            becomeFirstResponder()
+            selectedTextRange = selectedRange
+        }
+    }
+}
 
 private extension UITextField {
     func textAttributesMatch(_ expected: [NSAttributedString.Key: Any], key: NSAttributedString.Key) -> Bool {
