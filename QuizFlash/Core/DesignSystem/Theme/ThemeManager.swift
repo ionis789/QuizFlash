@@ -534,7 +534,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
         case .tabSelectionFill: .surfaceSecondary
         case .tabSelectionForeground: .brandPrimary
         case .tabUnselectedForeground: .textPrimary
-        case .circularToolbarFill: .brandStrong
+        case .circularToolbarFill: .surfaceSecondary
         case .circularToolbarForeground: .brandPrimary
         case .backButtonForeground: .brandPrimary
         }
@@ -867,6 +867,11 @@ final class ThemeManager {
 
         if roleOverrideTokenNames[ThemeColorRole.screenBackgroundGrouped.rawValue] == ThemeColorToken.backgroundSecondary.rawValue {
             roleOverrideTokenNames[ThemeColorRole.screenBackgroundGrouped.rawValue] = ThemeColorToken.backgroundPrimary.rawValue
+            didChange = true
+        }
+
+        if roleOverrideTokenNames[ThemeColorRole.circularToolbarFill.rawValue] == ThemeColorToken.brandStrong.rawValue {
+            roleOverrideTokenNames[ThemeColorRole.circularToolbarFill.rawValue] = ThemeColorToken.surfaceSecondary.rawValue
             didChange = true
         }
 

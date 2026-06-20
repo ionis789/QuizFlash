@@ -1887,20 +1887,11 @@ private struct PlayModeDeveloperSwipePanel: View {
     }
 
     private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.system(size: 13, weight: .black))
-                .foregroundStyle(.primary)
-                .frame(width: 34, height: 34)
-                .background(Color.white.opacity(0.08), in: Circle())
-                .overlay {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .accessibilityLabel("Close debug panel")
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: "Close debug panel",
+            action: onClose
+        )
     }
 
     private func debugChip(_ title: String, tint: Color) -> some View {
@@ -2099,14 +2090,11 @@ private struct PlayModeDeveloperSwipeOverlayHUD: View {
 
                 Spacer(minLength: 0)
 
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(.primary)
-                        .frame(width: 24, height: 24)
-                        .background(Color.white.opacity(0.08), in: Circle())
-                }
-                .buttonStyle(.plain)
+                ChromeSoftCircleSymbolButton(
+                    systemName: "xmark",
+                    accessibilityLabel: "Close swipe HUD",
+                    action: onClose
+                )
             }
 
             HStack(spacing: 8) {

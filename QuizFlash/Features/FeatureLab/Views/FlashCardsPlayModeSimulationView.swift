@@ -216,14 +216,11 @@ struct FlashCardsPlayModeSimulationView: View {
             }
             .buttonStyle(.plain)
 
-            Button(action: dismiss.callAsFunction) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(.primary)
-                    .frame(width: chromeButtonSize, height: chromeButtonSize)
-            }
-            .buttonStyle(.plain)
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: "Close",
+                action: dismiss.callAsFunction
+            )
         }
         .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
         .padding(.horizontal, playSurfaceHorizontalPadding)
@@ -1252,19 +1249,11 @@ private struct FlashCardsPlayModeSimulationControlPanel: View {
     }
 
     private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.system(size: 13, weight: .black))
-                .foregroundStyle(.primary)
-                .frame(width: 34, height: 34)
-                .background(Color.white.opacity(0.08), in: Circle())
-                .overlay {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: "Close debug panel",
+            action: onClose
+        )
     }
 
     private func statBadge(_ label: String, tint: Color) -> some View {
@@ -1330,14 +1319,11 @@ private struct FlashCardsPlayModeSimulationSwipeHUD: View {
 
                 Spacer(minLength: 0)
 
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(.primary)
-                        .frame(width: 24, height: 24)
-                        .background(Color.white.opacity(0.08), in: Circle())
-                }
-                .buttonStyle(.plain)
+                ChromeSoftCircleSymbolButton(
+                    systemName: "xmark",
+                    accessibilityLabel: "Close swipe HUD",
+                    action: onClose
+                )
             }
 
             HStack(spacing: 8) {
