@@ -687,6 +687,7 @@
 "Don't have an account?" = "Nu ai cont?";
 "Email Address" = "Adresă de email";
 "Email sent" = "Email trimis";
+"Email verified" = "Email verificat";
 "Forgot Password?" = "Ai uitat parola?";
 "Generate Password" = "Generează parola";
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
@@ -695,6 +696,7 @@
 "No signed-in user was found." = "Nu s-a găsit niciun utilizator conectat.";
 "No account was found for this email." = "Nu există niciun cont pentru acest email.";
 "or" = "sau";
+"Opening QuizFlash" = "Se deschide QuizFlash";
 "Password" = "Parolă";
 "Password reset link sent." = "Linkul de resetare a fost trimis.";
 "Passwords do not match." = "Parolele nu coincid.";
@@ -719,6 +721,7 @@
 "Too many attempts. Please wait a bit and try again." = "Prea multe încercări. Așteaptă puțin și încearcă din nou.";
 "Use a stronger password." = "Folosește o parolă mai puternică.";
 "We'll send a reset link." = "Îți trimitem un link de resetare.";
+"You're all set." = "Totul este pregătit.";
 "We could not finish Google sign-in. Please try again." = "Nu am putut finaliza conectarea cu Google. Încearcă din nou.";
 "We could not finish sign-in. Please try again." = "Nu am putut finaliza autentificarea. Încearcă din nou.";
 "Welcome back" = "Bine ai revenit";

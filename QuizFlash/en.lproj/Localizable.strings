@@ -687,6 +687,7 @@
 "Don't have an account?" = "Don't have an account?";
 "Email Address" = "Email Address";
 "Email sent" = "Email sent";
+"Email verified" = "Email verified";
 "Forgot Password?" = "Forgot Password?";
 "Generate Password" = "Generate Password";
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
@@ -695,6 +696,7 @@
 "No signed-in user was found." = "No signed-in user was found.";
 "No account was found for this email." = "No account was found for this email.";
 "or" = "or";
+"Opening QuizFlash" = "Opening QuizFlash";
 "Password" = "Password";
 "Password reset link sent." = "Password reset link sent.";
 "Passwords do not match." = "Passwords do not match.";
@@ -719,6 +721,7 @@
 "Too many attempts. Please wait a bit and try again." = "Too many attempts. Please wait a bit and try again.";
 "Use a stronger password." = "Use a stronger password.";
 "We'll send a reset link." = "We'll send a reset link.";
+"You're all set." = "You're all set.";
 "We could not finish Google sign-in. Please try again." = "We could not finish Google sign-in. Please try again.";
 "We could not finish sign-in. Please try again." = "We could not finish sign-in. Please try again.";
 "Welcome back" = "Welcome back";

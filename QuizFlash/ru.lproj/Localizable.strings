@@ -687,6 +687,7 @@
 "Don't have an account?" = "Нет аккаунта?";
 "Email Address" = "Email";
 "Email sent" = "Email отправлен";
+"Email verified" = "Email подтвержден";
 "Forgot Password?" = "Забыли пароль?";
 "Generate Password" = "Сгенерировать пароль";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
@@ -695,6 +696,7 @@
 "No signed-in user was found." = "Пользователь не найден.";
 "No account was found for this email." = "Аккаунт с этим email не найден.";
 "or" = "или";
+"Opening QuizFlash" = "Открываем QuizFlash";
 "Password" = "Пароль";
 "Password reset link sent." = "Ссылка для сброса пароля отправлена.";
 "Passwords do not match." = "Пароли не совпадают.";
@@ -719,6 +721,7 @@
 "Too many attempts. Please wait a bit and try again." = "Слишком много попыток. Подождите немного и попробуйте снова.";
 "Use a stronger password." = "Используйте более надежный пароль.";
 "We'll send a reset link." = "Мы отправим ссылку для сброса.";
+"You're all set." = "Все готово.";
 "We could not finish Google sign-in. Please try again." = "Не удалось завершить вход через Google. Попробуйте снова.";
 "We could not finish sign-in. Please try again." = "Не удалось завершить вход. Попробуйте снова.";
 "Welcome back" = "С возвращением";

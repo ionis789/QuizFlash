@@ -58,12 +58,20 @@ struct LoginView: View {
                     },
                     onError: presentError
                 )
+            case .emailVerificationSucceeded(let user):
+                EmailVerificationSuccessView(
+                    user: user,
+                    onContinue: {
+                        authManager.completeEmailVerificationSuccess()
+                    }
+                )
             case .checking:
                 ProgressActivityDots(color: themeManager.accentColor.color)
             case .signedOut, .signedIn:
                 loginForm
             }
         }
+        .animation(.easeInOut(duration: 0.32), value: authManager.sessionState)
         .background {
             AuthPresentingViewControllerReader { controller in
                 presentingViewController = controller
@@ -437,6 +445,78 @@ private struct ForgotPasswordView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.never)
         .dismissKeyboardOnBackgroundTap()
+    }
+}
+
+// MARK: - Email Verification Success View
+
+private struct EmailVerificationSuccessView: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    let user: AuthUserSnapshot
+    let onContinue: @MainActor @Sendable () -> Void
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    var body: some View {
+        VStack(spacing: UIConstants.Spacing.large) {
+            Spacer(minLength: 0)
+
+            ZStack {
+                Circle()
+                    .fill(themeManager.accentColor.color.opacity(0.18))
+                    .frame(width: 112, height: 112)
+
+                Image(systemName: "checkmark")
+                    .font(.system(size: 54, weight: .heavy, design: .rounded))
+                    .foregroundStyle(themeManager.accentColor.color)
+            }
+
+            VStack(spacing: UIConstants.Spacing.small) {
+                Text(AppLocalization.string("Email verified", locale: locale))
+                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text(AppLocalization.string("You're all set.", locale: locale))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                if let email = user.email {
+                    Text(email)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.secondary.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                        .padding(.top, UIConstants.Spacing.small)
+                }
+            }
+
+            HStack(spacing: UIConstants.Spacing.medium) {
+                Text(AppLocalization.string("Opening QuizFlash", locale: locale))
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ProgressActivityDots(color: themeManager.accentColor.color)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: UIConstants.Size.buttonHeight)
+            .background(Color.primary.opacity(0.06), in: Capsule())
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .frame(maxWidth: 440)
+        .transition(.opacity.combined(with: .scale(scale: 0.94)))
+        .task(id: user.uid) {
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled else { return }
+            onContinue()
+        }
     }
 }
 

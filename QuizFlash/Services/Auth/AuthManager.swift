@@ -44,6 +44,7 @@ enum AuthSessionState: Equatable, Sendable {
     case signedOut
     case signedIn(AuthUserSnapshot)
     case emailVerificationRequired(AuthUserSnapshot)
+    case emailVerificationSucceeded(AuthUserSnapshot)
 }
 
 // MARK: - Auth Provider ID
@@ -143,7 +144,7 @@ final class AuthManager {
         switch sessionState {
         case .checking, .signedOut:
             nil
-        case .signedIn(let user), .emailVerificationRequired(let user):
+        case .signedIn(let user), .emailVerificationRequired(let user), .emailVerificationSucceeded(let user):
             user
         }
     }
@@ -228,6 +229,12 @@ final class AuthManager {
         apply(user)
     }
 
+    func completeEmailVerificationSuccess() {
+        if case .emailVerificationSucceeded(let user) = sessionState {
+            sessionState = .signedIn(user)
+        }
+    }
+
     func signInWithGoogle(presentingViewController: UIViewController?) async throws {
         guard let presentingViewController else {
             throw AuthManagerError.missingPresenter
@@ -263,9 +270,26 @@ final class AuthManager {
             return
         }
 
-        sessionState = user.requiresEmailVerification
-            ? .emailVerificationRequired(user)
-            : .signedIn(user)
+        if user.requiresEmailVerification {
+            sessionState = .emailVerificationRequired(user)
+            return
+        }
+
+        let wasWaitingForSameEmailUser: Bool = {
+            switch sessionState {
+            case .emailVerificationRequired(let previousUser),
+                 .emailVerificationSucceeded(let previousUser):
+                return previousUser.uid == user.uid
+            default:
+                return false
+            }
+        }()
+
+        if wasWaitingForSameEmailUser {
+            sessionState = .emailVerificationSucceeded(user)
+        } else {
+            sessionState = .signedIn(user)
+        }
     }
 
     private var authProvider: AuthProviding {

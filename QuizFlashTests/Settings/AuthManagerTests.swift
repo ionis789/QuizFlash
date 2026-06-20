@@ -104,15 +104,29 @@ final class AuthManagerTests: XCTestCase {
         }
     }
 
-    func testReloadPromotesVerifiedEmailUser() async throws {
-        let provider = MockAuthProvider(currentUser: AuthUserSnapshot.unverifiedPasswordUser)
-        provider.reloadResult = .verifiedPasswordUser
+    func testReloadShowsEmailVerificationSuccessBeforeSigningIn() async throws {
+        let unverifiedUser = AuthUserSnapshot.unverifiedPasswordUser
+        let verifiedUser = AuthUserSnapshot(
+            uid: unverifiedUser.uid,
+            email: unverifiedUser.email,
+            displayName: unverifiedUser.displayName,
+            photoURLString: unverifiedUser.photoURLString,
+            providers: unverifiedUser.providers,
+            isEmailVerified: true
+        )
+        let provider = MockAuthProvider(currentUser: unverifiedUser)
+        provider.reloadResult = verifiedUser
         let manager = AuthManager(authProvider: provider)
         manager.startListening()
 
         try await manager.reloadEmailVerificationStatus()
 
-        XCTAssertEqual(manager.sessionState, .signedIn(.verifiedPasswordUser))
+        XCTAssertEqual(manager.sessionState, .emailVerificationSucceeded(verifiedUser))
+        XCTAssertFalse(manager.isAuthenticated)
+
+        manager.completeEmailVerificationSuccess()
+
+        XCTAssertEqual(manager.sessionState, .signedIn(verifiedUser))
         XCTAssertTrue(manager.isAuthenticated)
     }
 
