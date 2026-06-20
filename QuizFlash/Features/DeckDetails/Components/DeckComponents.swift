@@ -91,7 +91,7 @@ struct DeckHeaderView: View {
                     )
                         .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 }
-                    .quizFlashButtonStyle(.accentAlt, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
+                    .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
             }
                 .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                 .padding(.top, 16)

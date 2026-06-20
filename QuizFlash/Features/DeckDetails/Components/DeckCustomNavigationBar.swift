@@ -51,9 +51,7 @@ struct DeckCustomNavigationBar: View {
     // MARK: - Computed Properties
 
     @Environment(DeckScrollState.self) private var scrollState
-    @Environment(ThemeManager.self) private var themeManager
 
-    private var accentColor: Color { themeManager.roleColor(.backButtonForeground) }
     private var locale: Locale { appPreferences.resolvedLocale }
     private var shouldShowCollapsedTitle: Bool {
         searchQuery == nil && scrollState.pillVisible
@@ -94,17 +92,10 @@ struct DeckCustomNavigationBar: View {
     }
 
     private var backButton: some View {
-        Button(action: onBack) {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.compact.left")
-                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
-                    .fontDesign(.rounded)
-                Text(backLabel)
-                    .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
-                    .fontDesign(.rounded)
-            }
-            .foregroundStyle(accentColor)
-        }
-        .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
+        ChromeSoftCircleSymbolButton(
+            systemName: "chevron.left",
+            accessibilityLabel: backLabel,
+            action: onBack
+        )
     }
 }

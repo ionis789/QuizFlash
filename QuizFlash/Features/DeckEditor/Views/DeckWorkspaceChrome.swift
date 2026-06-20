@@ -269,7 +269,7 @@ extension DeckWorkspaceView {
                     presentAIGenerationSourcePicker()
                 },
                 isEnabled: canStartLocalGeneration,
-                chrome: .accentAlt,
+                chrome: .surface,
                 accessibilityLabel: localized("Generate cards with AI")
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -359,7 +359,7 @@ extension DeckWorkspaceView {
                     presentAIGenerationSourcePicker()
                 },
                 isEnabled: canStartLocalGeneration,
-                chrome: .accentAlt,
+                chrome: .surface,
                 accessibilityLabel: localized("Generate cards with AI")
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -382,8 +382,7 @@ extension DeckWorkspaceView {
                 systemName: "plus",
                 size: UIConstants.Size.actionButton,
                 symbolSize: UIConstants.Size.iconStandard,
-                tint: themeManager.roleColor(.buttonDangerForeground),
-                backgroundTint: themeManager.roleColor(.buttonDangerFill)
+                tint: themeManager.roleColor(.buttonDangerForeground)
             )
         }
         .buttonStyle(.plain)

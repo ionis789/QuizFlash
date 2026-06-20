@@ -397,14 +397,11 @@ struct HomeDashboardView: View {
                 title: localized("Folders"),
                 count: folderSnapshots.count,
                 trailingAccessory: {
-                    Button {
-                        onCreateFolder()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: UIConstants.Size.iconStandard, weight: .bold))
-                            .fontDesign(.rounded)
-                    }
-
+                    ChromeSoftCircleSymbolButton(
+                        systemName: "plus",
+                        accessibilityLabel: localized("Folders"),
+                        action: onCreateFolder
+                    )
                 }
             )
 

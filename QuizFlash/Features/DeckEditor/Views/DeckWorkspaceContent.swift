@@ -304,7 +304,7 @@ extension DeckWorkspaceView {
                         presentAIGenerationSourcePicker()
                     },
                     isEnabled: canStartLocalGeneration,
-                    chrome: .accentAlt,
+                    chrome: .surface,
                     accessibilityLabel: localized("Generate cards with AI")
                 ) {
                     HStack(spacing: UIConstants.Spacing.small) {

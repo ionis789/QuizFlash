@@ -141,25 +141,15 @@ struct LibraryTopBarDismissSearchButton: View {
 // MARK: - Back Button
 
 struct LibraryTopBarBackButton: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let label: String
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.compact.left")
-                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
-                    .fontDesign(.rounded)
-                Text(label)
-                    .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
-                    .fontDesign(.rounded)
-            }
-            .foregroundStyle(themeManager.roleColor(.backButtonForeground))
-            .fixedSize(horizontal: true, vertical: false)
-        }
-        .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
+        ChromeSoftCircleSymbolButton(
+            systemName: "chevron.left",
+            accessibilityLabel: label,
+            action: action
+        )
     }
 }
 

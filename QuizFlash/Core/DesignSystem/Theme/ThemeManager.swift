@@ -875,6 +875,11 @@ final class ThemeManager {
             didChange = true
         }
 
+        if roleOverrideTokenNames[ThemeColorRole.circularToolbarFill.rawValue] == ThemeColorToken.highlightRose.rawValue {
+            roleOverrideTokenNames[ThemeColorRole.circularToolbarFill.rawValue] = ThemeColorToken.surfaceSecondary.rawValue
+            didChange = true
+        }
+
         if didChange {
             persistOverrides()
         }
