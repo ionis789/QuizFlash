@@ -28,6 +28,7 @@ struct CardPreviewModeView: View {
     @State private var previewDismissOffsetY: CGFloat = 0
     @State private var isPreviewDismissInFlight = false
     @State private var previewDismissTask: Task<Void, Never>?
+    @State private var previewMeasuredChoiceZoneWidths: [UUID: CGFloat] = [:]
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -38,6 +39,16 @@ struct CardPreviewModeView: View {
     private var locale: Locale { appPreferences.resolvedLocale }
     private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil }
     private var isFlashcardSheetPresentation: Bool { isSheetPresentation && supportsFlip }
+    private var isQuizPreview: Bool {
+        if case .quiz = content {
+            return true
+        }
+        return false
+    }
+    private var quizPreviewTextScale: CGFloat { CGFloat(textSize.playModeScale) }
+    private var quizContentHorizontalPadding: CGFloat { 8 }
+    private var quizContentTopPadding: CGFloat { 12 }
+    private var quizContentBottomPadding: CGFloat { 12 }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {
         isCompact
@@ -113,17 +124,10 @@ struct CardPreviewModeView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let isLandscape = geo.size.width > geo.size.height
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
-            let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
             let headerHorizontalInset = isCompact
                 ? UIConstants.Layout.compactScreenEdgeInset
                 : UIConstants.Layout.screenEdgeInset
-            let contentHorizontalInset = isCompact
-                ? UIConstants.Spacing.standard
-                : (isLandscape ? geo.size.width * 0.15 : 40)
-            let contentTopInset = isFlashcardSheetPresentation ? 0 : topChromeHeight + UIConstants.Spacing.medium
-            let contentBottomPadding = isFlashcardSheetPresentation ? 0 : max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
             let dismissDistance = max(geo.size.height, 1)
 
             ZStack(alignment: .top) {
@@ -139,13 +143,9 @@ struct CardPreviewModeView: View {
                         }
                 }
 
-                previewSurface(
-                    contentTopInset: contentTopInset,
-                    horizontalInset: contentHorizontalInset,
-                    bottomPadding: contentBottomPadding
-                )
+                previewSurface
 
-                if !isFlashcardSheetPresentation {
+                if !isFlashcardSheetPresentation && !isQuizPreview {
                     topChrome(
                         safeTopInset: resolvedSafeTopInset,
                         horizontalInset: headerHorizontalInset
@@ -168,11 +168,7 @@ struct CardPreviewModeView: View {
     }
 
     @ViewBuilder
-    private func previewSurface(
-        contentTopInset: CGFloat,
-        horizontalInset: CGFloat,
-        bottomPadding: CGFloat
-    ) -> some View {
+    private var previewSurface: some View {
         switch content {
         case .flashcard(let flashcardContent):
             if isSheetPresentation {
@@ -180,19 +176,102 @@ struct CardPreviewModeView: View {
             } else {
                 playMatchedFlashcardPreviewSurface(flashcardContent)
             }
-        default:
-            ScrollView {
-                VStack(spacing: UIConstants.Spacing.standard) {
-                    staticPreviewSurface
-                }
-                .frame(maxWidth: 720)
-                .padding(.top, contentTopInset)
-                .padding(.horizontal, horizontalInset)
-                .padding(.bottom, bottomPadding + UIConstants.Spacing.huge)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollIndicators(.hidden)
+        case .quiz(let quizContent):
+            quizPlaybackPreviewSurface(quizContent)
         }
+    }
+
+    private func quizPlaybackPreviewSurface(_ quizContent: QuizCardContent) -> some View {
+        GeometryReader { proxy in
+            let safeTopInset = max(safeAreaInsets.top, proxy.safeAreaInsets.top)
+            let safeBottomInset = max(safeAreaInsets.bottom, proxy.safeAreaInsets.bottom)
+            let screenWidth = max(proxy.size.width, 1)
+            let screenHeight = max(proxy.size.height, 1)
+            let topPadding = safeTopInset + quizContentTopPadding
+            let bottomPadding = max(safeBottomInset, quizContentBottomPadding)
+            let contentWidth = max(screenWidth - (quizContentHorizontalPadding * 2), 1)
+            let contentHeight = max(screenHeight - topPadding - bottomPadding, 1)
+            let answerGroupWidth = quizChoiceGroupWidth(availableWidth: contentWidth)
+
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                    QuizPlaybackZoneContent(
+                        zone: quizContent.questionZone,
+                        fontScale: quizPreviewTextScale,
+                        availableWidth: contentWidth,
+                        centersLeafBlocks: true,
+                        alignLeafBlocksToGroupLeading: false,
+                        showsZoneSurfaces: false,
+                        textVerticalPadding: 0,
+                        textHorizontalPaddingOverride: 0,
+                        showsLayoutDebug: false
+                    )
+
+                    quizPlaybackQuestionSeparator
+                }
+
+                QuizAnswerList(
+                    choices: quizContent.choices,
+                    selectedChoiceIDs: [],
+                    incorrectChoiceIDs: [],
+                    revealedMissedCorrectChoiceIDs: [],
+                    wrongFeedbackChoiceIDs: [],
+                    wrongFeedbackTrigger: 0,
+                    isEvaluated: false,
+                    allowsSelection: false,
+                    fontScale: quizPreviewTextScale,
+                    groupWidth: answerGroupWidth,
+                    layoutWidth: contentWidth,
+                    topContentInset: UIConstants.Spacing.large,
+                    bottomOverlayInset: 0,
+                    showsLayoutDebug: false,
+                    selectChoice: { _ in },
+                    onMeasuredWidthChange: { choiceID, width in
+                        updatePreviewMeasuredChoiceWidth(width, for: choiceID)
+                    },
+                    onLeafDebugSnapshotsChange: { _, _ in },
+                    onBlockBoundsChange: { _, _ in }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            .frame(width: contentWidth, height: contentHeight, alignment: .topLeading)
+            .padding(.horizontal, quizContentHorizontalPadding)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .frame(width: screenWidth, height: screenHeight, alignment: .topLeading)
+            .onAppear {
+                prunePreviewMeasuredChoiceWidths(for: quizContent)
+            }
+            .onChange(of: quizContent.choices.map(\.id)) { _, _ in
+                prunePreviewMeasuredChoiceWidths(for: quizContent)
+            }
+        }
+    }
+
+    private var quizPlaybackQuestionSeparator: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.16))
+            .frame(height: 1)
+    }
+
+    private func quizChoiceGroupWidth(availableWidth: CGFloat) -> CGFloat {
+        let clampedWidth = max(availableWidth, 1)
+        let measuredWidth = previewMeasuredChoiceZoneWidths.values.max() ?? 0
+        guard measuredWidth > 0 else { return clampedWidth }
+        return min(max(ceil(measuredWidth), 1), clampedWidth)
+    }
+
+    private func updatePreviewMeasuredChoiceWidth(_ width: CGFloat, for choiceID: UUID) {
+        guard width > 0 else { return }
+        let roundedWidth = ceil(width)
+        if abs((previewMeasuredChoiceZoneWidths[choiceID] ?? 0) - roundedWidth) > 0.5 {
+            previewMeasuredChoiceZoneWidths[choiceID] = roundedWidth
+        }
+    }
+
+    private func prunePreviewMeasuredChoiceWidths(for quizContent: QuizCardContent) {
+        let currentChoiceIDs = Set(quizContent.choices.map(\.id))
+        previewMeasuredChoiceZoneWidths = previewMeasuredChoiceZoneWidths.filter { currentChoiceIDs.contains($0.key) }
     }
 
     @ViewBuilder
@@ -363,155 +442,6 @@ struct CardPreviewModeView: View {
                 .frame(width: chromeButtonHeight, height: chromeButtonHeight)
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var staticPreviewSurface: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            switch content {
-            case .flashcard:
-                EmptyView()
-            case .quiz(let quizContent):
-                quizPreview(quizContent)
-            }
-        }
-    }
-
-    private func quizPreview(_ content: QuizCardContent) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            previewSectionCard(title: localized("Question"), symbol: "questionmark.bubble.fill") {
-                previewBodyText(
-                    zonePreviewText(content.questionZone, fallback: localized("No question added")),
-                    tint: .primary
-                )
-            }
-
-            previewSectionCard(
-                title: localized("Choices"),
-                symbol: "checklist",
-                subtitle: content.allowsMultipleCorrect
-                    ? localized("Multiple correct answers enabled")
-                    : localized("Single correct answer")
-            ) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    ForEach(Array(content.choices.enumerated()), id: \.element.id) { index, choice in
-                        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-                            Image(systemName: choice.isCorrect ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(choice.isCorrect ? .green : .secondary)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(localizedFormat("Choice %d", index + 1))
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.secondary)
-
-                                previewBodyText(
-                                    zonePreviewText(choice.contentZone, fallback: localized("Empty choice")),
-                                    tint: choice.isCorrect ? .primary : .secondary
-                                )
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
-
-            if let explanationZone = content.explanationZone,
-               zonePreviewText(explanationZone, fallback: "").isEmpty == false {
-                previewSectionCard(title: localized("Explanation"), symbol: "text.bubble.fill") {
-                    previewBodyText(
-                        zonePreviewText(explanationZone, fallback: localized("No explanation added")),
-                        tint: .primary
-                    )
-                }
-            }
-        }
-    }
-
-    private func previewSectionCard<SectionContent: View>(
-        title: String,
-        symbol: String,
-        subtitle: String? = nil,
-        @ViewBuilder content: () -> SectionContent
-    ) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(accent)
-                    .frame(width: 28, height: 28)
-                    .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    if let subtitle, !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            content()
-        }
-        .padding(UIConstants.Spacing.large)
-        .background(sectionBackground, in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .stroke(sectionBorderColor, lineWidth: 1)
-        }
-    }
-
-    private func previewBodyText(_ text: String, tint: Color) -> some View {
-        Text(text)
-            .font(.system(size: 19, weight: .medium, design: .rounded))
-            .foregroundStyle(tint)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func compactMetricChip(title: String, value: String) -> some View {
-        HStack(spacing: 4) {
-            Text(title.uppercased())
-                .foregroundStyle(.secondary)
-            Text(value)
-                .foregroundStyle(.primary)
-        }
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(sectionBackground, in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(sectionBorderColor, lineWidth: 1)
-        }
-    }
-
-    private var sectionBackground: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.045)
-            : Color.white.opacity(0.82)
-    }
-
-    private var sectionBorderColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.08)
-            : Color.black.opacity(0.06)
-    }
-
-    private func zonePreviewText(_ zone: ZoneModel, fallback: String, maxLength: Int = 500) -> String {
-        let preview = zone.previewText(maxLength: maxLength)
-        return preview == "Empty" ? fallback : preview
-    }
-
-    private func normalizedSingleLine(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func handleDone(previewDismissDistance: CGFloat? = nil) {

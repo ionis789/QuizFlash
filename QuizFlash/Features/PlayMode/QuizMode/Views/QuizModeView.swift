@@ -370,7 +370,7 @@ private struct QuizModeSessionView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    QuizPlayZoneContent(
+                    QuizPlaybackZoneContent(
                         zone: card.questionZone,
                         fontScale: playModeTextScale,
                         availableWidth: contentWidth,
@@ -458,7 +458,7 @@ private struct QuizModeSessionView: View {
             ZStack(alignment: .topTrailing) {
                 ScrollView(.vertical, showsIndicators: needsScroll) {
                     if let explanationZone = viewModel.currentCard?.explanationZone {
-                        QuizPlayZoneContent(
+                        QuizPlaybackZoneContent(
                             zone: explanationZone,
                             fontScale: playModeTextScale,
                             availableWidth: contentWidth,
@@ -1332,7 +1332,7 @@ private extension View {
 
 /// Vertical answer list that scrolls only when the choices exceed their allotted
 /// height. The question and explanation remain outside this scroll surface.
-private struct QuizAnswerList: View {
+struct QuizAnswerList: View {
     let choices: [QuizChoiceDraft]
     let selectedChoiceIDs: Set<UUID>
     let incorrectChoiceIDs: Set<UUID>
@@ -1442,7 +1442,7 @@ private struct CorrectAnswerFeedbackFrame {
 }
 
 /// One authored quiz choice row with immediate correctness styling after evaluation.
-private struct QuizChoiceRow: View {
+struct QuizChoiceRow: View {
     let choice: QuizChoiceDraft
     let isSelected: Bool
     let isMarkedWrong: Bool
@@ -1469,7 +1469,7 @@ private struct QuizChoiceRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            QuizPlayZoneContent(
+            QuizPlaybackZoneContent(
                 zone: displayZone,
                 fontScale: fontScale,
                 availableWidth: choiceContentWidth,
@@ -1704,11 +1704,11 @@ private struct QuizChoiceRow: View {
     }
 }
 
-// MARK: - QuizPlayZoneContent
+// MARK: - QuizPlaybackZoneContent
 
 /// Quiz-mode wrapper around the shared zone-content renderer so questions and choices
 /// use the same rich text, math, code, and local-overflow behavior as flashcards.
-private struct QuizPlayZoneContent: View {
+struct QuizPlaybackZoneContent: View {
     let zone: ZoneModel
     let fontScale: CGFloat
     let availableWidth: CGFloat
@@ -1763,7 +1763,7 @@ private struct QuizPlayZoneContent: View {
     }
 }
 
-private struct QuizGridDebugFrame: View {
+struct QuizGridDebugFrame: View {
     let width: CGFloat
 
     var body: some View {
