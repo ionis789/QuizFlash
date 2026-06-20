@@ -1113,7 +1113,7 @@ struct FlashcardEditorView: View {
     }
 
     private var zoneListMutationAnimation: Animation {
-        .smooth(duration: 0.18, extraBounce: 0)
+        .smooth(duration: 0.26, extraBounce: 0)
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath) -> UUID? {

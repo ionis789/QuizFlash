@@ -331,7 +331,7 @@ struct ZoneEditorCanvas: View {
                     } else {
                         cancelCaretAvoidanceScroll()
                         if selectedPath == nil {
-                            scrollDriver.resetToTop(duration: 0.22)
+                            scrollDriver.resetToTop(duration: 0.34)
                         }
                     }
                     updateCanvasDebug(

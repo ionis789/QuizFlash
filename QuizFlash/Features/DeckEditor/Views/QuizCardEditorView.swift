@@ -992,6 +992,7 @@ struct QuizCardEditorView: View {
 
     private func choiceHeader(
         index: Int,
+        title: String? = nil,
         choiceID: UUID?,
         showsCorrectToggle: Bool = true,
         isCorrect: Bool,
@@ -1001,11 +1002,11 @@ struct QuizCardEditorView: View {
     ) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                Text(String(index + 1))
+                Text(title ?? String(index + 1))
                     .font(.caption.weight(.heavy))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(minWidth: 18, alignment: .trailing)
+                    .frame(minWidth: title == nil ? 18 : 0, alignment: .trailing)
 
                 if showsCorrectToggle {
                     correctToggleButton(isCorrect: isCorrect, action: onToggleCorrect)
@@ -1068,6 +1069,7 @@ struct QuizCardEditorView: View {
             if let explanationContent {
                 choiceHeader(
                     index: choices.count,
+                    title: localized("Explanation"),
                     choiceID: nil,
                     showsCorrectToggle: false,
                     isCorrect: false,
@@ -2213,7 +2215,7 @@ struct QuizCardEditorView: View {
     }
 
     private var zoneListMutationAnimation: Animation {
-        .smooth(duration: 0.18, extraBounce: 0)
+        .smooth(duration: 0.26, extraBounce: 0)
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {
