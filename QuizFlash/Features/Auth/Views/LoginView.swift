@@ -200,6 +200,7 @@ struct LoginView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.never)
+        .dismissKeyboardOnBackgroundTap()
     }
 
     private var canSignIn: Bool {
@@ -322,6 +323,7 @@ private struct CreateAccountView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.never)
+        .dismissKeyboardOnBackgroundTap()
     }
 
     private var canCreateAccount: Bool {
@@ -388,6 +390,7 @@ private struct ForgotPasswordView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.never)
+        .dismissKeyboardOnBackgroundTap()
     }
 }
 
