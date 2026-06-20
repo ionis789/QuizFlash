@@ -385,24 +385,15 @@ struct DeckActionOverlay: View {
         AppLocalization.string(value, locale: locale)
     }
 
-    @ViewBuilder
-    private func actionChromeLabel(symbol: String, tint: Color) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-            .foregroundStyle(tint)
-            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-    }
-
     // MARK: - Add Button
 
     private var addButton: some View {
-        Button(action: onAdd) {
-            actionChromeLabel(
-                symbol: "plus",
-                tint: themeManager.roleColor(.buttonDangerForeground)
-            )
-        }
-            .quizFlashButtonStyle(.accentAlt, shape: .circle, size: UIConstants.Size.actionButton)
+        ChromeSoftCircleSymbolButton(
+            systemName: "plus",
+            accessibilityLabel: localized("Add card"),
+            action: onAdd,
+            tint: themeManager.roleColor(.buttonDangerForeground)
+        )
     }
 
     // MARK: - Menu Button

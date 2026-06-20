@@ -9,8 +9,6 @@ import SwiftData
 import SwiftUI
 import PhotosUI
 import UIKit
-
-private let kSettingsChromeSpace = "SettingsChromeSpace"
 // MARK: - Settings View
 
 struct SettingsView: View {
@@ -21,10 +19,6 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var keyboardMonitor = KeyboardMonitor.shared
-    @State private var isCollapsedTitleVisible = false
-    @State private var navigationBarHeight: CGFloat =
-        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
-    @State private var navigationBarBottomY: CGFloat = 0
     @State private var scrollContentHeight: CGFloat = 0
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedProfilePhoto: PhotosPickerItem?
@@ -39,48 +33,42 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
-                themeManager.groupedScreenBackground
-                    .ignoresSafeArea()
+        ZStack {
+            themeManager.groupedScreenBackground
+                .ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                        screenTitle
-                        profileCard
-                        settingsBlocks
-                    }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { height in
-                        scrollContentHeight = height
-                    }
-                    .tabBarAutoHideOnScroll()
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Spacing.small)
-                    .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                    profileCard
+                    settingsBlocks
                 }
-                .scrollDisabled(!isSettingsScrollEnabled)
-                .scrollBounceBehavior(.basedOnSize)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { height in
-                    scrollViewportHeight = height
+                    scrollContentHeight = height
                 }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: settingsTopContentInset)
-                }
+                .tabBarAutoHideOnScroll()
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.top, UIConstants.Spacing.small)
+                .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge)
             }
-            .screenTopEdgeShadow(
-                topHeight: structuralTopEdgeShadowHeight,
-                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.root",
-                style: .progressiveBlur()
-            )
-
-            navigationBar
+            .scrollDisabled(!isSettingsScrollEnabled)
+            .scrollBounceBehavior(.basedOnSize)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                scrollViewportHeight = height
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: settingsTopContentInset)
+            }
         }
-        .coordinateSpace(name: kSettingsChromeSpace)
+        .screenTopEdgeShadow(
+            topHeight: structuralTopEdgeShadowHeight,
+            topRevealProgress: 1,
+            debugScreenID: "settings.root",
+            style: .progressiveBlur()
+        )
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 40)
@@ -110,26 +98,13 @@ struct SettingsView: View {
     }
 
     private var structuralTopEdgeShadowHeight: CGFloat {
-        if navigationBarBottomY > 0 {
-            return navigationBarBottomY
-        }
         return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var settingsTopContentInset: CGFloat {
         allowsSwipeBack
-            ? navigationBarHeight + UIConstants.Spacing.small
-            : UIConstants.Spacing.medium
-    }
-
-    private var screenTitle: some View {
-        LargeScreenTitle(title: "Settings")
-            .collapsibleTitleRevealAnchor(
-                in: kSettingsChromeSpace,
-                navigationBarBottomY: navigationBarBottomY,
-                revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                isVisible: $isCollapsedTitleVisible
-            )
+            ? UIConstants.Size.actionButton + UIConstants.Spacing.extraLarge
+            : UIConstants.Spacing.extraLarge
     }
 
     private var profileCard: some View {
@@ -383,30 +358,6 @@ struct SettingsView: View {
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, 8)
         .background(Color.white.opacity(0.05), in: Capsule())
-    }
-
-    private var navigationBar: some View {
-        CollapsibleTitleNavigationBar(
-            coordinateSpaceName: kSettingsChromeSpace,
-            onHeightChange: { navigationBarHeight = $0 },
-            onBottomChange: { navigationBarBottomY = $0 }
-        ) {
-            if allowsSwipeBack {
-                ChromeCircleIconButton(systemName: "chevron.left") {
-                    dismiss()
-                }
-            } else {
-                ChromeCirclePlaceholder()
-            }
-        } center: { maxWidth in
-            CollapsibleTitlePill(
-                title: "Settings",
-                maxWidth: maxWidth,
-                isVisible: isCollapsedTitleVisible
-            )
-        } trailing: {
-            ChromeCirclePlaceholder()
-        }
     }
 
     private var streakSummary: String {

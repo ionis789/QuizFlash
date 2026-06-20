@@ -34,7 +34,7 @@ extension LibraryTopBarView {
             LibraryTopBarSearchGlyph(color: accent)
                 .frame(
                     width: UIConstants.Size.actionButton,
-                    height: UIConstants.Size.capsuleHeight
+                    height: searchFieldVisualHeight
                 )
 
             searchFieldContent
@@ -45,7 +45,7 @@ extension LibraryTopBarView {
         .padding(.trailing, UIConstants.Spacing.standard)
         .frame(
             width: searchFieldVisualWidth(maxWidth: maxWidth),
-            height: UIConstants.Size.capsuleHeight,
+            height: searchFieldVisualHeight,
             alignment: .leading
         )
         .background {
@@ -58,6 +58,11 @@ extension LibraryTopBarView {
         let expandedWidth = max(UIConstants.Size.actionButton, maxWidth)
         return UIConstants.Size.actionButton
             + ((expandedWidth - UIConstants.Size.actionButton) * searchProgress)
+    }
+
+    var searchFieldVisualHeight: CGFloat {
+        UIConstants.Size.actionButton
+            + ((UIConstants.Size.capsuleHeight - UIConstants.Size.actionButton) * searchProgress)
     }
 
     func searchFieldContainerWidth(maxWidth: CGFloat) -> CGFloat {
