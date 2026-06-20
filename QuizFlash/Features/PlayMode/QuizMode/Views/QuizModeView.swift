@@ -244,20 +244,16 @@ private struct QuizModeSessionView: View {
     }
 
     private var editCurrentQuizButton: some View {
-        Button(action: openCurrentQuizEditor) {
-            Image(systemName: "pencil")
-                .font(.system(size: 23, weight: .semibold))
-                .foregroundStyle(ThemeManager.shared.accentColor.color)
-                .frame(
-                    width: UIConstants.Size.capsuleHeight,
-                    height: UIConstants.Size.capsuleHeight
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
+        ChromeSoftCircleSymbolButton(
+            systemName: "pencil",
+            accessibilityLabel: "Edit current quiz",
+            action: openCurrentQuizEditor,
+            size: UIConstants.Size.capsuleHeight,
+            symbolSize: 23,
+            tint: ThemeManager.shared.accentColor.color
+        )
         .disabled(viewModel.currentCard == nil)
         .opacity(viewModel.currentCard == nil ? 0.35 : 1)
-        .accessibilityLabel("Edit current quiz")
     }
 
     private var quizProgressBar: some View {
@@ -772,14 +768,13 @@ private struct QuizModeSessionView: View {
     }
 
     private var dismissButton: some View {
-        Button(action: dismissSheet) {
-            Image(systemName: "xmark")
-                .font(.system(size: 20, weight: .bold))
-                .fontDesign(.rounded)
-                .foregroundStyle(.primary)
-                .frame(width: UIConstants.Size.capsuleHeight, height: UIConstants.Size.capsuleHeight)
-        }
-        .buttonStyle(.plain)
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: "Close",
+            action: dismissSheet,
+            size: UIConstants.Size.capsuleHeight,
+            symbolSize: 20
+        )
     }
 
     private func headerMetric(value: Int, symbol: String, tint: Color) -> some View {
