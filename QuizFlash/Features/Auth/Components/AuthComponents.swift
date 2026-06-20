@@ -46,6 +46,7 @@ struct AuthIconTextField: View {
                     Text(passwordVisibilityTitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .statusTextMotion(trigger: isPasswordVisible)
                         .frame(minWidth: 44, alignment: .trailing)
                 }
                 .buttonStyle(.plain)
@@ -81,7 +82,9 @@ struct AuthIconTextField: View {
 
     private func togglePasswordVisibility() {
         let wasFocused = focusedPasswordField != nil
-        isPasswordVisible.toggle()
+        withAnimation(.selectionToolbarSpring) {
+            isPasswordVisible.toggle()
+        }
         guard wasFocused else { return }
         focusedPasswordField = isPasswordVisible ? .plain : .secure
     }
