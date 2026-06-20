@@ -378,8 +378,7 @@ private struct QuizModeSessionView: View {
                         availableWidth: contentWidth,
                         centersLeafBlocks: true,
                         alignLeafBlocksToGroupLeading: false,
-                        textVerticalPadding: 0,
-                        textHorizontalPaddingOverride: 0,
+                        showsZoneSurfaces: false,
                         showsLayoutDebug: showsQuizLayoutDebug,
                         onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
                         onBlockBoundsChange: updateQuestionBlockDebugBounds
@@ -1366,7 +1365,6 @@ private struct QuizAnswerList: View {
             let centeredContentTopInset = max((centeringHeight - contentHeight) / 2, 0)
             let centeredContentBottom = centeredContentTopInset + contentHeight
             let contentWouldBeCovered = bottomOverlayInset > 0 && centeredContentBottom > effectiveViewportHeight + 1
-            let groupLeadingInset = max((layoutWidth - groupWidth) / 2, 0)
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.extraLarge) {
@@ -1397,8 +1395,6 @@ private struct QuizAnswerList: View {
                         )
                     }
                 }
-                .frame(width: layoutWidth, alignment: .topLeading)
-                .offset(x: groupLeadingInset)
                 .frame(width: layoutWidth, alignment: .topLeading)
                 .padding(.top, topContentInset)
                 .onGeometryChange(for: CGFloat.self) { proxy in
