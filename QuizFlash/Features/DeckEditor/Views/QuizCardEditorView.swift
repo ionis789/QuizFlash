@@ -253,21 +253,17 @@ struct QuizCardEditorView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                        if showsRenderedContent {
-                            renderedQuizPlaybackPreview(availableWidth: contentWidth)
-                        } else {
-                            questionSection(availableWidth: contentWidth)
-                            quizZoneSeparator
-                            answersSection(availableWidth: contentWidth)
-                            quizZoneSeparator
-                            addAnswerButton
-                            quizZoneSeparator
-                            explanationSection(availableWidth: contentWidth)
-                        }
+                        questionSection(availableWidth: contentWidth)
+                        quizZoneSeparator
+                        answersSection(availableWidth: contentWidth)
+                        quizZoneSeparator
+                        addAnswerButton
+                        quizZoneSeparator
+                        explanationSection(availableWidth: contentWidth)
                     }
                     .padding(.horizontal, 8)
                     .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
-                    .padding(.bottom, showsRenderedContent ? UIConstants.Spacing.large : bottomContentPadding)
+                    .padding(.bottom, bottomContentPadding)
                 }
                 .background {
                     ZoneEditorScrollViewLocator { scrollView in
@@ -1048,79 +1044,6 @@ struct QuizCardEditorView: View {
                 activateEditor(target)
             }
         }
-    }
-
-    private var quizPlaybackSeparator: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.16))
-            .frame(height: 1)
-            .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func renderedQuizPlaybackPreview(availableWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            renderedQuizPreviewZone(
-                content: questionContent,
-                target: .question,
-                availableWidth: availableWidth,
-                centersLeafBlocks: true,
-                showsZoneSurfaces: false,
-                textVerticalPadding: 0,
-                textHorizontalPaddingOverride: 0
-            )
-
-            quizPlaybackSeparator
-
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.extraLarge) {
-                ForEach(choices) { choice in
-                    renderedQuizPreviewZone(
-                        content: choice.content,
-                        target: .choice(choice.id),
-                        availableWidth: availableWidth,
-                        centersLeafBlocks: false,
-                        showsZoneSurfaces: true,
-                        forcesLeafVerticalCenter: true
-                    )
-                }
-            }
-            .padding(.top, UIConstants.Spacing.large)
-        }
-    }
-
-    private func renderedQuizPreviewZone(
-        content: ZoneCardContent,
-        target: QuizEditorTarget,
-        availableWidth: CGFloat,
-        centersLeafBlocks: Bool,
-        showsZoneSurfaces: Bool,
-        forcesLeafVerticalCenter: Bool = false,
-        textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding,
-        textHorizontalPaddingOverride: CGFloat? = nil
-    ) -> some View {
-        QuizRenderedZoneCard(
-            content: content,
-            alignmentMenuState: renderedAlignmentMenuState?.target == target ? renderedAlignmentMenuState : nil,
-            alignmentFeedback: renderedAlignmentFeedback(for: target),
-            fontScale: editorTextScale,
-            availableWidth: availableWidth,
-            centersLeafBlocks: centersLeafBlocks,
-            showsZoneSurfaces: showsZoneSurfaces,
-            forcesLeafVerticalCenter: forcesLeafVerticalCenter,
-            textVerticalPadding: textVerticalPadding,
-            textHorizontalPaddingOverride: textHorizontalPaddingOverride,
-            alignLeftLabel: localized("Align Left"),
-            alignRightLabel: localized("Align Right"),
-            onSelect: {
-                selectRenderedTarget(target)
-            },
-            onRootFrameChange: { frame in
-                updateRenderedFrame(frame, for: target, availableWidth: availableWidth)
-            },
-            onAlign: { direction in
-                alignRenderedTarget(target, direction: direction)
-            }
-        )
     }
 
     private var quizZoneSeparator: some View {
@@ -3186,9 +3109,6 @@ private struct QuizRenderedZoneCard: View {
     let alignmentFeedback: ZoneAlignmentFeedback
     let fontScale: CGFloat
     let availableWidth: CGFloat
-    var centersLeafBlocks: Bool = true
-    var showsZoneSurfaces: Bool = true
-    var forcesLeafVerticalCenter: Bool = false
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     let alignLeftLabel: String
@@ -3202,12 +3122,11 @@ private struct QuizRenderedZoneCard: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ZoneContentRenderView(
-                zone: renderedZone,
+                zone: content.rootZone,
                 fontScale: fontScale,
                 availableWidth: availableWidth,
-                centersLeafBlocks: centersLeafBlocks,
+                centersLeafBlocks: true,
                 showsDebugGuides: true,
-                showsZoneSurfaces: showsZoneSurfaces,
                 debugGuideStyle: .editorRender,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride,
@@ -3220,10 +3139,11 @@ private struct QuizRenderedZoneCard: View {
                 }
             )
             .frame(width: availableWidth, alignment: .topLeading)
+            .frame(minHeight: 88, alignment: .top)
             .contentShape(Rectangle())
             .onPreferenceChange(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
-                guard let rootFrame = bounds.first(where: { $0.zoneID == renderedZone.id })?.frame else { return }
-                hitTargetHeight = max(ceil(rootFrame.maxY), 1)
+                guard let rootFrame = bounds.first(where: { $0.zoneID == content.rootZone.id })?.frame else { return }
+                hitTargetHeight = max(88, rootFrame.maxY)
                 onRootFrameChange(rootFrame)
             }
             .transaction { transaction in
@@ -3242,16 +3162,6 @@ private struct QuizRenderedZoneCard: View {
             alignmentMenu
         }
         .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
-    }
-
-    private var renderedZone: ZoneModel {
-        guard forcesLeafVerticalCenter, content.rootZone.isLeaf else {
-            return content.rootZone
-        }
-
-        var zone = content.rootZone
-        zone.verticalAlignment = .center
-        return zone
     }
 
     @ViewBuilder
