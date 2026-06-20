@@ -44,6 +44,9 @@ struct LoginView: View {
                     onReload: {
                         try await authManager.reloadEmailVerificationStatus()
                     },
+                    onCancel: {
+                        try await authManager.logout()
+                    },
                     onError: presentError
                 )
             case .checking:
@@ -442,9 +445,8 @@ private struct EmailVerificationRequiredView: View {
     let user: AuthUserSnapshot
     let onResend: @MainActor @Sendable () async throws -> Void
     let onReload: @MainActor @Sendable () async throws -> Void
+    let onCancel: @MainActor @Sendable () async throws -> Void
     let onError: @MainActor @Sendable (Error) -> Void
-
-    @State private var isCheckingVerification = false
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -475,13 +477,11 @@ private struct EmailVerificationRequiredView: View {
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 HStack(spacing: UIConstants.Spacing.medium) {
-                    ProgressView()
-                        .tint(themeManager.accentColor.color)
-                        .opacity(isCheckingVerification ? 1 : 0.62)
-
                     Text(AppLocalization.string("Checking verification", locale: locale))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.secondary)
+
+                    AIGenerationActivityDots(color: themeManager.accentColor.color)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: UIConstants.Size.buttonHeight)
@@ -494,6 +494,17 @@ private struct EmailVerificationRequiredView: View {
                     foreground: .primary
                 ) {
                     try await onResend()
+                } onError: { error in
+                    onError(error)
+                }
+
+                AuthAsyncButton(
+                    title: AppLocalization.string("Cancel", locale: locale),
+                    icon: "xmark",
+                    tint: Color.primary.opacity(0.08),
+                    foreground: .primary
+                ) {
+                    try await onCancel()
                 } onError: { error in
                     onError(error)
                 }
@@ -510,13 +521,11 @@ private struct EmailVerificationRequiredView: View {
 
     private func pollVerificationStatus() async {
         while !Task.isCancelled {
-            isCheckingVerification = true
             do {
                 try await onReload()
             } catch {
                 // Polling should stay quiet; the explicit resend action still reports errors.
             }
-            isCheckingVerification = false
 
             do {
                 try await Task.sleep(for: .seconds(3))
