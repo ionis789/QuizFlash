@@ -23,6 +23,7 @@ struct EditorFormatMenuBar: View {
     var showsPrimaryActions: Bool
     var showsZoneActions: Bool
     var usesMediaZoneToolbar: Bool
+    var usesDirectZoneDeleteButton: Bool
     var onPreview: () -> Void
     var onClose: () -> Void
 
@@ -37,6 +38,7 @@ struct EditorFormatMenuBar: View {
         showsPrimaryActions: Bool = true,
         showsZoneActions: Bool = false,
         usesMediaZoneToolbar: Bool = false,
+        usesDirectZoneDeleteButton: Bool = false,
         onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -50,6 +52,7 @@ struct EditorFormatMenuBar: View {
         self.showsPrimaryActions = showsPrimaryActions
         self.showsZoneActions = showsZoneActions
         self.usesMediaZoneToolbar = usesMediaZoneToolbar
+        self.usesDirectZoneDeleteButton = usesDirectZoneDeleteButton
         self.onPreview = onPreview
         self.onClose = onClose
     }
@@ -176,17 +179,28 @@ struct EditorFormatMenuBar: View {
         }
     }
 
+    @ViewBuilder
     private var zoneOperationsMenu: some View {
-        Menu {
+        if usesDirectZoneDeleteButton {
             Button(role: .destructive, action: onDeleteZone) {
-                Label(localized("Are you sure?"), systemImage: "trash")
+                ToolbarIconLabel(
+                    icon: "trash",
+                    tint: .red,
+                    accessibilityLabel: localized("Delete")
+                )
             }
-        } label: {
-            ToolbarIconLabel(
-                icon: "trash",
-                tint: .red,
-                accessibilityLabel: localized("Delete")
-            )
+        } else {
+            Menu {
+                Button(role: .destructive, action: onDeleteZone) {
+                    Label(localized("Are you sure?"), systemImage: "trash")
+                }
+            } label: {
+                ToolbarIconLabel(
+                    icon: "trash",
+                    tint: .red,
+                    accessibilityLabel: localized("Delete")
+                )
+            }
         }
     }
 

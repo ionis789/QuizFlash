@@ -542,6 +542,7 @@ struct QuizCardEditorView: View {
             showsPrimaryActions: false,
             showsZoneActions: true,
             usesMediaZoneToolbar: true,
+            usesDirectZoneDeleteButton: true,
             onPreview: {
                 openPreview()
             },
@@ -2032,8 +2033,6 @@ struct QuizCardEditorView: View {
 
     private func closeEditor() {
         guard !hasUnsavedChanges else {
-            focusManager.forceReleaseKeyboard()
-            zoneController.forceReleaseKeyboard()
             showUnsavedChangesDialog = true
             return
         }
