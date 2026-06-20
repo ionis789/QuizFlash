@@ -146,7 +146,7 @@ struct LibraryTopBarBackButton: View {
 
     var body: some View {
         ChromeSoftCircleSymbolButton(
-            systemName: "chevron.left",
+            systemName: "chevron.compact.left",
             accessibilityLabel: label,
             action: action
         )

@@ -93,7 +93,7 @@ struct DeckCustomNavigationBar: View {
 
     private var backButton: some View {
         ChromeSoftCircleSymbolButton(
-            systemName: "chevron.left",
+            systemName: "chevron.compact.left",
             accessibilityLabel: backLabel,
             action: onBack
         )
