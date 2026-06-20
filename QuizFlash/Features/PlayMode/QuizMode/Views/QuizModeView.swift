@@ -454,7 +454,7 @@ private struct QuizModeSessionView: View {
                             fontScale: playModeTextScale,
                             availableWidth: contentWidth,
                             centersLeafBlocks: false,
-                            alignLeafBlocksToGroupLeading: true,
+                            alignLeafBlocksToGroupLeading: false,
                             showsLayoutDebug: showsQuizLayoutDebug
                         )
                         .frame(width: contentWidth, alignment: .topLeading)
@@ -1413,7 +1413,7 @@ private struct QuizChoiceRow: View {
                 fontScale: fontScale,
                 availableWidth: choiceContentWidth,
                 centersLeafBlocks: false,
-                alignLeafBlocksToGroupLeading: true,
+                alignLeafBlocksToGroupLeading: false,
                 zoneHighlightStrokeStyle: missedCorrectFeedback
                     ? StrokeStyle(lineWidth: 2.5, dash: [8, 5], dashPhase: 0)
                     : StrokeStyle(lineWidth: 2),
