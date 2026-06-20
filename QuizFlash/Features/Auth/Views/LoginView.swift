@@ -291,6 +291,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
+                        passwordTextContentType: .newPassword,
                         text: $password
                     )
 
@@ -298,6 +299,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Confirm Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
+                        passwordTextContentType: .newPassword,
                         text: $passwordConfirmation
                     )
                 }

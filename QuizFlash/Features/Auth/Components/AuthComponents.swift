@@ -14,6 +14,7 @@ struct AuthIconTextField: View {
     let title: String
     let icon: String
     var isPassword = false
+    var passwordTextContentType: UITextContentType = .password
     @Binding var text: String
 
     var body: some View {
@@ -25,7 +26,11 @@ struct AuthIconTextField: View {
 
             Group {
                 if isPassword {
-                    AuthSecureTextField(title: title, text: $text)
+                    AuthSecureTextField(
+                        title: title,
+                        textContentType: passwordTextContentType,
+                        text: $text
+                    )
                         .frame(height: AuthSecureTextField.highlightHeight)
                 } else {
                     TextField(title, text: $text)
@@ -50,6 +55,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
     static let highlightHeight: CGFloat = 28
 
     let title: String
+    let textContentType: UITextContentType
     @Binding var text: String
 
     func makeUIView(context: Context) -> AuthSecureTextFieldContainer {
@@ -60,7 +66,7 @@ private struct AuthSecureTextField: UIViewRepresentable {
         textField.font = .preferredFont(forTextStyle: .body)
         textField.adjustsFontForContentSizeCategory = true
         textField.isSecureTextEntry = true
-        textField.textContentType = nil
+        textField.textContentType = textContentType
         textField.passwordRules = nil
         textField.autocorrectionType = .no
         textField.autocapitalizationType = .none
@@ -85,6 +91,9 @@ private struct AuthSecureTextField: UIViewRepresentable {
     func updateUIView(_ uiView: AuthSecureTextFieldContainer, context: Context) {
         if uiView.textField.text != text {
             uiView.textField.text = text
+        }
+        if uiView.textField.textContentType != textContentType {
+            uiView.textField.textContentType = textContentType
         }
         Self.applyDisplayStyle(to: uiView.textField, placeholder: title)
     }

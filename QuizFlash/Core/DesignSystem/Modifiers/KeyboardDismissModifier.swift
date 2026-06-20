@@ -65,7 +65,16 @@ private struct KeyboardDismissTapController: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard parent.enabled else { return false }
+            if isTextInputCoordinate(touch, in: gestureRecognizer.view) {
+                return false
+            }
             return isBackgroundTouch(touch.view)
+        }
+
+        private func isTextInputCoordinate(_ touch: UITouch, in rootView: UIView?) -> Bool {
+            guard let rootView else { return false }
+            let point = touch.location(in: rootView)
+            return rootView.containsTextInput(at: point, from: rootView)
         }
 
         private func isBackgroundTouch(_ touchedView: UIView?) -> Bool {
@@ -85,6 +94,33 @@ private struct KeyboardDismissTapController: UIViewRepresentable {
 
             return true
         }
+    }
+}
+
+private extension UIView {
+    func containsTextInput(at point: CGPoint, from rootView: UIView) -> Bool {
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled else {
+            return false
+        }
+
+        if isTextInputView {
+            let localPoint = convert(point, from: rootView)
+            if bounds.insetBy(dx: -20, dy: -18).contains(localPoint) {
+                return true
+            }
+        }
+
+        for subview in subviews.reversed() {
+            if subview.containsTextInput(at: point, from: rootView) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private var isTextInputView: Bool {
+        self is UITextField || self is UITextView || self is UISearchBar
     }
 }
 
