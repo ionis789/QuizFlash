@@ -184,9 +184,11 @@ final class AuthManager {
     func startListening() {
         guard removeAuthStateListener == nil else { return }
         sessionState = .checking
-        removeAuthStateListener = authProvider.observeAuthState { [weak self] user in
+        let provider = authProvider
+        removeAuthStateListener = provider.observeAuthState { [weak self] user in
             self?.apply(user)
         }
+        apply(provider.currentUser)
     }
 
     func signIn(email: String, password: String) async throws {

@@ -57,6 +57,19 @@ final class AuthManagerTests: XCTestCase {
         XCTAssertTrue(manager.isAuthenticated)
     }
 
+    func testStartListeningFallsBackToCurrentUserWhenInitialListenerDoesNotEmit() {
+        let user = AuthUserSnapshot.verifiedPasswordUser
+        let provider = MockAuthProvider(currentUser: user)
+        provider.shouldEmitInitialAuthState = false
+        let manager = AuthManager(authProvider: provider)
+
+        manager.startListening()
+
+        XCTAssertEqual(manager.sessionState, .signedIn(user))
+        XCTAssertTrue(manager.isAuthenticated)
+        XCTAssertEqual(manager.currentUser, user)
+    }
+
     func testCreateAccountSendsVerificationAndRequiresVerification() async throws {
         let user = AuthUserSnapshot.unverifiedPasswordUser
         let provider = MockAuthProvider(currentUser: nil)
@@ -151,6 +164,7 @@ private final class MockAuthProvider: AuthProviding {
     var didSignOut = false
     var didDeleteUser = false
     var reauthenticatedPassword: String?
+    var shouldEmitInitialAuthState = true
 
     init(currentUser: AuthUserSnapshot?) {
         self.currentUser = currentUser
@@ -159,7 +173,9 @@ private final class MockAuthProvider: AuthProviding {
     func observeAuthState(
         _ handler: @escaping @MainActor (AuthUserSnapshot?) -> Void
     ) -> @MainActor () -> Void {
-        handler(currentUser)
+        if shouldEmitInitialAuthState {
+            handler(currentUser)
+        }
         return { }
     }
 
