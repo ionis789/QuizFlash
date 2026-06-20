@@ -30,6 +30,7 @@ struct QuizCardEditorView: View {
     @State private var markedCorrectIndicatorTask: Task<Void, Never>?
     @State private var pendingDeleteChoiceID: UUID?
     @State private var pendingDeleteTask: Task<Void, Never>?
+    @State private var editorDismissalTask: Task<Void, Never>?
     @State private var showUnsavedChangesDialog = false
     @State private var initialQuizContent: QuizCardContent
     @State private var floatingFormatBarKeyboardHeight: CGFloat = 0
@@ -412,6 +413,8 @@ struct QuizCardEditorView: View {
             markedCorrectIndicatorTask = nil
             pendingDeleteTask?.cancel()
             pendingDeleteTask = nil
+            editorDismissalTask?.cancel()
+            editorDismissalTask = nil
             floatingFormatBarPresentationTask?.cancel()
             floatingFormatBarPresentationTask = nil
             scheduledCaretScrollTask?.cancel()
@@ -2040,20 +2043,65 @@ struct QuizCardEditorView: View {
     }
 
     private func closeEditorDiscardingChanges() {
-        focusManager.forceReleaseKeyboard()
-        zoneController.forceReleaseKeyboard()
-        zoneController.clearHeightCache()
-        dismiss()
+        dismissEditorAfterKeyboardSettles {
+            dismiss()
+        }
     }
 
     private func saveCard() {
         questionContent.cleanup()
         choices.forEach { $0.content.cleanup() }
         explanationContent?.cleanup()
-        onSave(currentQuizContent)
-        focusManager.forceReleaseKeyboard()
+        let contentToSave = currentQuizContent
+        dismissEditorAfterKeyboardSettles {
+            onSave(contentToSave)
+            dismiss()
+        }
+    }
+
+    private func dismissEditorAfterKeyboardSettles(_ completion: @escaping @MainActor () -> Void) {
+        editorDismissalTask?.cancel()
+        floatingFormatBarPresentationTask?.cancel()
+        floatingFormatBarPresentationTask = nil
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = nil
+
+        let wasKeyboardVisible = keyboardMonitor.isVisible
+        let delay = wasKeyboardVisible
+            ? max(keyboardMonitor.animationDuration, 0.25) + 0.08
+            : 0.05
+
+        focusManager.suppressFocusRequests(for: delay + 0.45)
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+
+        withTransaction(Transaction(animation: nil)) {
+            questionSelectedPath = nil
+            choices.forEach { $0.selectedPath = nil }
+            explanationSelectedPath = nil
+            activeEditor = .question
+            previewDirection = nil
+            activeQuizCaretPathID = nil
+            activeQuizCaretWindowRect = nil
+            activeQuizCaretSource = nil
+            activeQuizCaretTraceID = nil
+            activeQuizCaretAnchorY = nil
+            activeQuizCaretEditorHeight = nil
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
+            isFloatingFormatBarPresented = false
+            floatingFormatBarKeyboardHeight = 0
+            keyboardDismissPadding = 0
+        }
+
         zoneController.clearHeightCache()
-        dismiss()
+
+        editorDismissalTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            editorDismissalTask = nil
+            completion()
+        }
     }
 
     private static func snapshotContent(from session: QuizEditorSession) -> QuizCardContent {
