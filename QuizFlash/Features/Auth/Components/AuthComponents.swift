@@ -20,6 +20,7 @@ struct AuthIconTextField: View {
     @Binding var text: String
 
     @State private var isPasswordVisible = false
+    @FocusState private var focusedPasswordField: PasswordFieldFocus?
 
     var body: some View {
         HStack(spacing: UIConstants.Spacing.small) {
@@ -30,13 +31,7 @@ struct AuthIconTextField: View {
 
             Group {
                 if isPassword {
-                    AuthSecureTextField(
-                        title: title,
-                        textContentType: passwordTextContentType,
-                        isTextVisible: isPasswordVisible,
-                        text: $text
-                    )
-                        .frame(height: AuthSecureTextField.highlightHeight)
+                    revealablePasswordField
                 } else {
                     TextField(title, text: $text)
                 }
@@ -46,7 +41,7 @@ struct AuthIconTextField: View {
 
             if isPassword {
                 Button {
-                    isPasswordVisible.toggle()
+                    togglePasswordVisibility()
                 } label: {
                     Text(passwordVisibilityTitle)
                         .font(.subheadline.weight(.semibold))
@@ -66,194 +61,39 @@ struct AuthIconTextField: View {
         }
     }
 
+    private var revealablePasswordField: some View {
+        ZStack {
+            SecureField(title, text: $text)
+                .textContentType(passwordTextContentType)
+                .focused($focusedPasswordField, equals: .secure)
+                .opacity(isPasswordVisible ? 0 : 1)
+                .allowsHitTesting(!isPasswordVisible)
+                .accessibilityHidden(isPasswordVisible)
+
+            TextField(title, text: $text)
+                .textContentType(passwordTextContentType)
+                .focused($focusedPasswordField, equals: .plain)
+                .opacity(isPasswordVisible ? 1 : 0)
+                .allowsHitTesting(isPasswordVisible)
+                .accessibilityHidden(!isPasswordVisible)
+        }
+    }
+
+    private func togglePasswordVisibility() {
+        let wasFocused = focusedPasswordField != nil
+        isPasswordVisible.toggle()
+        guard wasFocused else { return }
+        focusedPasswordField = isPasswordVisible ? .plain : .secure
+    }
+
     private var passwordVisibilityTitle: String {
         let key = isPasswordVisible ? "Hide" : "Show"
         return AppLocalization.string(key, locale: appPreferences.resolvedLocale)
     }
-}
 
-// MARK: - Auth Secure Text Field
-
-private struct AuthSecureTextField: UIViewRepresentable {
-    static let highlightHeight: CGFloat = 28
-
-    let title: String
-    let textContentType: UITextContentType
-    let isTextVisible: Bool
-    @Binding var text: String
-
-    func makeUIView(context: Context) -> AuthSecureTextFieldContainer {
-        let textField = AuthSecureUITextField()
-        textField.delegate = context.coordinator
-        textField.borderStyle = .none
-        textField.backgroundColor = .clear
-        textField.font = .preferredFont(forTextStyle: .body)
-        textField.adjustsFontForContentSizeCategory = true
-        textField.isSecureTextEntry = !isTextVisible
-        textField.textContentType = textContentType
-        textField.passwordRules = nil
-        textField.autocorrectionType = .no
-        textField.autocapitalizationType = .none
-        textField.spellCheckingType = .no
-        textField.smartDashesType = .no
-        textField.smartQuotesType = .no
-        textField.smartInsertDeleteType = .no
-        textField.clearButtonMode = .never
-        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        textField.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.textDidChange(_:)),
-            for: .editingChanged
-        )
-        Self.applyDisplayStyle(to: textField, placeholder: title)
-
-        let container = AuthSecureTextFieldContainer()
-        container.install(textField: textField)
-        return container
-    }
-
-    func updateUIView(_ uiView: AuthSecureTextFieldContainer, context: Context) {
-        if uiView.textField.text != text {
-            uiView.textField.text = text
-        }
-        if uiView.textField.textContentType != textContentType {
-            uiView.textField.textContentType = textContentType
-        }
-        uiView.textField.setSecureEntry(!isTextVisible)
-        Self.applyDisplayStyle(to: uiView.textField, placeholder: title)
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    final class Coordinator: NSObject, UITextFieldDelegate {
-        @Binding private var text: String
-
-        init(text: Binding<String>) {
-            _text = text
-        }
-
-        @objc func textDidChange(_ textField: UITextField) {
-            AuthSecureTextField.applyDisplayStyle(to: textField)
-            DispatchQueue.main.async {
-                AuthSecureTextField.applyDisplayStyle(to: textField)
-            }
-            text = textField.text ?? ""
-        }
-
-        func textFieldDidBeginEditing(_ textField: UITextField) {
-            AuthSecureTextField.applyDisplayStyle(to: textField)
-        }
-
-        func textFieldDidEndEditing(_ textField: UITextField) {
-            AuthSecureTextField.applyDisplayStyle(to: textField)
-        }
-    }
-
-    fileprivate static func applyDisplayStyle(to textField: UITextField, placeholder: String? = nil) {
-        let font = UIFont.preferredFont(forTextStyle: .body)
-        let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.black
-        ]
-
-        if textField.font != font {
-            textField.font = font
-        }
-
-        if textField.textColor != .black {
-            textField.textColor = .black
-        }
-
-        if textField.tintColor != .label {
-            textField.tintColor = .label
-        }
-
-        if !textField.textAttributesMatch(textAttributes, key: .font)
-            || !textField.textAttributesMatch(textAttributes, key: .foregroundColor) {
-            textField.defaultTextAttributes = textAttributes
-        }
-
-        if !textField.typingAttributesMatch(textAttributes, key: .font)
-            || !textField.typingAttributesMatch(textAttributes, key: .foregroundColor) {
-            textField.typingAttributes = textAttributes
-        }
-
-        if let placeholder {
-            let currentPlaceholder = textField.attributedPlaceholder
-            let placeholderColor = currentPlaceholder?.attribute(
-                .foregroundColor,
-                at: 0,
-                effectiveRange: nil
-            ) as? UIColor
-
-            if currentPlaceholder?.string != placeholder || placeholderColor != .secondaryLabel {
-                textField.attributedPlaceholder = NSAttributedString(
-                    string: placeholder,
-                    attributes: [
-                        .foregroundColor: UIColor.secondaryLabel
-                    ]
-                )
-            }
-        }
-    }
-}
-
-private final class AuthSecureUITextField: UITextField { }
-
-private extension UITextField {
-    func setSecureEntry(_ secure: Bool) {
-        guard isSecureTextEntry != secure else { return }
-
-        let wasFirstResponder = isFirstResponder
-        let selectedRange = selectedTextRange
-        isSecureTextEntry = secure
-
-        if wasFirstResponder {
-            becomeFirstResponder()
-            selectedTextRange = selectedRange
-        }
-    }
-}
-
-private extension UITextField {
-    func textAttributesMatch(_ expected: [NSAttributedString.Key: Any], key: NSAttributedString.Key) -> Bool {
-        attributesMatch(defaultTextAttributes[key], expected[key])
-    }
-
-    func typingAttributesMatch(_ expected: [NSAttributedString.Key: Any], key: NSAttributedString.Key) -> Bool {
-        attributesMatch(typingAttributes?[key], expected[key])
-    }
-
-    private func attributesMatch(_ current: Any?, _ expected: Any?) -> Bool {
-        switch (current, expected) {
-        case let (current as NSObject, expected as NSObject):
-            return current.isEqual(expected)
-        case (.none, .none):
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-private final class AuthSecureTextFieldContainer: UIView {
-    private(set) var textField = UITextField()
-
-    func install(textField: UITextField) {
-        self.textField.removeFromSuperview()
-        self.textField = textField
-
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(textField)
-
-        NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: leadingAnchor),
-            textField.trailingAnchor.constraint(equalTo: trailingAnchor),
-            textField.centerYAnchor.constraint(equalTo: centerYAnchor),
-            textField.heightAnchor.constraint(equalToConstant: AuthSecureTextField.highlightHeight)
-        ])
+    private enum PasswordFieldFocus: Hashable {
+        case secure
+        case plain
     }
 }
 
