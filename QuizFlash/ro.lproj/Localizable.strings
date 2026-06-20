@@ -106,6 +106,7 @@
 "Add cards to this deck first." = "Adaugă mai întâi carduri în acest deck.";
 "Add Explanation" = "Adaugă explicație";
 "Add Left" = "Adaugă la stânga";
+"Add Media Answer" = "Adaugă răspuns media";
 "Add manually" = "Adaugă manual";
 "Add Right" = "Adaugă la dreapta";
 "Add source text before saving." = "Adaugă textul sursă înainte de salvare.";
@@ -466,6 +467,8 @@
 "Preparing your material" = "Pregătirea materialului dvs";
 "Preview" = "Previzualizare";
 "Render" = "Randare";
+"Replace current zone?" = "Înlocuiești zona curentă?";
+"Replace Zone" = "Înlocuiește zona";
 "PREVIEW" = "PREVIZUALIZARE";
 "Preview Mode" = "Modul de previzualizare";
 "Pro" = "Pro";
@@ -613,6 +616,7 @@
 "Today clear" = "Azi închis";
 "Today goal" = "Obiectiv azi";
 "Today is already closed." = "Azi este deja închis.";
+"This zone already has text. Choose how to use the imported media." = "Această zonă are deja text. Alege cum folosești media importată.";
 "Today is clear" = "Azi e închis";
 "Today's goal is closed." = "Obiectivul de azi este închis.";
 "Token: %@" = "Indicativ: %@";

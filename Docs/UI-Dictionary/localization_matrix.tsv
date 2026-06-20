@@ -107,6 +107,7 @@ Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
 Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
 Add Left	Add Left	Adaugă la stânga	Добавить слева
+Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
 Add manually	Add manually	Adaugă manual	Добавить вручную
 Add Range	Add Range	Adaugă interval	Добавить диапазон
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
@@ -503,6 +504,8 @@ Red	Red	Roșu	Красный
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
 Render	Render	Randare	Рендер
+Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
+Replace Zone	Replace Zone	Înlocuiește zona	Заменить зону
 Reset	Reset	Resetează	Сброс
 Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симуляцию
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
@@ -619,6 +622,7 @@ This deck and all its cards will be deleted.	This deck and all its cards will be
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
+This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.

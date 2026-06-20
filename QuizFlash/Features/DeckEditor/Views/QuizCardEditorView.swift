@@ -26,6 +26,10 @@ struct QuizCardEditorView: View {
     @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
+    @State private var renderedTargets: Set<QuizEditorTarget> = []
+    @State private var renderedAlignmentMenuTarget: QuizEditorTarget?
+    @State private var scheduledRenderToggleTask: Task<Void, Never>?
+    @State private var pendingMediaImport: PendingQuizMediaImport?
     @State private var markedCorrectIndicatorChoiceID: UUID?
     @State private var markedCorrectIndicatorTask: Task<Void, Never>?
     @State private var pendingDeleteChoiceID: UUID?
@@ -199,6 +203,12 @@ struct QuizCardEditorView: View {
 
     private var canSave: Bool {
         validationMessage == nil
+    }
+    private var canToggleRenderedContent: Bool {
+        currentContent?.hasContent == true
+    }
+    private var isActiveTargetRendered: Bool {
+        isRendered(activeEditor)
     }
     private var hasUnsavedChanges: Bool {
         currentQuizContent != initialQuizContent
@@ -375,6 +385,33 @@ struct QuizCardEditorView: View {
         } background: {
             Color.clear
         }
+        .confirmationDialog(
+            localized("Replace current zone?"),
+            isPresented: Binding(
+                get: { pendingMediaImport != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingMediaImport = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingMediaImport
+        ) { importRequest in
+            Button(localized("Replace Zone")) {
+                applyPendingMediaImport(importRequest, action: .replace)
+            }
+            if importRequest.canCreateChoice {
+                Button(localized("Add Media Answer")) {
+                    applyPendingMediaImport(importRequest, action: .addChoice)
+                }
+            }
+            Button(localized("Cancel"), role: .cancel) {
+                pendingMediaImport = nil
+            }
+        } message: { _ in
+            Text(localized("This zone already has text. Choose how to use the imported media."))
+        }
         .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
         .swipeBack(enabled: canUseInteractiveDismiss) {
@@ -419,6 +456,8 @@ struct QuizCardEditorView: View {
             pendingExplanationDeleteTask = nil
             editorDismissalTask?.cancel()
             editorDismissalTask = nil
+            scheduledRenderToggleTask?.cancel()
+            scheduledRenderToggleTask = nil
             floatingFormatBarPresentationTask?.cancel()
             floatingFormatBarPresentationTask = nil
             scheduledCaretScrollTask?.cancel()
@@ -461,6 +500,7 @@ struct QuizCardEditorView: View {
     }
 
     private var isFloatingFormatBarVisible: Bool {
+        guard !isActiveTargetRendered else { return false }
         guard isFloatingFormatBarPresented,
               let content = currentContent,
               let path = currentSelectedPath,
@@ -547,7 +587,7 @@ struct QuizCardEditorView: View {
             },
             canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
             showsPrimaryActions: false,
-            showsZoneActions: true,
+            showsZoneActions: false,
             showsZoneDeleteAction: false,
             usesMediaZoneToolbar: true,
             usesDirectZoneDeleteButton: true,
@@ -611,6 +651,17 @@ struct QuizCardEditorView: View {
             recordToolbarLifecycle("presentation-task-cancel", details: toolbarLifecycleDetails())
         }
         floatingFormatBarPresentationTask = nil
+
+        guard !isActiveTargetRendered else {
+            withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
+                isFloatingFormatBarPresented = false
+            }
+            withTransaction(Transaction(animation: nil)) {
+                floatingFormatBarKeyboardHeight = 0
+            }
+            recordToolbarLifecycle("presentation-skip-rendered", details: toolbarLifecycleDetails())
+            return
+        }
 
         if isKeyboardVisible || selectedZoneIsMedia {
             if isKeyboardVisible {
@@ -785,6 +836,8 @@ struct QuizCardEditorView: View {
 
             previewTopButton
 
+            renderTopButton
+
             Spacer(minLength: 0)
 
             Button(action: saveCard) {
@@ -896,19 +949,56 @@ struct QuizCardEditorView: View {
             .accessibilityLabel(localized("Preview"))
     }
 
+    private var renderTopButton: some View {
+        Button(action: toggleRenderedContent) {
+            ChromeSoftCircleSymbol(
+                systemName: "wand.and.stars",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: isActiveTargetRendered ? .black : accent,
+                backgroundTint: isActiveTargetRendered
+                    ? accent.opacity(0.88)
+                    : topChromeUtilityFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canToggleRenderedContent)
+        .opacity(canToggleRenderedContent ? 1 : 0.52)
+        .accessibilityLabel(localized("Render"))
+    }
+
+    @ViewBuilder
     private func questionSection(availableWidth: CGFloat) -> some View {
-        QuizZoneSectionCard(
-            content: questionContent,
-            selectedPath: binding(for: .question),
-            highlightContext: highlightContext,
-            fontScale: editorTextScale,
-            availableWidth: availableWidth,
-            previewDirection: $previewDirection,
-            onSelectionChange: {
-                activateEditor(.question)
+        let target = QuizEditorTarget.question
+        if isRendered(target) {
+            QuizRenderedZoneCard(
+                content: questionContent,
+                isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                fontScale: editorTextScale,
+                availableWidth: availableWidth,
+                alignLeftLabel: localized("Align Left"),
+                alignRightLabel: localized("Align Right"),
+                onSelect: {
+                    selectRenderedTarget(target)
+                },
+                onAlign: { direction in
+                    alignRenderedTarget(target, direction: direction)
+                }
+            )
+        } else {
+            QuizZoneSectionCard(
+                content: questionContent,
+                selectedPath: binding(for: target),
+                highlightContext: highlightContext,
+                fontScale: editorTextScale,
+                availableWidth: availableWidth,
+                previewDirection: $previewDirection,
+                onSelectionChange: {
+                    activateEditor(target)
+                }
+            ) {
+                activateEditor(target)
             }
-        ) {
-            activateEditor(.question)
         }
     }
 
@@ -936,23 +1026,41 @@ struct QuizCardEditorView: View {
                         }
                     )
 
-                    QuizChoiceCard(
-                        choice: choice,
-                        highlightContext: highlightContext,
-                        fontScale: editorTextScale,
-                        availableWidth: availableWidth,
-                        previewDirection: $previewDirection,
-                        onActivate: {
-                            activateEditor(.choice(choice.id))
-                        },
-                        onSelectionChange: {
-                            if choice.selectedPath != nil {
-                                activateEditor(.choice(choice.id))
-                            } else {
-                                handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
+                    let target = QuizEditorTarget.choice(choice.id)
+                    if isRendered(target) {
+                        QuizRenderedZoneCard(
+                            content: choice.content,
+                            isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                            fontScale: editorTextScale,
+                            availableWidth: availableWidth,
+                            alignLeftLabel: localized("Align Left"),
+                            alignRightLabel: localized("Align Right"),
+                            onSelect: {
+                                selectRenderedTarget(target)
+                            },
+                            onAlign: { direction in
+                                alignRenderedTarget(target, direction: direction)
                             }
-                        }
-                    )
+                        )
+                    } else {
+                        QuizChoiceCard(
+                            choice: choice,
+                            highlightContext: highlightContext,
+                            fontScale: editorTextScale,
+                            availableWidth: availableWidth,
+                            previewDirection: $previewDirection,
+                            onActivate: {
+                                activateEditor(target)
+                            },
+                            onSelectionChange: {
+                                if choice.selectedPath != nil {
+                                    activateEditor(target)
+                                } else {
+                                    handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
+                                }
+                            }
+                        )
+                    }
                 }
 
                 if index < choices.count - 1 {
@@ -1080,24 +1188,42 @@ struct QuizCardEditorView: View {
                     }
                 )
 
-                QuizExplanationCard(
-                    content: explanationContent,
-                    selectedPath: binding(for: .explanation),
-                    highlightContext: highlightContext,
-                    fontScale: editorTextScale,
-                    availableWidth: availableWidth,
-                    previewDirection: $previewDirection,
-                    onActivate: {
-                        activateEditor(.explanation)
-                    },
-                    onSelectionChange: {
-                        if explanationSelectedPath != nil {
-                            activateEditor(.explanation)
-                        } else {
-                            handleSelectedPathChange(source: "explanation")
+                let target = QuizEditorTarget.explanation
+                if isRendered(target) {
+                    QuizRenderedZoneCard(
+                        content: explanationContent,
+                        isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                        fontScale: editorTextScale,
+                        availableWidth: availableWidth,
+                        alignLeftLabel: localized("Align Left"),
+                        alignRightLabel: localized("Align Right"),
+                        onSelect: {
+                            selectRenderedTarget(target)
+                        },
+                        onAlign: { direction in
+                            alignRenderedTarget(target, direction: direction)
                         }
-                    }
-                )
+                    )
+                } else {
+                    QuizExplanationCard(
+                        content: explanationContent,
+                        selectedPath: binding(for: target),
+                        highlightContext: highlightContext,
+                        fontScale: editorTextScale,
+                        availableWidth: availableWidth,
+                        previewDirection: $previewDirection,
+                        onActivate: {
+                            activateEditor(target)
+                        },
+                        onSelectionChange: {
+                            if explanationSelectedPath != nil {
+                                activateEditor(target)
+                            } else {
+                                handleSelectedPathChange(source: "explanation")
+                            }
+                        }
+                    )
+                }
             } else {
                 addSectionButton(localized("Add Explanation"), systemImage: "plus.bubble") {
                     addExplanation()
@@ -1154,6 +1280,7 @@ struct QuizCardEditorView: View {
         if activeEditor != target {
             setSelectedPath(nil, for: activeEditor, recordsSelection: false)
             previewDirection = nil
+            renderedAlignmentMenuTarget = nil
         }
 
         activeEditor = target
@@ -1162,6 +1289,137 @@ struct QuizCardEditorView: View {
             setSelectedPath(.root, for: target)
         } else {
             handleSelectedPathChange(source: "activate:\(debugTargetID(target))")
+        }
+    }
+
+    private func isRendered(_ target: QuizEditorTarget) -> Bool {
+        renderedTargets.contains(target)
+    }
+
+    private func toggleRenderedContent() {
+        guard canToggleRenderedContent else { return }
+
+        let target = activeEditor
+        let targetMode = !isRendered(target)
+        scheduledRenderToggleTask?.cancel()
+
+        if targetMode, keyboardMonitor.isVisible {
+            prepareForRenderModeKeyboardDismiss()
+            scheduledRenderToggleTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(260))
+                guard !Task.isCancelled else { return }
+                applyRenderedContentMode(targetMode, for: target)
+                scheduledRenderToggleTask = nil
+            }
+            return
+        }
+
+        applyRenderedContentMode(targetMode, for: target)
+    }
+
+    private func applyRenderedContentMode(_ isRendered: Bool, for target: QuizEditorTarget) {
+        scheduledRenderToggleTask?.cancel()
+        scheduledRenderToggleTask = nil
+
+        if isRendered {
+            ensureDefaultRenderAlignment(for: target)
+            prepareForRenderModeKeyboardDismiss()
+            activeEditor = target
+            setSelectedPath(nil, for: target, recordsSelection: false)
+            withAnimation(.easeInOut(duration: 0.18)) {
+                renderedTargets.insert(target)
+                renderedAlignmentMenuTarget = target
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                renderedTargets.remove(target)
+                if renderedAlignmentMenuTarget == target {
+                    renderedAlignmentMenuTarget = nil
+                }
+            }
+            activeEditor = target
+            setSelectedPath(nil, for: target, recordsSelection: false)
+            prepareForRenderModeKeyboardDismiss()
+        }
+    }
+
+    private func prepareForRenderModeKeyboardDismiss() {
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = nil
+        floatingFormatBarPresentationTask?.cancel()
+        floatingFormatBarPresentationTask = nil
+        previewDirection = nil
+        focusManager.suppressFocusRequests(for: 0.9)
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        withTransaction(Transaction(animation: nil)) {
+            isFloatingFormatBarPresented = false
+            floatingFormatBarKeyboardHeight = 0
+            keyboardDismissPadding = 0
+            activeQuizCaretPathID = nil
+            activeQuizCaretWindowRect = nil
+            activeQuizCaretSource = nil
+            activeQuizCaretTraceID = nil
+            activeQuizCaretAnchorY = nil
+            activeQuizCaretEditorHeight = nil
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
+        }
+    }
+
+    private func selectRenderedTarget(_ target: QuizEditorTarget) {
+        prepareForRenderModeKeyboardDismiss()
+        activeEditor = target
+        setSelectedPath(.root, for: target, recordsSelection: false)
+        withAnimation(.easeInOut(duration: 0.14)) {
+            renderedAlignmentMenuTarget = target
+        }
+    }
+
+    private func alignRenderedTarget(_ target: QuizEditorTarget, direction: QuizRenderedAlignmentDirection) {
+        guard let content = content(for: target) else { return }
+        ensureDefaultRenderAlignment(for: target)
+        let currentAlignment = content.rootZone.blockAlignment == .auto
+            ? ZoneBlockAlignment.center
+            : content.rootZone.blockAlignment
+        guard let nextAlignment = nextRenderedAlignment(from: currentAlignment, direction: direction) else {
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            content.updateZone(at: .root) { zone in
+                zone.blockAlignment = nextAlignment
+            }
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func nextRenderedAlignment(
+        from currentAlignment: ZoneBlockAlignment,
+        direction: QuizRenderedAlignmentDirection
+    ) -> ZoneBlockAlignment? {
+        let order: [ZoneBlockAlignment] = [.leading, .center, .trailing]
+        guard let currentIndex = order.firstIndex(of: currentAlignment == .auto ? .center : currentAlignment) else {
+            return nil
+        }
+
+        switch direction {
+        case .left:
+            guard currentIndex > 0 else { return nil }
+            return order[currentIndex - 1]
+        case .right:
+            guard currentIndex < order.count - 1 else { return nil }
+            return order[currentIndex + 1]
+        }
+    }
+
+    private func ensureDefaultRenderAlignment(for target: QuizEditorTarget) {
+        guard let content = content(for: target),
+              content.rootZone.blockAlignment == .auto else { return }
+        content.updateZone(at: .root) { zone in
+            zone.blockAlignment = .center
         }
     }
 
@@ -1828,6 +2086,10 @@ struct QuizCardEditorView: View {
             questionSelectedPath = nil
             choices.forEach { $0.selectedPath = nil }
             explanationSelectedPath = nil
+            renderedTargets.remove(.choice(choiceID))
+            if renderedAlignmentMenuTarget == .choice(choiceID) {
+                renderedAlignmentMenuTarget = nil
+            }
             previewDirection = nil
             activeQuizCaretPathID = nil
             activeQuizCaretWindowRect = nil
@@ -1987,6 +2249,10 @@ struct QuizCardEditorView: View {
             questionSelectedPath = nil
             explanationContent = nil
             explanationSelectedPath = nil
+            renderedTargets.remove(.explanation)
+            if renderedAlignmentMenuTarget == .explanation {
+                renderedAlignmentMenuTarget = nil
+            }
             isExplanationExpanded = false
             previewDirection = nil
             activeQuizCaretPathID = nil
@@ -2002,23 +2268,109 @@ struct QuizCardEditorView: View {
 
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
+        let target = activeEditor
+        let targetPath = selectedPath(for: target) ?? .root
+        let importID = UUID()
+        let importStart = CFAbsoluteTimeGetCurrent()
+        recordMediaImportPhase(
+            "photo-import-start",
+            importID: importID,
+            target: target,
+            targetPath: targetPath,
+            details: "targetType=\(content(for: target)?.zone(at: targetPath)?.contentType.rawValue ?? "nil")"
+        )
 
         Task {
+            let loadStart = CFAbsoluteTimeGetCurrent()
+            await MainActor.run {
+                recordMediaImportPhase(
+                    "photo-load-start",
+                    importID: importID,
+                    target: target,
+                    targetPath: targetPath,
+                    details: "elapsed=\(formatMilliseconds(since: importStart))"
+                )
+            }
             if let data = try? await item.loadTransferable(type: Data.self) {
-                let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
+                let loadMS = elapsedMilliseconds(since: loadStart)
                 await MainActor.run {
-                    applyMedia(data: compressedData, as: .image)
+                    recordMediaImportPhase(
+                        "photo-load-end",
+                        importID: importID,
+                        target: target,
+                        targetPath: targetPath,
+                        details: "bytes=\(data.count) loadMs=\(loadMS) elapsed=\(formatMilliseconds(since: importStart))"
+                    )
+                }
+                let compressStart = CFAbsoluteTimeGetCurrent()
+                let compressedData = await Task.detached(priority: .userInitiated) {
+                    data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
+                }.value
+                let compressMS = elapsedMilliseconds(since: compressStart)
+                await MainActor.run {
+                    recordMediaImportPhase(
+                        "photo-compress-end",
+                        importID: importID,
+                        target: target,
+                        targetPath: targetPath,
+                        details: "input=\(data.count) output=\(compressedData.count) compressMs=\(compressMS) elapsed=\(formatMilliseconds(since: importStart))"
+                    )
+                    recordMediaImportPhase(
+                        "photo-apply-start",
+                        importID: importID,
+                        target: target,
+                        targetPath: targetPath,
+                        details: "rootBefore=\(content(for: target).map { quizZoneDebugSummary($0.rootZone) } ?? "nil")"
+                    )
+                    importMedia(
+                        data: compressedData,
+                        as: .image,
+                        target: target,
+                        source: "photo",
+                        importID: importID,
+                        importStart: importStart
+                    )
+                }
+            } else {
+                await MainActor.run {
+                    ZoneEditorDebugStore.shared.recordLayoutEvent(
+                        "media-import-failed",
+                        zoneID: content(for: target)?.zone(at: targetPath)?.id,
+                        pathID: targetPath.id,
+                        details: "source=photo target=\(debugTargetID(target)) root=\(content(for: target).map { quizZoneDebugSummary($0.rootZone) } ?? "nil")"
+                    )
+                    recordMediaImportPhase(
+                        "photo-load-failed",
+                        importID: importID,
+                        target: target,
+                        targetPath: targetPath,
+                        details: "elapsed=\(formatMilliseconds(since: importStart))"
+                    )
                 }
             }
 
             await MainActor.run {
+                recordMediaImportPhase(
+                    "photo-selection-clear",
+                    importID: importID,
+                    target: target,
+                    targetPath: selectedPath(for: target),
+                    details: "elapsed=\(formatMilliseconds(since: importStart))"
+                )
                 selectedPhoto = nil
             }
         }
     }
 
     private func addSketch(_ data: Data) {
-        applyMedia(data: data, as: .sketch)
+        importMedia(
+            data: data,
+            as: .sketch,
+            target: activeEditor,
+            source: "sketch",
+            importID: nil,
+            importStart: nil
+        )
     }
 
     private func prepareForMediaZoneSelection() {
@@ -2038,18 +2390,228 @@ struct QuizCardEditorView: View {
         newlineCaretSettlingDeadline = nil
     }
 
-    private func applyMedia(data: Data, as contentType: ZoneContentType) {
-        guard let content = currentContent else { return }
+    private func importMedia(
+        data: Data,
+        as contentType: ZoneContentType,
+        target: QuizEditorTarget,
+        source: String,
+        importID: UUID?,
+        importStart: CFAbsoluteTime?
+    ) {
+        guard let content = content(for: target) else { return }
+        let targetPath = selectedPath(for: target) ?? .root
 
-        activateEditor(activeEditor)
+        guard canReplaceWithMedia(content.zone(at: targetPath)) else {
+            pendingMediaImport = PendingQuizMediaImport(
+                data: data,
+                contentType: contentType,
+                target: target,
+                source: source,
+                importID: importID,
+                importStart: importStart
+            )
+            recordQuizMediaImportDebug(
+                source: source,
+                action: "conflict",
+                target: target,
+                path: targetPath,
+                zoneID: content.zone(at: targetPath)?.id
+            )
+            return
+        }
 
-        guard let path = currentSelectedPath else { return }
-        content.updateZone(at: path) { zone in
+        applyMedia(data: data, as: contentType, to: target, source: source, importID: importID, importStart: importStart)
+    }
+
+    private func applyPendingMediaImport(_ importRequest: PendingQuizMediaImport, action: PendingQuizMediaImportAction) {
+        pendingMediaImport = nil
+
+        switch action {
+        case .replace:
+            applyMedia(
+                data: importRequest.data,
+                as: importRequest.contentType,
+                to: importRequest.target,
+                source: importRequest.source,
+                importID: importRequest.importID,
+                importStart: importRequest.importStart
+            )
+        case .addChoice:
+            addChoice(
+                mediaData: importRequest.data,
+                contentType: importRequest.contentType,
+                source: importRequest.source,
+                importID: importRequest.importID,
+                importStart: importRequest.importStart
+            )
+        }
+    }
+
+    private func applyMedia(
+        data: Data,
+        as contentType: ZoneContentType,
+        to target: QuizEditorTarget,
+        source: String,
+        importID: UUID?,
+        importStart: CFAbsoluteTime?
+    ) {
+        guard let content = content(for: target) else { return }
+        let mediaZone = mediaZone(data: data, contentType: contentType)
+
+        prepareForMediaZoneSelection()
+        activeEditor = target
+        withTransaction(Transaction(animation: nil)) {
+            content.updateZone(at: .root) { zone in
+                zone = mediaZone
+            }
+            setSelectedPath(.root, for: target, recordsSelection: false)
+            renderedAlignmentMenuTarget = nil
+        }
+        ensureDefaultRenderAlignment(for: target)
+        updateFloatingFormatBarPresentation(isKeyboardVisible: false)
+        recordQuizMediaImportDebug(
+            source: source,
+            action: "replace",
+            target: target,
+            path: .root,
+            zoneID: mediaZone.id
+        )
+        recordMediaApplyEndIfNeeded(
+            importID: importID,
+            importStart: importStart,
+            target: target,
+            targetPath: .root
+        )
+    }
+
+    private func addChoice(
+        mediaData data: Data,
+        contentType: ZoneContentType,
+        source: String,
+        importID: UUID?,
+        importStart: CFAbsoluteTime?
+    ) {
+        let mediaZone = mediaZone(data: data, contentType: contentType)
+        let newChoice = QuizChoiceEditorItem(
+            content: ZoneCardContent(rootZone: mediaZone),
+            selectedPath: .root
+        )
+
+        prepareForMediaZoneSelection()
+        withTransaction(Transaction(animation: nil)) {
+            choices.append(newChoice)
+            activeEditor = .choice(newChoice.id)
+            renderedAlignmentMenuTarget = nil
+        }
+        ensureDefaultRenderAlignment(for: .choice(newChoice.id))
+        updateFloatingFormatBarPresentation(isKeyboardVisible: false)
+        recordQuizMediaImportDebug(
+            source: source,
+            action: "add-choice",
+            target: .choice(newChoice.id),
+            path: .root,
+            zoneID: mediaZone.id
+        )
+        recordMediaApplyEndIfNeeded(
+            importID: importID,
+            importStart: importStart,
+            target: .choice(newChoice.id),
+            targetPath: .root
+        )
+    }
+
+    private func mediaZone(data: Data, contentType: ZoneContentType) -> ZoneModel {
+        switch contentType {
+        case .image:
+            return .image(data: data)
+        case .sketch:
+            return .sketch(data: data)
+        case .empty, .text, .code:
+            var zone = ZoneModel.text()
             zone.contentType = contentType
             zone.imageData = data
+            zone.blockAlignment = .center
+            return zone
         }
-        prepareForMediaZoneSelection()
-        updateFloatingFormatBarPresentation(isKeyboardVisible: false)
+    }
+
+    private func canReplaceWithMedia(_ zone: ZoneModel?) -> Bool {
+        guard let zone, zone.isLeaf else { return true }
+        if zone.isEditorMediaLeaf { return true }
+
+        switch zone.contentType {
+        case .empty:
+            return true
+        case .text, .code:
+            return zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .image, .sketch:
+            return true
+        }
+    }
+
+    private func recordMediaApplyEndIfNeeded(
+        importID: UUID?,
+        importStart: CFAbsoluteTime?,
+        target: QuizEditorTarget,
+        targetPath: ZonePath
+    ) {
+        guard let importID, let importStart else { return }
+        recordMediaImportPhase(
+            "photo-apply-end",
+            importID: importID,
+            target: target,
+            targetPath: targetPath,
+            details: "rootAfter=\(content(for: target).map { quizZoneDebugSummary($0.rootZone) } ?? "nil") totalMs=\(elapsedMilliseconds(since: importStart))"
+        )
+    }
+
+    private func recordMediaImportPhase(
+        _ stage: String,
+        importID: UUID,
+        target: QuizEditorTarget,
+        targetPath: ZonePath?,
+        details: String
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: targetPath.flatMap { content(for: target)?.zone(at: $0)?.id },
+            pathID: targetPath?.id,
+            details: "import=\(shortDebugID(importID)) session=\(shortDebugID(session.id)) target=\(debugTargetID(target)) \(details)"
+        )
+    }
+
+    private func recordQuizMediaImportDebug(
+        source: String,
+        action: String,
+        target: QuizEditorTarget,
+        path: ZonePath?,
+        zoneID: UUID?
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "media-import",
+            zoneID: zoneID,
+            pathID: path?.id,
+            details: "source=\(source) action=\(action) target=\(debugTargetID(target)) root=\(content(for: target).map { quizZoneDebugSummary($0.rootZone) } ?? "nil")"
+        )
+    }
+
+    private func quizZoneDebugSummary(_ zone: ZoneModel) -> String {
+        if zone.isLeaf {
+            return "\(zone.contentType.rawValue)#\(zone.id.uuidString.prefix(6))"
+        }
+
+        let childSummary = (zone.children ?? [])
+            .map { "\($0.contentType.rawValue)#\($0.id.uuidString.prefix(6))" }
+            .joined(separator: ",")
+        return "\(zone.direction.rawValue)[\(childSummary)]"
+    }
+
+    private func elapsedMilliseconds(since start: CFAbsoluteTime) -> Int {
+        Int((CFAbsoluteTimeGetCurrent() - start) * 1_000)
+    }
+
+    private func formatMilliseconds(since start: CFAbsoluteTime) -> String {
+        "\(elapsedMilliseconds(since: start))ms"
     }
 
     private func openPreview() {
@@ -2256,6 +2818,17 @@ struct QuizCardEditorView: View {
         choices.first(where: { $0.id == choiceID })
     }
 
+    private func content(for target: QuizEditorTarget) -> ZoneCardContent? {
+        switch target {
+        case .question:
+            return questionContent
+        case .choice(let choiceID):
+            return choice(for: choiceID)?.content
+        case .explanation:
+            return explanationContent
+        }
+    }
+
     private func indexOfChoice(_ choiceID: UUID) -> Int? {
         choices.firstIndex(where: { $0.id == choiceID })
     }
@@ -2277,10 +2850,37 @@ struct QuizCardEditorView: View {
 }
 
 /// Identifies which quiz section currently owns the bottom formatting bar.
-private enum QuizEditorTarget: Equatable {
+private enum QuizEditorTarget: Hashable {
     case question
     case choice(UUID)
     case explanation
+}
+
+private enum QuizRenderedAlignmentDirection {
+    case left
+    case right
+}
+
+private enum PendingQuizMediaImportAction {
+    case replace
+    case addChoice
+}
+
+private struct PendingQuizMediaImport: Identifiable {
+    let id = UUID()
+    let data: Data
+    let contentType: ZoneContentType
+    let target: QuizEditorTarget
+    let source: String
+    let importID: UUID?
+    let importStart: CFAbsoluteTime?
+
+    var canCreateChoice: Bool {
+        if case .choice = target {
+            return true
+        }
+        return false
+    }
 }
 
 private enum QuizEditorStyle {
@@ -2304,6 +2904,71 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 1 : 0.9)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeInOut(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+private struct QuizRenderedZoneCard: View {
+    let content: ZoneCardContent
+    let isAlignmentMenuPresented: Bool
+    let fontScale: CGFloat
+    let availableWidth: CGFloat
+    let alignLeftLabel: String
+    let alignRightLabel: String
+    let onSelect: () -> Void
+    let onAlign: (QuizRenderedAlignmentDirection) -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ZoneContentRenderView(
+                zone: content.rootZone,
+                fontScale: fontScale,
+                availableWidth: availableWidth,
+                centersLeafBlocks: true,
+                showsDebugGuides: false,
+                collectsDebugMetrics: false,
+                leafTapBehavior: .all,
+                onTap: onSelect,
+                onZoneTap: { _ in
+                    onSelect()
+                }
+            )
+            .frame(width: availableWidth, alignment: .topLeading)
+            .frame(minHeight: 88, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onSelect)
+
+            if isAlignmentMenuPresented {
+                HStack(spacing: 6) {
+                    renderedAlignmentButton(systemName: "arrow.left") {
+                        onAlign(.left)
+                    }
+                    renderedAlignmentButton(systemName: "arrow.right") {
+                        onAlign(.right)
+                    }
+                }
+                .padding(5)
+                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+                }
+                .padding(.top, 6)
+                .padding(.trailing, 6)
+                .transition(.scale(scale: 0.92, anchor: .topTrailing).combined(with: .opacity))
+            }
+        }
+    }
+
+    private func renderedAlignmentButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: 32, height: 32)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(systemName == "arrow.left" ? alignLeftLabel : alignRightLabel)
     }
 }
 
@@ -2340,6 +3005,7 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
 /// Mutable quiz editor session retained across parent redraws.
 @MainActor
 private final class QuizEditorSession: ObservableObject {
+    let id = UUID()
     @Published var questionContent: ZoneCardContent
     @Published var questionSelectedPath: ZonePath?
     @Published var choices: [QuizChoiceEditorItem]

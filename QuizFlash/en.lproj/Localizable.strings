@@ -106,6 +106,7 @@
 "Add cards to this deck first." = "Add cards to this deck first.";
 "Add Explanation" = "Add Explanation";
 "Add Left" = "Add Left";
+"Add Media Answer" = "Add Media Answer";
 "Add manually" = "Add manually";
 "Add Right" = "Add Right";
 "Add source text before saving." = "Add source text before saving.";
@@ -466,6 +467,8 @@
 "Preparing your material" = "Preparing your material";
 "Preview" = "Preview";
 "Render" = "Render";
+"Replace current zone?" = "Replace current zone?";
+"Replace Zone" = "Replace Zone";
 "PREVIEW" = "PREVIEW";
 "Preview Mode" = "Preview Mode";
 "Pro" = "Pro";
@@ -613,6 +616,7 @@
 "Today clear" = "Today clear";
 "Today goal" = "Today goal";
 "Today is already closed." = "Today is already closed.";
+"This zone already has text. Choose how to use the imported media." = "This zone already has text. Choose how to use the imported media.";
 "Today is clear" = "Today is clear";
 "Today's goal is closed." = "Today's goal is closed.";
 "Token: %@" = "Token: %@";
