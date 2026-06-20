@@ -135,7 +135,7 @@ struct LoginView: View {
                         text: $email
                     )
                     .keyboardType(.emailAddress)
-                    .textContentType(.emailAddress)
+                    .textContentType(.username)
 
                     AuthIconTextField(
                         title: AppLocalization.string("Password", locale: locale),
@@ -299,13 +299,13 @@ private struct CreateAccountView: View {
                         text: $email
                     )
                     .keyboardType(.emailAddress)
-                    .textContentType(.emailAddress)
+                    .textContentType(.username)
 
                     AuthIconTextField(
                         title: AppLocalization.string("Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .oneTimeCode,
+                        passwordTextContentType: .newPassword,
                         text: $password
                     )
 
@@ -313,7 +313,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Confirm Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .oneTimeCode,
+                        passwordTextContentType: .newPassword,
                         text: $passwordConfirmation
                     )
 
