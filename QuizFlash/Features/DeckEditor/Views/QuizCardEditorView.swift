@@ -30,6 +30,8 @@ struct QuizCardEditorView: View {
     @State private var markedCorrectIndicatorTask: Task<Void, Never>?
     @State private var pendingDeleteChoiceID: UUID?
     @State private var pendingDeleteTask: Task<Void, Never>?
+    @State private var isExplanationDeletePending = false
+    @State private var pendingExplanationDeleteTask: Task<Void, Never>?
     @State private var editorDismissalTask: Task<Void, Never>?
     @State private var showUnsavedChangesDialog = false
     @State private var initialQuizContent: QuizCardContent
@@ -413,6 +415,8 @@ struct QuizCardEditorView: View {
             markedCorrectIndicatorTask = nil
             pendingDeleteTask?.cancel()
             pendingDeleteTask = nil
+            pendingExplanationDeleteTask?.cancel()
+            pendingExplanationDeleteTask = nil
             editorDismissalTask?.cancel()
             editorDismissalTask = nil
             floatingFormatBarPresentationTask?.cancel()
@@ -988,7 +992,8 @@ struct QuizCardEditorView: View {
 
     private func choiceHeader(
         index: Int,
-        choiceID: UUID,
+        choiceID: UUID?,
+        showsCorrectToggle: Bool = true,
         isCorrect: Bool,
         isDeletePending: Bool,
         onToggleCorrect: @escaping () -> Void,
@@ -1002,9 +1007,11 @@ struct QuizCardEditorView: View {
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 18, alignment: .trailing)
 
-                correctToggleButton(isCorrect: isCorrect, action: onToggleCorrect)
+                if showsCorrectToggle {
+                    correctToggleButton(isCorrect: isCorrect, action: onToggleCorrect)
+                }
 
-                if markedCorrectIndicatorChoiceID == choiceID {
+                if let choiceID, markedCorrectIndicatorChoiceID == choiceID {
                     Text(localized("Marked as correct"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(successAccent)
@@ -1059,68 +1066,36 @@ struct QuizCardEditorView: View {
     private func explanationSection(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             if let explanationContent {
-                if isExplanationExpanded {
-                    HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                        Text(localized("Explanation"))
-                            .font(.caption.weight(.heavy))
-                            .textCase(.uppercase)
-                            .foregroundStyle(.secondary)
-
-                        Spacer(minLength: UIConstants.Spacing.standard)
-
-                        Button(role: .destructive) {
-                            emitTrashHaptic(confirming: true)
-                            removeExplanation()
-                        } label: {
-                            Image(systemName: "trash.fill")
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(.red)
-                                .frame(width: 26, height: 26)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(QuizEditorControlButtonStyle())
-                        .accessibilityLabel(localized("Delete"))
+                choiceHeader(
+                    index: choices.count,
+                    choiceID: nil,
+                    showsCorrectToggle: false,
+                    isCorrect: false,
+                    isDeletePending: isExplanationDeletePending,
+                    onToggleCorrect: { },
+                    onDelete: {
+                        handleExplanationDeleteTap()
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                )
 
-                    QuizZoneSectionCard(
-                        content: explanationContent,
-                        selectedPath: binding(for: .explanation),
-                        highlightContext: highlightContext,
-                        fontScale: editorTextScale,
-                        availableWidth: availableWidth,
-                        previewDirection: $previewDirection,
-                        onSelectionChange: {
+                QuizExplanationCard(
+                    content: explanationContent,
+                    selectedPath: binding(for: .explanation),
+                    highlightContext: highlightContext,
+                    fontScale: editorTextScale,
+                    availableWidth: availableWidth,
+                    previewDirection: $previewDirection,
+                    onActivate: {
+                        activateEditor(.explanation)
+                    },
+                    onSelectionChange: {
+                        if explanationSelectedPath != nil {
                             activateEditor(.explanation)
+                        } else {
+                            handleSelectedPathChange(source: "explanation")
                         }
-                    ) {
-                        activateEditor(.explanation)
                     }
-                } else {
-                    Button {
-                        isExplanationExpanded = true
-                        activateEditor(.explanation)
-                    } label: {
-                        HStack(spacing: UIConstants.Spacing.small) {
-                            Image(systemName: "text.quote")
-                                .foregroundStyle(accent)
-
-                            Text(explanationContent.rootZone.previewText(maxLength: 90))
-                                .font(.subheadline)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.down")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.secondary)
-                        }
-                            .padding(UIConstants.Spacing.standard)
-                            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
-                    }
-                        .buttonStyle(.plain)
-                }
+                )
             } else {
                 addSectionButton(localized("Add Explanation"), systemImage: "plus.bubble") {
                     addExplanation()
@@ -1877,6 +1852,7 @@ struct QuizCardEditorView: View {
         }
 
         emitTrashHaptic(confirming: false)
+        clearPendingExplanationDelete(animated: false)
         pendingDeleteTask?.cancel()
         withAnimation(.easeOut(duration: 0.16)) {
             pendingDeleteChoiceID = choiceID
@@ -1889,6 +1865,29 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func handleExplanationDeleteTap() {
+        if isExplanationDeletePending {
+            emitTrashHaptic(confirming: true)
+            pendingExplanationDeleteTask?.cancel()
+            pendingExplanationDeleteTask = nil
+            removeExplanation()
+            return
+        }
+
+        emitTrashHaptic(confirming: false)
+        clearPendingDelete(animated: false)
+        pendingExplanationDeleteTask?.cancel()
+        withAnimation(.easeOut(duration: 0.16)) {
+            isExplanationDeletePending = true
+        }
+
+        pendingExplanationDeleteTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            clearPendingExplanationDelete(animated: true)
+        }
+    }
+
     private func clearPendingDelete(animated: Bool, choiceID: UUID? = nil) {
         pendingDeleteTask?.cancel()
         pendingDeleteTask = nil
@@ -1898,6 +1897,25 @@ struct QuizCardEditorView: View {
 
         let clear = {
             pendingDeleteChoiceID = nil
+        }
+
+        if animated {
+            withAnimation(.easeInOut(duration: 0.14)) {
+                clear()
+            }
+        } else {
+            clear()
+        }
+    }
+
+    private func clearPendingExplanationDelete(animated: Bool) {
+        pendingExplanationDeleteTask?.cancel()
+        pendingExplanationDeleteTask = nil
+
+        guard isExplanationDeletePending else { return }
+
+        let clear = {
+            isExplanationDeletePending = false
         }
 
         if animated {
@@ -1956,26 +1974,27 @@ struct QuizCardEditorView: View {
     }
 
     private func removeExplanation() {
-        let wasActiveExplanation = activeEditor == .explanation
+        clearPendingExplanationDelete(animated: false)
+        focusManager.suppressFocusRequests(for: 0.9)
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        updateFloatingFormatBarPresentation(isKeyboardVisible: false)
 
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
+        withTransaction(Transaction(animation: nil)) {
+            activeEditor = .question
+            questionSelectedPath = nil
             explanationContent = nil
             explanationSelectedPath = nil
             isExplanationExpanded = false
-            if wasActiveExplanation {
-                activeEditor = .question
-                questionSelectedPath = nil
-                previewDirection = nil
-            }
-        }
-
-        if wasActiveExplanation {
-            focusManager.forceReleaseKeyboard()
-            zoneController.forceReleaseKeyboard()
-            zoneController.updateFocusedZone(nil)
-            updateFloatingFormatBarPresentation(isKeyboardVisible: false)
+            previewDirection = nil
+            activeQuizCaretPathID = nil
+            activeQuizCaretWindowRect = nil
+            activeQuizCaretSource = nil
+            activeQuizCaretTraceID = nil
+            activeQuizCaretAnchorY = nil
+            activeQuizCaretEditorHeight = nil
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
         }
     }
 
@@ -2468,6 +2487,41 @@ private struct QuizChoiceCard: View {
             .onChange(of: choice.selectedPath) { _, _ in
             onSelectionChange()
         }
+    }
+
+}
+
+/// Explanation row using the same zone editor behavior as an answer row.
+private struct QuizExplanationCard: View {
+    let content: ZoneCardContent
+    @Binding var selectedPath: ZonePath?
+    var highlightContext: HighlightContext?
+    let fontScale: CGFloat
+    let availableWidth: CGFloat
+    @Binding var previewDirection: AddDirection?
+    let onActivate: () -> Void
+    let onSelectionChange: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            ZoneEditorView(
+                content: content,
+                path: .root,
+                selectedPath: $selectedPath,
+                highlightContext: highlightContext,
+                fontScale: fontScale,
+                availableWidth: availableWidth,
+                measurementWidth: availableWidth,
+                previewDirection: $previewDirection
+            )
+                .frame(width: availableWidth, alignment: .topLeading)
+        }
+            .onTapGesture {
+                onActivate()
+            }
+            .onChange(of: selectedPath) { _, _ in
+                onSelectionChange()
+            }
     }
 
 }
