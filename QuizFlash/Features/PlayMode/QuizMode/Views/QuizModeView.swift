@@ -96,8 +96,8 @@ private struct QuizModeSessionView: View {
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
     private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
-    private var questionContentHiddenScale: CGFloat { 0.952 }
-    private var questionContentSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
+    private var questionContentHiddenScale: CGFloat { 1 }
+    private var questionContentFade: Animation { .easeInOut(duration: 0.16) }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
     }
@@ -350,7 +350,7 @@ private struct QuizModeSessionView: View {
                 questionFlow(for: currentCard, safeBottomInset: safeBottomInset)
                     .opacity(isQuestionContentVisible ? 1 : 0.001)
                     .scaleEffect(isQuestionContentVisible ? 1 : questionContentHiddenScale)
-                    .animation(questionContentSpring, value: isQuestionContentVisible)
+                    .animation(questionContentFade, value: isQuestionContentVisible)
             } else {
                 centeredMessageCard(
                     icon: "questionmark.circle",
@@ -1224,14 +1224,14 @@ private struct QuizModeSessionView: View {
         showsExplanationSheet = false
 
         questionTransitionTask = Task { @MainActor in
-            withAnimation(questionContentSpring) {
+            withAnimation(questionContentFade) {
                 isQuestionContentVisible = false
             }
             withBottomChromeAnimation {
                 areFloatingControlsVisible = false
             }
 
-            try? await Task.sleep(nanoseconds: 260_000_000)
+            try? await Task.sleep(nanoseconds: 160_000_000)
             guard !Task.isCancelled else { return }
 
             viewModel.advance()
@@ -1239,14 +1239,14 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            withAnimation(questionContentSpring) {
+            withAnimation(questionContentFade) {
                 isQuestionContentVisible = true
             }
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
 
-            try? await Task.sleep(nanoseconds: 320_000_000)
+            try? await Task.sleep(nanoseconds: 180_000_000)
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
@@ -1267,7 +1267,7 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 35_000_000)
             guard !Task.isCancelled else { return }
 
-            withAnimation(questionContentSpring) {
+            withAnimation(questionContentFade) {
                 isQuestionContentVisible = true
             }
             withBottomChromeAnimation {
@@ -1466,7 +1466,6 @@ private struct QuizChoiceRow: View {
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
     @State private var tappableZoneFrame: CGRect = .zero
-    @State private var wrongWiggleOffset: CGFloat = 0
     @State private var wrongScale: CGFloat = 1
     @State private var correctFeedbackAnimationTrigger = 0
 
@@ -1527,12 +1526,10 @@ private struct QuizChoiceRow: View {
                 }
         )
         .opacity(isEvaluated || isSelected ? 1 : 0.98)
-        .offset(x: wrongWiggleOffset)
-        .scaleEffect(wrongFeedback ? wrongScale : 1, anchor: .leading)
+        .scaleEffect(wrongFeedback ? wrongScale : 1, anchor: .center)
         .zIndex(correctFeedback ? 1 : 0)
         .onChange(of: wrongFeedback) { _, isActive in
             if !isActive {
-                wrongWiggleOffset = 0
                 wrongScale = 1
             }
         }
@@ -1545,9 +1542,9 @@ private struct QuizChoiceRow: View {
                 correctFeedbackAnimationTrigger &+= 1
             }
         }
-        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelected)
-        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isEvaluated)
-        .animation(.spring(response: 0.24, dampingFraction: 0.86), value: correctFeedback)
+        .animation(.easeOut(duration: 0.16), value: isSelected)
+        .animation(.easeOut(duration: 0.16), value: isEvaluated)
+        .animation(.easeOut(duration: 0.16), value: correctFeedback)
         .quizDebugOutline(
             isVisible: showsLayoutDebug,
             color: .pink,
@@ -1657,20 +1654,8 @@ private struct QuizChoiceRow: View {
     }
 
     private func runWrongFeedbackSequence() {
-        wrongScale = 1
-        wrongWiggleOffset = 0
-        withAnimation(.linear(duration: 0.065).repeatCount(3, autoreverses: true)) {
-            wrongWiggleOffset = 8
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 240_000_000)
-            withAnimation(.spring(response: 0.18, dampingFraction: 0.7)) {
-                wrongWiggleOffset = 0
-            }
-            withAnimation(.smooth(duration: 0.22, extraBounce: 0)) {
-                wrongScale = 0.9
-            }
+        withAnimation(.easeOut(duration: 0.16)) {
+            wrongScale = 0.96
         }
     }
 
@@ -1758,6 +1743,9 @@ private struct QuizPlayZoneContent: View {
         )
             .frame(width: width, alignment: .topLeading)
             .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
             .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
                 guard showsLayoutDebug else { return }
                 onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })

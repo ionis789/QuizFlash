@@ -198,6 +198,7 @@ final class QuizModeViewModel {
 
         if isEvaluated {
             guard lastEvaluationWasCorrect == false, !currentCard.allowsMultipleCorrect else { return }
+            guard !incorrectChoiceIDs.contains(choiceID) else { return }
             isEvaluated = false
             lastEvaluationWasCorrect = nil
             missedCorrectChoiceIDs = []

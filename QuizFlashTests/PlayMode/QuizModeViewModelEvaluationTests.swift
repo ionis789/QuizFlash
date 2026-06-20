@@ -68,6 +68,30 @@ final class QuizModeViewModelEvaluationTests: XCTestCase {
         XCTAssertEqual(viewModel.wrongCards.map(\.id), [fixture.playableCard.id])
     }
 
+    func testRetappingSingleWrongAnswerKeepsItsEvaluationState() throws {
+        let fixture = try makeQuizFixture(
+            choices: [
+                QuizChoiceDraft(contentZone: .text("Correct"), isCorrect: true),
+                QuizChoiceDraft(contentZone: .text("Wrong"), isCorrect: false)
+            ],
+            allowsMultipleCorrect: false
+        )
+        var settings = QuizModeSettings()
+        settings.answerValidation = .instantCheck
+        let viewModel = makeViewModel(deck: fixture.deck, settings: settings, card: fixture.playableCard)
+        let wrongChoiceID = fixture.playableCard.choices[1].id
+
+        viewModel.selectChoice(wrongChoiceID)
+        let feedbackTrigger = viewModel.wrongFeedbackTrigger
+
+        viewModel.selectChoice(wrongChoiceID)
+
+        XCTAssertTrue(viewModel.isEvaluated)
+        XCTAssertEqual(viewModel.lastEvaluationWasCorrect, false)
+        XCTAssertEqual(viewModel.selectedChoiceIDs, [wrongChoiceID])
+        XCTAssertEqual(viewModel.wrongFeedbackTrigger, feedbackTrigger)
+    }
+
     private func makeViewModel(
         deck: DeckModel,
         settings: QuizModeSettings,

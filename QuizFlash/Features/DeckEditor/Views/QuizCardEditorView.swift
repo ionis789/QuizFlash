@@ -1399,12 +1399,16 @@ struct QuizCardEditorView: View {
             ensureDefaultRenderAlignmentForAllTargets()
             prepareForRenderModeKeyboardDismiss()
             clearAllSelectedPaths()
-            withAnimation(.easeInOut(duration: 0.18)) {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
                 showsRenderedContent = true
                 renderedAlignmentMenuState = nil
             }
         } else {
-            withAnimation(.easeInOut(duration: 0.18)) {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
                 showsRenderedContent = false
                 renderedAlignmentMenuState = nil
             }
@@ -3141,6 +3145,11 @@ private struct QuizRenderedZoneCard: View {
                 guard let rootFrame = bounds.first(where: { $0.zoneID == content.rootZone.id })?.frame else { return }
                 hitTargetHeight = max(88, rootFrame.maxY)
                 onRootFrameChange(rootFrame)
+            }
+            .transaction { transaction in
+                if alignmentMenuState == nil {
+                    transaction.animation = nil
+                }
             }
             .zIndex(0)
 
