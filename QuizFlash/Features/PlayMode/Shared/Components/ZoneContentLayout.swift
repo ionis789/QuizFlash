@@ -34,6 +34,8 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let zoneID: UUID
     let contentType: ZoneContentType
     let hasContent: Bool
+    let rawBlockAlignment: ZoneBlockAlignment
+    let resolvedBlockAlignment: ZoneBlockAlignment
     let availableWidth: CGFloat
     let estimatedSize: CGSize
     let renderedContentSize: CGSize
@@ -91,7 +93,19 @@ struct ZoneContentLeafDebugPreferenceKey: PreferenceKey {
 
 struct ZoneContentRenderBlockBounds: Equatable {
     let zoneID: UUID
+    let path: String
+    let kind: String
     let frame: CGRect
+    let availableWidth: CGFloat
+    let blockSize: CGSize
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
+    let rawBlockAlignment: ZoneBlockAlignment
+    let resolvedBlockAlignment: ZoneBlockAlignment
+    let textHorizontalInsets: CGFloat
+    let textVerticalPadding: CGFloat
+    let contentLayoutWidth: CGFloat
+    let textWidthLimit: CGFloat?
 }
 
 struct ZoneContentRenderBlockBoundsPreferenceKey: PreferenceKey {
@@ -410,6 +424,7 @@ struct ZoneContentRenderView: View {
     var leafTapBehavior: ZoneContentLeafTapBehavior = .all
     var onTap: (() -> Void)?
     var onZoneTap: ((UUID) -> Void)?
+    var onBlockBoundsChange: (([ZoneContentRenderBlockBounds]) -> Void)?
     var onRootBlockWidthChange: ((CGFloat) -> Void)?
 
     var body: some View {
@@ -440,6 +455,9 @@ struct ZoneContentRenderView: View {
             .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
             guard let width = widths["root"], width > 0 else { return }
             onRootBlockWidthChange?(ceil(width))
+        }
+            .onPreferenceChange(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
+            onBlockBoundsChange?(bounds.sorted { $0.path < $1.path })
         }
     }
 }
@@ -560,6 +578,14 @@ private struct ZoneContentTreePreview: View {
                 }
             }
                 .frame(width: availableWidth, alignment: .topLeading)
+                .background {
+                groupBlockBounds(
+                    blockWidth: availableWidth,
+                    leadingInset: 0,
+                    rawAlignment: zone.blockAlignment,
+                    resolvedAlignment: .leading
+                )
+            }
         } else {
             let childPaths = indexedChildren.map { "\(path).\($0.offset)" }
             let containerIdentity = verticalContainerMeasurementIdentity(for: children)
@@ -611,6 +637,14 @@ private struct ZoneContentTreePreview: View {
                     }
                 }
                     .frame(width: groupWidth, alignment: .topLeading)
+                    .background {
+                    groupBlockBounds(
+                        blockWidth: groupWidth,
+                        leadingInset: groupLeadingInset,
+                        rawAlignment: zone.blockAlignment,
+                        resolvedAlignment: resolvedGroupAlignment
+                    )
+                }
                     .overlay {
                     ZStack {
                         if let groupTarget,
@@ -692,6 +726,38 @@ private struct ZoneContentTreePreview: View {
         (zone.children ?? [])
             .enumerated()
             .filter { ZoneContentRenderPolicy.shouldRender($0.element) }
+    }
+
+    private func groupBlockBounds(
+        blockWidth: CGFloat,
+        leadingInset: CGFloat,
+        rawAlignment: ZoneBlockAlignment,
+        resolvedAlignment: ZoneBlockAlignment
+    ) -> some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: ZoneContentRenderBlockBoundsPreferenceKey.self,
+                value: [
+                    ZoneContentRenderBlockBounds(
+                        zoneID: zone.id,
+                        path: path,
+                        kind: "group",
+                        frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name)),
+                        availableWidth: availableWidth,
+                        blockSize: CGSize(width: blockWidth, height: proxy.size.height),
+                        leadingInset: leadingInset,
+                        trailingInset: max(availableWidth - leadingInset - blockWidth, 0),
+                        rawBlockAlignment: rawAlignment,
+                        resolvedBlockAlignment: resolvedAlignment,
+                        textHorizontalInsets: 0,
+                        textVerticalPadding: 0,
+                        contentLayoutWidth: blockWidth,
+                        textWidthLimit: nil
+                    )
+                ]
+            )
+        }
+        .allowsHitTesting(false)
     }
 
     private var zonePath: ZonePath? {
@@ -937,8 +1003,9 @@ private struct ZoneContentLeafPreview: View {
             Color.clear.frame(width: layout.leadingInset)
 
             ZStack(alignment: .topLeading) {
-                renderBlockBounds(layout: layout)
+                renderBlockBounds(layout: layout, layoutZone: resolvedLayoutZone)
                 zoneBlockSurface(layout: layout)
+                paddingDebugGuide(layout: layout)
 
                 if debugGuideStyle != .editorRender,
                     let leafTarget,
@@ -1007,7 +1074,10 @@ private struct ZoneContentLeafPreview: View {
         }
     }
 
-    private func renderBlockBounds(layout: ZoneContentLayoutResult) -> some View {
+    private func renderBlockBounds(
+        layout: ZoneContentLayoutResult,
+        layoutZone: ZoneModel
+    ) -> some View {
         Color.clear
             .frame(width: layout.blockSize.width, height: layout.blockSize.height)
             .background(
@@ -1017,13 +1087,56 @@ private struct ZoneContentLeafPreview: View {
                     value: [
                         ZoneContentRenderBlockBounds(
                             zoneID: zone.id,
-                            frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name))
+                            path: path,
+                            kind: "leaf",
+                            frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name)),
+                            availableWidth: availableWidth,
+                            blockSize: layout.blockSize,
+                            leadingInset: layout.leadingInset,
+                            trailingInset: max(availableWidth - layout.leadingInset - layout.blockSize.width, 0),
+                            rawBlockAlignment: zone.blockAlignment,
+                            resolvedBlockAlignment: layoutZone.blockAlignment,
+                            textHorizontalInsets: layout.textHorizontalInsets,
+                            textVerticalPadding: textVerticalPadding,
+                            contentLayoutWidth: layout.contentLayoutWidth,
+                            textWidthLimit: layout.textWidthLimit
                         )
                     ]
                 )
             }
         )
             .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func paddingDebugGuide(layout: ZoneContentLayoutResult) -> some View {
+        if showsDebugGuides,
+           (zone.contentType == .empty || zone.contentType == .text || zone.contentType == .code) {
+            let horizontalInset = layout.textHorizontalInsets / 2
+            let verticalInset = textVerticalPadding / 2
+            let contentWidth = max(layout.blockSize.width - layout.textHorizontalInsets, 1)
+            let contentHeight = max(layout.blockSize.height - textVerticalPadding, 1)
+
+            RoundedRectangle(cornerRadius: max(zoneSurfaceCornerRadius - 10, 8), style: .continuous)
+                .stroke(
+                    debugGuideStyle == .editorRender
+                        ? Color.mint.opacity(0.92)
+                        : Color.cyan.opacity(0.9),
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                )
+                .frame(width: contentWidth, height: contentHeight)
+                .offset(x: horizontalInset, y: verticalInset)
+                .overlay(alignment: .topLeading) {
+                    Text("pad \(Int(ceil(horizontalInset)))x\(Int(ceil(verticalInset)))")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(Color.mint)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 2)
+                        .background(Color.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        .offset(x: horizontalInset + 3, y: verticalInset + 3)
+                }
+                .allowsHitTesting(false)
+        }
     }
 
     private var leafWiggleOffset: CGFloat {
@@ -1485,6 +1598,8 @@ private struct ZoneContentLeafPreview: View {
             zoneID: zone.id,
             contentType: zone.contentType,
             hasContent: zone.hasContent,
+            rawBlockAlignment: zone.blockAlignment,
+            resolvedBlockAlignment: layoutZone.blockAlignment,
             availableWidth: ceil(availableWidth),
             estimatedSize: layout.estimatedContentSize,
             renderedContentSize: roundedSize(renderedContentSize),

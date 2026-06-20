@@ -75,6 +75,9 @@ private struct QuizModeSessionView: View {
     @State private var measuredChoiceZoneWidths: [UUID: CGFloat] = [:]
     @State private var questionLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
     @State private var choiceLeafDebugSnapshots: [UUID: [ZoneContentLeafLayoutDebugSnapshot]] = [:]
+    @State private var questionBlockDebugBounds: [ZoneContentRenderBlockBounds] = []
+    @State private var choiceBlockDebugBounds: [UUID: [ZoneContentRenderBlockBounds]] = [:]
+    @State private var explanationBlockDebugBounds: [ZoneContentRenderBlockBounds] = []
     @State private var showsQuizLayoutDebug = false
     @State private var showsExplanationSheet = false
     @State private var didCopyQuizLayoutDebug = false
@@ -378,7 +381,8 @@ private struct QuizModeSessionView: View {
                         textVerticalPadding: 0,
                         textHorizontalPaddingOverride: 0,
                         showsLayoutDebug: showsQuizLayoutDebug,
-                        onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots
+                        onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
+                        onBlockBoundsChange: updateQuestionBlockDebugBounds
                     )
 
                     quizQuestionSeparator
@@ -410,6 +414,9 @@ private struct QuizModeSessionView: View {
                     },
                     onLeafDebugSnapshotsChange: { choiceID, snapshots in
                         updateChoiceLeafDebugSnapshots(snapshots, for: choiceID)
+                    },
+                    onBlockBoundsChange: { choiceID, bounds in
+                        updateChoiceBlockDebugBounds(bounds, for: choiceID)
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -434,6 +441,9 @@ private struct QuizModeSessionView: View {
             measuredChoiceZoneWidths = [:]
             questionLeafDebugSnapshots = []
             choiceLeafDebugSnapshots = [:]
+            questionBlockDebugBounds = []
+            choiceBlockDebugBounds = [:]
+            explanationBlockDebugBounds = []
         }
     }
 
@@ -455,7 +465,8 @@ private struct QuizModeSessionView: View {
                             availableWidth: contentWidth,
                             centersLeafBlocks: false,
                             alignLeafBlocksToGroupLeading: false,
-                            showsLayoutDebug: showsQuizLayoutDebug
+                            showsLayoutDebug: showsQuizLayoutDebug,
+                            onBlockBoundsChange: updateExplanationBlockDebugBounds
                         )
                         .frame(width: contentWidth, alignment: .topLeading)
                         .padding(.horizontal, horizontalPadding)
@@ -702,6 +713,11 @@ private struct QuizModeSessionView: View {
                 lines.append(contentsOf: Self.leafLines(for: leaf))
             }
         }
+        lines += [
+            "",
+            "QUESTION BLOCK BOUNDS",
+        ]
+        lines.append(contentsOf: Self.blockBoundsLines(for: questionBlockDebugBounds))
 
         lines += [
             "",
@@ -724,6 +740,8 @@ private struct QuizModeSessionView: View {
                 "  zoneTree:",
             ]
             lines.append(contentsOf: Self.zoneTreeLines(for: choice.contentZone, path: "choice[\(index)].root", depth: 2))
+            lines.append("  blockBounds:")
+            lines.append(contentsOf: Self.blockBoundsLines(for: choiceBlockDebugBounds[choice.id] ?? []).map { "  \($0)" })
             lines.append("  leafMetrics:")
             if let snapshots = choiceLeafDebugSnapshots[choice.id], !snapshots.isEmpty {
                 for leaf in snapshots {
@@ -732,6 +750,19 @@ private struct QuizModeSessionView: View {
             } else {
                 lines.append("    <none captured>")
             }
+        }
+
+        if let explanationZone = card.explanationZone {
+            lines += [
+                "",
+                "EXPLANATION ZONE TREE",
+            ]
+            lines.append(contentsOf: Self.zoneTreeLines(for: explanationZone, path: "explanation.root", depth: 0))
+            lines += [
+                "",
+                "EXPLANATION BLOCK BOUNDS",
+            ]
+            lines.append(contentsOf: Self.blockBoundsLines(for: explanationBlockDebugBounds))
         }
 
         return lines.joined(separator: "\n")
@@ -988,6 +1019,24 @@ private struct QuizModeSessionView: View {
         choiceLeafDebugSnapshots[choiceID] = sortedSnapshots
     }
 
+    private func updateQuestionBlockDebugBounds(_ bounds: [ZoneContentRenderBlockBounds]) {
+        guard bounds != questionBlockDebugBounds else { return }
+        questionBlockDebugBounds = bounds
+    }
+
+    private func updateChoiceBlockDebugBounds(
+        _ bounds: [ZoneContentRenderBlockBounds],
+        for choiceID: UUID
+    ) {
+        guard choiceBlockDebugBounds[choiceID] != bounds else { return }
+        choiceBlockDebugBounds[choiceID] = bounds
+    }
+
+    private func updateExplanationBlockDebugBounds(_ bounds: [ZoneContentRenderBlockBounds]) {
+        guard bounds != explanationBlockDebugBounds else { return }
+        explanationBlockDebugBounds = bounds
+    }
+
     private static func metric(_ value: CGFloat) -> String {
         String(format: "%.0f", ceil(value))
     }
@@ -1045,6 +1094,7 @@ private struct QuizModeSessionView: View {
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
             "  type=\(leaf.contentType.rawValue) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
+            "  blockAlignment raw=\(leaf.rawBlockAlignment.rawValue) resolved=\(leaf.resolvedBlockAlignment.rawValue)",
             "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize))",
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
             "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) rawMeasured=\(size(leaf.rawMeasuredContentSize)) frameH=\(leaf.contentFrameHeight.map(metric) ?? "nil") slack=\(metric(leaf.blockHeightSlack))",
@@ -1072,6 +1122,16 @@ private struct QuizModeSessionView: View {
             mathGestureDebug,
             "  preview=\"\(leaf.textPreview)\""
         ]
+    }
+
+    private static func blockBoundsLines(for bounds: [ZoneContentRenderBlockBounds]) -> [String] {
+        guard !bounds.isEmpty else { return ["<none captured; enable Quiz Debug and wait one render pass>"] }
+
+        return bounds.map { bound in
+            let textWidth = bound.textWidthLimit
+                .map { String(format: "%.0f", ceil($0)) } ?? "n/a"
+            return "- \(bound.path) \(bound.kind) id=\(bound.zoneID.uuidString.prefix(6)) frame=(x:\(metric(bound.frame.minX)), y:\(metric(bound.frame.minY)), w:\(metric(bound.frame.width)), h:\(metric(bound.frame.height))) available=\(metric(bound.availableWidth)) block=\(size(bound.blockSize)) insets=(lead:\(metric(bound.leadingInset)), trail:\(metric(bound.trailingInset))) align=(raw:\(bound.rawBlockAlignment.rawValue), resolved:\(bound.resolvedBlockAlignment.rawValue)) textPadding=(h:\(metric(bound.textHorizontalInsets)), v:\(metric(bound.textVerticalPadding))) contentWidth=\(metric(bound.contentLayoutWidth)) textWidthLimit=\(textWidth)"
+        }
     }
 
     private static func tokenDebugLines(for lines: [MixedMathRenderedLineDebug]) -> String {
@@ -1292,6 +1352,7 @@ private struct QuizAnswerList: View {
     let selectChoice: (UUID) -> Void
     let onMeasuredWidthChange: (UUID, CGFloat) -> Void
     let onLeafDebugSnapshotsChange: (UUID, [ZoneContentLeafLayoutDebugSnapshot]) -> Void
+    let onBlockBoundsChange: (UUID, [ZoneContentRenderBlockBounds]) -> Void
 
     @State private var contentHeight: CGFloat = 0
 
@@ -1329,6 +1390,9 @@ private struct QuizAnswerList: View {
                             },
                             onLeafDebugSnapshotsChange: { snapshots in
                                 onLeafDebugSnapshotsChange(choice.id, snapshots)
+                            },
+                            onBlockBoundsChange: { bounds in
+                                onBlockBoundsChange(choice.id, bounds)
                             }
                         )
                     }
@@ -1399,6 +1463,7 @@ private struct QuizChoiceRow: View {
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
     let onLeafDebugSnapshotsChange: ([ZoneContentLeafLayoutDebugSnapshot]) -> Void
+    let onBlockBoundsChange: ([ZoneContentRenderBlockBounds]) -> Void
 
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
@@ -1420,7 +1485,8 @@ private struct QuizChoiceRow: View {
                 showsLayoutDebug: showsLayoutDebug,
                 onTap: handleTap,
                 onMeasuredWidthChange: updateMeasuredContentWidth,
-                onLeafDebugSnapshotsChange: onLeafDebugSnapshotsChange
+                onLeafDebugSnapshotsChange: onLeafDebugSnapshotsChange,
+                onBlockBoundsChange: onBlockBoundsChange
             )
             .keyframeAnimator(
                 initialValue: CorrectAnswerFeedbackFrame(),
@@ -1647,6 +1713,7 @@ private struct QuizPlayZoneContent: View {
     var onTap: (() -> Void)?
     var onMeasuredWidthChange: ((CGFloat) -> Void)?
     var onLeafDebugSnapshotsChange: (([ZoneContentLeafLayoutDebugSnapshot]) -> Void)?
+    var onBlockBoundsChange: (([ZoneContentRenderBlockBounds]) -> Void)?
 
     var body: some View {
         let width = max(availableWidth, 1)
@@ -1666,9 +1733,11 @@ private struct QuizPlayZoneContent: View {
             textHorizontalPaddingOverride: textHorizontalPaddingOverride,
             collectsDebugMetrics: showsLayoutDebug,
             onTap: onTap,
+            onBlockBoundsChange: onBlockBoundsChange,
             onRootBlockWidthChange: onMeasuredWidthChange
         )
             .frame(width: width, alignment: .topLeading)
+            .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
             .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
                 guard showsLayoutDebug else { return }
                 onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })

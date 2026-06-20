@@ -925,9 +925,31 @@ struct QuizCardEditorView: View {
         scroll: offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) insetBottom=\(debugValue(quizScrollDriver.currentContentInsetBottom)) adjustedBottom=\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom))
         caret: path=\(activeQuizCaretPathID ?? "nil") source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(activeQuizCaretAnchorY)) editorHeight=\(debugOptionalValue(activeQuizCaretEditorHeight))
 
+        RENDER ALIGNMENT SNAPSHOT
+        \(renderedAlignmentDebugReport)
+
         LAYOUT / RENDER TIMELINE
         \(ZoneEditorDebugStore.shared.layoutTraceReport)
         """
+    }
+
+    private var renderedAlignmentDebugReport: String {
+        guard showsRenderedContent else { return "renderMode=off" }
+
+        var targets: [(QuizEditorTarget, ZoneCardContent)] = [(.question, questionContent)]
+        targets.append(contentsOf: choices.map { (.choice($0.id), $0.content) })
+        if let explanationContent {
+            targets.append((.explanation, explanationContent))
+        }
+
+        return targets.map { target, content in
+            let frame = renderedRootFrames[target].map(debugRect) ?? "pending"
+            let availableWidth = renderedContentWidths[target].map(debugValue) ?? "pending"
+            let rawAlignment = content.rootZone.blockAlignment.rawValue
+            let resolvedAlignment = resolvedRenderedAlignment(for: content.rootZone).rawValue
+            return "target=\(debugTargetID(target)) root=\(shortDebugID(content.rootZone.id)) rawAlignment=\(rawAlignment) resolvedAlignment=\(resolvedAlignment) availableWidth=\(availableWidth) rootFrame=\(frame) textPadding=h\(debugValue(ZoneContentMetrics.textHorizontalPadding)) v\(debugValue(ZoneContentMetrics.textVerticalPadding))"
+        }
+        .joined(separator: "\n")
     }
 
     private var closeTopButton: some View {
