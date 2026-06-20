@@ -535,9 +535,13 @@ struct QuizCardEditorView: View {
             onSketch: {
                 showSketchModal = true
             },
+            onDeleteZone: {
+                deleteSelectedZone(at: path)
+            },
             canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
             showsPrimaryActions: false,
-            showsZoneActions: false,
+            showsZoneActions: true,
+            usesMediaZoneToolbar: true,
             onPreview: {
                 openPreview()
             },
@@ -2091,6 +2095,86 @@ struct QuizCardEditorView: View {
             generator.prepare()
             generator.impactOccurred(intensity: 0.62)
         }
+    }
+
+    private func deleteSelectedZone(at path: ZonePath) {
+        guard let content = currentContent else { return }
+        let nextSelectedZoneID = focusTargetAfterDeletingZone(at: path, in: content)
+        var selectedNeighborPath: ZonePath?
+        let shouldKeepKeyboardActive = keyboardMonitor.isVisible && nextSelectedZoneID != nil
+        let deletedZoneID = content.zone(at: path)?.id
+
+        emitTrashHaptic(confirming: true)
+
+        if shouldKeepKeyboardActive, let nextSelectedZoneID {
+            _ = focusManager.retainKeyboardForTextFocusTransfer(to: nextSelectedZoneID)
+        }
+
+        withAnimation(zoneListMutationAnimation) {
+            content.deleteZone(at: path)
+            previewDirection = nil
+            selectedNeighborPath = nextSelectedZoneID.flatMap {
+                findPath(for: $0, in: content.rootZone)
+            }
+            currentSelectedPath = selectedNeighborPath
+        }
+
+        recordQuizScroll(
+            "quiz.zone-delete",
+            pathID: path.id,
+            details: "deleted=\(shortDebugID(deletedZoneID)) next=\(selectedNeighborPath?.id ?? "nil") keepKeyboard=\(debugFlag(shouldKeepKeyboardActive)) \(quizScrollDetails(proposedDelta: nil))"
+        )
+
+        if let nextSelectedZoneID, selectedNeighborPath != nil {
+            if shouldKeepKeyboardActive {
+                focusManager.requestFocus(for: nextSelectedZoneID)
+                zoneController.updateFocusedZone(nextSelectedZoneID)
+            } else {
+                zoneController.updateFocusedZone(nil)
+            }
+        } else {
+            focusManager.suppressFocusRequests(for: 0.9)
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+        }
+    }
+
+    private var zoneListMutationAnimation: Animation {
+        .smooth(duration: 0.18, extraBounce: 0)
+    }
+
+    private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {
+        guard let parentPath = path.parent,
+              let childIndex = path.lastIndex,
+              let siblings = content.zone(at: parentPath)?.children,
+              siblings.indices.contains(childIndex) else {
+            return nil
+        }
+
+        let lowerIndex = childIndex + 1
+        if siblings.indices.contains(lowerIndex) {
+            return siblings[lowerIndex].id
+        }
+
+        let upperIndex = childIndex - 1
+        if siblings.indices.contains(upperIndex) {
+            return siblings[upperIndex].id
+        }
+
+        return nil
+    }
+
+    private func findPath(for id: UUID, in zone: ZoneModel, currentIndices: [Int] = []) -> ZonePath? {
+        if zone.id == id { return ZonePath(indices: currentIndices) }
+        guard let children = zone.children else { return nil }
+
+        for (index, child) in children.enumerated() {
+            if let found = findPath(for: id, in: child, currentIndices: currentIndices + [index]) {
+                return found
+            }
+        }
+
+        return nil
     }
 
     private func choice(for choiceID: UUID) -> QuizChoiceEditorItem? {
