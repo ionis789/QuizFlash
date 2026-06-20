@@ -12,22 +12,20 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertFalse(ZoneModel.text("").hasContent)
     }
 
-    func testLegacyLeadingAlignmentMigratesToAutoBlockLayout() throws {
+    func testLegacyLeadingAlignmentDecodesWithAutoBlockLayout() throws {
         let zone = try decodeLegacyZone(textAlignment: "leading")
 
         XCTAssertEqual(zone.sizeMode, .auto)
         XCTAssertEqual(zone.blockAlignment, .auto)
         XCTAssertEqual(zone.verticalAlignment, .auto)
-        XCTAssertEqual(zone.textAlignment, .leading)
     }
 
-    func testLegacyCenteredAlignmentMigratesToFillWidthTextAlignment() throws {
+    func testLegacyCenteredAlignmentMigratesToFillWidthBlockLayout() throws {
         let zone = try decodeLegacyZone(textAlignment: "center")
 
         XCTAssertEqual(zone.sizeMode, .fillWidth)
         XCTAssertEqual(zone.blockAlignment, .leading)
         XCTAssertEqual(zone.verticalAlignment, .auto)
-        XCTAssertEqual(zone.textAlignment, .center)
     }
 
     func testExplicitZoneLayoutFieldsDecodeWithoutMigration() throws {
@@ -49,7 +47,6 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertEqual(zone.sizeMode, .fixed)
         XCTAssertEqual(zone.blockAlignment, .trailing)
         XCTAssertEqual(zone.verticalAlignment, .top)
-        XCTAssertEqual(zone.textAlignment, .trailing)
         XCTAssertEqual(zone.fixedWidth, 184)
         XCTAssertEqual(zone.fixedHeight, 72)
     }
@@ -66,9 +63,6 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         let content = ZoneCardContent(rootZone: root)
 
         content.addZone(relativeTo: .root, direction: .down)
-        XCTAssertEqual(content.rootZone.verticalAlignment, .top)
-
-        content.duplicateZone(at: .root)
         XCTAssertEqual(content.rootZone.verticalAlignment, .top)
 
         content.deleteZone(at: .root)
@@ -141,9 +135,7 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
 
         XCTAssertEqual(layout.blockSize.width, 190)
         XCTAssertEqual(layout.textWidthLimit, 166)
-        XCTAssertEqual(layout.resolvedInsets, ZoneContentInsets.zoneText)
-        XCTAssertEqual(layout.contentFrame.minX, 82)
-        XCTAssertEqual(layout.contentFrame.width, 166)
+        XCTAssertEqual(layout.leadingInset, 70)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
@@ -160,10 +152,6 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertEqual(layout.contentLayoutWidth, 329)
         XCTAssertEqual(layout.textHorizontalInsets, 24)
         XCTAssertEqual(layout.textWidthLimit, 305)
-        XCTAssertEqual(layout.resolvedInsets.top, 12)
-        XCTAssertEqual(layout.resolvedInsets.left, 12)
-        XCTAssertEqual(layout.resolvedInsets.bottom, 12)
-        XCTAssertEqual(layout.resolvedInsets.right, 12)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 

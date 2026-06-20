@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Root View
+
 struct RootView: View {
 
     @Environment(AuthManager.self) var authManager
@@ -11,10 +13,15 @@ struct RootView: View {
                 .ignoresSafeArea()
 
             Group {
-                if authManager.isAuthenticated {
+                switch authManager.sessionState {
+                case .checking:
+                    ProgressView()
+                        .tint(themeManager.accentColor.color)
+                        .transition(.opacity)
+                case .signedIn:
                     MainAppView()
                         .transition(.opacity)
-                } else {
+                case .signedOut, .emailVerificationRequired:
                     LoginView()
                         .transition(.opacity)
                 }

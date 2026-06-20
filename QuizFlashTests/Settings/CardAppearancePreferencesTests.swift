@@ -1,24 +1,24 @@
 //
-//  CardAppearancePreferencesTests.swift
+//  EditorAppearancePreferencesTests.swift
 //  QuizFlashTests
 //
-//  Covers card appearance preferences backed by UserDefaults.
+//  Covers editor appearance preferences backed by UserDefaults.
 //
 
 import XCTest
 @testable import QuizFlash
 
 @MainActor
-final class CardAppearancePreferencesTests: XCTestCase {
-    func testCardAppearancePreferencesPersistCardContentMode() {
-        let suiteName = "CardAppearancePreferencesTests-\(UUID().uuidString)"
+final class EditorAppearancePreferencesTests: XCTestCase {
+    func testEditorAppearancePreferencesPersistZoneSurfaceStyle() {
+        let suiteName = "EditorAppearancePreferencesTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
 
-        let preferences = CardAppearancePreferences(userDefaults: defaults)
-        preferences.cardContentMode = .scrollable
+        let preferences = AppPreferences(userDefaults: defaults)
+        preferences.zoneSurfaceStyle = .rounded
 
-        let reloadedPreferences = CardAppearancePreferences(userDefaults: defaults)
-        XCTAssertEqual(reloadedPreferences.cardContentMode, .scrollable)
+        let reloadedPreferences = AppPreferences(userDefaults: defaults)
+        XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
     }
 }

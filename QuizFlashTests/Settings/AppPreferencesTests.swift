@@ -15,7 +15,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(AppWeekStartDayPreference.sunday.resolvedCalendar.firstWeekday, 1)
     }
 
-    func testPreferencesPersistWeekStartSortOrderAndAutoCollapse() {
+    func testPreferencesPersistWeekStartSortOrderAndEditorDefaults() {
         let suiteName = "AppPreferencesTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
@@ -23,12 +23,14 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences(userDefaults: defaults)
         preferences.weekStartDay = .monday
         preferences.createDeckSortOrder = .oldest
-        preferences.autoCollapseEarlierCardsInAISession = false
+        preferences.defaultTextSize = FlashcardTextSize(step: 8)
+        preferences.zoneSurfaceStyle = .rounded
 
         let reloadedPreferences = AppPreferences(userDefaults: defaults)
         XCTAssertEqual(reloadedPreferences.weekStartDay, .monday)
         XCTAssertEqual(reloadedPreferences.createDeckSortOrder, .oldest)
-        XCTAssertFalse(reloadedPreferences.autoCollapseEarlierCardsInAISession)
+        XCTAssertEqual(reloadedPreferences.defaultTextSize, FlashcardTextSize(step: 8))
+        XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
     }
 
     func testAppLanguagePreferenceDrivesAppLocalizationHelper() {

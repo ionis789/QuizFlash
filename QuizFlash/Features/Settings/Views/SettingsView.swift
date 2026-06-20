@@ -23,6 +23,12 @@ struct SettingsView: View {
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedProfilePhoto: PhotosPickerItem?
     @State private var isPremiumSheetPresented = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var showDeleteAccountPasswordSheet = false
+    @State private var deleteAccountPassword = ""
+    @State private var authErrorMessage = ""
+    @State private var showAuthError = false
+    @State private var presentingViewController: UIViewController?
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -75,6 +81,41 @@ struct SettingsView: View {
         }
         .onChange(of: selectedProfilePhoto) { _, newValue in
             updateProfilePhoto(from: newValue)
+        }
+        .background {
+            AuthPresentingViewControllerReader { controller in
+                presentingViewController = controller
+            }
+            .frame(width: 0, height: 0)
+        }
+        .confirmationDialog(
+            AppLocalization.string("Delete Account", locale: appPreferences.resolvedLocale),
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(
+                AppLocalization.string("Delete Account", locale: appPreferences.resolvedLocale),
+                role: .destructive
+            ) {
+                beginDeleteAccount()
+            }
+
+            Button(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale), role: .cancel) { }
+        } message: {
+            Text(AppLocalization.string("This deletes your Firebase account. Local decks stay on this device.", locale: appPreferences.resolvedLocale))
+        }
+        .sheet(isPresented: $showDeleteAccountPasswordSheet) {
+            deleteAccountPasswordSheet
+                .presentationDetents([.height(250)])
+                .presentationBackground(.background)
+        }
+        .alert(
+            AppLocalization.string("Something went wrong", locale: appPreferences.resolvedLocale),
+            isPresented: $showAuthError
+        ) {
+            Button(AppLocalization.string("Done", locale: appPreferences.resolvedLocale), role: .cancel) { }
+        } message: {
+            Text(authErrorMessage)
         }
         .fullScreenSheet(
             isPresented: $isPremiumSheetPresented,
@@ -281,7 +322,13 @@ struct SettingsView: View {
 
             settingsBlock {
                 Button {
-                    authManager.logout()
+                    Task { @MainActor in
+                        do {
+                            try await authManager.logout()
+                        } catch {
+                            presentAuthError(error)
+                        }
+                    }
                 } label: {
                     HStack(spacing: UIConstants.Spacing.medium) {
                         ZStack {
@@ -294,7 +341,32 @@ struct SettingsView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        Text("Log Out")
+                        Text(AppLocalization.string("Log Out", locale: appPreferences.resolvedLocale))
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.red)
+
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            settingsBlock {
+                Button(role: .destructive) {
+                    showDeleteAccountConfirmation = true
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.medium) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
+                                .fill(Color.red.opacity(0.12))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "trash")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.red)
+                        }
+
+                        Text(AppLocalization.string("Delete Account", locale: appPreferences.resolvedLocale))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.red)
 
@@ -306,6 +378,41 @@ struct SettingsView: View {
         }
     }
 
+    private var deleteAccountPasswordSheet: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            Text(AppLocalization.string("Confirm Password", locale: appPreferences.resolvedLocale))
+                .font(.title3.weight(.bold))
+                .fontDesign(.rounded)
+
+            AuthIconTextField(
+                title: AppLocalization.string("Password", locale: appPreferences.resolvedLocale),
+                icon: "lock",
+                isPassword: true,
+                text: $deleteAccountPassword
+            )
+            .textContentType(.password)
+
+            AuthAsyncButton(
+                title: AppLocalization.string("Delete Account", locale: appPreferences.resolvedLocale),
+                icon: "trash",
+                tint: .red,
+                isEnabled: !deleteAccountPassword.isEmpty
+            ) {
+                try await authManager.deleteAccount(
+                    reauthentication: .password(deleteAccountPassword)
+                )
+                deleteAccountPassword = ""
+                showDeleteAccountPasswordSheet = false
+            } onError: { error in
+                presentAuthError(error)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.top, UIConstants.Spacing.extraLarge)
+    }
+
     private func settingsBlock<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -313,6 +420,49 @@ struct SettingsView: View {
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.vertical, UIConstants.Spacing.standard)
             .settingsCardBackground(cornerRadius: UIConstants.Radius.large)
+    }
+
+    private func beginDeleteAccount() {
+        guard let user = authManager.currentUser else { return }
+        let providers = Set(user.providers)
+
+        if providers.contains(AuthProviderID.password.rawValue) {
+            deleteAccountPassword = ""
+            showDeleteAccountPasswordSheet = true
+            return
+        }
+
+        Task { @MainActor in
+            do {
+                if providers.contains(AuthProviderID.google.rawValue) {
+                    guard let presentingViewController else {
+                        throw AuthManagerError.missingPresenter
+                    }
+                    try await authManager.deleteAccount(
+                        reauthentication: .google(presentingViewController)
+                    )
+                } else if providers.contains(AuthProviderID.apple.rawValue) {
+                    try await authManager.deleteAccount(reauthentication: .apple)
+                } else {
+                    throw AuthManagerError.missingCredential
+                }
+            } catch {
+                presentAuthError(error)
+            }
+        }
+    }
+
+    private func presentAuthError(_ error: Error) {
+        if let error = error as? AuthManagerError {
+            authErrorMessage = AppLocalization.string(
+                error.localizedDescription,
+                locale: appPreferences.resolvedLocale
+            )
+        } else {
+            authErrorMessage = error.localizedDescription
+        }
+
+        showAuthError = true
     }
 
     private func updateProfilePhoto(from item: PhotosPickerItem?) {

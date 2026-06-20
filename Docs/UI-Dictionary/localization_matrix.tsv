@@ -47,8 +47,8 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
+%d Deck	%d Deck	%d deck	%d колода
 %d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -107,8 +107,8 @@ Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
 Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
 Add Left	Add Left	Adaugă la stânga	Добавить слева
-Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
 Add manually	Add manually	Adaugă manual	Добавить вручную
+Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
 Add Range	Add Range	Adaugă interval	Добавить диапазон
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
@@ -126,13 +126,15 @@ All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
 App Interface	App Interface	Interfața aplicației	Интерфейс приложения
 App Text	App Text	Text aplicație	Текст приложения
+Apple did not return an identity token.	Apple did not return an identity token.	Apple nu a returnat un token de identitate.	Apple не вернул токен идентификации.
+Apple returned an invalid identity token.	Apple returned an invalid identity token.	Apple a returnat un token de identitate invalid.	Apple вернул недействительный токен идентификации.
 Are you sure?	Are you sure?	Ești sigur?	Вы уверены?
 Auto	Auto	Auto	Авто
 Auto Block	Auto Block	Bloc auto	Автоблок
@@ -175,6 +177,7 @@ CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
 Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
 Center	Center	Centru	Центр
 Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
+Check your email	Check your email	Verifică emailul	Проверьте email
 Choice %@	Choice %@	Alegere %@	Выбор %@
 Choice %d	Choice %d	Varianta %d	Вариант %d
 Choices	Choices	Variante	Варианты
@@ -200,11 +203,14 @@ Code	Code	Cod	Код
 Code: %@	Code: %@	Cod: %@	Код: %@
 Collapse	Collapse	Restrânge	Свернуть
 Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
+Confirm Password	Confirm Password	Confirmă parola	Подтвердите пароль
 Content Alignment	Content Alignment	Aliniere conținut	Выравнивание контента
 Content alignment: %@.	Content alignment: %@.	Aliniere conținut: %@.	Выравнивание контента: %@.
 Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
+Continue with Apple	Continue with Apple	Continuă cu Apple	Продолжить с Apple
+Continue with Google	Continue with Google	Continuă cu Google	Продолжить с Google
 Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
 Copied!	Copied!	Copiat!	Скопировано!
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
@@ -214,6 +220,7 @@ Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
 Create	Create	Creează	Создать
 Create a deck	Create a deck	Creați un deck	Создать колоду
 Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
+Create Account	Create Account	Creează cont	Создать аккаунт
 Create Deck	Create Deck	Creează deck	Создать колоду
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
@@ -241,11 +248,13 @@ Delete %d selected card	Delete %d selected card	Șterge %d card selectat	Уда�
 Delete %d selected cards	Delete %d selected cards	Șterge %d carduri selectate	Удалить %d выбранные карточки
 Delete %d selected deck	Delete %d selected deck	Șterge %d deck selectat	Удалить %d выбранную колоду
 Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	Удалить %d выбранных колод
+Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete?	Delete?	Ștergi?	Удалить?
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
+Don't have an account?	Don't have an account?	Nu ai cont?	Нет аккаунта?
 Done	Done	Gata	Готово
 Done Selecting	Done Selecting	Terminată selecția	Завершить выбор
 Done selecting cards	Done selecting cards	Finalizează selectarea cardurilor	Завершить выбор карточек
@@ -263,6 +272,7 @@ Edit Text	Edit Text	Editează text	Редактировать текст
 Edit the source text, then select the part you want learners to fill in.	Edit the source text, then select the part you want learners to fill in.	Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.	Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.
 Edited	Edited	Editate	Изменённые
 Edited %@	Edited %@	Editat %@	Отредактировано %@
+Email Address	Email Address	Adresă de email	Email
 Empty card	Empty card	Card gol	Пустая карточка
 Empty choice	Empty choice	Variantă goală	Пустой вариант
 Enabled	Enabled	Activ	Включено
@@ -273,8 +283,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -297,13 +307,14 @@ Folders	Folders	Foldere	Папки
 Follow the text size selected in iOS Settings.	Follow the text size selected in iOS Settings.	Urmează dimensiunea textului aleasă în Setările iOS.	Следовать размеру текста, выбранному в настройках iOS.
 Font	Font	Font	Шрифт
 Force Line Break	Force Line Break	Forțează rând nou	Принудительный перенос
+Forgot Password?	Forgot Password?	Ai uitat parola?	Забыли пароль?
 Freed	Freed	Eliberat	Фрид
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -318,6 +329,7 @@ Good evening	Good evening	Bună seara	Добрый вечер
 Good morning	Good morning	Bună dimineața	Доброе утро
 Good night	Good night	Noapte bună	Доброй ночи
 Good rate	Good rate	Rată bune	Доля хороших
+Google Sign-In is not configured.	Google Sign-In is not configured.	Google Sign-In nu este configurat.	Google Sign-In не настроен.
 Green	Green	Verde	Зелёный
 Group By	Group By	Grupează după	Группировать по
 Group by Card Type	Group by Card Type	Grupează după tipul cardului	Группировать по типу карточки
@@ -334,6 +346,7 @@ Highlight	Highlight	Evidențiere	Выделение
 History	History	Istoric	История
 Home	Home	Acasă	Главная
 How does changing text size affect a study card?	How does changing text size affect a study card?	Cum afectează schimbarea dimensiunii textului un card de studiu?	Как изменение размера текста влияет на учебную карточку?
+I Verified	I Verified	Am verificat	Я подтвердил
 Image	Image	Imagine	Изображение
 Image Size	Image Size	Dimensiune imagine	Размер изображения
 Import	Import	Importă	Импорт
@@ -432,6 +445,7 @@ No folders yet	No folders yet	Nu există încă foldere	Папок пока не
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
+No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
@@ -452,10 +466,13 @@ Open this deck to start today's goal.	Open this deck to start today's goal.	Desc
 Optional	Optional	Opțional	Необязательный
 Optional rationale	Optional rationale	Explicație opțională	Необязательное объяснение
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Opțional. Utilizați acest lucru pentru câmpurile de corp specifice furnizorului, cum ar fi raționamentul OpenRouter. Exemplu: {""resoning"":{""enabled"":true}}"	"Необязательный. Используйте это для полей тела, специфичных для поставщика, таких как рассуждения OpenRouter. Пример: {""рассуждение"":{""включено"":true}}"
+or	or	sau	или
 Orange	Orange	Portocaliu	Оранжевый
 Overflow Behaviour	Overflow Behaviour	Comportament de overflow	Поведение при переполнении
 Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
 Pace	Pace	Ritm	Темп
+Password	Password	Parolă	Пароль
+Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Пароли не совпадают.
 Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
 Performance	Performance	Performanță	Прогресс
 Photos or PDF	Photos or PDF	Poze sau PDF	Фото или PDF
@@ -474,13 +491,13 @@ Play Simulation	Play Simulation	Jucați Simulare	Играть в симулят�
 Please select .json files	Please select .json files	Selectați fișiere .json	Выберите файлы .json
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
-PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt	Prompt	Enunț	Задание
+PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
@@ -506,13 +523,14 @@ Remap	Remap	Remapează	Переназначить
 Render	Render	Randare	Рендер
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
 Replace Zone	Replace Zone	Înlocuiește zona	Заменить зону
+Resend Email	Resend Email	Retrimite emailul	Отправить снова
 Reset	Reset	Resetează	Сброс
 Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симуляцию
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
@@ -551,6 +569,7 @@ Selected Day Insights	Selected Day Insights	Statistici ale zilei selectate	Ст�
 Selected language	Selected language	Limba selectată	Выбранный язык
 Selected source	Selected source	Sursa selectată	Выбранный источник
 Selected Text	Selected Text	Text selectat	Выделенный текст
+Send Reset Link	Send Reset Link	Trimite link	Отправить ссылку
 Serif	Serif	Serif	С засечками
 Settings	Settings	Setări	Настройки
 Shadow Color	Shadow Color	Culoare umbră	Цвет тени
@@ -562,11 +581,14 @@ Short, useful cards focused on the essential idea.	Short, useful cards focused o
 Show	Show	Arată	Показать
 Showing all	Showing all	Se afișează toate	Показаны все
 Side	Side	Parte	Сторона
+Sign In	Sign In	Conectare	Войти
 Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
+Sign Up	Sign Up	Înregistrare	Регистрация
 Simple	Simple	Simplu	Простой
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
 Small	Small	Mic	Маленький
+Something went wrong	Something went wrong	Ceva nu a mers bine	Что-то пошло не так
 Sort By	Sort By	Sortează după	Сортировать по
 Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточки
 Source	Source	Sursă	Источник
@@ -617,17 +639,20 @@ The first AI results will appear here in a moment.	The first AI results will app
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
+The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
+The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
+This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
-This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
+This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели
@@ -662,10 +687,12 @@ Vertical Position	Vertical Position	Poziție verticală	Положение по 
 Vision: %@	Vision: %@	Viziune: %@	Видение: %@
 Visual surface only.	Visual surface only.	Doar suprafața vizuală.	Только визуальная поверхность.
 vs same days	vs same days	față de aceleași zile	к тем же дням
+We'll send a reset link.	We'll send a reset link.	Îți trimitem un link de resetare.	Мы отправим ссылку для сброса.
 Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
 Week of %@	Week of %@	Săptămâna din %@	Неделя от %@
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
+Welcome back	Welcome back	Bine ai revenit	С возвращением
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP

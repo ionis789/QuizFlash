@@ -57,7 +57,7 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.remainingCardsToGoal, 10)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.xpEarnedToday, 120)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.streakCount, 4)
-        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.level, 3)
+        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.totalXP, 1250)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.totalCardsReviewed, 54)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.totalXPEarned, 200)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.activeDays, 2)

@@ -19,14 +19,14 @@ final class DevelopmentPreferencesTests: XCTestCase {
         preferences.aiDebugTracingEnabled = false
         preferences.deckWorkspaceMockAIEnabled = true
         preferences.deckGridTextLayoutDebugEnabled = true
-        preferences.flashcardGridTextLayoutDebugEnabled = true
+        preferences.zoneContentLayoutDebugEnabled = true
         preferences.playModeDeveloperModeEnabled = true
 
         let reloadedPreferences = DevelopmentPreferences(userDefaults: defaults)
         XCTAssertFalse(reloadedPreferences.aiDebugTracingEnabled)
         XCTAssertTrue(reloadedPreferences.deckWorkspaceMockAIEnabled)
         XCTAssertTrue(reloadedPreferences.deckGridTextLayoutDebugEnabled)
-        XCTAssertTrue(reloadedPreferences.flashcardGridTextLayoutDebugEnabled)
+        XCTAssertTrue(reloadedPreferences.zoneContentLayoutDebugEnabled)
         XCTAssertTrue(reloadedPreferences.playModeDeveloperModeEnabled)
     }
 
@@ -37,7 +37,7 @@ final class DevelopmentPreferencesTests: XCTestCase {
         defaults.set(false, forKey: AIDebugTracePreferenceKeys.debugTracingEnabled)
         defaults.set(true, forKey: "preferences.development.deckWorkspaceMockAIEnabled")
         defaults.set(true, forKey: "preferences.development.deckGridTextLayoutDebugEnabled")
-        defaults.set(true, forKey: "preferences.development.flashcardGridTextLayoutDebugEnabled")
+        defaults.set(true, forKey: "preferences.development.zoneContentLayoutDebugEnabled")
         defaults.set(true, forKey: "preferences.development.playModeDeveloperModeEnabled")
 
         let preferences = DevelopmentPreferences(userDefaults: defaults)
@@ -45,7 +45,7 @@ final class DevelopmentPreferencesTests: XCTestCase {
         XCTAssertFalse(preferences.aiDebugTracingEnabled)
         XCTAssertTrue(preferences.deckWorkspaceMockAIEnabled)
         XCTAssertTrue(preferences.deckGridTextLayoutDebugEnabled)
-        XCTAssertTrue(preferences.flashcardGridTextLayoutDebugEnabled)
+        XCTAssertTrue(preferences.zoneContentLayoutDebugEnabled)
         XCTAssertTrue(preferences.playModeDeveloperModeEnabled)
     }
 }
