@@ -1465,6 +1465,7 @@ private struct QuizChoiceRow: View {
 
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
+    @State private var tappableZoneFrame: CGRect = .zero
     @State private var wrongWiggleOffset: CGFloat = 0
     @State private var wrongScale: CGFloat = 1
     @State private var correctFeedbackAnimationTrigger = 0
@@ -1484,7 +1485,10 @@ private struct QuizChoiceRow: View {
                 onTap: handleTap,
                 onMeasuredWidthChange: updateMeasuredContentWidth,
                 onLeafDebugSnapshotsChange: onLeafDebugSnapshotsChange,
-                onBlockBoundsChange: onBlockBoundsChange
+                onBlockBoundsChange: { bounds in
+                    updateTappableZoneFrame(from: bounds)
+                    onBlockBoundsChange(bounds)
+                }
             )
             .keyframeAnimator(
                 initialValue: CorrectAnswerFeedbackFrame(),
@@ -1518,7 +1522,7 @@ private struct QuizChoiceRow: View {
         .simultaneousGesture(
             SpatialTapGesture()
                 .onEnded { value in
-                    guard value.location.x <= tappableZoneWidth else { return }
+                    guard tappableZoneHitFrame.contains(value.location) else { return }
                     handleTap()
                 }
         )
@@ -1679,13 +1683,31 @@ private struct QuizChoiceRow: View {
         onMeasuredWidthChange(width)
     }
 
+    private func updateTappableZoneFrame(from bounds: [ZoneContentRenderBlockBounds]) {
+        guard let rootFrame = bounds.first(where: { $0.zoneID == choice.contentZone.id })?.frame,
+              rootFrame != tappableZoneFrame else {
+            return
+        }
+        tappableZoneFrame = rootFrame
+    }
+
     private var choiceContentWidth: CGFloat {
         max(layoutWidth, 1)
     }
 
-    private var tappableZoneWidth: CGFloat {
-        let measuredWidth = measuredContentWidth > 0 ? measuredContentWidth : groupWidth
-        return max(min(measuredWidth, layoutWidth), 1)
+    private var tappableZoneHitFrame: CGRect {
+        guard tappableZoneFrame.width > 0, tappableZoneFrame.height > 0 else {
+            let measuredWidth = measuredContentWidth > 0 ? measuredContentWidth : groupWidth
+            let width = max(min(measuredWidth, layoutWidth), 1)
+            return CGRect(
+                x: max((layoutWidth - width) / 2, 0),
+                y: 0,
+                width: width,
+                height: .greatestFiniteMagnitude
+            )
+        }
+
+        return tappableZoneFrame.insetBy(dx: -8, dy: -8)
     }
 
     private static func metric(_ value: CGFloat) -> String {

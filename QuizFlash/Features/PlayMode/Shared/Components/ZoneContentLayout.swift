@@ -1026,6 +1026,8 @@ private struct ZoneContentLeafPreview: View {
                     updateRenderedContentSize(newSize, source: "swiftui-geometry")
                 }
 
+                mediaZoneBorder(layout: layout)
+
                 if showsDebugGuides && !suppressOwnEditorRenderGuide {
                     RoundedRectangle(
                         cornerRadius: leafDebugGuideCornerRadius,
@@ -1071,6 +1073,26 @@ private struct ZoneContentLeafPreview: View {
             }
 
             resetRenderedMeasurements(reason: "identity reset")
+        }
+    }
+
+    @ViewBuilder
+    private func mediaZoneBorder(layout: ZoneContentLayoutResult) -> some View {
+        if (zone.contentType == .image || zone.contentType == .sketch),
+           shouldRenderZoneBlockSurface {
+            let tint = zone.highlightColor.zoneSurfaceTint
+            let borderColor = tint?.opacity(0.9) ?? Color.primary.opacity(0.28)
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(
+                    borderColor,
+                    style: tint == nil
+                        ? StrokeStyle(lineWidth: 1.2)
+                        : zoneHighlightStrokeStyle
+                )
+                .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                .shadow(color: tint?.opacity(0.18) ?? .clear, radius: tint == nil ? 0 : 3)
+                .allowsHitTesting(false)
         }
     }
 
