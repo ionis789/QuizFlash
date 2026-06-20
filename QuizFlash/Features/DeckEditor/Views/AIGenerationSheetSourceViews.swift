@@ -40,7 +40,7 @@ struct SourcePreparationCenterStage: View {
         VStack(spacing: UIConstants.Spacing.large) {
             PreparingSourceAnimation(state: state)
 
-            AIGenerationActivityDots(color: ThemeManager.shared.accentColor.color)
+            ProgressActivityDots(color: ThemeManager.shared.accentColor.color)
                 .scaleEffect(1.15)
 
             VStack(spacing: 6) {
@@ -227,9 +227,7 @@ struct SourcePreviewOverlay: View {
                         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                         .shadow(color: .black.opacity(0.24), radius: UIConstants.Shadow.heavyRadius, y: 8)
                 } else {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(.white)
+                    ProgressActivityDots(color: .white)
                 }
 
                 Spacer(minLength: 0)

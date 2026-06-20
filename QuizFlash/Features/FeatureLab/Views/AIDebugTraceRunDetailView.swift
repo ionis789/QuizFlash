@@ -44,7 +44,7 @@ struct AIDebugTraceRunDetailView: View {
                                 title: "Trace",
                                 subtitle: "Loading full AI trace payload."
                             ) {
-                                ProgressView()
+                                ProgressActivityDots()
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         } else if let detail {

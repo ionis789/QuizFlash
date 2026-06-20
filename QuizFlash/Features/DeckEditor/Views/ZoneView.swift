@@ -1803,7 +1803,10 @@ struct CachedImageView: View {
         Group {
             if let image = uiImage {
                 renderedImage(image)
-            } else { ProgressView().frame(height: 100) }
+            } else {
+                ProgressActivityDots()
+                    .frame(height: 100)
+            }
         }
             .task(id: resolvedCacheID) { loadImage() }
             .onDisappear {

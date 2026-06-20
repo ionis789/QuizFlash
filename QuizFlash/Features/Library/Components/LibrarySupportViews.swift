@@ -98,9 +98,8 @@ struct LibraryLoadingOverlay: View {
         ZStack {
             Color.black.opacity(0.001).ignoresSafeArea()
 
-            ProgressView()
+            ProgressActivityDots(color: themeManager.textPrimary)
                 .scaleEffect(1.45)
-                .tint(themeManager.textPrimary)
         }
         .transition(.opacity)
     }

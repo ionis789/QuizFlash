@@ -39,6 +39,7 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 | `LibraryEmptyStateView` | `QuizFlash/Features/Library/Components/LibraryContentViews.swift` | none | Empty library root when there are no decks yet |
 | `LibraryLoadingOverlay` | `QuizFlash/Features/Library/Components/LibraryContentViews.swift` | `message` | Modal loading layer for import/export/search work in Library |
 | `AILoadingOverlay` | `QuizFlash/Features/DeckEditor/Components/AILoadingOverlay.swift` | `state`, `onDismiss` | Full-screen AI generation progress and error overlay |
+| `ProgressActivityDots` | `QuizFlash/Core/DesignSystem/Components/ProgressActivityDots.swift` | `color` | Shared indeterminate loading dots used instead of circular spinners |
 | `ImportProgressView` | `QuizFlash/Features/DeckDetails/Components/DeckSharingViews.swift` | `sharingManager` | Inline import progress UI while deck data is being restored |
 | `StorageInfoView` | `QuizFlash/Features/DeckDetails/Components/DeckSharingViews.swift` | `decks` | Storage breakdown and cleanup screen |
 | `HighlightedText` | `QuizFlash/Core/DesignSystem/Components/HighlightedText.swift` | `text`, `query`, `font`, `baseColor` | Search-result text with async token highlighting |

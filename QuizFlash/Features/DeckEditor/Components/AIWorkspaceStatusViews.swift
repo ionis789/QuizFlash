@@ -148,7 +148,7 @@ private struct FloatingAIWorkspaceStatusIndicator: View {
                     .foregroundStyle(.primary)
                     .statusTextMotion(trigger: countText)
 
-                AIGenerationActivityDots(color: tint)
+                ProgressActivityDots(color: tint)
                     .frame(minWidth: 22)
             }
             .fixedSize(horizontal: true, vertical: false)

@@ -660,7 +660,7 @@ struct CreateDeckAIStatusIndicator: View {
                     )
             }
 
-            AIGenerationActivityDots(color: tint)
+            ProgressActivityDots(color: tint)
                 .frame(minWidth: 22)
         }
         .fixedSize(horizontal: true, vertical: false)

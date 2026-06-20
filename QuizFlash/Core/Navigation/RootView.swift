@@ -15,8 +15,7 @@ struct RootView: View {
             Group {
                 switch authManager.sessionState {
                 case .checking:
-                    ProgressView()
-                        .tint(themeManager.accentColor.color)
+                    ProgressActivityDots(color: themeManager.accentColor.color)
                         .transition(.opacity)
                 case .signedIn:
                     MainAppView()

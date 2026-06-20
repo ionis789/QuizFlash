@@ -92,9 +92,8 @@ struct SelectionActionToolbar: View {
             Button(action: action.action) {
                 VStack(spacing: 5) {
                     if showsProgress {
-                        ProgressView()
+                        ProgressActivityDots(color: tintColor(for: action))
                             .scaleEffect(0.82)
-                            .tint(tintColor(for: action))
                             .frame(height: 23)
                     } else {
                         Image(systemName: systemName)

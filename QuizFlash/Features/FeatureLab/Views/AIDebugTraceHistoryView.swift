@@ -46,7 +46,7 @@ struct AIDebugTraceHistoryView: View {
                                 title: "Runs",
                                 subtitle: "Loading persisted AI trace history."
                             ) {
-                                ProgressView()
+                                ProgressActivityDots()
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         } else if runs.isEmpty {

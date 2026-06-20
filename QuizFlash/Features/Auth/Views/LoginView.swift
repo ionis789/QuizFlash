@@ -50,8 +50,7 @@ struct LoginView: View {
                     onError: presentError
                 )
             case .checking:
-                ProgressView()
-                    .tint(themeManager.accentColor.color)
+                ProgressActivityDots(color: themeManager.accentColor.color)
             case .signedOut, .signedIn:
                 loginForm
             }
@@ -481,7 +480,7 @@ private struct EmailVerificationRequiredView: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    AIGenerationActivityDots(color: themeManager.accentColor.color)
+                    ProgressActivityDots(color: themeManager.accentColor.color)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: UIConstants.Size.buttonHeight)

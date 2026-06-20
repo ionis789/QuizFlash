@@ -292,7 +292,8 @@ extension DeckContentView {
             ZStack {
                 Color.black.opacity(0.3).ignoresSafeArea()
                 VStack(spacing: 16) {
-                    ProgressView().scaleEffect(1.5)
+                    ProgressActivityDots()
+                        .scaleEffect(1.5)
                     Text(localized("Exporting...")).font(.headline)
                 }
                     .padding(32)

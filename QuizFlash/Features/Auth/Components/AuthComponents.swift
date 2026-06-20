@@ -138,9 +138,9 @@ struct AuthAsyncButton: View {
             }
             .opacity(isLoading ? 0 : 1)
             .overlay {
-                ProgressView()
-                    .tint(foreground)
-                    .opacity(isLoading ? 1 : 0)
+                if isLoading {
+                    ProgressActivityDots(color: foreground)
+                }
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)

@@ -38,7 +38,7 @@ struct ExportDeckButton: View {
     /// updating `isExporting` and presenting the share sheet.
     let onExport: () -> Void
 
-    /// Mirrors `DeckViewModel.isExporting`; disables the button and shows a spinner.
+    /// Mirrors `DeckViewModel.isExporting`; disables the button and shows loading dots.
     let isExporting: Bool
 
     // MARK: - Body
@@ -48,8 +48,7 @@ struct ExportDeckButton: View {
             onExport()
         } label: {
             if isExporting {
-                ProgressView()
-                    .progressViewStyle(.circular)
+                ProgressActivityDots()
             } else {
                 Label("Export Deck", systemImage: "square.and.arrow.up")
             }
@@ -76,8 +75,7 @@ struct ImportProgressView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            ProgressView(value: sharingManager.progress)
-                .progressViewStyle(.linear)
+            ProgressActivityDots()
 
             Text(sharingManager.currentOperation)
                 .font(.caption)
@@ -120,7 +118,7 @@ struct StorageInfoView: View {
                     Label("Total Used", systemImage: "externaldrive.fill")
                     Spacer()
                     if storageManager.isCalculating {
-                        ProgressView()
+                        ProgressActivityDots()
                     } else {
                         Text(StorageManager.formatBytes(storageManager.totalStorageUsed))
                             .foregroundStyle(.secondary)
@@ -175,7 +173,7 @@ struct StorageInfoView: View {
                         Label("Clear Temp Files", systemImage: "trash.circle")
                         Spacer()
                         if garbageCollector.isRunning {
-                            ProgressView()
+                            ProgressActivityDots()
                         }
                     }
                 }
@@ -204,4 +202,3 @@ struct StorageInfoView: View {
         }
     }
 }
-
