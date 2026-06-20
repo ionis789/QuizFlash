@@ -242,12 +242,12 @@ extension DeckWorkspaceView {
         CreateDeckChromeButton(
             action: handleSave,
             isEnabled: canSave,
-            chrome: canSave ? .accentAlt : .surface,
+            chrome: .surface,
             accessibilityLabel: localized("Save deck")
         ) {
             CreateDeckChromeButtonLabel(
                 symbol: "checkmark",
-                tint: canSave ? themeManager.roleColor(.buttonDangerForeground) : .secondary
+                tint: canSave ? themeManager.successPrimary : .secondary
             )
         }
     }

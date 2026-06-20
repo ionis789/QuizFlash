@@ -838,8 +838,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         ChromeSoftCircleSymbolButton(
             systemName: "xmark",
             accessibilityLabel: localized("Close"),
-            action: { animateDismiss(dismissalDistance: dismissalDistance) },
-            symbolSize: UIConstants.Size.iconStandard
+            action: { animateDismiss(dismissalDistance: dismissalDistance) }
         )
         .padding(.top, contentSafeAreaInsets.top + UIConstants.Spacing.medium)
         .padding(.trailing, UIConstants.Spacing.medium)

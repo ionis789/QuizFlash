@@ -487,8 +487,7 @@ private struct QuizModeSessionView: View {
                 ChromeSoftCircleSymbolButton(
                     systemName: "xmark",
                     accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
-                    action: { showsExplanationSheet = false },
-                    symbolSize: UIConstants.Size.iconStandard
+                    action: { showsExplanationSheet = false }
                 )
                 .padding(.top, UIConstants.Spacing.medium)
                 .padding(.trailing, UIConstants.Spacing.medium)
@@ -772,8 +771,8 @@ private struct QuizModeSessionView: View {
             systemName: "xmark",
             accessibilityLabel: "Close",
             action: dismissSheet,
-            size: UIConstants.Size.capsuleHeight,
-            symbolSize: 20
+            size: UIConstants.Size.actionButton,
+            symbolSize: UIConstants.Size.navigationChromeIcon
         )
     }
 

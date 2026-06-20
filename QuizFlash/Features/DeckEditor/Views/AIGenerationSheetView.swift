@@ -136,8 +136,7 @@ struct AIGenerationSheetView: View {
             ChromeSoftCircleSymbolButton(
                 systemName: "xmark",
                 accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
-                action: requestCancel,
-                symbolSize: UIConstants.Size.iconStandard
+                action: requestCancel
             )
             .frame(width: UIConstants.Size.actionButton, alignment: .leading)
 

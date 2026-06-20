@@ -49,7 +49,7 @@ struct CardPreviewModeView: View {
     private var quizContentHorizontalPadding: CGFloat { 8 }
     private var quizContentTopPadding: CGFloat {
         UIConstants.Layout.deckNavigationTopPadding
-            + UIConstants.Size.capsuleHeight
+            + UIConstants.Size.actionButton
             + UIConstants.Spacing.standard
     }
     private var quizContentBottomPadding: CGFloat { 12 }
@@ -460,8 +460,8 @@ struct CardPreviewModeView: View {
             systemName: "xmark",
             accessibilityLabel: localized("Close"),
             action: { handleDone() },
-            size: UIConstants.Size.capsuleHeight,
-            symbolSize: 20
+            size: UIConstants.Size.actionButton,
+            symbolSize: UIConstants.Size.navigationChromeIcon
         )
     }
 

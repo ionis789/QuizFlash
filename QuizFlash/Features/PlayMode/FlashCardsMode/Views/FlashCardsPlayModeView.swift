@@ -102,7 +102,7 @@ struct FlashCardsPlayModeView: View {
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var chromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
+    private var chromeButtonSize: CGFloat { UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {
         isCompact
             ? FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingCompact
@@ -571,7 +571,7 @@ struct FlashCardsPlayModeView: View {
             FlashCardsHeaderControlsBridge(
                 buttonSize: chromeButtonSize,
                 editTint: UIColor(accentColor),
-                closeTint: UIColor(themeManager.textPrimary),
+                closeTint: UIColor(themeManager.roleColor(.circularToolbarForeground)),
                 backgroundTint: UIColor(themeManager.roleColor(.circularToolbarFill)),
                 onEdit: openCurrentCardEditor,
                 onClose: handleDismiss
@@ -2396,7 +2396,9 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
     }
 
     private func applyStyle(to button: UIButton, systemName: String, tint: UIColor) {
-        let pointSize = systemName == "xmark" ? 23 : 19
+        let pointSize = systemName == "xmark"
+            ? UIConstants.Size.navigationChromeIcon
+            : UIConstants.Size.actionIcon
         let configuration = UIImage.SymbolConfiguration(pointSize: CGFloat(pointSize), weight: .bold)
         button.setImage(UIImage(systemName: systemName, withConfiguration: configuration), for: .normal)
         button.tintColor = tint

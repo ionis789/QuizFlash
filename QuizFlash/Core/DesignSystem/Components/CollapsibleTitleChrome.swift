@@ -255,7 +255,7 @@ struct ChromeSoftCircleSymbolButton: View {
     var backgroundTint: Color? = nil
 
     private var resolvedSymbolSize: CGFloat {
-        symbolSize ?? max(UIConstants.Size.iconSmall, min(UIConstants.Size.iconStandard, size * 0.6))
+        symbolSize ?? UIConstants.Size.navigationChromeIcon
     }
 
     var body: some View {

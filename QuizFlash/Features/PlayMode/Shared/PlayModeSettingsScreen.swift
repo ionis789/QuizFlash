@@ -176,13 +176,11 @@ struct PlayModeSettingsScreen: View {
     }
 
     private var dismissButton: some View {
-        Button(action: dismissSheet) {
-            Image(systemName: "xmark")
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                .foregroundStyle(.primary)
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-        }
-        .buttonStyle(.plain)
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
+            action: dismissSheet
+        )
     }
 
     // MARK: - Cards

@@ -356,8 +356,7 @@ extension DeckContentView {
                     ChromeSoftCircleSymbolButton(
                         systemName: "xmark",
                         accessibilityLabel: localized("Close spaced repetition stats"),
-                        action: onClose,
-                        symbolSize: UIConstants.Size.iconStandard
+                        action: onClose
                     )
                 }
 

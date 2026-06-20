@@ -1224,8 +1224,8 @@ struct FlashcardEditorView: View {
                 systemName: "checkmark",
                 size: UIConstants.Size.actionButton,
                 symbolSize: UIConstants.Size.navigationChromeIcon,
-                tint: canSave ? .black : .secondary,
-                backgroundTint: canSave ? successAccent : topChromeDisabledFill
+                tint: canSave ? successAccent : .secondary,
+                backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
             )
         }
         .buttonStyle(.plain)
