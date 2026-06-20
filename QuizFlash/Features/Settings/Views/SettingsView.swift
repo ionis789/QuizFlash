@@ -441,8 +441,6 @@ struct SettingsView: View {
                     try await authManager.deleteAccount(
                         reauthentication: .google(presentingViewController)
                     )
-                } else if providers.contains(AuthProviderID.apple.rawValue) {
-                    try await authManager.deleteAccount(reauthentication: .apple)
                 } else {
                     throw AuthManagerError.missingCredential
                 }

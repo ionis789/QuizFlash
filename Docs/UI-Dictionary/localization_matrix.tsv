@@ -49,8 +49,8 @@ key	en	ro	ru
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -167,8 +167,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
@@ -184,8 +184,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -209,7 +209,6 @@ Content alignment: %@.	Content alignment: %@.	Aliniere conținut: %@.	Вырав
 Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
-Continue with Apple	Continue with Apple	Continuă cu Apple	Продолжить с Apple
 Continue with Google	Continue with Google	Continuă cu Google	Продолжить с Google
 Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
 Copied!	Copied!	Copiat!	Скопировано!
@@ -283,8 +282,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -496,8 +495,8 @@ PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС

@@ -156,30 +156,17 @@ struct LoginView: View {
                 }
                 .padding(.vertical, UIConstants.Spacing.small)
 
-                VStack(spacing: UIConstants.Spacing.medium) {
-                    AuthAsyncButton(
-                        title: AppLocalization.string("Continue with Google", locale: locale),
-                        icon: "globe",
-                        tint: Color.primary.opacity(0.08),
-                        foreground: .primary
-                    ) {
-                        try await authManager.signInWithGoogle(
-                            presentingViewController: presentingViewController
-                        )
-                    } onError: { error in
-                        presentError(error)
-                    }
-
-                    AuthAsyncButton(
-                        title: AppLocalization.string("Continue with Apple", locale: locale),
-                        icon: "apple.logo",
-                        tint: .primary,
-                        foreground: themeManager.screenBackground
-                    ) {
-                        try await authManager.signInWithApple()
-                    } onError: { error in
-                        presentError(error)
-                    }
+                AuthAsyncButton(
+                    title: AppLocalization.string("Continue with Google", locale: locale),
+                    icon: "globe",
+                    tint: Color.primary.opacity(0.08),
+                    foreground: .primary
+                ) {
+                    try await authManager.signInWithGoogle(
+                        presentingViewController: presentingViewController
+                    )
+                } onError: { error in
+                    presentError(error)
                 }
 
                 HStack(spacing: UIConstants.Spacing.small) {
