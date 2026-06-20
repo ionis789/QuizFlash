@@ -47,8 +47,8 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
+%d deck	%d deck	%d pachet	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -91,6 +91,7 @@ key	en	ro	ru
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
 A distributed-system model where replicas converge over time instead of synchronizing immediately.	A distributed-system model where replicas converge over time instead of synchronizing immediately.	Un model de sistem distribuit în care replicile converg în timp în loc să se sincronizeze imediat.	Модель распределенной системы, в которой реплики сходятся во времени, а не синхронизируются немедленно.
+A sign-in window is already open.	A sign-in window is already open.	O fereastră de conectare este deja deschisă.	Окно входа уже открыто.
 Accent	Accent	Accent	Акцент
 Accuracy	Accuracy	Acuratețe	Точность
 Active	Active	Activ	Активный
@@ -125,6 +126,7 @@ All Cards	All Cards	Toate cardurile	Все карточки
 All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
+An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
 Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
@@ -167,8 +169,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
@@ -178,6 +180,7 @@ Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточно
 Center	Center	Centru	Центр
 Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
 Check your email	Check your email	Verifică emailul	Проверьте email
+Check your internet connection and try again.	Check your internet connection and try again.	Verifică conexiunea la internet și încearcă din nou.	Проверьте подключение к интернету и попробуйте снова.
 Checking verification	Checking automatically	Se verifică automat	Автоматическая проверка
 Choice %@	Choice %@	Alegere %@	Выбор %@
 Choice %d	Choice %d	Varianta %d	Вариант %d
@@ -185,8 +188,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -279,6 +282,7 @@ Empty choice	Empty choice	Variantă goală	Пустой вариант
 Enabled	Enabled	Activ	Включено
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
 English	English	Engleză	Английский
+Enter a valid email address.	Enter a valid email address.	Introdu o adresă de email validă.	Введите корректный email.
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
 Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
@@ -314,8 +318,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Password	Generate Password	Generează parola	Сгенерировать пароль
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -332,6 +336,7 @@ Good morning	Good morning	Bună dimineața	Доброе утро
 Good night	Good night	Noapte bună	Доброй ночи
 Good rate	Good rate	Rată bune	Доля хороших
 Google Sign-In is not configured.	Google Sign-In is not configured.	Google Sign-In nu este configurat.	Google Sign-In не настроен.
+Google sign-in is not ready yet. Please try email sign-in.	Google sign-in is not ready yet. Please try email sign-in.	Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.	Вход через Google пока не готов. Попробуйте войти по email.
 Green	Green	Verde	Зелёный
 Group By	Group By	Grupează după	Группировать по
 Group by Card Type	Group by Card Type	Grupează după tipul cardului	Группировать по типу карточки
@@ -425,6 +430,7 @@ New	New	Nou	Новый
 Newest	Newest	Cele mai noi	Сначала новые
 Next	Next	Următorul	Следующий
 No	No	Nicio	Нет
+No account was found for this email.	No account was found for this email.	Nu există niciun cont pentru acest email.	Аккаунт с этим email не найден.
 No activity yet	No activity yet	Încă nu există activitate	Пока нет активности
 No AI provider profile is available yet.	No AI provider profile is available yet.	Niciun profil de furnizor AI nu este disponibil încă.	Профиль поставщика ИИ пока недоступен.
 No answer added	No answer added	Niciun răspuns adăugat	Ответ не добавлен
@@ -491,6 +497,9 @@ Play Debug	Play Debug	Joacă Debug	Играть в отладку
 PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
 Please select .json files	Please select .json files	Selectați fișiere .json	Выберите файлы .json
+Please sign in again to continue.	Please sign in again to continue.	Conectează-te din nou pentru a continua.	Войдите снова, чтобы продолжить.
+Please try again in a moment.	Please try again in a moment.	Încearcă din nou în câteva momente.	Попробуйте снова через несколько минут.
+Please wait a moment and try again.	Please wait a moment and try again.	Așteaptă un moment și încearcă din nou.	Подождите немного и попробуйте снова.
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
 Preview	Preview	Previzualizare	Предварительный просмотр
@@ -586,6 +595,8 @@ Side	Side	Parte	Сторона
 Sign In	Sign In	Conectare	Войти
 Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
 Sign Up	Sign Up	Înregistrare	Регистрация
+Sign-in is not ready yet. Please try again later.	Sign-in is not ready yet. Please try again later.	Autentificarea nu este gata încă. Încearcă mai târziu.	Вход пока не готов. Попробуйте позже.
+Sign-in was cancelled.	Sign-in was cancelled.	Autentificarea a fost anulată.	Вход был отменен.
 Simple	Simple	Simplu	Простой
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
@@ -637,12 +648,14 @@ Text Size	Text Size	Dimensiune text	Размер текста
 Text size: %@.	Text size: %@.	Dimensiune text: %@.	Размер текста: %@.
 Text: %@	Text: %@	Text: %@	Текст: %@
 The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
+The email or password is incorrect.	The email or password is incorrect.	Emailul sau parola este incorectă.	Email или пароль неверны.
 The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
 The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
+This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
 This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
@@ -651,6 +664,8 @@ This lab is intentionally close to the package README: one sticky header, one sc
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
+This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
+This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
 this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
@@ -666,6 +681,7 @@ Today is clear	Today is clear	Azi e închis	Сегодня закрыто
 Today's goal is closed.	Today's goal is closed.	Obiectivul de azi este închis.	Цель на сегодня закрыта.
 Token: %@	Token: %@	Indicativ: %@	Токен: %@
 Tomorrow	Tomorrow	Mâine	Завтра
+Too many attempts. Please wait a bit and try again.	Too many attempts. Please wait a bit and try again.	Prea multe încercări. Așteaptă puțin și încearcă din nou.	Слишком много попыток. Подождите немного и попробуйте снова.
 Top	Top	Sus	Сверху
 Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Sus fixează conținutul scurt în partea de sus. Centru folosește ghidajul de grilă pentru un bloc de text centrat natural.	Сверху закрепляет короткий контент у верхнего края. Центр использует сеточные направляющие для естественно центрированного текстового блока.
 Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
@@ -683,12 +699,15 @@ Unlock full AI features	Unlock full AI features	Deblochează toate funcțiile AI
 Unpin	Unpin	Anulează fixarea	Открепить
 Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
 Upcoming	Upcoming	Următoarele	Дальше
+Use a stronger password.	Use a stronger password.	Folosește o parolă mai puternică.	Используйте более надежный пароль.
 Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
 Verbose	Verbose	Detaliat	Подробно
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали
 Vision: %@	Vision: %@	Viziune: %@	Видение: %@
 Visual surface only.	Visual surface only.	Doar suprafața vizuală.	Только визуальная поверхность.
 vs same days	vs same days	față de aceleași zile	к тем же дням
+We could not finish Google sign-in. Please try again.	We could not finish Google sign-in. Please try again.	Nu am putut finaliza conectarea cu Google. Încearcă din nou.	Не удалось завершить вход через Google. Попробуйте снова.
+We could not finish sign-in. Please try again.	We could not finish sign-in. Please try again.	Nu am putut finaliza autentificarea. Încearcă din nou.	Не удалось завершить вход. Попробуйте снова.
 We'll send a reset link.	We'll send a reset link.	Îți trimitem un link de resetare.	Мы отправим ссылку для сброса.
 Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@

@@ -451,15 +451,10 @@ struct SettingsView: View {
     }
 
     private func presentAuthError(_ error: Error) {
-        if let error = error as? AuthManagerError {
-            authErrorMessage = AppLocalization.string(
-                error.localizedDescription,
-                locale: appPreferences.resolvedLocale
-            )
-        } else {
-            authErrorMessage = error.localizedDescription
-        }
-
+        authErrorMessage = AuthErrorPresentation.message(
+            for: error,
+            locale: appPreferences.resolvedLocale
+        )
         showAuthError = true
     }
 

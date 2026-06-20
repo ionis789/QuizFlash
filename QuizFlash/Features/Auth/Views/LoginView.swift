@@ -226,11 +226,7 @@ struct LoginView: View {
     }
 
     private func localizedError(_ error: Error) -> String {
-        if let error = error as? AuthManagerError {
-            return AppLocalization.string(error.localizedDescription, locale: locale)
-        }
-
-        return error.localizedDescription
+        AuthErrorPresentation.message(for: error, locale: locale)
     }
 
     private func isUserCancelledSignIn(_ error: Error) -> Bool {
