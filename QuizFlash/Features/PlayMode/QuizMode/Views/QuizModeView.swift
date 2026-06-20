@@ -1734,6 +1734,7 @@ private struct QuizPlayZoneContent: View {
             availableWidth: width,
             centersLeafBlocks: centersLeafBlocks,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
+            animatesLayoutChanges: false,
             showsDebugGuides: showsLayoutDebug,
             showsZoneSurfaces: showsZoneSurfaces,
             showsCodeBlockZoneSurfaces: true,

@@ -411,6 +411,7 @@ struct ZoneContentRenderView: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     var alignLeafBlocksToGroupLeading: Bool = false
+    var animatesLayoutChanges: Bool = true
     let showsDebugGuides: Bool
     var showsZoneSurfaces: Bool = true
     var showsCodeBlockZoneSurfaces: Bool = false
@@ -437,6 +438,7 @@ struct ZoneContentRenderView: View {
             availableWidth: max(availableWidth, 1),
             centersLeafBlocks: centersLeafBlocks,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
+            animatesLayoutChanges: animatesLayoutChanges,
             showsDebugGuides: showsDebugGuides,
             showsZoneSurfaces: showsZoneSurfaces,
             showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
@@ -492,6 +494,7 @@ private struct ZoneContentTreePreview: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     let alignLeafBlocksToGroupLeading: Bool
+    let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
     let showsZoneSurfaces: Bool
     let showsCodeBlockZoneSurfaces: Bool
@@ -519,6 +522,7 @@ private struct ZoneContentTreePreview: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: centersLeafBlocks,
                 alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
+                animatesLayoutChanges: animatesLayoutChanges,
                 showsDebugGuides: showsDebugGuides,
                 showsZoneSurfaces: showsZoneSurfaces,
                 showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
@@ -560,6 +564,7 @@ private struct ZoneContentTreePreview: View {
                         availableWidth: childWidth,
                         centersLeafBlocks: centersLeafBlocks,
                         alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
+                        animatesLayoutChanges: animatesLayoutChanges,
                         showsDebugGuides: showsDebugGuides,
                         showsZoneSurfaces: showsZoneSurfaces,
                         showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
@@ -619,6 +624,7 @@ private struct ZoneContentTreePreview: View {
                             availableWidth: groupWidth,
                             centersLeafBlocks: centersLeafBlocks,
                             alignLeafBlocksToGroupLeading: false,
+                            animatesLayoutChanges: animatesLayoutChanges,
                             showsDebugGuides: showsDebugGuides,
                             showsZoneSurfaces: showsZoneSurfaces,
                             showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
@@ -674,15 +680,24 @@ private struct ZoneContentTreePreview: View {
                         }
                     }
 
-                        .animation(.easeInOut(duration: 0.22), value: alignmentFeedback.highlightedTarget)
+                        .animation(
+                            animatesLayoutChanges ? .easeInOut(duration: 0.22) : nil,
+                            value: alignmentFeedback.highlightedTarget
+                        )
                 }
                     .offset(x: groupWiggleOffset)
 
                 Color.clear.frame(width: max(availableWidth - groupLeadingInset - groupWidth, 0))
             }
                 .frame(width: availableWidth, alignment: .topLeading)
-                .animation(.easeOut(duration: 0.22), value: groupLeadingInset)
-                .animation(.easeOut(duration: 0.22), value: groupWidth)
+                .animation(
+                    animatesLayoutChanges ? .easeOut(duration: 0.22) : nil,
+                    value: groupLeadingInset
+                )
+                .animation(
+                    animatesLayoutChanges ? .easeOut(duration: 0.22) : nil,
+                    value: groupWidth
+                )
                 .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
                 let directWidths: [String: CGFloat] = Dictionary(
                     uniqueKeysWithValues: zip(childPaths, children).compactMap { childPath, child -> (String, CGFloat)? in
@@ -960,6 +975,7 @@ private struct ZoneContentLeafPreview: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     let alignLeafBlocksToGroupLeading: Bool
+    let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
     let showsZoneSurfaces: Bool
     let showsCodeBlockZoneSurfaces: Bool
@@ -1039,7 +1055,10 @@ private struct ZoneContentLeafPreview: View {
                         )
                         .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                         .allowsHitTesting(false)
-                        .animation(.easeInOut(duration: 0.18), value: isLeafAlignmentTarget)
+                        .animation(
+                            animatesLayoutChanges ? .easeInOut(duration: 0.18) : nil,
+                            value: isLeafAlignmentTarget
+                        )
                 }
             }
                 .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
@@ -1048,7 +1067,10 @@ private struct ZoneContentLeafPreview: View {
             Color.clear.frame(width: max(availableWidth - layout.leadingInset - layout.blockSize.width, 0))
         }
             .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
-            .animation(.easeOut(duration: 0.22), value: layout.leadingInset)
+            .animation(
+                animatesLayoutChanges ? .easeOut(duration: 0.22) : nil,
+                value: layout.leadingInset
+            )
             .preference(
             key: ZoneContentLeafDebugPreferenceKey.self,
             value: collectsDebugMetrics
