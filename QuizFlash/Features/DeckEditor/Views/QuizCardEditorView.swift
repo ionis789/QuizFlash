@@ -1029,6 +1029,7 @@ struct QuizCardEditorView: View {
                         choiceID: choice.id,
                         isCorrect: choice.isCorrect,
                         isDeletePending: pendingDeleteChoiceID == choice.id,
+                        isInteractionDisabled: showsRenderedContent,
                         onToggleCorrect: {
                             toggleCorrect(for: choice.id)
                         },
@@ -1090,6 +1091,8 @@ struct QuizCardEditorView: View {
         addSectionButton(localized("Add Answer"), systemImage: "plus") {
             addChoice()
         }
+        .disabled(showsRenderedContent)
+        .opacity(showsRenderedContent ? 0.35 : 1)
     }
 
     private func addSectionButton(
@@ -1120,6 +1123,7 @@ struct QuizCardEditorView: View {
         showsCorrectToggle: Bool = true,
         isCorrect: Bool,
         isDeletePending: Bool,
+        isInteractionDisabled: Bool = false,
         onToggleCorrect: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) -> some View {
@@ -1132,7 +1136,11 @@ struct QuizCardEditorView: View {
                     .frame(minWidth: title == nil ? 18 : 0, alignment: .trailing)
 
                 if showsCorrectToggle {
-                    correctToggleButton(isCorrect: isCorrect, action: onToggleCorrect)
+                    correctToggleButton(
+                        isCorrect: isCorrect,
+                        isDisabled: isInteractionDisabled,
+                        action: onToggleCorrect
+                    )
                 }
 
                 if let choiceID, markedCorrectIndicatorChoiceID == choiceID {
@@ -1145,12 +1153,20 @@ struct QuizCardEditorView: View {
 
             Spacer(minLength: UIConstants.Spacing.standard)
 
-            deleteConfirmationButton(isPending: isDeletePending, action: onDelete)
+            deleteConfirmationButton(
+                isPending: isDeletePending,
+                isDisabled: isInteractionDisabled,
+                action: onDelete
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func deleteConfirmationButton(isPending: Bool, action: @escaping () -> Void) -> some View {
+    private func deleteConfirmationButton(
+        isPending: Bool,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: isPending ? "arrow.up.trash.fill" : "trash.fill")
                 .font(.system(size: 17, weight: .bold))
@@ -1160,11 +1176,17 @@ struct QuizCardEditorView: View {
             .scaleEffect(isPending ? 1.7 : 1)
         }
         .buttonStyle(QuizEditorControlButtonStyle(isActive: isPending))
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.35 : 1)
         .animation(.easeOut(duration: 0.16), value: isPending)
         .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
     }
 
-    private func correctToggleButton(isCorrect: Bool, action: @escaping () -> Void) -> some View {
+    private func correctToggleButton(
+        isCorrect: Bool,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             ZStack {
                 Circle()
@@ -1183,6 +1205,8 @@ struct QuizCardEditorView: View {
             .contentShape(Circle())
         }
         .buttonStyle(QuizEditorControlButtonStyle(isActive: isCorrect))
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.35 : 1)
         .accessibilityLabel(isCorrect ? localized("Correct") : localized("Mark Correct"))
     }
 
@@ -1197,6 +1221,7 @@ struct QuizCardEditorView: View {
                     showsCorrectToggle: false,
                     isCorrect: false,
                     isDeletePending: isExplanationDeletePending,
+                    isInteractionDisabled: showsRenderedContent,
                     onToggleCorrect: { },
                     onDelete: {
                         handleExplanationDeleteTap()
@@ -1247,6 +1272,8 @@ struct QuizCardEditorView: View {
                 addSectionButton(localized("Add Explanation"), systemImage: "plus.bubble") {
                     addExplanation()
                 }
+                .disabled(showsRenderedContent)
+                .opacity(showsRenderedContent ? 0.35 : 1)
             }
         }
     }
@@ -3051,6 +3078,8 @@ private struct QuizRenderedZoneCard: View {
     let onRootFrameChange: (CGRect) -> Void
     let onAlign: (QuizRenderedAlignmentDirection) -> Void
 
+    @State private var hitTargetHeight: CGFloat = 88
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             ZoneContentRenderView(
@@ -3073,8 +3102,16 @@ private struct QuizRenderedZoneCard: View {
             .contentShape(Rectangle())
             .onPreferenceChange(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
                 guard let rootFrame = bounds.first(where: { $0.zoneID == content.rootZone.id })?.frame else { return }
+                hitTargetHeight = max(88, rootFrame.maxY)
                 onRootFrameChange(rootFrame)
             }
+            .zIndex(0)
+
+            Color.clear
+                .frame(width: availableWidth, height: hitTargetHeight, alignment: .topLeading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSelect)
+                .zIndex(1)
 
             alignmentMenu
         }
