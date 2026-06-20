@@ -544,6 +544,7 @@ struct QuizCardEditorView: View {
             canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
             showsPrimaryActions: false,
             showsZoneActions: true,
+            showsZoneDeleteAction: false,
             usesMediaZoneToolbar: true,
             usesDirectZoneDeleteButton: true,
             onPreview: {
@@ -1831,7 +1832,7 @@ struct QuizCardEditorView: View {
 
     private func deleteChoice(_ choiceID: UUID) {
         guard let index = indexOfChoice(choiceID) else { return }
-        let fallbackEditor: QuizEditorTarget
+        let fallbackChoice: QuizChoiceEditorItem?
 
         clearPendingDelete(animated: false)
 
@@ -1842,21 +1843,58 @@ struct QuizCardEditorView: View {
         }
 
         if choices.indices.contains(index + 1) {
-            fallbackEditor = .choice(choices[index + 1].id)
+            fallbackChoice = choices[index + 1]
         } else if index > 0 {
-            fallbackEditor = .choice(choices[index - 1].id)
+            fallbackChoice = choices[index - 1]
         } else {
-            fallbackEditor = .question
+            fallbackChoice = nil
         }
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
-            choices.remove(at: index)
-            if activeEditor == .choice(choiceID) {
-                activeEditor = fallbackEditor
-                if selectedPath(for: fallbackEditor) == nil {
-                    setSelectedPath(.root, for: fallbackEditor)
-                }
+        if let fallbackChoice {
+            let fallbackEditor: QuizEditorTarget = .choice(fallbackChoice.id)
+            let fallbackZoneID = fallbackChoice.content.rootZone.id
+            let shouldKeepKeyboardActive = keyboardMonitor.isVisible
+
+            if shouldKeepKeyboardActive {
+                _ = focusManager.retainKeyboardForTextFocusTransfer(to: fallbackZoneID)
             }
+
+            fallbackChoice.selectedPath = .root
+            activeEditor = fallbackEditor
+            previewDirection = nil
+
+            withAnimation(zoneListMutationAnimation) {
+                choices.remove(at: index)
+            }
+
+            if shouldKeepKeyboardActive {
+                focusManager.requestFocus(for: fallbackZoneID)
+                zoneController.updateFocusedZone(fallbackZoneID)
+                updateFloatingFormatBarPresentation(isKeyboardVisible: true)
+            } else {
+                zoneController.updateFocusedZone(nil)
+                updateFloatingFormatBarPresentation(isKeyboardVisible: false)
+            }
+        } else {
+            focusManager.suppressFocusRequests(for: 0.9)
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+
+            withAnimation(zoneListMutationAnimation) {
+                choices.remove(at: index)
+                activeEditor = .question
+                questionSelectedPath = nil
+                previewDirection = nil
+                activeQuizCaretPathID = nil
+                activeQuizCaretWindowRect = nil
+                activeQuizCaretSource = nil
+                activeQuizCaretTraceID = nil
+                activeQuizCaretAnchorY = nil
+                activeQuizCaretEditorHeight = nil
+                currentSelectedPath = nil
+            }
+
+            updateFloatingFormatBarPresentation(isKeyboardVisible: false)
         }
     }
 

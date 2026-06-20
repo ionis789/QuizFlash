@@ -22,6 +22,7 @@ struct EditorFormatMenuBar: View {
     var canPreview: Bool
     var showsPrimaryActions: Bool
     var showsZoneActions: Bool
+    var showsZoneDeleteAction: Bool
     var usesMediaZoneToolbar: Bool
     var usesDirectZoneDeleteButton: Bool
     var onPreview: () -> Void
@@ -37,6 +38,7 @@ struct EditorFormatMenuBar: View {
         canPreview: Bool,
         showsPrimaryActions: Bool = true,
         showsZoneActions: Bool = false,
+        showsZoneDeleteAction: Bool = true,
         usesMediaZoneToolbar: Bool = false,
         usesDirectZoneDeleteButton: Bool = false,
         onPreview: @escaping () -> Void,
@@ -51,6 +53,7 @@ struct EditorFormatMenuBar: View {
         self.canPreview = canPreview
         self.showsPrimaryActions = showsPrimaryActions
         self.showsZoneActions = showsZoneActions
+        self.showsZoneDeleteAction = showsZoneDeleteAction
         self.usesMediaZoneToolbar = usesMediaZoneToolbar
         self.usesDirectZoneDeleteButton = usesDirectZoneDeleteButton
         self.onPreview = onPreview
@@ -158,7 +161,9 @@ struct EditorFormatMenuBar: View {
     private var zoneActionTools: some View {
         HStack(spacing: 16) {
             zoneContentMenu
-            zoneOperationsMenu
+            if showsZoneDeleteAction {
+                zoneOperationsMenu
+            }
         }
     }
 
@@ -333,17 +338,19 @@ struct EditorFormatMenuBar: View {
                 adjustMediaSize(by: Self.mediaSizeIncrement)
             }
 
-            Divider()
-                .frame(height: 26)
+            if showsZoneDeleteAction {
+                Divider()
+                    .frame(height: 26)
 
-            Button(role: .destructive, action: onDeleteZone) {
-                Image(systemName: "trash")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(.red)
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
+                Button(role: .destructive, action: onDeleteZone) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 19, weight: .medium))
+                        .foregroundStyle(.red)
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(localized("Delete"))
             }
-            .accessibilityLabel(localized("Delete"))
         }
     }
 
