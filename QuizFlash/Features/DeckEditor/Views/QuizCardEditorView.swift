@@ -26,8 +26,13 @@ struct QuizCardEditorView: View {
     @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
-    @State private var renderedTargets: Set<QuizEditorTarget> = []
-    @State private var renderedAlignmentMenuTarget: QuizEditorTarget?
+    @State private var showsRenderedContent = false
+    @State private var renderedAlignmentMenuState: QuizRenderedAlignmentMenuState?
+    @State private var renderedRootFrames: [QuizEditorTarget: CGRect] = [:]
+    @State private var renderedContentWidths: [QuizEditorTarget: CGFloat] = [:]
+    @State private var renderedAlignmentWiggleTarget: QuizEditorTarget?
+    @State private var renderedAlignmentWiggleOffset: CGFloat = 0
+    @State private var renderedAlignmentWiggleTask: Task<Void, Never>?
     @State private var scheduledRenderToggleTask: Task<Void, Never>?
     @State private var pendingMediaImport: PendingQuizMediaImport?
     @State private var markedCorrectIndicatorChoiceID: UUID?
@@ -205,10 +210,10 @@ struct QuizCardEditorView: View {
         validationMessage == nil
     }
     private var canToggleRenderedContent: Bool {
-        currentContent?.hasContent == true
+        questionContent.hasContent || choices.contains { $0.content.hasContent } || explanationContent?.hasContent == true
     }
     private var isActiveTargetRendered: Bool {
-        isRendered(activeEditor)
+        showsRenderedContent
     }
     private var hasUnsavedChanges: Bool {
         currentQuizContent != initialQuizContent
@@ -458,6 +463,8 @@ struct QuizCardEditorView: View {
             editorDismissalTask = nil
             scheduledRenderToggleTask?.cancel()
             scheduledRenderToggleTask = nil
+            renderedAlignmentWiggleTask?.cancel()
+            renderedAlignmentWiggleTask = nil
             floatingFormatBarPresentationTask?.cancel()
             floatingFormatBarPresentationTask = nil
             scheduledCaretScrollTask?.cancel()
@@ -587,7 +594,7 @@ struct QuizCardEditorView: View {
             },
             canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
             showsPrimaryActions: false,
-            showsZoneActions: false,
+            showsZoneActions: true,
             showsZoneDeleteAction: false,
             usesMediaZoneToolbar: true,
             usesDirectZoneDeleteButton: true,
@@ -970,16 +977,20 @@ struct QuizCardEditorView: View {
     @ViewBuilder
     private func questionSection(availableWidth: CGFloat) -> some View {
         let target = QuizEditorTarget.question
-        if isRendered(target) {
+        if showsRenderedContent {
             QuizRenderedZoneCard(
                 content: questionContent,
-                isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                alignmentMenuState: renderedAlignmentMenuState?.target == target ? renderedAlignmentMenuState : nil,
+                alignmentFeedback: renderedAlignmentFeedback(for: target),
                 fontScale: editorTextScale,
                 availableWidth: availableWidth,
                 alignLeftLabel: localized("Align Left"),
                 alignRightLabel: localized("Align Right"),
                 onSelect: {
                     selectRenderedTarget(target)
+                },
+                onRootFrameChange: { frame in
+                    updateRenderedFrame(frame, for: target, availableWidth: availableWidth)
                 },
                 onAlign: { direction in
                     alignRenderedTarget(target, direction: direction)
@@ -1027,16 +1038,20 @@ struct QuizCardEditorView: View {
                     )
 
                     let target = QuizEditorTarget.choice(choice.id)
-                    if isRendered(target) {
+                    if showsRenderedContent {
                         QuizRenderedZoneCard(
                             content: choice.content,
-                            isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                            alignmentMenuState: renderedAlignmentMenuState?.target == target ? renderedAlignmentMenuState : nil,
+                            alignmentFeedback: renderedAlignmentFeedback(for: target),
                             fontScale: editorTextScale,
                             availableWidth: availableWidth,
                             alignLeftLabel: localized("Align Left"),
                             alignRightLabel: localized("Align Right"),
                             onSelect: {
                                 selectRenderedTarget(target)
+                            },
+                            onRootFrameChange: { frame in
+                                updateRenderedFrame(frame, for: target, availableWidth: availableWidth)
                             },
                             onAlign: { direction in
                                 alignRenderedTarget(target, direction: direction)
@@ -1189,16 +1204,20 @@ struct QuizCardEditorView: View {
                 )
 
                 let target = QuizEditorTarget.explanation
-                if isRendered(target) {
+                if showsRenderedContent {
                     QuizRenderedZoneCard(
                         content: explanationContent,
-                        isAlignmentMenuPresented: renderedAlignmentMenuTarget == target,
+                        alignmentMenuState: renderedAlignmentMenuState?.target == target ? renderedAlignmentMenuState : nil,
+                        alignmentFeedback: renderedAlignmentFeedback(for: target),
                         fontScale: editorTextScale,
                         availableWidth: availableWidth,
                         alignLeftLabel: localized("Align Left"),
                         alignRightLabel: localized("Align Right"),
                         onSelect: {
                             selectRenderedTarget(target)
+                        },
+                        onRootFrameChange: { frame in
+                            updateRenderedFrame(frame, for: target, availableWidth: availableWidth)
                         },
                         onAlign: { direction in
                             alignRenderedTarget(target, direction: direction)
@@ -1280,7 +1299,7 @@ struct QuizCardEditorView: View {
         if activeEditor != target {
             setSelectedPath(nil, for: activeEditor, recordsSelection: false)
             previewDirection = nil
-            renderedAlignmentMenuTarget = nil
+            renderedAlignmentMenuState = nil
         }
 
         activeEditor = target
@@ -1292,15 +1311,10 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func isRendered(_ target: QuizEditorTarget) -> Bool {
-        renderedTargets.contains(target)
-    }
-
     private func toggleRenderedContent() {
         guard canToggleRenderedContent else { return }
 
-        let target = activeEditor
-        let targetMode = !isRendered(target)
+        let targetMode = !showsRenderedContent
         scheduledRenderToggleTask?.cancel()
 
         if targetMode, keyboardMonitor.isVisible {
@@ -1308,37 +1322,33 @@ struct QuizCardEditorView: View {
             scheduledRenderToggleTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(260))
                 guard !Task.isCancelled else { return }
-                applyRenderedContentMode(targetMode, for: target)
+                applyRenderedContentMode(targetMode)
                 scheduledRenderToggleTask = nil
             }
             return
         }
 
-        applyRenderedContentMode(targetMode, for: target)
+        applyRenderedContentMode(targetMode)
     }
 
-    private func applyRenderedContentMode(_ isRendered: Bool, for target: QuizEditorTarget) {
+    private func applyRenderedContentMode(_ isRendered: Bool) {
         scheduledRenderToggleTask?.cancel()
         scheduledRenderToggleTask = nil
 
         if isRendered {
-            ensureDefaultRenderAlignment(for: target)
+            ensureDefaultRenderAlignmentForAllTargets()
             prepareForRenderModeKeyboardDismiss()
-            activeEditor = target
-            setSelectedPath(nil, for: target, recordsSelection: false)
+            clearAllSelectedPaths()
             withAnimation(.easeInOut(duration: 0.18)) {
-                renderedTargets.insert(target)
-                renderedAlignmentMenuTarget = target
+                showsRenderedContent = true
+                renderedAlignmentMenuState = nil
             }
         } else {
             withAnimation(.easeInOut(duration: 0.18)) {
-                renderedTargets.remove(target)
-                if renderedAlignmentMenuTarget == target {
-                    renderedAlignmentMenuTarget = nil
-                }
+                showsRenderedContent = false
+                renderedAlignmentMenuState = nil
             }
-            activeEditor = target
-            setSelectedPath(nil, for: target, recordsSelection: false)
+            clearAllSelectedPaths()
             prepareForRenderModeKeyboardDismiss()
         }
     }
@@ -1372,26 +1382,68 @@ struct QuizCardEditorView: View {
         prepareForRenderModeKeyboardDismiss()
         activeEditor = target
         setSelectedPath(.root, for: target, recordsSelection: false)
-        withAnimation(.easeInOut(duration: 0.14)) {
-            renderedAlignmentMenuTarget = target
+        presentRenderedAlignmentMenu(for: target)
+    }
+
+    private func updateRenderedFrame(_ frame: CGRect, for target: QuizEditorTarget, availableWidth: CGFloat) {
+        renderedRootFrames[target] = frame
+        renderedContentWidths[target] = availableWidth
+
+        guard var menuState = renderedAlignmentMenuState,
+              menuState.target == target else { return }
+
+        menuState.frame = frame
+        menuState.movementWidth = availableWidth
+        if let content = content(for: target) {
+            menuState.currentAlignment = resolvedRenderedAlignment(for: content.rootZone)
+        }
+        renderedAlignmentMenuState = menuState
+    }
+
+    private func presentRenderedAlignmentMenu(for target: QuizEditorTarget) {
+        guard let content = content(for: target) else { return }
+        ensureDefaultRenderAlignment(for: target)
+        let frame = renderedRootFrames[target] ?? CGRect(x: 0, y: 0, width: renderedContentWidths[target] ?? 1, height: 88)
+        let menuState = QuizRenderedAlignmentMenuState(
+            target: target,
+            frame: frame,
+            anchor: CGPoint(x: frame.midX, y: frame.maxY),
+            movementWidth: renderedContentWidths[target] ?? frame.width,
+            currentAlignment: resolvedRenderedAlignment(for: content.rootZone)
+        )
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+            renderedAlignmentMenuState = menuState
         }
     }
 
     private func alignRenderedTarget(_ target: QuizEditorTarget, direction: QuizRenderedAlignmentDirection) {
-        guard let content = content(for: target) else { return }
+        guard let content = content(for: target),
+              let menuState = renderedAlignmentMenuState,
+              menuState.target == target else { return }
         ensureDefaultRenderAlignment(for: target)
-        let currentAlignment = content.rootZone.blockAlignment == .auto
-            ? ZoneBlockAlignment.center
-            : content.rootZone.blockAlignment
+        let currentAlignment = resolvedRenderedAlignment(for: content.rootZone)
         guard let nextAlignment = nextRenderedAlignment(from: currentAlignment, direction: direction) else {
+            triggerRenderedAlignmentWiggle(for: target)
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            return
+        }
+        let canMove = menuState.frame.width < menuState.movementWidth - QuizRenderedAlignmentMenuStyle.tolerance
+
+        guard canMove else {
+            triggerRenderedAlignmentWiggle(for: target)
             UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
             return
         }
 
-        withAnimation(.easeOut(duration: 0.18)) {
+        withAnimation(.easeOut(duration: 0.22)) {
             content.updateZone(at: .root) { zone in
                 zone.blockAlignment = nextAlignment
             }
+        }
+        if var updatedState = renderedAlignmentMenuState {
+            updatedState.currentAlignment = nextAlignment
+            renderedAlignmentMenuState = updatedState
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
@@ -1415,12 +1467,76 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func renderedAlignmentFeedback(for target: QuizEditorTarget) -> ZoneAlignmentFeedback {
+        let targetRef = renderedAlignmentTargetRef(for: target)
+        return ZoneAlignmentFeedback(
+            highlightedTarget: renderedAlignmentMenuState?.target == target
+                ? targetRef
+                : nil,
+            wiggleTarget: renderedAlignmentWiggleTarget == target
+                ? targetRef
+                : nil,
+            wiggleOffset: renderedAlignmentWiggleTarget == target ? renderedAlignmentWiggleOffset : 0
+        )
+    }
+
+    private func renderedAlignmentTargetRef(for target: QuizEditorTarget) -> ZoneAlignmentTargetRef {
+        let kind: ZoneAlignmentTargetKind = content(for: target)?.rootZone.isLeaf == false ? .group : .leaf
+        return ZoneAlignmentTargetRef(path: .root, kind: kind)
+    }
+
+    private func triggerRenderedAlignmentWiggle(for target: QuizEditorTarget) {
+        renderedAlignmentWiggleTask?.cancel()
+        renderedAlignmentWiggleTarget = target
+        renderedAlignmentWiggleOffset = 0
+
+        let offsets: [CGFloat] = [0, -6, 5, -3, 2, 0]
+        renderedAlignmentWiggleTask = Task { @MainActor in
+            for offset in offsets {
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.045)) {
+                    renderedAlignmentWiggleOffset = offset
+                }
+                try? await Task.sleep(for: .milliseconds(40))
+            }
+            guard !Task.isCancelled else { return }
+            renderedAlignmentWiggleTarget = nil
+            renderedAlignmentWiggleOffset = 0
+        }
+    }
+
+    private func resolvedRenderedAlignment(for zone: ZoneModel) -> ZoneBlockAlignment {
+        zone.blockAlignment == .auto ? .center : zone.blockAlignment
+    }
+
     private func ensureDefaultRenderAlignment(for target: QuizEditorTarget) {
         guard let content = content(for: target),
               content.rootZone.blockAlignment == .auto else { return }
         content.updateZone(at: .root) { zone in
             zone.blockAlignment = .center
         }
+    }
+
+    private func ensureDefaultRenderAlignmentForAllTargets() {
+        ensureDefaultRenderAlignment(for: .question)
+        choices.forEach { ensureDefaultRenderAlignment(for: .choice($0.id)) }
+        if explanationContent != nil {
+            ensureDefaultRenderAlignment(for: .explanation)
+        }
+    }
+
+    private func clearAllSelectedPaths() {
+        questionSelectedPath = nil
+        choices.forEach { $0.selectedPath = nil }
+        explanationSelectedPath = nil
+        activeQuizCaretPathID = nil
+        activeQuizCaretWindowRect = nil
+        activeQuizCaretSource = nil
+        activeQuizCaretTraceID = nil
+        activeQuizCaretAnchorY = nil
+        activeQuizCaretEditorHeight = nil
+        newlineCaretSettlingPathID = nil
+        newlineCaretSettlingDeadline = nil
     }
 
     private func handleCaretMovedNotification(_ notification: Notification) {
@@ -2086,9 +2202,10 @@ struct QuizCardEditorView: View {
             questionSelectedPath = nil
             choices.forEach { $0.selectedPath = nil }
             explanationSelectedPath = nil
-            renderedTargets.remove(.choice(choiceID))
-            if renderedAlignmentMenuTarget == .choice(choiceID) {
-                renderedAlignmentMenuTarget = nil
+            renderedRootFrames.removeValue(forKey: .choice(choiceID))
+            renderedContentWidths.removeValue(forKey: .choice(choiceID))
+            if renderedAlignmentMenuState?.target == .choice(choiceID) {
+                renderedAlignmentMenuState = nil
             }
             previewDirection = nil
             activeQuizCaretPathID = nil
@@ -2249,9 +2366,10 @@ struct QuizCardEditorView: View {
             questionSelectedPath = nil
             explanationContent = nil
             explanationSelectedPath = nil
-            renderedTargets.remove(.explanation)
-            if renderedAlignmentMenuTarget == .explanation {
-                renderedAlignmentMenuTarget = nil
+            renderedRootFrames.removeValue(forKey: .explanation)
+            renderedContentWidths.removeValue(forKey: .explanation)
+            if renderedAlignmentMenuState?.target == .explanation {
+                renderedAlignmentMenuState = nil
             }
             isExplanationExpanded = false
             previewDirection = nil
@@ -2465,7 +2583,7 @@ struct QuizCardEditorView: View {
                 zone = mediaZone
             }
             setSelectedPath(.root, for: target, recordsSelection: false)
-            renderedAlignmentMenuTarget = nil
+            renderedAlignmentMenuState = nil
         }
         ensureDefaultRenderAlignment(for: target)
         updateFloatingFormatBarPresentation(isKeyboardVisible: false)
@@ -2501,7 +2619,7 @@ struct QuizCardEditorView: View {
         withTransaction(Transaction(animation: nil)) {
             choices.append(newChoice)
             activeEditor = .choice(newChoice.id)
-            renderedAlignmentMenuTarget = nil
+            renderedAlignmentMenuState = nil
         }
         ensureDefaultRenderAlignment(for: .choice(newChoice.id))
         updateFloatingFormatBarPresentation(isKeyboardVisible: false)
@@ -2861,6 +2979,20 @@ private enum QuizRenderedAlignmentDirection {
     case right
 }
 
+private struct QuizRenderedAlignmentMenuState: Equatable {
+    let target: QuizEditorTarget
+    var frame: CGRect
+    var anchor: CGPoint
+    var movementWidth: CGFloat
+    var currentAlignment: ZoneBlockAlignment
+}
+
+private enum QuizRenderedAlignmentMenuStyle {
+    static let tolerance: CGFloat = 1
+    static let size = CGSize(width: 104, height: 44)
+    static let verticalSpacing: CGFloat = 28
+}
+
 private enum PendingQuizMediaImportAction {
     case replace
     case addChoice
@@ -2909,22 +3041,26 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
 
 private struct QuizRenderedZoneCard: View {
     let content: ZoneCardContent
-    let isAlignmentMenuPresented: Bool
+    let alignmentMenuState: QuizRenderedAlignmentMenuState?
+    let alignmentFeedback: ZoneAlignmentFeedback
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let alignLeftLabel: String
     let alignRightLabel: String
     let onSelect: () -> Void
+    let onRootFrameChange: (CGRect) -> Void
     let onAlign: (QuizRenderedAlignmentDirection) -> Void
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
             ZoneContentRenderView(
                 zone: content.rootZone,
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
-                showsDebugGuides: false,
+                showsDebugGuides: true,
+                debugGuideStyle: .editorRender,
+                alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: false,
                 leafTapBehavior: .all,
                 onTap: onSelect,
@@ -2935,40 +3071,82 @@ private struct QuizRenderedZoneCard: View {
             .frame(width: availableWidth, alignment: .topLeading)
             .frame(minHeight: 88, alignment: .top)
             .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
-
-            if isAlignmentMenuPresented {
-                HStack(spacing: 6) {
-                    renderedAlignmentButton(systemName: "arrow.left") {
-                        onAlign(.left)
-                    }
-                    renderedAlignmentButton(systemName: "arrow.right") {
-                        onAlign(.right)
-                    }
-                }
-                .padding(5)
-                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-                }
-                .padding(.top, 6)
-                .padding(.trailing, 6)
-                .transition(.scale(scale: 0.92, anchor: .topTrailing).combined(with: .opacity))
+            .onPreferenceChange(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
+                guard let rootFrame = bounds.first(where: { $0.zoneID == content.rootZone.id })?.frame else { return }
+                onRootFrameChange(rootFrame)
             }
+
+            alignmentMenu
+        }
+        .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
+    }
+
+    @ViewBuilder
+    private var alignmentMenu: some View {
+        if let menuState = alignmentMenuState {
+            let position = alignmentMenuPosition(for: menuState)
+            let transitionAnchor = UnitPoint(
+                x: min(max((menuState.anchor.x - position.x) / QuizRenderedAlignmentMenuStyle.size.width, 0), 1),
+                y: (menuState.anchor.y - position.y) / QuizRenderedAlignmentMenuStyle.size.height
+            )
+
+            HStack(spacing: 4) {
+                renderedAlignmentButton(systemName: "chevron.left", label: alignLeftLabel) {
+                    onAlign(.left)
+                }
+
+                Rectangle()
+                    .fill(Color.primary.opacity(0.12))
+                    .frame(width: 1, height: 18)
+                    .allowsHitTesting(false)
+
+                renderedAlignmentButton(systemName: "chevron.right", label: alignRightLabel) {
+                    onAlign(.right)
+                }
+            }
+            .frame(
+                width: QuizRenderedAlignmentMenuStyle.size.width,
+                height: QuizRenderedAlignmentMenuStyle.size.height
+            )
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
+            .offset(x: position.x, y: position.y)
+            .transition(.scale(scale: 0.82, anchor: transitionAnchor).combined(with: .opacity))
+            .zIndex(4)
         }
     }
 
-    private func renderedAlignmentButton(systemName: String, action: @escaping () -> Void) -> some View {
+    private func renderedAlignmentButton(
+        systemName: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.primary)
-                .frame(width: 32, height: 32)
-                .contentShape(Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(systemName == "arrow.left" ? alignLeftLabel : alignRightLabel)
+        .accessibilityLabel(label)
+    }
+
+    private func alignmentMenuPosition(for menuState: QuizRenderedAlignmentMenuState) -> CGPoint {
+        let menuWidth = QuizRenderedAlignmentMenuStyle.size.width
+        let menuHeight = QuizRenderedAlignmentMenuStyle.size.height
+        let x = min(max(menuState.anchor.x - menuWidth / 2, 0), max(availableWidth - menuWidth, 0))
+        let preferredY = menuState.anchor.y + QuizRenderedAlignmentMenuStyle.verticalSpacing
+        let minY: CGFloat = 0
+        let y = preferredY >= minY
+            ? preferredY
+            : max(menuState.anchor.y - menuHeight - QuizRenderedAlignmentMenuStyle.verticalSpacing, minY)
+
+        return CGPoint(x: x, y: y)
     }
 }
 
