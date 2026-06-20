@@ -676,6 +676,7 @@
 "Apple did not return an identity token." = "Apple не вернул токен идентификации.";
 "Apple returned an invalid identity token." = "Apple вернул недействительный токен идентификации.";
 "Check your email" = "Проверьте email";
+"Checking verification" = "Автоматическая проверка";
 "Confirm Password" = "Подтвердите пароль";
 "Continue with Google" = "Продолжить с Google";
 "Create Account" = "Создать аккаунт";
@@ -684,7 +685,6 @@
 "Email Address" = "Email";
 "Forgot Password?" = "Забыли пароль?";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
-"I Verified" = "Я подтвердил";
 "No signed-in user was found." = "Пользователь не найден.";
 "or" = "или";
 "Password" = "Пароль";

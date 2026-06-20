@@ -80,20 +80,7 @@ private struct KeyboardDismissTapController: UIViewRepresentable {
                     return false
                 }
 
-                if let recognizers = view.gestureRecognizers,
-                   recognizers.contains(where: { shouldTreatAsInteractiveGesture($0, on: view) }) {
-                    return false
-                }
-
                 current = view.superview
-            }
-
-            return true
-        }
-
-        private func shouldTreatAsInteractiveGesture(_ recognizer: UIGestureRecognizer, on view: UIView) -> Bool {
-            if view is UIScrollView {
-                return !(recognizer is UIPanGestureRecognizer)
             }
 
             return true

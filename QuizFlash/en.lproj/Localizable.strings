@@ -676,6 +676,7 @@
 "Apple did not return an identity token." = "Apple did not return an identity token.";
 "Apple returned an invalid identity token." = "Apple returned an invalid identity token.";
 "Check your email" = "Check your email";
+"Checking verification" = "Checking automatically";
 "Confirm Password" = "Confirm Password";
 "Continue with Google" = "Continue with Google";
 "Create Account" = "Create Account";
@@ -684,7 +685,6 @@
 "Email Address" = "Email Address";
 "Forgot Password?" = "Forgot Password?";
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
-"I Verified" = "I Verified";
 "No signed-in user was found." = "No signed-in user was found.";
 "or" = "or";
 "Password" = "Password";
