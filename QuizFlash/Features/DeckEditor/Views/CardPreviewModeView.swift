@@ -47,7 +47,11 @@ struct CardPreviewModeView: View {
     }
     private var quizPreviewTextScale: CGFloat { CGFloat(textSize.playModeScale) }
     private var quizContentHorizontalPadding: CGFloat { 8 }
-    private var quizContentTopPadding: CGFloat { 44 }
+    private var quizContentTopPadding: CGFloat {
+        UIConstants.Layout.deckNavigationTopPadding
+            + UIConstants.Size.capsuleHeight
+            + UIConstants.Spacing.standard
+    }
     private var quizContentBottomPadding: CGFloat { 12 }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {
@@ -150,6 +154,13 @@ struct CardPreviewModeView: View {
                         safeTopInset: resolvedSafeTopInset,
                         horizontalInset: headerHorizontalInset
                     )
+                }
+
+                if isQuizPreview {
+                    quizPreviewCloseButton
+                        .padding(.top, resolvedSafeTopInset + UIConstants.Layout.deckNavigationTopPadding)
+                        .padding(.trailing, headerHorizontalInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -442,6 +453,16 @@ struct CardPreviewModeView: View {
                 .frame(width: chromeButtonHeight, height: chromeButtonHeight)
         }
         .buttonStyle(.plain)
+    }
+
+    private var quizPreviewCloseButton: some View {
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Close"),
+            action: { handleDone() },
+            size: UIConstants.Size.capsuleHeight,
+            symbolSize: 20
+        )
     }
 
     private func handleDone(previewDismissDistance: CGFloat? = nil) {
