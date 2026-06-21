@@ -219,8 +219,8 @@ extension AIFlashcardService {
         Keep short explanatory prose outside math delimiters.
         Do not replace precise notation with vague prose when the notation is the learning target.
         Do not invent notation that is not supported by the source.
-        Wrap compact formal symbols and relations in math delimiters even when they appear inside prose: Greek variables, Γ, LP relations, |=, ⊢, ⊨, ≡, ¬, ∧, ∨, →, ↔, ∈, ∀, ∃, set braces, subscripts, superscripts, and formula schemas.
-        Prefer renderable LaTeX for logic notation: use $\\tau \\models \\varphi$ instead of raw τ |= φ, $\\Gamma \\vdash \\varphi$ instead of raw Γ ⊢ φ, and $\\varphi_1 \\equiv \\varphi_2$ instead of raw φ1 ≡ φ2.
+        When a span is formal notation rather than natural-language prose, put the complete symbolic span inside math delimiters, including variables, relations, operators, quantified statements, set expressions, inference statements, equivalences, schemas, and indexed or superscripted terms.
+        Use standard renderable LaTeX for the notation style implied by the source. Preserve the source's semantic relation and variable roles instead of copying damaged glyphs literally or substituting vague prose.
         If the source notation is visibly damaged by extraction artifacts, preserve only the unambiguous formal statement. Do not invent missing variables, operators, proof steps, or formulas from a broken fragment.
 
         FORMAL NOTATION IS NOT CODE
@@ -241,9 +241,7 @@ extension AIFlashcardService {
         LATEX IN JSON
         All LaTeX must be inside JSON strings.
         Write the final intended card text first, then JSON-escape only what JSON requires.
-        A LaTeX command that is one backslash in final rendered text must appear as two backslashes in JSON.
-        Example final rendered text: `$X \\subseteq U$`
-        Correct JSON string value: "$X \\\\subseteq U$"
+        Escape every intended LaTeX backslash according to JSON string rules.
         Do not over-escape LaTeX commands.
         Do not use markdown code fences for math.
         Use $...$ or $$...$$, not ```math or ```latex.
@@ -258,7 +256,7 @@ extension AIFlashcardService {
 
             OCR CORRECTION MODE ENABLED
             Repair broken words, split hyphenations, noisy symbols, damaged code syntax, and corrupted notation before generating cards.
-            PDF/text extraction may split Romanian diacritics or formal symbols across lines. Normalize obvious words and notation, but keep uncertain formulas conservative.
+            PDF/text extraction may split language-specific diacritics or formal symbols across lines. Normalize obvious words and notation, but keep uncertain formulas conservative.
             For corrupted formal notation, use a faithful simplified statement if the exact formula is not recoverable; do not fabricate a full equation just to make the card look mathematical.
             """
         }

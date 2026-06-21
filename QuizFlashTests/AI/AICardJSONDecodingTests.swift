@@ -305,8 +305,11 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("All LaTeX must be inside JSON strings"))
         XCTAssertTrue(prompt.contains("JSON-escape only what JSON requires"))
         XCTAssertTrue(prompt.contains("INLINE MATH: Wrap formal notation"))
-        XCTAssertTrue(prompt.contains("use $\\tau \\models \\varphi$ instead of raw τ |= φ"))
+        XCTAssertTrue(prompt.contains("When a span is formal notation rather than natural-language prose"))
+        XCTAssertTrue(prompt.contains("Use standard renderable LaTeX for the notation style implied by the source"))
         XCTAssertTrue(prompt.contains("Do not invent missing variables, operators, proof steps, or formulas from a broken fragment"))
+        XCTAssertFalse(prompt.contains("raw τ"))
+        XCTAssertFalse(prompt.contains("raw Γ"))
         XCTAssertFalse(prompt.contains("Math, logic, programming, physics"))
         XCTAssertFalse(prompt.contains("History, literature"))
         XCTAssertFalse(prompt.contains("Infer the subject domain from the source itself"))
@@ -340,7 +343,7 @@ final class AICardJSONDecodingTests: XCTestCase {
         )
 
         XCTAssertTrue(prompt.contains("OCR CORRECTION MODE ENABLED"))
-        XCTAssertTrue(prompt.contains("PDF/text extraction may split Romanian diacritics or formal symbols across lines"))
+        XCTAssertTrue(prompt.contains("PDF/text extraction may split language-specific diacritics or formal symbols across lines"))
         XCTAssertTrue(prompt.contains("do not fabricate a full equation just to make the card look mathematical"))
     }
 
