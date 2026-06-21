@@ -421,7 +421,9 @@ struct DeckWorkspaceView: View {
                     viewModel: viewModel,
                     safeAreaInsets: safeArea,
                     onPrimaryAction: {
-                        await confirmAIGenerationIfAllowed()
+                        Task { @MainActor in
+                            await confirmAIGenerationIfAllowed()
+                        }
                     },
                     onCancel: {
                         viewModel.dismissAISheet(clearPendingSourceSelection: true)

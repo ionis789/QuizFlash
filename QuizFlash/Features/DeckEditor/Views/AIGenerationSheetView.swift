@@ -21,7 +21,7 @@ struct AIGenerationSheetView: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Bindable var viewModel: DeckWorkspaceViewModel
     let safeAreaInsets: UIEdgeInsets
-    var onPrimaryAction: () async -> Bool
+    var onPrimaryAction: () -> Task<Bool, Never>
     var onCancel: () -> Void
 
     @State private var selectedSourcePreview: AIGenerationSourcePreviewItem?
@@ -432,7 +432,7 @@ struct AIGenerationSheetView: View {
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(120))
-            let didStartGeneration = await onPrimaryAction()
+            let didStartGeneration = await onPrimaryAction().value
             if !didStartGeneration {
                 isSubmittingGeneration = false
             }
