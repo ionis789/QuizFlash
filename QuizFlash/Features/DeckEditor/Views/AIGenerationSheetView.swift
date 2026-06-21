@@ -140,6 +140,8 @@ struct AIGenerationSheetView: View {
                 action: requestCancel
             )
             .frame(width: UIConstants.Size.actionButton, alignment: .leading)
+            .disabled(isSubmittingGeneration)
+            .opacity(isSubmittingGeneration ? 0.48 : 1)
 
             Spacer(minLength: 0)
 
@@ -429,8 +431,7 @@ struct AIGenerationSheetView: View {
         isSubmittingGeneration = true
 
         Task { @MainActor in
-            // Give SwiftUI one frame to mount the loading indicator before Firestore work begins.
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(120))
             let didStartGeneration = await onPrimaryAction()
             if !didStartGeneration {
                 isSubmittingGeneration = false

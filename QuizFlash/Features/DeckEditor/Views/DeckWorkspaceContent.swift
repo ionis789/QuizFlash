@@ -359,20 +359,19 @@ extension DeckWorkspaceView {
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
 
-        guard !isCheckingAIAccess else { return }
-        isCheckingAIAccess = true
-        Task { @MainActor in
-            defer { isCheckingAIAccess = false }
-            await subscriptionManager.refresh()
-            syncAIGenerationLimit()
-            guard canUseAIGeneration() else { return }
-            viewModel.showAIPickerOptions = true
-        }
+        guard !viewModel.showAIPickerOptions,
+              viewModel.aiSheetDestination == nil,
+              !viewModel.showAIPhotoPicker,
+              !viewModel.showAIPDFPicker,
+              !viewModel.isPreparingAISource,
+              !viewModel.hasPendingAISource,
+              !hasUnifiedAISession else { return }
+
+        viewModel.showAIPickerOptions = true
     }
 
     func confirmAIGenerationIfAllowed() async -> Bool {
         guard !isCheckingAIAccess else { return false }
-        guard canUseAIGeneration() else { return false }
 
         isCheckingAIAccess = true
         defer { isCheckingAIAccess = false }
@@ -380,6 +379,7 @@ extension DeckWorkspaceView {
         do {
             await subscriptionManager.refresh()
             syncAIGenerationLimit()
+            guard canUseAIGeneration() else { return false }
 
             let targetCardCount = viewModel.targetCardCount(for: viewModel.resolvedAISourceAllocations)
             guard targetCardCount > 0 else { return false }
