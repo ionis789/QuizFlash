@@ -192,11 +192,50 @@ final class AICardJSONDecodingTests: XCTestCase {
         let cards = try await service.decodeGeneratedCards(from: json, contract: .flashcard)
 
         if case .flashcard(let content) = cards[0].content {
-            XCTAssertEqual(content.questionZones, ["Ce exprimă operatorul T: ℝⁿ → ℝᵐ?"])
-            XCTAssertEqual(content.answerZones, ["diag(λ₁,…,λₙ) = S⁻¹·A·S"])
+            XCTAssertTrue(content.questionZones[0].contains("$"))
+            XCTAssertTrue(content.answerZones[0].contains("$"))
+            XCTAssertFalse(content.questionZones[0].contains("ℝⁿ → ℝᵐ"))
+            XCTAssertFalse(content.answerZones[0].contains("λ₁"))
         } else {
             XCTFail("Expected flashcard payload")
         }
+    }
+
+    func testDecodeRepairsRawFormalLogicNotationAfterAIResponse() async throws {
+        let service = makeService()
+        let json = """
+        {
+          "schemaVersion": 1,
+          "cards": [
+            {
+              "type": "flashcard",
+              "front": {
+                "zones": [
+                  { "type": "text", "text": "Definește funcția recursivă **subf** : LP → 2^LP" }
+                ]
+              },
+              "back": {
+                "zones": [
+                  { "type": "text", "text": "subf φ = {φ} dacă φ ∈ A; {φ} ∪ subf φ' dacă φ = ¬φ'; {φ} ∪ subf φ1 ∪ subf φ2 dacă φ = (φ1 ∧ φ2) sau φ = (φ1 ∨ φ2)" }
+                ]
+              }
+            }
+          ]
+        }
+        """
+
+        let cards = try await service.decodeGeneratedCards(from: json, contract: .flashcard)
+
+        guard case .flashcard(let content) = cards[0].content else {
+            return XCTFail("Expected flashcard payload")
+        }
+
+        XCTAssertTrue(content.questionZones[0].contains("$subf : LP \\to 2^{LP}$"), content.questionZones[0])
+        XCTAssertFalse(content.questionZones[0].contains("LP → 2^LP"), content.questionZones[0])
+        XCTAssertTrue(content.answerZones[0].contains(#"$subf \varphi = \{\varphi\}$"#), content.answerZones[0])
+        XCTAssertTrue(content.answerZones[0].contains(#"$\varphi \in A$"#), content.answerZones[0])
+        XCTAssertFalse(content.answerZones[0].contains("φ ∈ A"), content.answerZones[0])
+        XCTAssertFalse(content.answerZones[0].contains("¬φ"), content.answerZones[0])
     }
 
     func testDecodeRepairsSingleBackslashLatexInsideCardDTO() async throws {
