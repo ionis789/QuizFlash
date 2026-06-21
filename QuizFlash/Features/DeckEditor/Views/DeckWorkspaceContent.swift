@@ -286,15 +286,13 @@ extension DeckWorkspaceView {
     }
 
     var emptyStateView: some View {
-        VStack(spacing: UIConstants.Spacing.extraLarge) {
-            emptyDeckSymbol
-
+        VStack(spacing: UIConstants.Spacing.large) {
             Button {
                 presentAIGenerationSourcePicker()
             } label: {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "wand.and.stars")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .font(.system(size: 21, weight: .heavy, design: .rounded))
 
                     Text(localized("Generate with AI"))
                         .font(.system(size: 25, weight: .heavy, design: .rounded))
@@ -302,7 +300,7 @@ extension DeckWorkspaceView {
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 .padding(.horizontal, UIConstants.Spacing.standard)
-                .padding(.vertical, UIConstants.Spacing.small)
+                .padding(.vertical, 6)
                 .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
@@ -310,18 +308,14 @@ extension DeckWorkspaceView {
             .opacity(canStartLocalGeneration ? 1 : 0.48)
             .accessibilityLabel(localized("Generate cards with AI"))
 
-            HStack(spacing: UIConstants.Spacing.small) {
-                Capsule(style: .continuous)
-                    .fill(.secondary.opacity(0.26))
-                    .frame(width: 42, height: 2)
-
+            HStack(spacing: 9) {
+                Color.secondary.opacity(0.24)
+                    .frame(width: 28, height: 1)
                 Text(localized("or"))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary.opacity(0.82))
-
-                Capsule(style: .continuous)
-                    .fill(.secondary.opacity(0.26))
-                    .frame(width: 42, height: 2)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary.opacity(0.72))
+                Color.secondary.opacity(0.24)
+                    .frame(width: 28, height: 1)
             }
             .accessibilityLabel(localized("or"))
 
@@ -329,75 +323,38 @@ extension DeckWorkspaceView {
                 isTitleFocused = false
                 showAddCardTypeDialog = true
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 9) {
                     ZStack(alignment: .bottomTrailing) {
-                        Image(systemName: "rectangle.stack.fill")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(accent.opacity(0.96))
+                        Image(systemName: "rectangle.stack")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(accent.opacity(0.9))
 
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundStyle(themeManager.groupedScreenBackground)
-                            .background(accent, in: Circle())
-                            .offset(x: 4, y: 4)
+                        Image(systemName: "plus")
+                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .foregroundStyle(accent)
+                            .offset(x: 5, y: 4)
                     }
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
 
                     Text(localized("Add manually"))
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.88))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.86))
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.secondary.opacity(0.7))
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.secondary.opacity(0.62))
                 }
-                .padding(.leading, UIConstants.Spacing.standard)
-                .padding(.trailing, UIConstants.Spacing.medium)
-                .frame(height: 46)
-                .background(Color.white.opacity(0.065), in: Capsule(style: .continuous))
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
+                .padding(.horizontal, UIConstants.Spacing.small)
+                .padding(.vertical, 8)
                 .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(localized("Add manually"))
         }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 52)
+            .padding(.vertical, 64)
             .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-
-    var emptyDeckSymbol: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.055))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    }
-
-                Image(systemName: "rectangle.stack.fill")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary.opacity(0.62))
-            }
-            .frame(width: 72, height: 72)
-
-            ZStack {
-                Circle()
-                    .fill(accent)
-                    .frame(width: 28, height: 28)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(themeManager.groupedScreenBackground)
-            }
-            .offset(x: 6, y: 6)
-        }
-        .accessibilityHidden(true)
     }
 
     func presentAIGenerationSourcePicker() {
