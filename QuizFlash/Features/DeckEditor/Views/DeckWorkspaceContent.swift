@@ -358,7 +358,23 @@ extension DeckWorkspaceView {
     func presentAIGenerationSourcePicker() {
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
+        guard canUseAIGeneration() else { return }
         viewModel.showAIPickerOptions = true
+    }
+
+    func confirmAIGenerationIfAllowed() {
+        guard canUseAIGeneration() else { return }
+        viewModel.confirmAIGenerationFromSheet()
+    }
+
+    private func canUseAIGeneration() -> Bool {
+        guard let message = subscriptionManager.aiGenerationLimitMessage(locale: locale) else {
+            return true
+        }
+
+        aiAccessAlertMessage = message
+        showAIAccessAlert = true
+        return false
     }
 
     func chooseAIPhotoSourceFromPicker() {

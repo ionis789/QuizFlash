@@ -42,7 +42,7 @@ type DeckJSONCardBatchDTO = {
 
 const db = getFirestore();
 
-export const upsertUserProfile = onCall({enforceAppCheck: true}, async (request) => {
+export const upsertUserProfile = onCall({enforceAppCheck: false}, async (request) => {
   const uid = requireUID(request.auth?.uid);
   const data = request.data as Record<string, unknown>;
 
@@ -60,7 +60,7 @@ export const upsertUserProfile = onCall({enforceAppCheck: true}, async (request)
 });
 
 export const generateDeck = onCall({
-  enforceAppCheck: true,
+  enforceAppCheck: false,
   secrets: [deepSeekAPIKey],
   timeoutSeconds: 300,
   memory: "512MiB"
@@ -157,7 +157,7 @@ export const generateDeck = onCall({
   };
 });
 
-export const deleteUserData = onCall({enforceAppCheck: true}, async (request) => {
+export const deleteUserData = onCall({enforceAppCheck: false}, async (request) => {
   const uid = requireUID(request.auth?.uid);
   await getAuth().getUser(uid);
   await deleteDecks(uid);

@@ -30,6 +30,7 @@ struct DeckWorkspaceView: View {
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
     @Environment(AppPreferences.self) var appPreferences
     @Environment(DevelopmentPreferences.self) var developmentPreferences
+    @Environment(SubscriptionManager.self) var subscriptionManager
     @Environment(ThemeManager.self) var themeManager
 
     /// Fetches all available folders to populate the destination picker.
@@ -50,6 +51,8 @@ struct DeckWorkspaceView: View {
     @State var hasCapturedPhysicalSafeBottom = false
     @State var isHistoricalCardsCollapsed = true
     @State var hasHandledLaunchAction = false
+    @State var aiAccessAlertMessage = ""
+    @State var showAIAccessAlert = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -352,6 +355,11 @@ struct DeckWorkspaceView: View {
                 router.clearCreateWorkspaceEditingContext()
             }
             .customTabBarVisibility(tabRule)
+            .alert(localized("AI usage"), isPresented: $showAIAccessAlert) {
+                Button(localized("OK"), role: .cancel) { }
+            } message: {
+                Text(aiAccessAlertMessage)
+            }
     }
 
     var pickerBoundContent: some View {
@@ -401,7 +409,7 @@ struct DeckWorkspaceView: View {
                     viewModel: viewModel,
                     safeAreaInsets: safeArea,
                     onPrimaryAction: {
-                        viewModel.confirmAIGenerationFromSheet()
+                        confirmAIGenerationIfAllowed()
                     },
                     onCancel: {
                         viewModel.dismissAISheet(clearPendingSourceSelection: true)

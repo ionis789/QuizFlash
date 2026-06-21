@@ -18,6 +18,7 @@ final class SubscriptionManager {
     // MARK: - Shared
 
     static let shared = SubscriptionManager()
+    static let defaultFreeGenerationsLimit = 5
 
     // MARK: - State
 
@@ -70,11 +71,6 @@ final class SubscriptionManager {
 
             let profilePremium = userData?["premium"] as? Bool
             let profilePlan = userData?["plan"] as? String
-            let usage = userData?["freeGenerationsUsed"] as? Int
-            let limit = userData?["freeGenerationsLimit"] as? Int
-
-            freeGenerationsUsed = usage
-            freeGenerationsLimit = limit
             lastErrorMessage = nil
 
             if claimPremium == true {
@@ -87,9 +83,25 @@ final class SubscriptionManager {
                 isPremium = false
                 planSource = .free
             }
+
+            let usage = userData?["freeGenerationsUsed"] as? Int
+            let limit = userData?["freeGenerationsLimit"] as? Int
+            freeGenerationsUsed = isPremium ? nil : usage ?? 0
+            freeGenerationsLimit = isPremium ? nil : limit ?? Self.defaultFreeGenerationsLimit
         } catch {
             lastErrorMessage = error.localizedDescription
         }
+    }
+
+    func aiGenerationLimitMessage(locale: Locale) -> String? {
+        guard !isPremium,
+              let freeGenerationsUsed,
+              let freeGenerationsLimit,
+              freeGenerationsUsed >= freeGenerationsLimit else {
+            return nil
+        }
+
+        return AppLocalization.string("Upgrade to Premium to generate more cards.", locale: locale)
     }
 
     /// Placeholder action until App Store Connect purchases are available.
