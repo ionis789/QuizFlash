@@ -316,6 +316,7 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("place that formal object in its own text zone using display math"))
         XCTAssertTrue(prompt.contains("Formal algorithms, recursive definitions, syntax trees, grammars, truth tables, and inference schemas are not executable code"))
         XCTAssertTrue(prompt.contains("Avoid ASCII art for formal structures"))
+        XCTAssertTrue(prompt.contains("Before returning JSON, audit every generated card for formal symbols"))
         XCTAssertTrue(prompt.contains("Do not invent missing variables, operators, proof steps, or formulas from a broken fragment"))
         XCTAssertFalse(prompt.contains("raw τ"))
         XCTAssertFalse(prompt.contains("raw Γ"))
@@ -325,6 +326,38 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertFalse(prompt.contains("question" + "_zones"))
         XCTAssertFalse(prompt.contains("answer" + "_zones"))
         XCTAssertFalse(prompt.contains("correct" + "_indexes"))
+    }
+
+    func testTraceRequestPayloadKeepsExactPromptMessages() throws {
+        let service = makeService()
+        let messages: [[String: Any]] = [
+            ["role": "system", "content": "System prompt with $\\varphi$."],
+            ["role": "user", "content": "User prompt source text."]
+        ]
+        let body = service.requestBody(messages: messages, model: "test-text")
+        let traceJSON = try XCTUnwrap(service.traceJSONString(forJSONObject: body))
+        let traceData = try XCTUnwrap(traceJSON.data(using: .utf8))
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: traceData) as? [String: Any])
+        let decodedMessages = try XCTUnwrap(decoded["messages"] as? [[String: Any]])
+
+        XCTAssertEqual(decodedMessages.count, 2)
+        XCTAssertEqual(decodedMessages[0]["role"] as? String, "system")
+        XCTAssertEqual(decodedMessages[0]["content"] as? String, "System prompt with $\\varphi$.")
+        XCTAssertEqual(decodedMessages[1]["role"] as? String, "user")
+        XCTAssertEqual(decodedMessages[1]["content"] as? String, "User prompt source text.")
+
+        let metadata = service.requestTraceMetadata(
+            messages: messages,
+            model: "test-text",
+            url: try XCTUnwrap(URL(string: "https://example.com/v1/chat/completions"))
+        )
+        XCTAssertEqual(metadata["message_1_role"], "system")
+        XCTAssertEqual(metadata["message_1_content_type"], "string")
+        XCTAssertEqual(metadata["message_2_role"], "user")
+        XCTAssertEqual(metadata["message_2_content_type"], "string")
+        XCTAssertEqual(metadata["system_prompt_length"], "29")
+        XCTAssertEqual(metadata["user_prompt_text_length"], "24")
+        XCTAssertTrue(metadata["prompt_payload"]?.contains("exact sanitized provider JSON body") == true)
     }
 
     func testQuizPromptPrefersCompactChoicesForNamedTechnicalAnswers() {

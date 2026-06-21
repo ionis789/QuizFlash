@@ -64,13 +64,12 @@ extension AIFlashcardService {
                     let traceBody = self.traceJSONString(forJSONObject: body) ?? "Failed to pretty-print request body."
                     await self.trace(
                         .requestPrepared,
-                        "Prepared provider request.",
-                        metadata: [
-                            "url": url.absoluteString,
-                            "model": model,
-                            "message_count": String(messages.count),
-                            "request_style": self.provider.requestStyle.title
-                        ],
+                        "Prepared provider request with exact prompt payload.",
+                        metadata: self.requestTraceMetadata(
+                            messages: messages,
+                            model: model,
+                            url: url
+                        ),
                         payload: traceBody
                     )
 
@@ -224,6 +223,68 @@ extension AIFlashcardService {
         }
 
         return string
+    }
+
+    func requestTraceMetadata(
+        messages: [[String: Any]],
+        model: String,
+        url: URL
+    ) -> [String: String] {
+        var metadata: [String: String] = [
+            "url": url.absoluteString,
+            "model": model,
+            "message_count": String(messages.count),
+            "request_style": provider.requestStyle.title,
+            "prompt_payload": "request_prepared.payload contains exact sanitized provider JSON body"
+        ]
+
+        for (index, message) in messages.enumerated() {
+            let prefix = "message_\(index + 1)"
+            metadata["\(prefix)_role"] = Self.traceString(from: message["role"])
+            metadata["\(prefix)_content_type"] = messageContentType(message["content"])
+            metadata["\(prefix)_text_length"] = String(messageTextLength(message["content"]))
+        }
+
+        if let systemMessage = messages.first(where: { ($0["role"] as? String) == "system" }),
+           let content = systemMessage["content"] as? String {
+            metadata["system_prompt_length"] = String(content.count)
+        }
+
+        if let userMessage = messages.last(where: { ($0["role"] as? String) == "user" }) {
+            metadata["user_prompt_text_length"] = String(messageTextLength(userMessage["content"]))
+        }
+
+        return metadata
+    }
+
+    func messageContentType(_ content: Any?) -> String {
+        switch content {
+        case is String:
+            return "string"
+        case let parts as [[String: Any]]:
+            let partTypes = parts.compactMap { $0["type"] as? String }
+            return partTypes.isEmpty ? "parts" : "parts:\(partTypes.joined(separator: ","))"
+        case .some:
+            return "unknown"
+        case .none:
+            return "nil"
+        }
+    }
+
+    func messageTextLength(_ content: Any?) -> Int {
+        switch content {
+        case let text as String:
+            return text.count
+        case let parts as [[String: Any]]:
+            return parts.reduce(0) { total, part in
+                if let text = part["text"] as? String {
+                    return total + text.count
+                }
+                return total
+            }
+        default:
+            return 0
+        }
     }
 
     func responseTraceMetadata(

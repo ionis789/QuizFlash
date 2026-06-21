@@ -142,6 +142,19 @@ function extractCardsFromPayload(event) {
   return [];
 }
 
+function extractCardsFromContentEvent(event) {
+  if (!event.payload || event.stage !== "responseContentExtracted") return [];
+  try {
+    const payload = JSON.parse(event.payload);
+    if (Array.isArray(payload.cards)) return payload.cards;
+    if (Array.isArray(payload.flashcards)) return payload.flashcards;
+    if (Array.isArray(payload.quiz_cards)) return payload.quiz_cards;
+  } catch {
+    return [];
+  }
+  return [];
+}
+
 function textLength(value) {
   if (typeof value === "string") return value.trim().length;
   if (Array.isArray(value)) {
@@ -173,11 +186,15 @@ function zoneText(value) {
 }
 
 function analyzeCards(cardEvents) {
-  const cards = cardEvents.flatMap(extractCardsFromPayload);
+  const cards = cardEvents.flatMap((event) => {
+    const contentCards = extractCardsFromContentEvent(event);
+    return contentCards.length > 0 ? contentCards : extractCardsFromPayload(event);
+  });
   const frontLengths = cards.map((card) => textLength(cardFront(card)));
   const backLengths = cards.map((card) => textLength(cardBack(card)));
   const signatures = cards.map((card) => JSON.stringify(card)).filter(Boolean);
   const fronts = cards.map((card) => JSON.stringify(cardFront(card))).filter(Boolean);
+  const rawFormalLeaks = analyzeRawFormalLeaks(cards);
 
   return {
     count: cards.length,
@@ -190,7 +207,75 @@ function analyzeCards(cardEvents) {
     frontMedian: median(frontLengths),
     backMedian: median(backLengths),
     frontMax: max(frontLengths),
-    backMax: max(backLengths)
+    backMax: max(backLengths),
+    rawFormalLeaks
+  };
+}
+
+const rawFormalCharacterPattern = /[φψτΓΔΣΠΛΩΦΨ∀∃∈∉⊆⊂⊇⊃∅∧∨¬→↔⇒⇔⊢⊨⊥⊤□ᶜ₀₁₂₃₄₅₆₇₈₉⁰¹²³⁴⁵⁶⁷⁸⁹]/u;
+
+function analyzeRawFormalLeaks(cards) {
+  const leaks = [];
+  for (const [index, card] of cards.entries()) {
+    const front = cardFront(card);
+    const back = cardBack(card);
+    const frontLeak = containsRawFormalNotation(front);
+    const backLeak = containsRawFormalNotation(back);
+    if (frontLeak || backLeak) {
+      leaks.push({
+        index: index + 1,
+        frontLeak,
+        backLeak,
+        front: preview(front),
+        back: preview(back)
+      });
+    }
+  }
+
+  return {
+    count: leaks.length,
+    frontCount: leaks.filter((leak) => leak.frontLeak).length,
+    backCount: leaks.filter((leak) => leak.backLeak).length,
+    samples: leaks.slice(0, 12)
+  };
+}
+
+function containsRawFormalNotation(value) {
+  const text = stripMathAndCode(zoneText(value) || String(value ?? ""));
+  return rawFormalCharacterPattern.test(text);
+}
+
+function stripMathAndCode(text) {
+  return text
+    .replace(/\$\$[\s\S]*?\$\$/g, "")
+    .replace(/\$[^$]*\$/g, "")
+    .replace(/`[^`]*`/g, "");
+}
+
+function preview(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+function analyzePromptCapture(requestEvents) {
+  const promptEvents = requestEvents.map((event) => {
+    const payload = parsePayload(event);
+    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+    const system = messages.find((message) => message.role === "system");
+    const user = [...messages].reverse().find((message) => message.role === "user");
+    return {
+      hasPayload: Boolean(event.payload),
+      hasMessages: messages.length > 0,
+      systemLength: textLength(system?.content),
+      userLength: textLength(user?.content)
+    };
+  });
+
+  return {
+    requestCount: requestEvents.length,
+    payloadCount: promptEvents.filter((event) => event.hasPayload).length,
+    messagePayloadCount: promptEvents.filter((event) => event.hasMessages).length,
+    systemPromptChars: promptEvents.reduce((sum, event) => sum + event.systemLength, 0),
+    userPromptChars: promptEvents.reduce((sum, event) => sum + event.userLength, 0)
   };
 }
 
@@ -222,6 +307,8 @@ function batchKey(event) {
 
 function summarizeEvents(events, runLabel) {
   const responseEvents = events.filter((event) => event.stage === "responseReceived");
+  const requestEvents = events.filter((event) => event.stage === "requestPrepared");
+  const contentEvents = events.filter((event) => event.stage === "responseContentExtracted");
   const decodedEvents = events.filter((event) => event.stage === "decodePrepared");
   const completed = [...events].reverse().find((event) => event.stage === "runCompleted" || event.stage === "runFailed");
   const batches = responseEvents.map((event) => {
@@ -262,7 +349,8 @@ function summarizeEvents(events, runLabel) {
   });
 
   const runMetadata = completed?.metadata ?? {};
-  const cardStats = analyzeCards(decodedEvents.length > 0 ? decodedEvents : responseEvents);
+  const cardStats = analyzeCards(contentEvents.length > 0 ? contentEvents : (decodedEvents.length > 0 ? decodedEvents : responseEvents));
+  const promptCapture = analyzePromptCapture(requestEvents);
   const retryCount = events.filter((event) => event.stage === "retryScheduled").length;
   const decodeFailures = events.filter((event) => event.stage === "decodeFailed").length;
   const shortfall = events
@@ -297,6 +385,7 @@ function summarizeEvents(events, runLabel) {
       cacheMissTokens: numberFrom(runMetadata, "ai_usage_prompt_cache_miss_tokens"),
       costMicroUSD: numberFrom(runMetadata, "ai_usage_estimated_cost_micro_usd")
     },
+    promptCapture,
     cardStats,
     batches
   };
@@ -329,6 +418,14 @@ function printSummary(summary) {
   console.log(`  emptyFront=${summary.cardStats.emptyFront} emptyBack=${summary.cardStats.emptyBack}`);
   console.log(`  frontAvg=${summary.cardStats.frontAverage.toFixed(1)} frontMedian=${summary.cardStats.frontMedian} frontMax=${summary.cardStats.frontMax}`);
   console.log(`  backAvg=${summary.cardStats.backAverage.toFixed(1)} backMedian=${summary.cardStats.backMedian} backMax=${summary.cardStats.backMax}`);
+  console.log(`  rawFormalOutsideMath=${summary.cardStats.rawFormalLeaks.count} front=${summary.cardStats.rawFormalLeaks.frontCount} back=${summary.cardStats.rawFormalLeaks.backCount}`);
+  for (const leak of summary.cardStats.rawFormalLeaks.samples) {
+    console.log(`    #${leak.index} front=${leak.frontLeak ? "yes" : "no"} back=${leak.backLeak ? "yes" : "no"} F="${leak.front}" B="${leak.back}"`);
+  }
+  console.log("");
+  console.log("Prompt capture:");
+  console.log(`  requestPrepared=${summary.promptCapture.requestCount} payloads=${summary.promptCapture.payloadCount} messagePayloads=${summary.promptCapture.messagePayloadCount}`);
+  console.log(`  systemPromptChars=${summary.promptCapture.systemPromptChars} userPromptChars=${summary.promptCapture.userPromptChars}`);
   console.log("");
   console.log("Batches:");
   for (const batch of summary.batches) {

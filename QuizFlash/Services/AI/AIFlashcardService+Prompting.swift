@@ -230,6 +230,7 @@ extension AIFlashcardService {
         If a card's main answer is a semantic equation, recursive definition, inference rule, truth table, grammar rule, or other central formal object, place that formal object in its own text zone using display math when it is long or visually dense; keep the prose interpretation in a separate zone.
         Formal algorithms, recursive definitions, syntax trees, grammars, truth tables, and inference schemas are not executable code merely because they are structured. Represent them as text zones with math notation unless the source is actual runnable/programming syntax.
         Avoid ASCII art for formal structures unless the source itself is teaching ASCII notation. Prefer compact prose, semantic lists, or display math zones that render predictably on mobile.
+        Before returning JSON, audit every generated card for formal symbols, variable-like letters, operators, indexed terms, superscripted terms, or symbolic statements that still appear as plain prose. Convert those spans to LaTeX math unless they are ordinary natural-language words or actual executable code.
         If the source notation is visibly damaged by extraction artifacts, preserve only the unambiguous formal statement. Do not invent missing variables, operators, proof steps, or formulas from a broken fragment.
 
         FORMAL NOTATION IS NOT CODE
