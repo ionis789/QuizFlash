@@ -112,6 +112,7 @@ extension DeckViewModel {
 
         do {
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
         } catch {
             deck.cardGroupingMode = previousGroupingMode
             deck.editedAt = previousEditedAt

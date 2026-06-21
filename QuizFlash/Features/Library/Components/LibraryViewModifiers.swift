@@ -59,6 +59,9 @@ struct LibraryModalsAndDialogs: ViewModifier {
                             card.cardContent = content
                             card.editedAt = Date()
                             card.deck?.editedAt = Date()
+                            if let deck = card.deck {
+                                CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
+                            }
                             viewModel.debounceSearchInput(viewModel.searchText)
                         }
                     }

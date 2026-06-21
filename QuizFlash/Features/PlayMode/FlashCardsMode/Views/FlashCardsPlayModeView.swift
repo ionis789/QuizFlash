@@ -261,6 +261,7 @@ struct FlashCardsPlayModeView: View {
                         card.backZone = backZone
                         card.editedAt = Date()
                         deck.editedAt = Date()
+                        CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: modelContext)
                         Task {
                             await viewModel.refreshCardSnapshot(for: card.persistentModelID)
                         }

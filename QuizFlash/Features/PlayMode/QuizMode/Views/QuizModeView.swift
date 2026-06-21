@@ -307,6 +307,7 @@ private struct QuizModeSessionView: View {
 
         do {
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
             viewModel.refreshCurrentCard(from: card)
         } catch {
             context.rollback()

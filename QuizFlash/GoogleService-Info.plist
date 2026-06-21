@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>789388818323-h19p5idlfc4f7i51quak9h54etero3s0.apps.googleusercontent.com</string>
+	<string>208465635843-qtj8jjlo9psj0ih91738voe09evmpbid.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.789388818323-h19p5idlfc4f7i51quak9h54etero3s0</string>
+	<string>com.googleusercontent.apps.208465635843-qtj8jjlo9psj0ih91738voe09evmpbid</string>
 	<key>API_KEY</key>
-	<string>AIzaSyBM7z1RjTMReQZS8iaty7TWu7a8b2POs68</string>
+	<string>AIzaSyCO4FDvtx0KD550myOaKEMq5KxhwfFfId4</string>
 	<key>GCM_SENDER_ID</key>
-	<string>789388818323</string>
+	<string>208465635843</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.sion.QuizFlash</string>
 	<key>PROJECT_ID</key>
-	<string>cgram-1f28a</string>
+	<string>quizflash-6b0ea</string>
 	<key>STORAGE_BUCKET</key>
-	<string>cgram-1f28a.firebasestorage.app</string>
+	<string>quizflash-6b0ea.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:789388818323:ios:187ff951f2e05e2ef3da66</string>
+	<string>1:208465635843:ios:8f653accc05a46afaabc36</string>
 </dict>
 </plist>

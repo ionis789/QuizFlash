@@ -26,6 +26,7 @@ extension LibraryViewModel {
         if let target = deckToDelete,
            let deck = context.safeModel(for: target.id, as: DeckModel.self) {
             deck.folder?.deckCount -= 1
+            CloudSyncCoordinator.shared.enqueueDelete(for: deck)
             context.delete(deck)
         }
         deckToDelete = nil
@@ -85,6 +86,7 @@ extension LibraryViewModel {
                 for url in jsonURLs {
                     do {
                         let deck = try await DeckSharingManager.shared.importDeck(from: url, into: context)
+                        CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
                         importedCount += 1
                         lastImportedName = deck.title
                     } catch {
@@ -162,6 +164,7 @@ private extension LibraryViewModel {
     ) {
         for deck in allDecks where ids.contains(deck.id) {
             deck.folder?.deckCount -= 1
+            CloudSyncCoordinator.shared.enqueueDelete(for: deck)
             context.delete(deck)
         }
     }
@@ -208,6 +211,9 @@ private extension LibraryViewModel {
 
         do {
             try context.save()
+            for deck in movedDecks {
+                CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
+            }
             if exitsSelectionModeOnSuccess {
                 exitSelectionMode()
             }

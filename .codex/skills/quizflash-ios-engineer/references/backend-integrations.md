@@ -4,9 +4,10 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 
 ## Current State
 
-- Firebase project: the configured default project in `.firebaserc` is `cgram-1f28a`.
+- Firebase project: the configured default project in `.firebaserc` is `quizflash-6b0ea`.
 - The iOS app boots Firebase in `App/QuizFlashApp.swift` and uses Firebase Auth, Firestore, and Firebase Functions.
-- Firestore is the current live backend for Auth-linked profiles, cloud deck sync, manual premium state, and the Spark-compatible free AI quota fallback.
+- Firestore rules are deployed to the fresh `quizflash-6b0ea` project. The project has no legacy user or deck data and must not acquire a first-login migration path.
+- Firestore is the live backend for Auth-linked profiles, background deck sync, manual premium state, and the Spark-compatible free AI quota fallback.
 - `functions/src/index.ts` contains Cloud Functions for profile upsert, AI quota consumption, DeepSeek generation, and account-data deletion. Cloud Functions deployment requires the Firebase Blaze plan; do not report a local source change as deployed until deployment succeeds.
 - `CloudAIGenerationService` exists but the editor currently uses the configurable direct `AIFlashcardService` path. A project-owned DeepSeek key must not remain in a shipped client path.
 - RevenueCat is not integrated yet. `SubscriptionManager` currently reads Firebase custom claims and the user document; `restorePurchases()` is intentionally a placeholder.
@@ -19,6 +20,14 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 4. Never use email as a document key or entitlement key. Email may change and is personal data.
 5. Never put a Firebase Admin credential, DeepSeek project key, RevenueCat secret key, webhook secret, receipt, or CLI token in the app, repository, Firestore, logs, diagnostics, screenshots, or messages.
 
+## Deck Sync Contract
+
+1. The app is authenticated before the user can create or edit decks. A newly saved deck and every newly saved card must be assigned the active Firebase UID plus a stable cloud ID before it is queued for upload.
+2. Do not upload old local decks on sign-in. There is no `initialMigrationCompleted`, no backfill, and no legacy-data migration in this project.
+3. SwiftData remains the immediate local store. Queue cloud upload after the local save succeeds; persist the outbox and retry after a network error or app relaunch without blocking the editor or showing a manual Sync control.
+4. On login, subscribe to `users/{uid}/decks` and download only that UID's data. Do not read another user path, reuse the previous user's listener, or merge content across UIDs.
+5. Resolve simultaneous edits with `editedAt`: the later value wins. Decks and cards are soft-deleted in Firestore, and a client must not use direct Firestore deletes.
+
 ## Firestore Contract
 
 ### User Document
@@ -26,7 +35,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 `users/{uid}` is the user-owned profile plus server-owned access state.
 
 - Client-owned profile fields: `email`, `displayName`, `photoURL`, `providers`, and safe presentation metadata.
-- Server-owned or admin-owned fields: `plan`, `premium`, `usage`, `cost`, `freeGenerationsUsed`, `freeGenerationsLimit`, and `initialMigrationCompleted`.
+- Server-owned or admin-owned fields: `plan`, `premium`, `usage`, `cost`, `freeGenerationsUsed`, and `freeGenerationsLimit`.
 - Current rules permit a signed-in user to create/update their own safe profile fields. They permit exactly one narrow fallback mutation for a free generation: increment `freeGenerationsUsed` by one while preserving the current limit and only changing that counter plus `updatedAt`.
 - Do not make `plan` or `premium` client-writable. Do not broaden the fallback rule into a general usage write.
 - Cloud deck data remains below `users/{uid}/decks/{deckId}/cards/{cardId}`. The current design uses soft deletion because client deletes are denied by the rules; account cleanup is a callable backend operation.

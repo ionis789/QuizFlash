@@ -177,6 +177,7 @@ struct DeckContentView: View {
                     deck.lastOpenedAt = Date()
                     do {
                         try context.save()
+                        CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
                     } catch {
                         Self.logger.error(
                             "Failed to persist completed play mode session for deck \(deck.title, privacy: .public): \(error.localizedDescription, privacy: .public)"

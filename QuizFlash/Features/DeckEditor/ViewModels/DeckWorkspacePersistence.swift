@@ -166,6 +166,7 @@ extension DeckWorkspaceViewModel {
             return false
         }
 
+        let savedDeck: DeckModel
         if let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) {
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
@@ -227,6 +228,7 @@ extension DeckWorkspaceViewModel {
             )
             if titleChanged || cardsChanged { deck.editedAt = Date() }
             deck.cardCount = draftCards.count
+            savedDeck = deck
 
         } else {
             // ── CREATE NEW DECK ───────────────────────────────────────────────
@@ -254,7 +256,10 @@ extension DeckWorkspaceViewModel {
             }
             newDeck.lastAssignedCardNumber = draftCards.map(\.cardNumber).max() ?? 0
             newDeck.cardCount = draftCards.count
+            savedDeck = newDeck
         }
+
+        CloudSyncCoordinator.shared.assignCloudIdentityIfPossible(to: savedDeck)
 
         do {
             try context.save()
@@ -262,6 +267,8 @@ extension DeckWorkspaceViewModel {
             presentPersistenceError(error)
             return false
         }
+
+        CloudSyncCoordinator.shared.enqueueUpsert(for: savedDeck, context: context)
 
         withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
             showSuccessOverlay = true
@@ -304,6 +311,7 @@ extension DeckWorkspaceViewModel {
         resetAIState()
 
         deck.folder?.deckCount -= 1
+        CloudSyncCoordinator.shared.enqueueDelete(for: deck)
         context.delete(deck)
 
         do {

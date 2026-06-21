@@ -72,6 +72,7 @@ extension DeckViewModel {
             card.editedAt = now
             deck.editedAt = now
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
 
             if let index = allCardInfos.firstIndex(where: { $0.id == id }) {
                 allCardInfos[index] = allCardInfos[index].updating(
@@ -109,6 +110,7 @@ extension DeckViewModel {
             deck.cardCount = max(0, deck.cardCount - 1)
             deck.editedAt = Date()
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
 
             allCardInfos.removeAll { $0.id == id }
             progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
@@ -163,6 +165,7 @@ extension DeckViewModel {
 
         do {
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
         } catch {
             deck.lastAssignedCardNumber = originalLastAssigned
             deck.cardCount = originalCardCount
@@ -226,6 +229,7 @@ extension DeckViewModel {
             deck.cardCount = max(0, deck.cardCount - idsToDelete.count)
             deck.editedAt = Date()
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
 
             isSelecting = false
             selectedCards.removeAll()

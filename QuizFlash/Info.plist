@@ -23,14 +23,14 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.789388818323-h19p5idlfc4f7i51quak9h54etero3s0</string>
+				<string>com.googleusercontent.apps.208465635843-qtj8jjlo9psj0ih91738voe09evmpbid</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GIDClientID</key>
-	<string>789388818323-h19p5idlfc4f7i51quak9h54etero3s0.apps.googleusercontent.com</string>
+	<string>208465635843-qtj8jjlo9psj0ih91738voe09evmpbid.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

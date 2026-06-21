@@ -139,6 +139,7 @@ extension DeckContentView {
                 card.cardContent = content
                 card.editedAt = Date()
                 deck.editedAt = Date()
+                CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
                 viewModel.requestSnapshotLoad(
                     deckID: deck.persistentModelID,
                     container: context.container

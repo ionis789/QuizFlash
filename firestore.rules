@@ -17,8 +17,7 @@ service cloud.firestore {
         'usage',
         'cost',
         'freeGenerationsUsed',
-        'freeGenerationsLimit',
-        'initialMigrationCompleted'
+        'freeGenerationsLimit'
       ]);
     }
 
@@ -57,8 +56,7 @@ service cloud.firestore {
           'usage',
           'cost',
           'freeGenerationsUsed',
-          'freeGenerationsLimit',
-          'initialMigrationCompleted'
+          'freeGenerationsLimit'
         ]);
       allow update: if owns(uid)
         && (!sensitiveUserFieldsChanged() || consumesOneFreeGeneration());

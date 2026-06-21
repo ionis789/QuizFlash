@@ -39,6 +39,7 @@ struct QuizFlashApp: App {
     @State private var appMigrationStore = AppMigrationStore.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var cloudUserProfileService = CloudUserProfileService.shared
+    @State private var cloudSyncCoordinator = CloudSyncCoordinator.shared
 
     init() {
         AppLocalization.applyLanguageOverride(AppPreferences.shared.appLanguage)
@@ -46,7 +47,7 @@ struct QuizFlashApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            CloudSessionBootstrapper()
                 .id(appPreferences.languageRefreshKey)
                 .environment(authManager)
                 .environment(themeManager)
@@ -56,17 +57,12 @@ struct QuizFlashApp: App {
                 .environment(appMigrationStore)
                 .environment(subscriptionManager)
                 .environment(cloudUserProfileService)
+                .environment(cloudSyncCoordinator)
                 .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     _ = GIDSignIn.sharedInstance.handle(url)
-                }
-                .task {
-                    authManager.startListening()
-                }
-                .task(id: authManager.sessionState) {
-                    await refreshCloudSession(for: authManager.currentUser)
                 }
         }
             .modelContainer(for: [
@@ -83,8 +79,4 @@ struct QuizFlashApp: App {
             ])
     }
 
-    private func refreshCloudSession(for user: AuthUserSnapshot?) async {
-        await cloudUserProfileService.upsertUserProfile(for: user)
-        await subscriptionManager.configure(for: user)
-    }
 }
