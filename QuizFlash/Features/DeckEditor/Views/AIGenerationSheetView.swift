@@ -21,13 +21,14 @@ struct AIGenerationSheetView: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Bindable var viewModel: DeckWorkspaceViewModel
     let safeAreaInsets: UIEdgeInsets
-    var onPrimaryAction: () -> Void
+    var onPrimaryAction: () async -> Bool
     var onCancel: () -> Void
 
     @State private var selectedSourcePreview: AIGenerationSourcePreviewItem?
     @State private var selectedSourcePreviewImage: UIImage?
     @State private var sourcePreviewTask: Task<Void, Never>?
     @State private var headerHeight: CGFloat = 0
+    @State private var isSubmittingGeneration = false
 
     private var accent: Color {
         ThemeManager.shared.accentColor.color
@@ -388,18 +389,24 @@ struct AIGenerationSheetView: View {
     @ViewBuilder
     private var headerGenerateButton: some View {
         Button(action: requestPrimaryAction) {
-            Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: UIConstants.Size.actionButton)
-                .background(accent, in: Capsule(style: .continuous))
-                .contentShape(Capsule(style: .continuous))
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+
+                if isSubmittingGeneration {
+                    ProgressActivityDots(color: .white)
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: UIConstants.Size.actionButton)
+            .background(accent, in: Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .frame(width: UIConstants.isPad ? 180 : 142)
-        .disabled(!viewModel.canConfirmAIGeneration)
-        .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.48)
+        .disabled(isSubmittingGeneration || !viewModel.canConfirmAIGeneration)
+        .opacity(isSubmittingGeneration || viewModel.canConfirmAIGeneration ? 1 : 0.48)
     }
 
     private func bottomActionClearance(safeBottomInset: CGFloat) -> CGFloat {
@@ -408,6 +415,7 @@ struct AIGenerationSheetView: View {
     }
 
     private func requestCancel() {
+        guard !isSubmittingGeneration else { return }
         viewModel.clearsPendingAISourceOnSheetDismiss = true
         if let fullScreenSheetDismiss {
             fullScreenSheetDismiss()
@@ -417,7 +425,17 @@ struct AIGenerationSheetView: View {
     }
 
     private func requestPrimaryAction() {
-        onPrimaryAction()
+        guard !isSubmittingGeneration else { return }
+        isSubmittingGeneration = true
+
+        Task { @MainActor in
+            // Give SwiftUI one frame to mount the loading indicator before Firestore work begins.
+            try? await Task.sleep(for: .milliseconds(180))
+            let didStartGeneration = await onPrimaryAction()
+            if !didStartGeneration {
+                isSubmittingGeneration = false
+            }
+        }
     }
 
     private func openSourcePreview(_ item: AIGenerationSourcePreviewItem) {
