@@ -187,6 +187,9 @@ extension AIFlashcardService {
 
         CONTENT DESIGN
         Read the source and infer the nature of each idea from its actual form, not from topic labels or keywords.
+        Generate cards only from learnable substance: definitions, rules, procedures, examples, contrasts, derivations, constraints, claims, classifications, and source-specific explanations.
+        Skip source material that is only document scaffolding, navigation, metadata, repeated boilerplate, front matter, broad announcements of scope, headers, footers, page labels, credits, or other context that does not create a useful recall target.
+        If a source span has no durable study value by itself, do not turn it into a card just to satisfy coverage. Prefer another meaningful idea from the same segment.
         Choose the card structure that best preserves how the source teaches the idea.
         If an idea is expressed through formal structure, keep that structure visible: definitions, symbolic statements, formulas, relations, sets, variables, quantified conditions, schemas, derivations, equivalences, implications, closures, grammars, rules, or other compact notation should remain formal instead of being rewritten as loose prose.
         If an idea is expressed as executable or operational syntax, preserve the exact syntax: source code, APIs, commands, flags, query syntax, language keywords, signatures, exceptions, operators, and concrete input/output examples should be represented as code or inline code.
@@ -221,6 +224,8 @@ extension AIFlashcardService {
         Do not invent notation that is not supported by the source.
         When a span is formal notation rather than natural-language prose, put the complete symbolic span inside math delimiters, including variables, relations, operators, quantified statements, set expressions, inference statements, equivalences, schemas, and indexed or superscripted terms.
         Use standard renderable LaTeX for the notation style implied by the source. Preserve the source's semantic relation and variable roles instead of copying damaged glyphs literally or substituting vague prose.
+        If a native character, letter variant, operator glyph, relation glyph, or compact symbolic mark functions as mathematical or formal notation, render it through LaTeX math instead of mixing raw native glyphs with rendered formulas.
+        Keep notation style consistent across all cards in the same response: the same formal object, relation, operator, or variable role should not alternate between raw text, native symbols, and LaTeX.
         If the source notation is visibly damaged by extraction artifacts, preserve only the unambiguous formal statement. Do not invent missing variables, operators, proof steps, or formulas from a broken fragment.
 
         FORMAL NOTATION IS NOT CODE
