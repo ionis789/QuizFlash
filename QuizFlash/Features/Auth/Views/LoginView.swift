@@ -305,7 +305,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .oneTimeCode,
+                        passwordTextContentType: .password,
                         text: $password
                     )
 
@@ -313,7 +313,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Confirm Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .oneTimeCode,
+                        passwordTextContentType: .password,
                         text: $passwordConfirmation
                     )
 
@@ -464,16 +464,6 @@ private struct EmailVerificationSuccessView: View {
     var body: some View {
         VStack(spacing: UIConstants.Spacing.large) {
             Spacer(minLength: 0)
-
-            ZStack {
-                Circle()
-                    .fill(themeManager.accentColor.color.opacity(0.18))
-                    .frame(width: 112, height: 112)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 54, weight: .heavy, design: .rounded))
-                    .foregroundStyle(themeManager.accentColor.color)
-            }
 
             VStack(spacing: UIConstants.Spacing.small) {
                 Text(AppLocalization.string("Email verified", locale: locale))
