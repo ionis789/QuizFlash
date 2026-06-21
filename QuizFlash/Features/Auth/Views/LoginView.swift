@@ -7,7 +7,6 @@
 
 import SwiftUI
 import GoogleSignIn
-import Security
 import UIKit
 
 // MARK: - Login View
@@ -317,12 +316,6 @@ private struct CreateAccountView: View {
                         text: $passwordConfirmation
                     )
 
-                    AuthSecondaryButton(
-                        title: AppLocalization.string("Generate Password", locale: locale),
-                        icon: "key.fill"
-                    ) {
-                        generatePassword()
-                    }
                 }
 
                 AuthAsyncButton(
@@ -357,34 +350,6 @@ private struct CreateAccountView: View {
             && password == passwordConfirmation
     }
 
-    private func generatePassword() {
-        let generatedPassword = AuthPasswordGenerator.makePassword()
-        password = generatedPassword
-        passwordConfirmation = generatedPassword
-    }
-}
-
-private enum AuthPasswordGenerator {
-    private static let characters = Array(
-        "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?"
-    )
-
-    static func makePassword(length: Int = 20) -> String {
-        var password = ""
-        password.reserveCapacity(length)
-
-        while password.count < length {
-            var randomByte: UInt8 = 0
-            let status = SecRandomCopyBytes(kSecRandomDefault, 1, &randomByte)
-            guard status == errSecSuccess else {
-                return UUID().uuidString.replacingOccurrences(of: "-", with: "")
-            }
-
-            password.append(characters[Int(randomByte) % characters.count])
-        }
-
-        return password
-    }
 }
 
 // MARK: - Forgot Password View

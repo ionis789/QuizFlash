@@ -20,6 +20,7 @@ struct AuthIconTextField: View {
     @Binding var text: String
 
     @State private var isPasswordVisible = false
+    @State private var usesAutofillReadableText = false
     @FocusState private var focusedPasswordField: PasswordFieldFocus?
 
     var body: some View {
@@ -38,6 +39,11 @@ struct AuthIconTextField: View {
             }
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+            .foregroundStyle(inputTextColor)
+            .statusTextMotion(trigger: usesAutofillReadableText)
+            .onChange(of: text) { oldValue, newValue in
+                updateAutofillReadableState(oldValue: oldValue, newValue: newValue)
+            }
 
             if isPassword {
                 Button {
@@ -87,6 +93,27 @@ struct AuthIconTextField: View {
         }
         guard wasFocused else { return }
         focusedPasswordField = isPasswordVisible ? .plain : .secure
+    }
+
+    private var inputTextColor: Color {
+        guard isPassword, usesAutofillReadableText else { return .primary }
+        return .black
+    }
+
+    private func updateAutofillReadableState(oldValue: String, newValue: String) {
+        guard isPassword else { return }
+
+        if newValue.isEmpty {
+            usesAutofillReadableText = false
+            return
+        }
+
+        let changedCharacters = abs(newValue.count - oldValue.count)
+        if oldValue.isEmpty && newValue.count >= 8 || changedCharacters >= 8 {
+            usesAutofillReadableText = true
+        } else if changedCharacters == 1 {
+            usesAutofillReadableText = false
+        }
     }
 
     private var passwordVisibilityTitle: String {
@@ -155,39 +182,6 @@ struct AuthAsyncButton: View {
         .opacity(isEnabled ? 1 : 0.48)
         .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isLoading)
         .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isEnabled)
-    }
-}
-
-// MARK: - Auth Secondary Button
-
-struct AuthSecondaryButton: View {
-    let title: String
-    var icon: String?
-    let action: @MainActor @Sendable () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.body.weight(.semibold))
-                }
-
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.86)
-            }
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: UIConstants.Size.buttonHeight)
-            .background(Color.primary.opacity(0.07), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.primary.opacity(0.10), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
     }
 }
 

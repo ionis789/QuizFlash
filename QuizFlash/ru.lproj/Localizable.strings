@@ -689,7 +689,6 @@
 "Email sent" = "Email отправлен";
 "Email verified" = "Email подтвержден";
 "Forgot Password?" = "Забыли пароль?";
-"Generate Password" = "Сгенерировать пароль";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Вход через Google пока не готов. Попробуйте войти по email.";
 "Enter a valid email address." = "Введите корректный email.";
