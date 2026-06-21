@@ -221,6 +221,18 @@ private nonisolated struct AIDebugTimedOperationKey: Hashable, Sendable {
     let discriminator: String
 }
 
+private nonisolated struct AIDebugTraceUsageTotals: Sendable {
+    var responseCount = 0
+    var promptTokens = 0
+    var completionTokens = 0
+    var totalTokens = 0
+    var promptCacheHitTokens = 0
+    var promptCacheMissTokens = 0
+    var promptDetailsCachedTokens = 0
+    var reasoningTokens = 0
+    var estimatedCostMicroUSD = 0
+}
+
 actor AIDebugTraceStore {
     private static let runDirectoryTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -243,6 +255,7 @@ actor AIDebugTraceStore {
     private let rootDirectoryURL: URL
     private var runDirectories: [UUID: URL] = [:]
     private var operationStartDates: [AIDebugTimedOperationKey: Date] = [:]
+    private var usageTotals: [UUID: AIDebugTraceUsageTotals] = [:]
 
     init(
         fileManager: FileManager = .default,
@@ -365,6 +378,11 @@ actor AIDebugTraceStore {
         let timestamp = Date()
         var mergedMetadata = scope.metadata.merging(metadata) { _, new in new }
         mergedMetadata.merge(timingMetadata(for: stage, scope: scope, timestamp: timestamp)) { _, new in new }
+        if stage == .responseReceived {
+            accumulateUsage(from: mergedMetadata, runID: scope.runID)
+        } else if stage == .runCompleted || stage == .runFailed {
+            mergedMetadata.merge(usageSummaryMetadata(for: scope.runID)) { _, new in new }
+        }
         let event = AIDebugTraceEvent(
             id: UUID(),
             timestamp: timestamp,
@@ -392,6 +410,9 @@ actor AIDebugTraceStore {
             let prefix = String(scope.runID.uuidString.prefix(8))
             logger.debug("[AITrace][\(prefix, privacy: .public)][\(stage.rawValue, privacy: .public)] \(message, privacy: .public)")
             registerTimingStartIfNeeded(for: stage, scope: scope, timestamp: timestamp)
+            if stage == .runCompleted || stage == .runFailed {
+                usageTotals.removeValue(forKey: scope.runID)
+            }
         } catch {
             logger.error("Failed to write AI debug trace event: \(error.localizedDescription, privacy: .public)")
         }
@@ -404,6 +425,7 @@ actor AIDebugTraceStore {
             try fileManager.removeItem(at: rootDirectoryURL)
             runDirectories.removeAll()
             operationStartDates.removeAll()
+            usageTotals.removeAll()
         } catch {
             logger.error("Failed to clear AI debug traces: \(error.localizedDescription, privacy: .public)")
         }
@@ -675,6 +697,43 @@ actor AIDebugTraceStore {
 
         guard let first = events.first?.timestamp, let last = events.last?.timestamp else { return nil }
         return max(0, Int(last.timeIntervalSince(first) * 1000))
+    }
+
+    private func accumulateUsage(from metadata: [String: String], runID: UUID) {
+        guard metadata["usage_keys"] != nil else { return }
+
+        var totals = usageTotals[runID] ?? AIDebugTraceUsageTotals()
+        totals.responseCount += 1
+        totals.promptTokens += intValue(metadata["prompt_tokens"])
+        totals.completionTokens += intValue(metadata["completion_tokens"])
+        totals.totalTokens += intValue(metadata["total_tokens"])
+        totals.promptCacheHitTokens += intValue(metadata["prompt_cache_hit_tokens"])
+        totals.promptCacheMissTokens += intValue(metadata["prompt_cache_miss_tokens"])
+        totals.promptDetailsCachedTokens += intValue(metadata["prompt_tokens_details_cached_tokens"])
+        totals.reasoningTokens += intValue(metadata["completion_tokens_details_reasoning_tokens"])
+        totals.estimatedCostMicroUSD += intValue(metadata["estimated_cost_micro_usd"])
+        usageTotals[runID] = totals
+    }
+
+    private func usageSummaryMetadata(for runID: UUID) -> [String: String] {
+        guard let totals = usageTotals[runID], totals.responseCount > 0 else { return [:] }
+
+        return [
+            "ai_usage_response_count": String(totals.responseCount),
+            "ai_usage_prompt_tokens": String(totals.promptTokens),
+            "ai_usage_completion_tokens": String(totals.completionTokens),
+            "ai_usage_total_tokens": String(totals.totalTokens),
+            "ai_usage_prompt_cache_hit_tokens": String(totals.promptCacheHitTokens),
+            "ai_usage_prompt_cache_miss_tokens": String(totals.promptCacheMissTokens),
+            "ai_usage_prompt_details_cached_tokens": String(totals.promptDetailsCachedTokens),
+            "ai_usage_reasoning_tokens": String(totals.reasoningTokens),
+            "ai_usage_estimated_cost_micro_usd": String(totals.estimatedCostMicroUSD)
+        ]
+    }
+
+    private func intValue(_ value: String?) -> Int {
+        guard let value else { return 0 }
+        return Int(value) ?? 0
     }
 
     private func extractEventJSONChunks(from text: String) -> [Data] {

@@ -89,10 +89,11 @@ extension AIFlashcardService {
                     await self.trace(
                         .responseReceived,
                         "Received provider response.",
-                        metadata: [
-                            "status_code": String(http.statusCode),
-                            "model": model
-                        ],
+                        metadata: self.responseTraceMetadata(
+                            from: data,
+                            response: http,
+                            requestedModel: model
+                        ),
                         payload: String(decoding: data, as: UTF8.self)
                     )
 
@@ -223,6 +224,156 @@ extension AIFlashcardService {
         }
 
         return string
+    }
+
+    func responseTraceMetadata(
+        from data: Data,
+        response: HTTPURLResponse,
+        requestedModel: String
+    ) -> [String: String] {
+        var metadata: [String: String] = [
+            "status_code": String(response.statusCode),
+            "model": requestedModel,
+            "requested_model": requestedModel,
+            "raw_response_bytes": String(data.count),
+            "raw_response_utf8_length": String(String(decoding: data, as: UTF8.self).count)
+        ]
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            metadata["response_json_parseable"] = "false"
+            return metadata
+        }
+
+        metadata["response_json_parseable"] = "true"
+        metadata["response_top_level_keys"] = json.keys.sorted().joined(separator: ",")
+
+        if let id = json["id"] as? String {
+            metadata["provider_response_id"] = id
+        }
+        if let object = json["object"] as? String {
+            metadata["response_object"] = object
+        }
+        if let created = json["created"] {
+            metadata["response_created"] = Self.traceString(from: created)
+        }
+        if let responseModel = json["model"] as? String {
+            metadata["response_model"] = responseModel
+        }
+        if let fingerprint = json["system_fingerprint"] as? String {
+            metadata["system_fingerprint"] = fingerprint
+        }
+
+        if let choices = json["choices"] as? [[String: Any]] {
+            metadata["choice_count"] = String(choices.count)
+            if let first = choices.first {
+                metadata["finish_reason"] = Self.traceString(from: first["finish_reason"])
+                if let message = first["message"] as? [String: Any] {
+                    metadata["message_keys"] = message.keys.sorted().joined(separator: ",")
+                    if let role = message["role"] as? String {
+                        metadata["response_message_role"] = role
+                    }
+                    if let content = message["content"] as? String {
+                        metadata["response_content_length"] = String(content.count)
+                    } else if let contentParts = message["content"] as? [[String: Any]] {
+                        metadata["response_content_part_count"] = String(contentParts.count)
+                        let contentLength = contentParts.compactMap { $0["text"] as? String }.joined(separator: "\n").count
+                        metadata["response_content_length"] = String(contentLength)
+                    }
+                }
+            }
+        }
+
+        if let usage = json["usage"] as? [String: Any] {
+            metadata.merge(Self.deepSeekUsageTraceMetadata(from: usage, requestedModel: requestedModel)) { _, new in new }
+        }
+
+        return metadata
+    }
+
+    private static func deepSeekUsageTraceMetadata(
+        from usage: [String: Any],
+        requestedModel: String
+    ) -> [String: String] {
+        var metadata: [String: String] = [
+            "usage_keys": usage.keys.sorted().joined(separator: ",")
+        ]
+
+        let promptTokens = traceInt(from: usage["prompt_tokens"])
+        let completionTokens = traceInt(from: usage["completion_tokens"])
+        let totalTokens = traceInt(from: usage["total_tokens"])
+        let cacheHitTokens = traceInt(from: usage["prompt_cache_hit_tokens"])
+        let cacheMissTokens = traceInt(from: usage["prompt_cache_miss_tokens"])
+
+        metadata["prompt_tokens"] = promptTokens.map(String.init)
+        metadata["completion_tokens"] = completionTokens.map(String.init)
+        metadata["total_tokens"] = totalTokens.map(String.init)
+        metadata["prompt_cache_hit_tokens"] = cacheHitTokens.map(String.init)
+        metadata["prompt_cache_miss_tokens"] = cacheMissTokens.map(String.init)
+
+        if let promptDetails = usage["prompt_tokens_details"] as? [String: Any],
+           let cachedTokens = traceInt(from: promptDetails["cached_tokens"]) {
+            metadata["prompt_tokens_details_cached_tokens"] = String(cachedTokens)
+        }
+
+        if let completionDetails = usage["completion_tokens_details"] as? [String: Any],
+           let reasoningTokens = traceInt(from: completionDetails["reasoning_tokens"]) {
+            metadata["completion_tokens_details_reasoning_tokens"] = String(reasoningTokens)
+        }
+
+        if let costMicroUSD = estimatedDeepSeekCostMicroUSD(
+            requestedModel: requestedModel,
+            cacheHitTokens: cacheHitTokens ?? 0,
+            cacheMissTokens: cacheMissTokens ?? promptTokens ?? 0,
+            completionTokens: completionTokens ?? 0
+        ) {
+            metadata["estimated_cost_micro_usd"] = String(costMicroUSD)
+            metadata["estimated_cost_pricing_basis"] = "deepseek-v4-flash_2026-06-22"
+        }
+
+        return metadata
+    }
+
+    private static func estimatedDeepSeekCostMicroUSD(
+        requestedModel: String,
+        cacheHitTokens: Int,
+        cacheMissTokens: Int,
+        completionTokens: Int
+    ) -> Int? {
+        let normalizedModel = requestedModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalizedModel == "deepseek-v4-flash" else { return nil }
+
+        let costUSD = (
+            Double(cacheHitTokens) * 0.0028
+            + Double(cacheMissTokens) * 0.14
+            + Double(completionTokens) * 0.28
+        ) / 1_000_000
+        return Int((costUSD * 1_000_000).rounded())
+    }
+
+    private static func traceInt(from value: Any?) -> Int? {
+        switch value {
+        case let value as Int:
+            return value
+        case let value as NSNumber:
+            return value.intValue
+        case let value as String:
+            return Int(value)
+        default:
+            return nil
+        }
+    }
+
+    private static func traceString(from value: Any?) -> String {
+        switch value {
+        case let value as String:
+            return value
+        case let value as NSNumber:
+            return value.stringValue
+        case let value?:
+            return String(describing: value)
+        default:
+            return "nil"
+        }
     }
 
     func sanitizedTraceJSONObject(_ value: Any) -> Any {
