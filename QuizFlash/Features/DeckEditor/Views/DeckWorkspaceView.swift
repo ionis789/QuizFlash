@@ -53,6 +53,7 @@ struct DeckWorkspaceView: View {
     @State var hasHandledLaunchAction = false
     @State var aiAccessAlertMessage = ""
     @State var showAIAccessAlert = false
+    @State var isCheckingAIAccess = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.

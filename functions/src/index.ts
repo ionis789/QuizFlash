@@ -33,6 +33,10 @@ type GenerateDeckRequest = {
   };
 };
 
+type ConsumeAIGenerationQuotaRequest = {
+  targetCards?: number;
+};
+
 type DeckJSONCardDTO = Record<string, unknown>;
 
 type DeckJSONCardBatchDTO = {
@@ -57,6 +61,52 @@ export const upsertUserProfile = onCall({enforceAppCheck: false}, async (request
   }, {merge: true});
 
   return {ok: true};
+});
+
+export const consumeAIGenerationQuota = onCall({enforceAppCheck: false}, async (request) => {
+  const uid = requireUID(request.auth?.uid);
+  const payload = request.data as ConsumeAIGenerationQuotaRequest;
+  const targetCards = safeTargetCards(payload.targetCards);
+  const userRef = db.collection("users").doc(uid);
+
+  return db.runTransaction(async (transaction) => {
+    const userSnapshot = await transaction.get(userRef);
+    const user = userSnapshot.data() ?? {};
+    const premium = request.auth?.token.premium === true || user.premium === true || user.plan === "premium";
+    const maxCards = premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
+
+    if (targetCards > maxCards) {
+      throw new HttpsError("failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
+    }
+
+    if (premium) {
+      return {
+        premium: true,
+        freeGenerationsUsed: null,
+        freeGenerationsLimit: null
+      };
+    }
+
+    const limit = positiveNumberOrDefault(user.freeGenerationsLimit, freeLifetimeGenerationLimit);
+    const used = numberOrZero(user.freeGenerationsUsed);
+
+    if (used >= limit) {
+      throw new HttpsError("resource-exhausted", "Free AI generation limit reached.");
+    }
+
+    const nextUsed = used + 1;
+    transaction.set(userRef, {
+      freeGenerationsUsed: nextUsed,
+      freeGenerationsLimit: limit,
+      updatedAt: FieldValue.serverTimestamp()
+    }, {merge: true});
+
+    return {
+      premium: false,
+      freeGenerationsUsed: nextUsed,
+      freeGenerationsLimit: limit
+    };
+  });
 });
 
 export const generateDeck = onCall({
@@ -179,6 +229,10 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function positiveNumberOrDefault(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function safeTargetCards(value: unknown): number {

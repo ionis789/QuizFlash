@@ -5,6 +5,7 @@
 
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseFunctions
 import Foundation
 import Observation
 
@@ -32,12 +33,16 @@ final class SubscriptionManager {
     @ObservationIgnored
     private var cachedFirestore: Firestore?
 
+    @ObservationIgnored
+    private var cachedFunctions: Functions?
+
     // MARK: - Init
 
     init() { }
 
-    init(firestore: Firestore) {
+    init(firestore: Firestore, functions: Functions? = nil) {
         self.cachedFirestore = firestore
+        self.cachedFunctions = functions
     }
 
     // MARK: - Public
@@ -104,6 +109,26 @@ final class SubscriptionManager {
         return AppLocalization.string("Upgrade to Premium to generate more cards.", locale: locale)
     }
 
+    func consumeAIGenerationQuota(targetCards: Int) async throws {
+        let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
+            "targetCards": targetCards
+        ])
+
+        guard let response = result.data as? [String: Any] else {
+            await refresh()
+            return
+        }
+
+        if response["premium"] as? Bool == true {
+            freeGenerationsUsed = nil
+            freeGenerationsLimit = nil
+            return
+        }
+
+        freeGenerationsUsed = response["freeGenerationsUsed"] as? Int ?? freeGenerationsUsed
+        freeGenerationsLimit = response["freeGenerationsLimit"] as? Int ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
+    }
+
     /// Placeholder action until App Store Connect purchases are available.
     func restorePurchases() async throws {
         throw SubscriptionManagerError.storeUnavailable
@@ -124,6 +149,13 @@ final class SubscriptionManager {
         let firestore = Firestore.firestore()
         cachedFirestore = firestore
         return firestore
+    }
+
+    private var functions: Functions {
+        if let cachedFunctions { return cachedFunctions }
+        let functions = Functions.functions()
+        cachedFunctions = functions
+        return functions
     }
 }
 

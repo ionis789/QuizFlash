@@ -363,8 +363,24 @@ extension DeckWorkspaceView {
     }
 
     func confirmAIGenerationIfAllowed() {
+        guard !isCheckingAIAccess else { return }
         guard canUseAIGeneration() else { return }
-        viewModel.confirmAIGenerationFromSheet()
+
+        let targetCardCount = viewModel.targetCardCount(for: viewModel.resolvedAISourceAllocations)
+        guard targetCardCount > 0 else { return }
+
+        isCheckingAIAccess = true
+        Task { @MainActor in
+            defer { isCheckingAIAccess = false }
+
+            do {
+                try await subscriptionManager.consumeAIGenerationQuota(targetCards: targetCardCount)
+                viewModel.confirmAIGenerationFromSheet()
+            } catch {
+                aiAccessAlertMessage = error.localizedDescription
+                showAIAccessAlert = true
+            }
+        }
     }
 
     private func canUseAIGeneration() -> Bool {
