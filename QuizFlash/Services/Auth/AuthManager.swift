@@ -106,6 +106,7 @@ protocol AuthProviding: AnyObject {
 
     func signIn(email: String, password: String) async throws -> AuthUserSnapshot
     func createAccount(email: String, password: String) async throws -> AuthUserSnapshot
+    func updateDisplayName(_ displayName: String?) async throws -> AuthUserSnapshot
     func sendPasswordReset(email: String) async throws
     func sendEmailVerification() async throws
     func reloadCurrentUser() async throws -> AuthUserSnapshot?
@@ -213,6 +214,13 @@ final class AuthManager {
             email: normalizedEmail(email),
             password: password
         )
+        apply(user)
+    }
+
+    func updateDisplayName(_ displayName: String?) async throws {
+        let trimmedDisplayName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedDisplayName = trimmedDisplayName?.isEmpty == false ? trimmedDisplayName : nil
+        let user = try await authProvider.updateDisplayName(normalizedDisplayName)
         apply(user)
     }
 
@@ -346,6 +354,21 @@ private final class FirebaseAuthClient: AuthProviding {
         let result = try await Auth.auth().createUser(withEmail: email, password: password)
         try await result.user.sendEmailVerification()
         return result.user.authSnapshot
+    }
+
+    func updateDisplayName(_ displayName: String?) async throws -> AuthUserSnapshot {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthManagerError.missingCurrentUser
+        }
+
+        let request = user.createProfileChangeRequest()
+        request.displayName = displayName
+        try await request.commitChanges()
+        try await user.reload()
+        guard let updatedUser = Auth.auth().currentUser else {
+            throw AuthManagerError.missingCurrentUser
+        }
+        return updatedUser.authSnapshot
     }
 
     func sendPasswordReset(email: String) async throws {

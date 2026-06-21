@@ -24,6 +24,9 @@ struct SettingsView: View {
     @State private var scrollContentHeight: CGFloat = 0
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var displayNameDraft = ""
+    @State private var isEditingDisplayName = false
+    @State private var isSavingDisplayName = false
     @State private var isPremiumSheetPresented = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountPasswordSheet = false
@@ -112,6 +115,11 @@ struct SettingsView: View {
         .sheet(isPresented: $showDeleteAccountPasswordSheet) {
             deleteAccountPasswordSheet
                 .presentationDetents([.height(250)])
+                .presentationBackground(.background)
+        }
+        .sheet(isPresented: $isEditingDisplayName) {
+            editDisplayNameSheet
+                .presentationDetents([.height(220)])
                 .presentationBackground(.background)
         }
         .alert(
@@ -287,12 +295,19 @@ struct SettingsView: View {
                         value: authManager.currentUser?.email ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
                     )
 
-                    accountInfoRow(
-                        icon: "person.text.rectangle.fill",
-                        tint: themeManager.accentColor.color,
-                        title: AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
-                        value: authManager.currentUser?.displayName?.nilIfEmpty ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
-                    )
+                    Button {
+                        displayNameDraft = authManager.currentUser?.displayName ?? ""
+                        isEditingDisplayName = true
+                    } label: {
+                        accountInfoRow(
+                            icon: "person.text.rectangle.fill",
+                            tint: themeManager.accentColor.color,
+                            title: AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
+                            value: authManager.currentUser?.displayName?.nilIfEmpty ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale),
+                            showsDisclosure: true
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     accountInfoRow(
                         icon: "person.badge.key.fill",
@@ -479,6 +494,48 @@ struct SettingsView: View {
         .padding(.top, UIConstants.Spacing.extraLarge)
     }
 
+    private var editDisplayNameSheet: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale))
+                .font(.title3.weight(.bold))
+
+            TextField(
+                AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
+                text: $displayNameDraft
+            )
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .padding(.horizontal, UIConstants.Spacing.standard)
+            .padding(.vertical, 12)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: UIConstants.Radius.medium))
+
+            HStack(spacing: UIConstants.Spacing.standard) {
+                Button(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale), role: .cancel) {
+                    isEditingDisplayName = false
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button {
+                    saveDisplayName()
+                } label: {
+                    if isSavingDisplayName {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text(AppLocalization.string("Save", locale: appPreferences.resolvedLocale))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(themeManager.accentColor.color)
+                .disabled(isSavingDisplayName)
+            }
+        }
+        .padding(UIConstants.Spacing.large)
+    }
+
     private func settingsBlock<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -546,6 +603,21 @@ struct SettingsView: View {
         }
     }
 
+    private func saveDisplayName() {
+        guard !isSavingDisplayName else { return }
+        isSavingDisplayName = true
+
+        Task { @MainActor in
+            defer { isSavingDisplayName = false }
+            do {
+                try await authManager.updateDisplayName(displayNameDraft)
+                isEditingDisplayName = false
+            } catch {
+                presentAuthError(error)
+            }
+        }
+    }
+
     private func profileMetric(
         icon: String?,
         title: String,
@@ -574,7 +646,8 @@ struct SettingsView: View {
         icon: String,
         tint: Color,
         title: String,
-        value: String
+        value: String,
+        showsDisclosure: Bool = false
     ) -> some View {
         HStack(spacing: UIConstants.Spacing.medium) {
             ZStack {
@@ -599,6 +672,12 @@ struct SettingsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
                 .multilineTextAlignment(.trailing)
+
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 

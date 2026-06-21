@@ -139,6 +139,16 @@ final class AuthManagerTests: XCTestCase {
         XCTAssertEqual(provider.passwordResetEmail, "user@example.com")
     }
 
+    func testUpdateDisplayNameTrimsAndPublishesUpdatedUser() async throws {
+        let provider = MockAuthProvider(currentUser: .verifiedPasswordUser)
+        let manager = AuthManager(authProvider: provider)
+
+        try await manager.updateDisplayName("  Ada Lovelace  ")
+
+        XCTAssertEqual(provider.updatedDisplayName, "Ada Lovelace")
+        XCTAssertEqual(manager.currentUser?.displayName, "Ada Lovelace")
+    }
+
     func testLogoutClearsSession() async throws {
         let provider = MockAuthProvider(currentUser: .verifiedPasswordUser)
         let manager = AuthManager(authProvider: provider)
@@ -174,6 +184,7 @@ private final class MockAuthProvider: AuthProviding {
     var createdEmail: String?
     var signedInEmail: String?
     var passwordResetEmail: String?
+    var updatedDisplayName: String?
     var sentVerificationCount = 0
     var didSignOut = false
     var didDeleteUser = false
@@ -204,6 +215,20 @@ private final class MockAuthProvider: AuthProviding {
         sentVerificationCount += 1
         currentUser = createAccountResult
         return createAccountResult
+    }
+
+    func updateDisplayName(_ displayName: String?) async throws -> AuthUserSnapshot {
+        updatedDisplayName = displayName
+        let updatedUser = AuthUserSnapshot(
+            uid: currentUser?.uid ?? "updated-user",
+            email: currentUser?.email,
+            displayName: displayName,
+            photoURLString: currentUser?.photoURLString,
+            providers: currentUser?.providers ?? [],
+            isEmailVerified: currentUser?.isEmailVerified ?? true
+        )
+        currentUser = updatedUser
+        return updatedUser
     }
 
     func sendPasswordReset(email: String) async throws {
