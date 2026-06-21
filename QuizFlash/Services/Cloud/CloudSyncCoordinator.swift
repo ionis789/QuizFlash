@@ -17,6 +17,7 @@ import SwiftData
 @MainActor
 final class CloudSyncCoordinator {
     static let shared = CloudSyncCoordinator()
+    static let editTimestampTolerance: TimeInterval = 0.001
 
     @ObservationIgnored private let service: CloudSyncService
     @ObservationIgnored private let outbox: CloudSyncOutbox
@@ -206,7 +207,7 @@ final class CloudSyncCoordinator {
 
             if data["deletedAt"] != nil {
                 guard let localDeck else { return }
-                if localDeck.editedAt > remoteEditedAt {
+                if Self.localEditIsMeaningfullyNewer(localDeck.editedAt, than: remoteEditedAt) {
                     enqueueUpsert(for: localDeck, context: context)
                 } else {
                     context.delete(localDeck)
@@ -217,7 +218,7 @@ final class CloudSyncCoordinator {
 
             let deck: DeckModel
             if let localDeck {
-                if localDeck.editedAt > remoteEditedAt {
+                if Self.localEditIsMeaningfullyNewer(localDeck.editedAt, than: remoteEditedAt) {
                     enqueueUpsert(for: localDeck, context: context)
                     return
                 }
@@ -252,7 +253,7 @@ final class CloudSyncCoordinator {
                 let localCard = deck.cards.first { $0.cloudID == cardID && $0.ownerUID == uid }
 
                 if cardData["deletedAt"] != nil {
-                    if let localCard, localCard.editedAt > remoteCardEditedAt {
+                    if let localCard, Self.localEditIsMeaningfullyNewer(localCard.editedAt, than: remoteCardEditedAt) {
                         shouldUploadLocal = true
                     } else if let localCard {
                         context.delete(localCard)
@@ -262,7 +263,7 @@ final class CloudSyncCoordinator {
 
                 let content = try cardContent(from: cardData)
                 if let localCard {
-                    if localCard.editedAt > remoteCardEditedAt {
+                    if Self.localEditIsMeaningfullyNewer(localCard.editedAt, than: remoteCardEditedAt) {
                         shouldUploadLocal = true
                         continue
                     }
@@ -350,6 +351,11 @@ final class CloudSyncCoordinator {
 
     private func record(_ error: Error) {
         lastErrorMessage = error.localizedDescription
+    }
+
+    /// Ignores sub-millisecond timestamp drift introduced by Firestore serialization.
+    static func localEditIsMeaningfullyNewer(_ local: Date, than remote: Date) -> Bool {
+        local.timeIntervalSince(remote) > editTimestampTolerance
     }
 }
 
