@@ -284,7 +284,8 @@ extension AIFlashcardService {
         }
 
         if let usage = json["usage"] as? [String: Any] {
-            metadata.merge(Self.deepSeekUsageTraceMetadata(from: usage, requestedModel: requestedModel)) { _, new in new }
+            let pricingModel = (json["model"] as? String) ?? requestedModel
+            metadata.merge(Self.deepSeekUsageTraceMetadata(from: usage, pricingModel: pricingModel)) { _, new in new }
         }
 
         return metadata
@@ -292,7 +293,7 @@ extension AIFlashcardService {
 
     private static func deepSeekUsageTraceMetadata(
         from usage: [String: Any],
-        requestedModel: String
+        pricingModel: String
     ) -> [String: String] {
         var metadata: [String: String] = [
             "usage_keys": usage.keys.sorted().joined(separator: ",")
@@ -321,7 +322,7 @@ extension AIFlashcardService {
         }
 
         if let costMicroUSD = estimatedDeepSeekCostMicroUSD(
-            requestedModel: requestedModel,
+            pricingModel: pricingModel,
             cacheHitTokens: cacheHitTokens ?? 0,
             cacheMissTokens: cacheMissTokens ?? promptTokens ?? 0,
             completionTokens: completionTokens ?? 0
@@ -334,12 +335,12 @@ extension AIFlashcardService {
     }
 
     private static func estimatedDeepSeekCostMicroUSD(
-        requestedModel: String,
+        pricingModel: String,
         cacheHitTokens: Int,
         cacheMissTokens: Int,
         completionTokens: Int
     ) -> Int? {
-        let normalizedModel = requestedModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedModel = pricingModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard normalizedModel == "deepseek-v4-flash" else { return nil }
 
         let costUSD = (
