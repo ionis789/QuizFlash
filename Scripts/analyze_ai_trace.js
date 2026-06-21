@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 
 function usage() {
-  console.error("Usage: node Scripts/analyze_ai_trace.js <trace-root-or-run-folder> [--run <run-id-or-folder-substring>]");
+  console.error("Usage: node Scripts/analyze_ai_trace.js <trace-root-or-run-folder-or-export-json> [--run <run-id-or-folder-substring>]");
   process.exit(2);
 }
 
@@ -32,6 +32,14 @@ function parseArgs(argv) {
 function isDirectory(filePath) {
   try {
     return fs.statSync(filePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isFile(filePath) {
+  try {
+    return fs.statSync(filePath).isFile();
   } catch {
     return false;
   }
@@ -81,6 +89,14 @@ function readJSONL(filePath) {
         throw new Error(`Invalid JSONL at ${filePath}:${index + 1}: ${error.message}`);
       }
     });
+}
+
+function readEventsExport(filePath) {
+  const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  if (!Array.isArray(data.events)) {
+    throw new Error(`Trace export does not contain an events array: ${filePath}`);
+  }
+  return data.events;
 }
 
 function numberFrom(metadata, key) {
@@ -156,8 +172,8 @@ function zoneText(value) {
   return "";
 }
 
-function analyzeCards(responseEvents) {
-  const cards = responseEvents.flatMap(extractCardsFromPayload);
+function analyzeCards(cardEvents) {
+  const cards = cardEvents.flatMap(extractCardsFromPayload);
   const frontLengths = cards.map((card) => textLength(cardFront(card)));
   const backLengths = cards.map((card) => textLength(cardBack(card)));
   const signatures = cards.map((card) => JSON.stringify(card)).filter(Boolean);
@@ -204,9 +220,9 @@ function batchKey(event) {
   return `${index}/${total}`;
 }
 
-function summarizeRun(runFolder) {
-  const events = readJSONL(path.join(runFolder, "events.jsonl"));
+function summarizeEvents(events, runLabel) {
   const responseEvents = events.filter((event) => event.stage === "responseReceived");
+  const decodedEvents = events.filter((event) => event.stage === "decodePrepared");
   const completed = [...events].reverse().find((event) => event.stage === "runCompleted" || event.stage === "runFailed");
   const batches = responseEvents.map((event) => {
     const metadata = event.metadata ?? {};
@@ -246,7 +262,7 @@ function summarizeRun(runFolder) {
   });
 
   const runMetadata = completed?.metadata ?? {};
-  const cardStats = analyzeCards(responseEvents);
+  const cardStats = analyzeCards(decodedEvents.length > 0 ? decodedEvents : responseEvents);
   const retryCount = events.filter((event) => event.stage === "retryScheduled").length;
   const decodeFailures = events.filter((event) => event.stage === "decodeFailed").length;
   const shortfall = events
@@ -262,7 +278,7 @@ function summarizeRun(runFolder) {
     .reduce((sum, value) => sum + value, 0);
 
   return {
-    runFolder,
+    runFolder: runLabel,
     eventCount: events.length,
     status: completed?.stage ?? "incomplete",
     targetCards: numberFrom(runMetadata, "target_cards") || plannedCards,
@@ -284,6 +300,10 @@ function summarizeRun(runFolder) {
     cardStats,
     batches
   };
+}
+
+function summarizeRun(runFolder) {
+  return summarizeEvents(readJSONL(path.join(runFolder, "events.jsonl")), runFolder);
 }
 
 function printSummary(summary) {
@@ -331,8 +351,13 @@ function printSummary(summary) {
 
 try {
   const options = parseArgs(process.argv);
-  const [runFolder] = listRunFolders(path.resolve(options.root), options.run);
-  printSummary(summarizeRun(runFolder));
+  const inputPath = path.resolve(options.root);
+  if (isFile(inputPath)) {
+    printSummary(summarizeEvents(readEventsExport(inputPath), inputPath));
+  } else {
+    const [runFolder] = listRunFolders(inputPath, options.run);
+    printSummary(summarizeRun(runFolder));
+  }
 } catch (error) {
   console.error(error.message);
   process.exit(1);

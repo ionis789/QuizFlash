@@ -325,7 +325,7 @@ extension DeckWorkspaceViewModel {
         defer { url.stopAccessingSecurityScopedResource() }
 
         var pageTexts = await extractPDFKitPageTexts(from: url)
-        var needsOCRCorrection = false
+        var needsOCRCorrection = DocumentTextExtractor.needsAICorrectionForExtractedText(pageTexts)
         await Task.yield()
 
         if !DocumentTextExtractor.isUsableExtractedText(pageTexts) {

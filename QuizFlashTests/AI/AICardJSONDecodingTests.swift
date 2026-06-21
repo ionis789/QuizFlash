@@ -305,6 +305,8 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("All LaTeX must be inside JSON strings"))
         XCTAssertTrue(prompt.contains("JSON-escape only what JSON requires"))
         XCTAssertTrue(prompt.contains("INLINE MATH: Wrap formal notation"))
+        XCTAssertTrue(prompt.contains("use $\\tau \\models \\varphi$ instead of raw τ |= φ"))
+        XCTAssertTrue(prompt.contains("Do not invent missing variables, operators, proof steps, or formulas from a broken fragment"))
         XCTAssertFalse(prompt.contains("Math, logic, programming, physics"))
         XCTAssertFalse(prompt.contains("History, literature"))
         XCTAssertFalse(prompt.contains("Infer the subject domain from the source itself"))
@@ -327,6 +329,40 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("keep the choices compact instead of turning every choice into a paragraph"))
         XCTAssertTrue(prompt.contains("split setup prose, central formulas, and the actual question into separate question zones"))
         XCTAssertTrue(prompt.contains("long formulas in their own question zone"))
+    }
+
+    func testOCRPromptConstrainsNoisyFormalNotationRepair() {
+        let service = makeService()
+        let prompt = service.systemPrompt(
+            targetCards: 2,
+            isOCR: true,
+            options: AIGenerationOptions(cardType: .flashcards)
+        )
+
+        XCTAssertTrue(prompt.contains("OCR CORRECTION MODE ENABLED"))
+        XCTAssertTrue(prompt.contains("PDF/text extraction may split Romanian diacritics or formal symbols across lines"))
+        XCTAssertTrue(prompt.contains("do not fabricate a full equation just to make the card look mathematical"))
+    }
+
+    func testNoisyPDFKitTextRequestsAICorrection() {
+        let noisyText = """
+        Logic˘a pentru informatic˘a
+        Relat
+        ,
+        ia |= este definit˘a astfel: τ |= φ ddac˘aˆ
+        τ φ = 1.
+        Demonstrat
+        ,
+        ie: Consider˘am o atribuire τ : A→B oarecare.
+        """
+        let cleanText = """
+        Logică pentru informatică.
+        Relația de satisfacere este definită astfel: τ |= φ dacă valoarea formulei este 1.
+        Considerăm o atribuire oarecare și păstrăm notația logică în text.
+        """
+
+        XCTAssertTrue(DocumentTextExtractor.needsAICorrectionForExtractedText([noisyText]))
+        XCTAssertFalse(DocumentTextExtractor.needsAICorrectionForExtractedText([cleanText]))
     }
 
     func testAllocatedTextBatchesSplitLargeSourceRangeAcrossRequests() {

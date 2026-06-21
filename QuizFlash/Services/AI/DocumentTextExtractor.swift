@@ -54,6 +54,10 @@ struct ExtractionResult {
     
     /// Total number of pages processed.
     let pageCount: Int
+
+    /// Indicates whether the extracted text has artifacts that should be
+    /// repaired by the AI prompt before card generation.
+    let needsAICorrection: Bool
     
     /// Indicates whether the result contains usable text.
     var isTextBased: Bool {
@@ -62,7 +66,7 @@ struct ExtractionResult {
     
     /// Indicates whether OCR correction may be required.
     var needsOCRCorrection: Bool {
-        method == .visionOCR
+        needsAICorrection
     }
 }
 
@@ -125,7 +129,8 @@ actor DocumentTextExtractor {
                 text: text,
                 images: nil,
                 method: .pdfKit,
-                pageCount: pageCount
+                pageCount: pageCount,
+                needsAICorrection: needsAICorrectionForExtractedText([text])
             )
         }
         
@@ -141,7 +146,8 @@ actor DocumentTextExtractor {
                     text: ocrText,
                     images: nil,
                     method: .visionOCR,
-                    pageCount: pageCount
+                    pageCount: pageCount,
+                    needsAICorrection: true
                 )
             }
         }
@@ -151,7 +157,8 @@ actor DocumentTextExtractor {
             text: nil,
             images: images,
             method: .rawImages,
-            pageCount: pageCount
+            pageCount: pageCount,
+            needsAICorrection: false
         )
     }
     
@@ -169,7 +176,8 @@ actor DocumentTextExtractor {
                 text: ocrText,
                 images: nil,
                 method: .visionOCR,
-                pageCount: images.count
+                pageCount: images.count,
+                needsAICorrection: true
             )
         }
         
@@ -177,7 +185,8 @@ actor DocumentTextExtractor {
             text: nil,
             images: images,
             method: .rawImages,
-            pageCount: images.count
+            pageCount: images.count,
+            needsAICorrection: false
         )
     }
     
@@ -287,6 +296,26 @@ actor DocumentTextExtractor {
         let trimmedTexts = texts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let totalCharacters = trimmedTexts.reduce(0) { $0 + $1.count }
         return totalCharacters >= minimumUsableTextLength
+    }
+
+    /// Returns `true` when direct PDF text extraction produced enough text, but
+    /// includes PDFKit artifacts that usually damage formal notation or
+    /// Romanian diacritics and should be called out in the AI prompt.
+    nonisolated static func needsAICorrectionForExtractedText(_ texts: [String]) -> Bool {
+        let joined = texts.joined(separator: "\n")
+        let totalCharacters = max(joined.count, 1)
+        guard totalCharacters >= minimumUsableTextLength else { return false }
+
+        let artifactCharacters = CharacterSet(charactersIn: "˘ˆ¸˛˜˝˙˚")
+        let artifactCount = joined.unicodeScalars.reduce(0) { count, scalar in
+            count + (artifactCharacters.contains(scalar) ? 1 : 0)
+        }
+        let splitPunctuationCount = joined.matches(of: #/[A-Za-zĂÂÎȘȚăâîșț]\s*,\s*\n/#).count
+        let brokenDiacriticCount = joined.matches(of: #/[A-Za-zĂÂÎȘȚăâîșț]\s*[˘ˆ¸˛˜˝˙˚]/#).count
+        let formalLineBreakCount = joined.matches(of: #/\n\s*[τφψΓ⊢⊨∧∨¬→↔|=≡]\s*\n/#).count
+
+        let artifactScore = artifactCount + splitPunctuationCount * 3 + brokenDiacriticCount * 2 + formalLineBreakCount * 4
+        return artifactScore >= 12 || Double(artifactScore) / Double(totalCharacters) >= 0.003
     }
     
     private static func ocrPage(cgImage: CGImage) async -> String {
