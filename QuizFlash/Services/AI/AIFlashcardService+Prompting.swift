@@ -213,25 +213,47 @@ extension AIFlashcardService {
         Keep short source-specific terms, character names, work titles, movements, and literary concepts visible, and emphasize them with **bold** when they are the focus of recall.
 
         FORMAL / MATHEMATICAL NOTATION
-        Formal notation is any source content whose meaning depends on symbols, variables, relations, set notation, arrows, subscripts, superscripts, conditions, equations, inference-like statements, or compact domain notation.
+        Formal notation is any content whose meaning is carried primarily by symbolic structure rather than by ordinary prose.
+        This includes expressions built from variables, operators, relations, logical connectives, set notation, arrows, quantifiers, indices, superscripts, subscripts, mappings, sequents, semantic entailment notation, algebraic forms, symbolic definitions, recursive clauses, grammar-like rules, truth-functional schemas, and other compact formal systems.
         Treat formal notation as math-rendered text, not as code, unless it is actual executable syntax.
         Preserve formal expressions in renderable LaTeX.
-        Use $...$ for inline formal notation.
-        Use $$...$$ for display notation when the expression is central or too long for inline text.
+        Use $...$ for inline notation.
+        Use $$...$$ for display notation when the expression is central, long, or visually dense.
         Put display notation in its own text zone.
-        Keep short explanatory prose outside math delimiters.
-        Do not replace precise notation with vague prose when the notation is the learning target.
+        Keep explanatory prose outside math delimiters whenever possible.
+        Prefer preserving the source's formal structure over paraphrasing it.
+        If a compact span would naturally be read by a technical or mathematical reader as notation rather than ordinary prose, render it as LaTeX math.
+        This applies even when the notation is short.
+        Treat logical notation, semantic notation, set expressions, symbolic mappings, indexed symbols, recursive definitions, grammar-like rules, truth-functional expressions, and proof-style notation as formal notation unless the source is clearly giving executable code instead.
+        If a span mixes short prose with a central symbolic expression, keep the prose outside math delimiters and render the symbolic core in LaTeX.
+        Use consistent notation style across the whole response.
+        Do not alternate between raw symbols, partially formatted notation, and LaTeX for the same kind of formal object.
+        Do not replace precise notation with vague prose when the notation itself is part of what the learner must retain.
         Do not invent notation that is not supported by the source.
-        When a span is formal notation rather than natural-language prose, put the complete symbolic span inside math delimiters, including variables, relations, operators, quantified statements, set expressions, inference statements, equivalences, schemas, and indexed or superscripted terms.
-        Use standard renderable LaTeX for the notation style implied by the source. Preserve the source's semantic relation and variable roles instead of copying damaged glyphs literally or substituting vague prose.
-        If a native character, letter variant, operator glyph, relation glyph, or compact symbolic mark functions as mathematical or formal notation, render it through LaTeX math instead of mixing raw native glyphs with rendered formulas.
-        Keep notation style consistent across all cards in the same response: the same formal object, relation, operator, or variable role should not alternate between raw text, native symbols, and LaTeX.
-        Apply the same notation rules to every card surface: front, back, question, choices, and explanation. Do not leave formal notation raw in a prompt just because it is short.
-        If a card's main answer is a semantic equation, recursive definition, inference rule, truth table, grammar rule, or other central formal object, place that formal object in its own text zone using display math when it is long or visually dense; keep the prose interpretation in a separate zone.
         Formal algorithms, recursive definitions, syntax trees, grammars, truth tables, and inference schemas are not executable code merely because they are structured. Represent them as text zones with math notation unless the source is actual runnable/programming syntax.
         Avoid ASCII art for formal structures unless the source itself is teaching ASCII notation. Prefer compact prose, semantic lists, or display math zones that render predictably on mobile.
-        Before returning JSON, audit every generated card for formal symbols, variable-like letters, operators, indexed terms, superscripted terms, or symbolic statements that still appear as plain prose. Convert those spans to LaTeX math unless they are ordinary natural-language words or actual executable code.
-        If the source notation is visibly damaged by extraction artifacts, preserve only the unambiguous formal statement. Do not invent missing variables, operators, proof steps, or formulas from a broken fragment.
+        If the source notation is visibly damaged by extraction artifacts, preserve only what is reasonably clear and keep uncertain notation conservative.
+
+        NOTATION JUDGMENT GUIDANCE
+        When choosing between plain prose and LaTeX, decide from the role the span plays in the source.
+        Use LaTeX when the learner must retain the notation itself, not just its verbal meaning.
+        Use LaTeX when symbols, structure, relation markers, or operator placement carry essential meaning.
+        Use plain prose when the source is primarily explaining, interpreting, or narrating an idea in ordinary language.
+        In borderline cases, prefer LaTeX for compact technical notation and prefer prose for ordinary explanatory language.
+        A short symbolic expression should still be rendered as notation if its exact form matters.
+
+        GENERAL EXAMPLES OF WHAT SHOULD STAY FORMAL
+        Render as LaTeX when the source contains:
+        - variables and symbolic expressions
+        - equations, inequalities, identities, or transformations
+        - sets, set membership, set operations, or power-set style notation
+        - mappings, signatures, typed arrows, or function-like definitions
+        - logical connectives, quantified statements, sequents, entailment, or equivalence notation
+        - indexed, primed, superscripted, or subscripted symbols
+        - recursive clauses, semantic clauses, grammar rules, or inference-style statements
+        - compact symbolic definitions whose exact form matters
+        - truth-functional, algebraic, or proof-oriented symbolic structure
+        Do not rewrite such content into loose prose if the notation itself is part of what the learner must remember.
 
         FORMAL NOTATION IS NOT CODE
         Do not use a "code" zone merely because notation contains brackets, braces, uppercase identifiers, arrows, equality signs, commas, or parentheses.
@@ -389,10 +411,11 @@ extension AIFlashcardService {
             - CODE ZONE: Put real code snippets in their own standalone "code" zone when block structure, indentation, or line breaks help teach the concept.
             - Keep compact syntax in a "text" zone using inline backticks when it reads better as part of the explanation.
             - Do not wrap programming syntax in math delimiters unless it is actual mathematics.
-            - INLINE MATH: Wrap formal notation and inline equations in single $.
-            - BLOCK MATH: Wrap display equations in double $$ only when the equation itself is important.
+            - INLINE MATH: Wrap formal notation and inline equations in single $ when they appear as part of a sentence or compact statement.
+            - BLOCK MATH: Wrap display equations in double $$ only when the formal object itself is central, long, or easier to read on its own line.
             - Put long block equations in their own standalone text zone using $$...$$.
-            - Do not leave raw formal notation like a_{i}, x^2, X+, ∅, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Prefer notation-first rendering when the source teaches the concept symbolically.
+            - Avoid leaving symbolic expressions, logical formulas, set expressions, mappings, indexed terms, or proof-style notation as raw text when their exact form is part of the recall target.
             - Keep ordinary source-language prose outside math delimiters.
             """
         case .quiz:
@@ -417,10 +440,11 @@ extension AIFlashcardService {
             - CODE ZONE: Put real code snippets in their own standalone "code" zone when block structure, indentation, or line breaks help test the concept.
             - Keep compact syntax choices in a "text" zone using inline backticks when that is clearer.
             - Do not wrap programming syntax in math delimiters unless it is actual mathematics.
-            - INLINE MATH: Wrap formal notation and inline equations in single $.
+            - INLINE MATH: Wrap formal notation and inline equations in single $ when they appear as part of a sentence or compact statement.
             - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
             - Put long block equations in their own standalone text zone using $$...$$.
-            - Do not leave raw formal notation like a_{i}, x^2, X+, ∅, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Prefer notation-first rendering when the source teaches the concept symbolically.
+            - Avoid leaving symbolic expressions, logical formulas, set expressions, mappings, indexed terms, or proof-style notation as raw text when their exact form is part of the answer or explanation.
             - Keep ordinary source-language prose outside math delimiters.
             """
         }
