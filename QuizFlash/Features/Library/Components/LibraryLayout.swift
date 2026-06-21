@@ -224,7 +224,7 @@ struct LibraryLayout: View {
             LibraryTopBarView(
                 title: title,
                 titleFallback: titleFallback,
-                deckCount: decks.count,
+                deckCount: viewModel.cachedDeckCount,
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
                 isCollapsedTitleVisible: isCollapsedTitleVisible,

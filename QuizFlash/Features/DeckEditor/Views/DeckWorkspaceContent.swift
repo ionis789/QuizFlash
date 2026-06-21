@@ -296,28 +296,19 @@ extension DeckWorkspaceView {
                         .lineLimit(1)
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
+                .padding(.horizontal, UIConstants.Spacing.standard)
+                .padding(.vertical, UIConstants.Spacing.small)
+                .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!canStartLocalGeneration)
             .opacity(canStartLocalGeneration ? 1 : 0.48)
             .accessibilityLabel(localized("Generate cards with AI"))
 
-            HStack(spacing: UIConstants.Spacing.standard) {
-                Rectangle()
-                    .fill(.secondary.opacity(0.28))
-                    .frame(height: 1)
-
-                Text(localized("or"))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary.opacity(0.85))
-
-                Rectangle()
-                    .fill(.secondary.opacity(0.28))
-                    .frame(height: 1)
-            }
-            .frame(maxWidth: 210)
+            Text("----- \(localized("or")) -----")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary.opacity(0.85))
+                .accessibilityLabel(localized("or"))
 
             Button {
                 isTitleFocused = false

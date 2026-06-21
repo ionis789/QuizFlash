@@ -25,7 +25,7 @@ extension LibraryLayout {
                 )
                 .frame(width: 0, height: 0)
 
-                if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
+                if viewModel.cachedDeckCount == 0 && viewModel.cachedGroupedDecks.isEmpty {
                     Spacer().frame(height: 40)
                 }
 
@@ -179,12 +179,12 @@ extension LibraryLayout {
             LargeScreenTitle(title: title)
 
             Text(
-                decks.count == 0
+                viewModel.cachedDeckCount == 0
                     ? localized("No Decks")
                     : (
-                        decks.count == 1
-                            ? localizedFormat("%d Deck", decks.count)
-                            : localizedFormat("%d Decks", decks.count)
+                        viewModel.cachedDeckCount == 1
+                            ? localizedFormat("%d Deck", viewModel.cachedDeckCount)
+                            : localizedFormat("%d Decks", viewModel.cachedDeckCount)
                     )
             )
                 .font(.system(size: 14, weight: .bold, design: .rounded))

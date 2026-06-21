@@ -34,6 +34,10 @@ struct SettingsView: View {
     @State private var authErrorMessage = ""
     @State private var showAuthError = false
     @State private var presentingViewController: UIViewController?
+    @State private var cachedProfileImage: UIImage?
+    @State private var cachedProfileImageSignature: Int?
+    @State private var profileImageDecodeTask: Task<Void, Never>?
+    @State private var cachedDeckCount = 0
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -87,8 +91,20 @@ struct SettingsView: View {
         .onChange(of: selectedProfilePhoto) { _, newValue in
             updateProfilePhoto(from: newValue)
         }
+        .onChange(of: profileImageDataSignature) { _, _ in
+            refreshCachedProfileImage()
+        }
+        .onChange(of: decks) { _, newDecks in
+            cachedDeckCount = newDecks.count
+        }
         .task {
+            cachedDeckCount = decks.count
+            refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
+        }
+        .onDisappear {
+            profileImageDecodeTask?.cancel()
+            profileImageDecodeTask = nil
         }
         .background {
             AuthPresentingViewControllerReader { controller in
@@ -262,8 +278,12 @@ struct SettingsView: View {
     }
 
     private var profileImage: UIImage? {
+        cachedProfileImage
+    }
+
+    private var profileImageDataSignature: Int? {
         guard let data = profile?.profileImageData else { return nil }
-        return UIImage(data: data)
+        return makeProfileImageSignature(for: data)
     }
 
     private var profileName: String {
@@ -599,8 +619,45 @@ struct SettingsView: View {
             }
 
             resolvedProfile.profileImageData = data
+            refreshCachedProfileImage(from: data)
             try? modelContext.save()
         }
+    }
+
+    private func refreshCachedProfileImage(from overrideData: Data? = nil) {
+        profileImageDecodeTask?.cancel()
+
+        let data = overrideData ?? profile?.profileImageData
+        guard let data else {
+            cachedProfileImage = nil
+            cachedProfileImageSignature = nil
+            profileImageDecodeTask = nil
+            return
+        }
+
+        let signature = makeProfileImageSignature(for: data)
+        cachedProfileImageSignature = signature
+
+        profileImageDecodeTask = Task { @MainActor in
+            let decodedImage = await Task.detached(priority: .utility) {
+                UIImage(data: data)
+            }.value
+
+            guard !Task.isCancelled, cachedProfileImageSignature == signature else { return }
+            cachedProfileImage = decodedImage
+        }
+    }
+
+    private func makeProfileImageSignature(for data: Data) -> Int {
+        var hasher = Hasher()
+        hasher.combine(data.count)
+        data.withUnsafeBytes { rawBuffer in
+            guard rawBuffer.count > 0 else { return }
+            hasher.combine(rawBuffer.load(fromByteOffset: 0, as: UInt8.self))
+            hasher.combine(rawBuffer.load(fromByteOffset: rawBuffer.count / 2, as: UInt8.self))
+            hasher.combine(rawBuffer.load(fromByteOffset: rawBuffer.count - 1, as: UInt8.self))
+        }
+        return hasher.finalize()
     }
 
     private func saveDisplayName() {
@@ -724,7 +781,7 @@ struct SettingsView: View {
 
     private var deckCountSummary: String {
         AppLocalization.numbered(
-            decks.count,
+            cachedDeckCount,
             singular: "%d Deck",
             plural: "%d Decks",
             locale: appPreferences.resolvedLocale

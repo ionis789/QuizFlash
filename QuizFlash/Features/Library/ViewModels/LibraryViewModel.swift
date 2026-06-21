@@ -136,6 +136,9 @@ final class LibraryViewModel {
     /// survives tab switches without a 50ms debounce flash on re-appear.
     var cachedGroupedDecks: [DeckSection] = []
 
+    /// Last observed deck count, copied out of SwiftData query changes.
+    var cachedDeckCount = 0
+
     /// Tracks which deck IDs were used to build the current cache.
     /// Deduplication check survives across view re-renders, tab switches, etc.
     @ObservationIgnored

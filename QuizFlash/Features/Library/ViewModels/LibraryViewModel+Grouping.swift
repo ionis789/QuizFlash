@@ -14,6 +14,8 @@ extension LibraryViewModel {
     /// Computes and caches grouped decks on a background thread.
     func updateGroupedDecks(from snapshot: [DeckModel]) {
         groupingTask?.cancel()
+        cachedDeckCount = snapshot.count
+
         guard !snapshot.isEmpty else {
             cachedGroupedDecks = []
             return
