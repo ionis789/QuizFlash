@@ -15,6 +15,8 @@ struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    @Environment(CloudUserProfileService.self) private var cloudUserProfileService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -82,6 +84,9 @@ struct SettingsView: View {
         .onChange(of: selectedProfilePhoto) { _, newValue in
             updateProfilePhoto(from: newValue)
         }
+        .task {
+            await subscriptionManager.configure(for: authManager.currentUser)
+        }
         .background {
             AuthPresentingViewControllerReader { controller in
                 presentingViewController = controller
@@ -124,8 +129,7 @@ struct SettingsView: View {
                 showsCloseButton: true
             )
         ) { _ in
-            Color.clear
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            manualPremiumSheet
         } background: {
             themeManager.screenBackground
         }
@@ -216,22 +220,37 @@ struct SettingsView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+            } else if let photoURL {
+                AsyncImage(url: photoURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        placeholderAvatar
+                    }
+                }
             } else {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                themeManager.accentColor.color.opacity(0.84),
-                                themeManager.accentColor.color.opacity(0.34)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                placeholderAvatar
             }
         }
         .frame(width: 104, height: 104)
         .clipShape(Circle())
+    }
+
+    private var placeholderAvatar: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        themeManager.accentColor.color.opacity(0.84),
+                        themeManager.accentColor.color.opacity(0.34)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
     }
 
     private var profileImage: UIImage? {
@@ -240,7 +259,9 @@ struct SettingsView: View {
     }
 
     private var profileName: String {
-        AppLocalization.string("QuizFlash User", locale: appPreferences.resolvedLocale)
+        authManager.currentUser?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? authManager.currentUser?.email?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? AppLocalization.string("QuizFlash User", locale: appPreferences.resolvedLocale)
     }
 
     private var accountPlanSummary: String {
@@ -249,9 +270,53 @@ struct SettingsView: View {
             : AppLocalization.string("Free", locale: appPreferences.resolvedLocale)
     }
 
+    private var photoURL: URL? {
+        guard let value = authManager.currentUser?.photoURLString else { return nil }
+        return URL(string: value)
+    }
+
     @ViewBuilder
     private var settingsBlocks: some View {
         VStack(spacing: 10) {
+            settingsBlock {
+                VStack(spacing: UIConstants.Spacing.standard) {
+                    accountInfoRow(
+                        icon: "envelope.fill",
+                        tint: .blue,
+                        title: AppLocalization.string("Email", locale: appPreferences.resolvedLocale),
+                        value: authManager.currentUser?.email ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
+                    )
+
+                    accountInfoRow(
+                        icon: "person.text.rectangle.fill",
+                        tint: themeManager.accentColor.color,
+                        title: AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
+                        value: authManager.currentUser?.displayName?.nilIfEmpty ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
+                    )
+
+                    accountInfoRow(
+                        icon: "person.badge.key.fill",
+                        tint: .green,
+                        title: AppLocalization.string("Provider", locale: appPreferences.resolvedLocale),
+                        value: providerSummary
+                    )
+
+                    accountInfoRow(
+                        icon: isPremiumUser ? "crown.fill" : "sparkles",
+                        tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
+                        title: AppLocalization.string("Plan", locale: appPreferences.resolvedLocale),
+                        value: subscriptionManager.planSource.localizedTitle(locale: appPreferences.resolvedLocale)
+                    )
+
+                    accountInfoRow(
+                        icon: "wand.and.stars",
+                        tint: .purple,
+                        title: AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale),
+                        value: aiUsageSummary
+                    )
+                }
+            }
+
             settingsBlock {
                 SettingsMenuPickerRow(
                     icon: "globe",
@@ -398,6 +463,7 @@ struct SettingsView: View {
                 tint: .red,
                 isEnabled: !deleteAccountPassword.isEmpty
             ) {
+                try await cloudUserProfileService.deleteUserData()
                 try await authManager.deleteAccount(
                     reauthentication: .password(deleteAccountPassword)
                 )
@@ -438,6 +504,7 @@ struct SettingsView: View {
                     guard let presentingViewController else {
                         throw AuthManagerError.missingPresenter
                     }
+                    try await cloudUserProfileService.deleteUserData()
                     try await authManager.deleteAccount(
                         reauthentication: .google(presentingViewController)
                     )
@@ -503,6 +570,70 @@ struct SettingsView: View {
         .background(Color.white.opacity(0.05), in: Capsule())
     }
 
+    private func accountInfoRow(
+        icon: String,
+        tint: Color,
+        title: String,
+        value: String
+    ) -> some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            ZStack {
+                RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                    .frame(width: 40, height: 40)
+
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(tint)
+            }
+
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: UIConstants.Spacing.medium)
+
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private var manualPremiumSheet: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(AppLocalization.string("Premium access", locale: appPreferences.resolvedLocale))
+                .font(.title2.weight(.bold))
+                .fontDesign(.rounded)
+
+            Text(AppLocalization.string("Premium is managed manually until App Store Connect is ready.", locale: appPreferences.resolvedLocale))
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                Task { @MainActor in
+                    await subscriptionManager.refresh()
+                    isPremiumSheetPresented = false
+                }
+            } label: {
+                Text(AppLocalization.string("Refresh Plan", locale: appPreferences.resolvedLocale))
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, UIConstants.Spacing.standard)
+                    .background(themeManager.accentColor.color, in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
+        }
+        .padding(UIConstants.Spacing.large)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
     private var streakSummary: String {
         AppLocalization.numbered(
             currentStreak,
@@ -530,7 +661,41 @@ struct SettingsView: View {
     }
 
     private var isPremiumUser: Bool {
-        false
+        subscriptionManager.isPremium
+    }
+
+    private var providerSummary: String {
+        guard let providers = authManager.currentUser?.providers, !providers.isEmpty else {
+            return AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
+        }
+
+        return providers
+            .map { provider in
+                switch provider {
+                case AuthProviderID.password.rawValue:
+                    return AppLocalization.string("Email", locale: appPreferences.resolvedLocale)
+                case AuthProviderID.google.rawValue:
+                    return "Google"
+                case AuthProviderID.apple.rawValue:
+                    return "Apple"
+                default:
+                    return provider
+                }
+            }
+            .joined(separator: ", ")
+    }
+
+    private var aiUsageSummary: String {
+        if isPremiumUser {
+            return AppLocalization.string("Premium active", locale: appPreferences.resolvedLocale)
+        }
+
+        guard let used = subscriptionManager.freeGenerationsUsed,
+              let limit = subscriptionManager.freeGenerationsLimit else {
+            return AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
+        }
+
+        return "\(used)/\(limit)"
     }
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {
@@ -574,5 +739,13 @@ struct SettingsView: View {
         .environment(AuthManager.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)
+        .environment(SubscriptionManager.shared)
+        .environment(CloudUserProfileService.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
 }

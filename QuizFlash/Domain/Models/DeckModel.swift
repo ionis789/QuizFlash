@@ -68,6 +68,21 @@ class DeckModel {
     /// Raw string backing the persisted card grouping preference for this deck.
     var cardGroupingModeRaw: String = DeckCardGroupingMode.chronological.rawValue
 
+    /// Stable Firestore document ID for cloud sync. Nil until the deck is uploaded.
+    var cloudID: String?
+
+    /// Firebase Auth UID that owns the cloud copy of this deck.
+    var ownerUID: String?
+
+    /// Last successful cloud sync timestamp.
+    var lastSyncedAt: Date?
+
+    /// Monotonic local sync revision used by v1 last-write-wins sync.
+    var syncRevision: Int = 0
+
+    /// True when at least one card payload was skipped because it exceeded the v1 safe sync size.
+    var isNotFullySynced: Bool = false
+
     // MARK: - Relationships
 
     /// The folder this deck belongs to. `nil` if the deck is in the root library.
@@ -102,5 +117,7 @@ class DeckModel {
         self.lastAssignedCardNumber = 0
         self.cardGroupingModeRaw = DeckCardGroupingMode.chronological.rawValue
         self.playModeSettings = nil
+        self.syncRevision = 0
+        self.isNotFullySynced = false
     }
 }

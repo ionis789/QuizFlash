@@ -309,6 +309,18 @@ class CardModel {
     /// Raw string backing `creationSource` for SwiftData persistence.
     var creationSourceRaw: String = CardCreationSource.manual.rawValue
 
+    /// Stable Firestore document ID for cloud sync. Nil until the card is uploaded.
+    var cloudID: String?
+
+    /// Firebase Auth UID that owns the cloud copy of this card.
+    var ownerUID: String?
+
+    /// Last successful cloud sync timestamp.
+    var lastSyncedAt: Date?
+
+    /// Monotonic local sync revision used by v1 last-write-wins sync.
+    var syncRevision: Int = 0
+
     // MARK: - Relationships
 
     /// The deck that owns this card. Nil if the card has been orphaned.
@@ -498,6 +510,7 @@ class CardModel {
         self.easeFactor = 2.5
         self.interval = 0
         self.consecutiveCorrectAnswers = 0
+        self.syncRevision = 0
 
         self.cardContent = .flashcard(
             FlashcardCardContent(
@@ -525,6 +538,7 @@ class CardModel {
         self.easeFactor = 2.5
         self.interval = 0
         self.consecutiveCorrectAnswers = 0
+        self.syncRevision = 0
 
         self.cardContent = content
     }

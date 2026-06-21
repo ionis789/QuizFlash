@@ -5,6 +5,8 @@
 xcuserdata/
 *.xcuserstate
 .build/
+node_modules/
+functions/lib/
 
 # Codex local artifacts
 /.codex/*

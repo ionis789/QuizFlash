@@ -6,6 +6,7 @@
 //
 
 import FirebaseCore
+import FirebaseAppCheck
 import GoogleSignIn
 import SwiftData
 import SwiftUI
@@ -19,6 +20,11 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         if FirebaseApp.app() == nil {
+#if DEBUG
+            AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+#else
+            AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
+#endif
             FirebaseApp.configure()
         }
 
@@ -37,6 +43,8 @@ struct QuizFlashApp: App {
     @State private var appPreferences = AppPreferences.shared
     @State private var developmentPreferences = DevelopmentPreferences.shared
     @State private var appMigrationStore = AppMigrationStore.shared
+    @State private var subscriptionManager = SubscriptionManager.shared
+    @State private var cloudUserProfileService = CloudUserProfileService.shared
 
     init() {
         AppLocalization.applyLanguageOverride(AppPreferences.shared.appLanguage)
@@ -52,6 +60,8 @@ struct QuizFlashApp: App {
                 .environment(appPreferences)
                 .environment(developmentPreferences)
                 .environment(appMigrationStore)
+                .environment(subscriptionManager)
+                .environment(cloudUserProfileService)
                 .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
@@ -60,6 +70,12 @@ struct QuizFlashApp: App {
                 }
                 .task {
                     authManager.startListening()
+                    await refreshCloudSession(for: authManager.currentUser)
+                }
+                .onChange(of: authManager.currentUser) { _, user in
+                    Task { @MainActor in
+                        await refreshCloudSession(for: user)
+                    }
                 }
         }
             .modelContainer(for: [
@@ -74,5 +90,10 @@ struct QuizFlashApp: App {
                 HomeDailyCardAggregate.self,
                 DeckPlayModeSettingsModel.self
             ])
+    }
+
+    private func refreshCloudSession(for user: AuthUserSnapshot?) async {
+        await subscriptionManager.configure(for: user)
+        await cloudUserProfileService.upsertUserProfile(for: user)
     }
 }

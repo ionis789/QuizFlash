@@ -49,8 +49,8 @@ key	en	ro	ru
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -116,6 +116,7 @@ Add source text before saving.	Add source text before saving.	Adaugă textul sur
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
 Adjust only study content, keeping app chrome and controls stable.	Adjust only study content, keeping app chrome and controls stable.	Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.	Настраивает только учебный контент, оставляя интерфейс приложения стабильным.
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
+AI usage	AI usage	Utilizare AI	Использование AI
 Align Bottom	Align Bottom	Aliniază jos	Выровнять по низу
 Align Center	Align Center	Aliniază la centru	По центру
 Align Left	Align Left	Aliniază la stânga	По левому краю
@@ -128,8 +129,8 @@ All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -144,8 +145,8 @@ Auto keeps the full source covered, then balances density by text weight.	Auto k
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -169,8 +170,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
@@ -257,6 +258,7 @@ Delete?	Delete?	Ștergi?	Удалить?
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
+Display Name	Display Name	Nume afișat	Отображаемое имя
 Don't have an account?	Don't have an account?	Nu ai cont?	Нет аккаунта?
 Done	Done	Gata	Готово
 Done Selecting	Done Selecting	Terminată selecția	Завершить выбор
@@ -275,6 +277,7 @@ Edit Text	Edit Text	Editează text	Редактировать текст
 Edit the source text, then select the part you want learners to fill in.	Edit the source text, then select the part you want learners to fill in.	Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.	Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.
 Edited	Edited	Editate	Изменённые
 Edited %@	Edited %@	Editat %@	Отредактировано %@
+Email	Email	Email	Email
 Email Address	Email Address	Adresă de email	Email
 Email sent	Email sent	Email trimis	Email отправлен
 Email verified	Email verified	Email verificat	Email подтвержден
@@ -300,6 +303,7 @@ Exporting %d deck…	Exporting %d deck…	Se exportă %d deck…	Экспорт 
 Exporting...	Exporting...	Se exportă...	Экспорт...
 Fill in every answer before saving.	Fill in every answer before saving.	Completează toate răspunsurile înainte de salvare.	Заполните все ответы перед сохранением.
 "Filtered by ""**%@**"""	"Filtered by ""**%@**"""	Filtrată după „**%@**”	"Отфильтровано по ""**%@**"""
+Firebase claim	Firebase claim	Claim Firebase	Claim Firebase
 First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
 Flashcard	Flashcard	Flashcard	Флэшкарточка
 Flashcard Border Radius	Flashcard Border Radius	Raza chenarului cardului	Радиус границы карточки
@@ -319,8 +323,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -395,6 +399,7 @@ Location: %@	Location: %@	Locație: %@	Расположение: %@
 Log Out	Log Out	Deconectare	Выйти
 Manual	Manual	Manual	Вручную
 Manual input	Manual input	Introducere manuală	Ручной ввод
+Manual premium	Manual premium	Premium manual	Premium вручную
 Mark at least one correct answer.	Mark at least one correct answer.	Marchează cel puțin un răspuns corect.	Отметьте минимум один правильный ответ.
 Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
@@ -457,6 +462,7 @@ None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
 Not now	Not now	Nu acum	Не сейчас
+Not signed in	Not signed in	Neautentificat	Не выполнен вход
 Nothing in the shared UI registry matches â%@â.	Nothing in the shared UI registry matches â%@â.	Nimic din registrul UI partajat nu se potrivește cu â%@â.	Ничто в реестре общего пользовательского интерфейса не соответствует %@â.
 Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ничего не попало
 OK	OK	OK	OK
@@ -493,6 +499,7 @@ Pick the type of card you want to add to this deck.	Pick the type of card you wa
 Pin	Pin	Fixează	Закрепить
 Pink	Pink	Roz	Розовый
 Pinned	Pinned	Fixat	Закреплена
+Plan	Plan	Plan	План
 Play Debug	Play Debug	Joacă Debug	Играть в отладку
 PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
@@ -500,16 +507,20 @@ Please select .json files	Please select .json files	Selectați fișiere .json	В
 Please sign in again to continue.	Please sign in again to continue.	Conectează-te din nou pentru a continua.	Войдите снова, чтобы продолжить.
 Please try again in a moment.	Please try again in a moment.	Încearcă din nou în câteva momente.	Попробуйте снова через несколько минут.
 Please wait a moment and try again.	Please wait a moment and try again.	Așteaptă un moment și încearcă din nou.	Подождите немного и попробуйте снова.
+Premium access	Premium access	Acces Premium	Доступ Premium
+Premium active	Premium active	Premium activ	Premium активен
+Premium is managed manually until App Store Connect is ready.	Premium is managed manually until App Store Connect is ready.	Premium este administrat manual până când App Store Connect este gata.	Premium управляется вручную, пока App Store Connect не готов.
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
-PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt	Prompt	Enunț	Задание
+PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
+Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
 Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
@@ -529,6 +540,7 @@ Ready	Ready	Pregătit	Готовность
 Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
 Recents	Recents	Recente	Недавние
 Red	Red	Roșu	Красный
+Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
 Render	Render	Randare	Рендер
@@ -540,8 +552,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
@@ -633,11 +645,6 @@ Tap + to add a card, or generate cards with AI.	Tap + to add a card, or generate
 Tap + to add your first card	Tap + to add your first card	Atinge + ca să adaugi primul card	Нажмите +, чтобы добавить первую карточку
 Tap another day in the chart or start a short review block to build this week with meaningful history.	Tap another day in the chart or start a short review block to build this week with meaningful history.	Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.	Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.
 Tap cards	Tap cards	Atinge carduri	Нажмите на карточки
-"Tap Create to make your first deck
-and start learning."	"Tap Create to make your first deck
-and start learning."	"Atinge Creează pentru a face primul deck
-și a începe să înveți."	"Нажмите Создать, чтобы сделать первую колоду
-и начать учиться."
 Tap the label above to flip the card	Tap the label above to flip the card	Atingeți eticheta de mai sus pentru a răsturna card	Коснитесь ярлыка выше, чтобы перевернуть карту.
 Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
 Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
@@ -692,6 +699,7 @@ Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить
 Tune Shadow	Tune Shadow	Ajustează umbra	Настроить тень
 Tune Tab Blur	Tune Tab Blur	Ajustează blurul tabbarului	Настроить размытие вкладок
 Type	Type	Tip	Тип
+Unavailable	Unavailable	Indisponibil	Недоступно
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
 Unique rate	Unique rate	Rată unice	Доля уникальных
 Universal OpenAI-Compatible Setup	Universal OpenAI-Compatible Setup	Configurare universală compatibilă cu OpenAI	Универсальная установка, совместимая с OpenAI
