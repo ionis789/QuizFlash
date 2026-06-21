@@ -420,9 +420,9 @@ struct DeckWorkspaceView: View {
                 AIGenerationSheetView(
                     viewModel: viewModel,
                     safeAreaInsets: safeArea,
-                    onPrimaryAction: {
+                    onPrimaryAction: { completion in
                         Task { @MainActor in
-                            await confirmAIGenerationIfAllowed()
+                            completion(await confirmAIGenerationIfAllowed())
                         }
                     },
                     onCancel: {
