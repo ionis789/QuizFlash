@@ -6,7 +6,6 @@
 //
 
 import FirebaseCore
-import FirebaseAppCheck
 import GoogleSignIn
 import SwiftData
 import SwiftUI
@@ -20,11 +19,6 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         if FirebaseApp.app() == nil {
-#if DEBUG
-            AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
-#else
-            AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
-#endif
             FirebaseApp.configure()
         }
 
@@ -70,12 +64,9 @@ struct QuizFlashApp: App {
                 }
                 .task {
                     authManager.startListening()
-                    await refreshCloudSession(for: authManager.currentUser)
                 }
-                .onChange(of: authManager.currentUser) { _, user in
-                    Task { @MainActor in
-                        await refreshCloudSession(for: user)
-                    }
+                .task(id: authManager.sessionState) {
+                    await refreshCloudSession(for: authManager.currentUser)
                 }
         }
             .modelContainer(for: [
@@ -93,7 +84,7 @@ struct QuizFlashApp: App {
     }
 
     private func refreshCloudSession(for user: AuthUserSnapshot?) async {
-        await subscriptionManager.configure(for: user)
         await cloudUserProfileService.upsertUserProfile(for: user)
+        await subscriptionManager.configure(for: user)
     }
 }
