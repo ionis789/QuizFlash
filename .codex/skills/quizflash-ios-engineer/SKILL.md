@@ -1,6 +1,6 @@
 ---
 name: quizflash-ios-engineer
-description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, and `@Observable`. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI, SwiftData, navigation, performance, editor/play rendering, or when the user requests advanced debugging, detailed diagnostics, construction flow, event flow, or tester-provided debug output.
+description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, Firebase Auth/Firestore/Functions, DeepSeek-backed AI generation, and a future RevenueCat subscription integration. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI, SwiftData, Firebase/backend security, AI quotas or API limits, subscription/paywall work, navigation, performance, editor/play rendering, or when the user requests advanced debugging, detailed diagnostics, construction flow, event flow, or tester-provided debug output.
 ---
 
 # QuizFlash iOS Engineer
@@ -47,6 +47,8 @@ Use the current DeckEditor naming. `CardEditorView` is the router from `CardEdit
 
 QuizFlash uses SwiftData as the local runtime store and a canonical `.json` deck document as the external contract for export/import, backend sync, and AI card payloads. Keep those layers separate: do not make SwiftData models conform to API shape directly, and do not let AI generate deck metadata, IDs, dates, counters, or persistence state. AI generation should return only the shared card DTO for supported Flashcard/Quiz content; the app validates that DTO, maps it to `DraftCardContent`, then creates or updates `CardModel` instances.
 
+QuizFlash now has a Firebase backend. Treat Firebase Auth, Firestore rules, Cloud Functions, DeepSeek usage, and future RevenueCat entitlement sync as one security boundary, not unrelated features. Before changing user profiles, cloud sync, AI generation, quota/plan logic, provider keys, purchases, or Firestore rules, `MUST` read `references/backend-integrations.md` and follow its current-state notes and rollout order. The backend must be the authority for paid access, quotas, and provider secrets; a SwiftUI check, a Firestore field writable by a client, or a local AI-provider profile is never sufficient production enforcement.
+
 QuizFlash AI generation exposes only two depth profiles: Simple and Pro. Keep Simple concise but still useful and testable; keep Pro deeper and more structured without turning cards into essays. Prompting should adapt to the source domain: math/formal subjects should be formula-first with concise interpretation, while history, literature, biology, law, and other prose-heavy subjects should use segmented natural-language explanation. Prefer several small semantic zones over dense answer paragraphs. When editing generation prompts, avoid hardcoding supported UI languages or arbitrary numeric layout thresholds. Phrase guidance in terms of the source/output language, semantic content, and the actual JSON/schema constraints; use fixed numbers only when the product contract truly requires them.
 
 Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
@@ -79,6 +81,7 @@ Use these priority levels consistently:
    - Navigation, `fullScreenSheet`, sticky chrome, long scroll surfaces, or adaptive layout infrastructure
    - Shared design-system behavior, tokens, or reusable cross-screen presentation rules
    - Multi-layer refactors or reviews that cross feature boundaries
+   - Firebase/Auth/Firestore/Functions, DeepSeek, quotas, paywalls, purchases, or RevenueCat: read `references/backend-integrations.md` first
 6. `SHOULD` verify `references/component-catalog.md` before creating a new reusable UI component.
 7. `SHOULD` reuse existing project primitives before introducing new abstractions.
    Frequent examples include:
@@ -180,7 +183,12 @@ QuizFlash flashcards and quiz cards use the same rich content renderer for mixed
    - Prefer denormalized counters over relationship `.count`.
    - Route heavy card-content reads through `CardFetchActor`.
    - Save mutations explicitly and surface failures.
-4. Follow the project's UI system before changing presentation code.
+4. Follow the backend contract before changing cloud or billing code.
+   - Read `references/backend-integrations.md` before editing `firestore.rules`, `functions/`, `Services/Cloud/`, `Services/Subscriptions/`, `Services/Auth/`, AI-provider security, or purchase/entitlement code.
+   - Keep Firebase UID as the stable cross-system user identity. Do not introduce email as a key or duplicate account identity.
+   - Enforce plan, quota, and DeepSeek spend on the server. Keep client logic for presentation and preflight only.
+   - Do not put provider keys, Firebase admin credentials, RevenueCat secret keys, webhook secrets, receipts, or CLI tokens in source, `UserDefaults`, Firestore, logs, screenshots, or chat output.
+5. Follow the project's UI system before changing presentation code.
    - Use `UIConstants` tokens instead of magic numbers.
    - Prefer semantic colors and existing theme plumbing.
    - Prefer shared design-system modifiers and components such as `widgetStyle`, `glassButton`, shared rings, and existing chrome containers over ad-hoc overlays, borders, shadows, or custom surface treatments.
@@ -191,7 +199,7 @@ QuizFlash flashcards and quiz cards use the same rich content renderer for mixed
    - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
    - When `.task(id:)` needs to react to large SwiftData query results, do not build the id by hashing every model property in `body`. Use a cached revision/snapshot updated from cheap count/id/profile signals, then run the heavy fingerprint only off the scroll render path.
    - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
-5. Preserve the repo's file hygiene when generating or rewriting files.
+6. Preserve the repo's file hygiene when generating or rewriting files.
    - Keep Apple-style file headers.
    - Keep `// MARK: -` sections.
    - Keep DocC comments on new internal and public declarations.
@@ -229,6 +237,7 @@ For every debug escalation, state the decision rule before asking for a video or
 - The `Quick Start` section is the canonical context-loading rule for existing-file tasks.
 - Inspect `references/project-map.md` before adding a new type only if you are not sure where it belongs.
 - Read the relevant sections of `references/architecture.md` before touching navigation, concurrency, SwiftData, or performance-sensitive code.
+- Read `references/backend-integrations.md` before touching Firebase, DeepSeek, AI quotas, RevenueCat, purchases, subscription state, or Firestore rules.
 - Read `references/architecture.md` end to end only for new features, large refactors, or reviews that cross multiple layers.
 - Read the scroll and presentation guidance in `references/architecture.md` before changing any large `ScrollView`, sticky hero, floating top chrome, or custom full-screen presentation.
 - Prefer the standards in this skill for new code. If a surrounding file still uses an older pattern, keep the change narrow unless the task explicitly asks for cleanup.
@@ -240,6 +249,7 @@ For every debug escalation, state the decision rule before asking for a video or
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
 - `references/performance-profiling.md`: Instruments capture/export/interpretation protocol for Time Profiler, Allocations, hangs, and QuizFlash hot-path fixes.
 - `references/advanced-debugging.md`: Mandatory deterministic instrumentation and tester-collaboration protocol for hard or repeatedly failing bugs.
+- `references/backend-integrations.md`: Firebase ownership, Firestore security, Cloud Functions/DeepSeek limits, and RevenueCat rollout rules. Read before backend, AI quota, or subscription changes.
 - `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
 - `references/examples/View.swift.example`: Canonical QuizFlash-flavored root-view skeleton for new screens.
 - `references/component-catalog.md`: Reusable UI inventory; check this before creating a new component.

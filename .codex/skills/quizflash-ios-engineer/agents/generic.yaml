@@ -1,4 +1,4 @@
 interface:
   display_name: "QuizFlash iOS Engineer"
-  short_description: "Agent-agnostic QuizFlash engineering guide"
-  default_prompt: "Use $quizflash-ios-engineer as the source of truth for QuizFlash. Read references/task-routing.md first. When advanced debugging is requested or a fix has failed, read references/advanced-debugging.md and collect an exportable end-to-end decision flow before another behavioral patch. Keep changes narrow; if repo access is unavailable, request the relevant files and debug export."
+  short_description: "QuizFlash app, Firebase, AI, and billing guide"
+  default_prompt: "Use $quizflash-ios-engineer as the source of truth for QuizFlash. Read references/task-routing.md first. Before Firebase, DeepSeek, AI quota, Firestore rules, payment, or RevenueCat work, read references/backend-integrations.md and keep the backend authoritative. When advanced debugging is requested or a fix has failed, read references/advanced-debugging.md and collect an exportable end-to-end decision flow before another behavioral patch. Keep changes narrow; if repo access is unavailable, request the relevant files and debug export."

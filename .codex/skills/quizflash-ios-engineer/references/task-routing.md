@@ -28,6 +28,7 @@ For video-heavy UI debugging, extract a few representative frames first and use 
   - Stored tasks, async pipelines, actor boundaries, or cancellation
   - Navigation, `fullScreenSheet`, sticky chrome, long scroll surfaces, or shared adaptive layout infrastructure
   - Shared design-system rules or cross-screen presentation behavior
+- Read `backend-integrations.md` before changing Firebase Auth/Firestore/Functions, cloud sync, AI quotas, DeepSeek, paywalls, purchases, RevenueCat, or Firestore rules.
 - Read `component-catalog.md` only before creating a new reusable UI component.
 - Read `antipatterns.md` only when extending legacy code patterns or doing cleanup beyond the local fix.
 - Read `new-feature-template.md` and the examples only for new screens or end-to-end features.
@@ -97,6 +98,20 @@ Use this route for zone-based editing issues: caret placement, long-press select
 - Add `Features/DeckEditor/Views/DeckWorkspaceView.swift` only if the surfaced UI contract changes.
 - Read concurrency and SwiftData sections in `architecture.md` for task lifecycle or persistence changes.
 
+### Backend, AI quota, or subscription behavior
+
+- Read `references/backend-integrations.md` first; this is mandatory before touching a cloud boundary.
+- Start from the smallest owner and its paired contract:
+  - Firebase bootstrap/session/profile: `App/QuizFlashApp.swift`, `Services/Auth/AuthManager.swift`, `Services/Cloud/CloudUserProfileService.swift`.
+  - Firestore deck sync: `Services/Cloud/CloudSyncService.swift`, then `firestore.rules` if the data shape or authorization changes.
+  - Quota or plan UI: `Services/Subscriptions/SubscriptionManager.swift`, then `Features/DeckEditor/Views/DeckWorkspaceContent.swift` or `Features/Settings/Views/SettingsView.swift`.
+  - Cloud AI: `Services/Cloud/CloudAIGenerationService.swift`, then `functions/src/index.ts`.
+  - Direct/development AI provider: `Services/AI/AIProviderStore.swift`, `Services/AI/AIFlashcardService+Networking.swift`; do not treat this path as the production secret-holder.
+  - RevenueCat: inspect the planned purchase adapter and `SubscriptionManager`; add the backend webhook/function contract before adding a paywall UI.
+- Treat `firestore.rules` and `functions/src/index.ts` as a paired security contract. Never relax a rule merely to make the client work.
+- Verify each server-owned decision at the source: authenticated UID, entitlement/plan, target-card limit, usage/quota, cost/concurrency, and the persisted response used by the UI.
+- Use the Firebase CLI only with the configured project. Inspect and test before deployment; deploy Firestore rules and Functions deliberately and report when a platform plan blocks a Functions deployment.
+
 ### DeckView chrome or grid tweak
 
 - Start with `Features/DeckDetails/Views/DeckView.swift`, `Features/DeckDetails/Views/DeckCardGridView.swift`, or the touched component under `Features/DeckDetails/Components/`.
@@ -136,6 +151,7 @@ Use this route for zone-based editing issues: caret placement, long-press select
 - A text, copy, spacing, or local overlay change should not automatically pull `project-map.md`.
 - A local Home or DeckView UI tweak should not automatically pull `architecture.md` end to end.
 - A `DeckWorkspaceView` UI tweak should not automatically pull the whole AI stack.
+- A quota, premium, or purchase change is never a local UI tweak: read `backend-integrations.md` and the server/Firestore contract.
 - A flashzone content-editor touch or layout bug should not automatically pull every `Features/DeckEditor` file.
 - A screenshot/video bug should not start with broad repo docs; use `rg` and a small owner-file set first.
 - If two nearby files explain the change safely, stop there and edit.

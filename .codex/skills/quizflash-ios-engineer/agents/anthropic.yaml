@@ -1,4 +1,4 @@
 interface:
   display_name: "QuizFlash iOS Engineer"
-  short_description: "QuizFlash SwiftUI + SwiftData coding guide (iOS 17+)"
-  default_prompt: "Use $quizflash-ios-engineer as the canonical QuizFlash guide. Read references/task-routing.md first. When advanced debugging is requested or a fix has failed, read references/advanced-debugging.md and instrument an exportable end-to-end decision flow before changing behavior again. Make narrow changes, call out iOS 17 pitfalls, and verify with xcodebuild when available."
+  short_description: "QuizFlash SwiftUI, Firebase, AI, and billing guide"
+  default_prompt: "Use $quizflash-ios-engineer as the canonical QuizFlash guide. Read references/task-routing.md first. Before Firebase, DeepSeek, AI quota, Firestore rules, purchases, or RevenueCat work, read references/backend-integrations.md and keep the backend authoritative. When advanced debugging is requested or a fix has failed, read references/advanced-debugging.md and instrument an exportable end-to-end decision flow before changing behavior again. Make narrow changes, call out iOS 17 pitfalls, and verify with xcodebuild when available."
