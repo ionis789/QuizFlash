@@ -345,9 +345,10 @@ extension AIFlashcardService {
         var batches: [Int] = []
         let normalizedBatchSize = max(batchSize, 1)
 
-        // Front-load a smaller preview batch so the first cards land sooner and
-        // the generation screen feels responsive even for large targets.
-        if totalCards > normalizedBatchSize, normalizedBatchSize >= 4 {
+        // Front-load a smaller preview batch for smaller jobs. High-volume
+        // runs keep uniform batches so request count and token cost stay easy
+        // to compare across trace captures.
+        if totalCards < 91, totalCards > normalizedBatchSize, normalizedBatchSize >= 4 {
             let previewBatchSize = min(remaining, min(3, max(2, normalizedBatchSize / 2)))
             batches.append(previewBatchSize)
             remaining -= previewBatchSize

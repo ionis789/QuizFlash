@@ -354,6 +354,37 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(plans[2].text.contains("Page 10 content"))
     }
 
+    func testHighVolumeTextBatchingUsesUniformTenCardRequests() {
+        let service = makeService()
+        let text = (1...100)
+            .map { "Page \($0)\nDense source paragraph \($0)." }
+            .joined(separator: DocumentTextExtractor.pageSeparator)
+
+        let plans = service.buildTextBatchPlans(
+            text: text,
+            targetCards: 100,
+            options: AIGenerationOptions(cardType: .flashcards)
+        )
+
+        XCTAssertEqual(plans.count, 10)
+        XCTAssertEqual(plans.map(\.targetCards), Array(repeating: 10, count: 10))
+    }
+
+    @MainActor
+    func testHighVolumeAutomaticAllocationsPreferTenRangesCappedAtTenCards() {
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
+        let characterCounts = Array(repeating: 1_000, count: 49)
+
+        let allocations = viewModel.automaticAllocations(
+            for: characterCounts,
+            totalCards: 100
+        )
+
+        XCTAssertEqual(allocations.count, 10)
+        XCTAssertEqual(allocations.reduce(0) { $0 + $1.cardCount }, 100)
+        XCTAssertTrue(allocations.allSatisfy { $0.cardCount <= 10 })
+    }
+
     func testRepeatedSourceBatchesRunSequentiallySoCoveredPromptsCanUpdate() {
         let service = makeService()
         let plans = service.buildTextBatchPlans(

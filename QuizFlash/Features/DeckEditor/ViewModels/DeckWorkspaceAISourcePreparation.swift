@@ -9,6 +9,8 @@ import PhotosUI
 import PDFKit
 
 extension DeckWorkspaceViewModel {
+    private static let automaticAllocationCardLimit = 10
+
     // MARK: - Workspace Seeding
 
     /// Re-seeds the editor so the Create tab can behave like a normal deck
@@ -723,12 +725,13 @@ extension DeckWorkspaceViewModel {
         let rangeWeights = baseRanges.map { range in
             weights[range].reduce(0, +)
         }
-        let distributedCardCounts = distributedCardCounts(
+        let distributedCardCounts = cappedDistributedCardCounts(
             totalCards: totalCards,
-            across: rangeWeights
+            across: rangeWeights,
+            maxCardsPerAllocation: Self.automaticAllocationCardLimit
         )
 
-        return zip(baseRanges, distributedCardCounts).compactMap { range, cardCount in
+        let allocations: [AISourceRangeAllocation] = zip(baseRanges, distributedCardCounts).compactMap { range, cardCount in
             guard cardCount > 0 else { return nil }
             return AISourceRangeAllocation(
                 startIndex: range.lowerBound + 1,
@@ -736,6 +739,12 @@ extension DeckWorkspaceViewModel {
                 cardCount: cardCount
             )
         }
+
+        return splitLargeAutomaticAllocations(
+            allocations,
+            characterCounts: characterCounts,
+            maxCardsPerAllocation: Self.automaticAllocationCardLimit
+        )
     }
 
     func preferredCoverageRangeCount(
@@ -748,11 +757,80 @@ extension DeckWorkspaceViewModel {
             return min(itemCount, totalCards)
         }
 
+        if totalCards >= 91 {
+            let highVolumeCardDriven = Int(ceil(Double(totalCards) / 10.0))
+            let preferredCount = max(3, highVolumeCardDriven)
+            return min(itemCount, min(totalCards, min(preferredCount, 14)))
+        }
+
         let sourceDriven = Int(ceil(Double(itemCount) / 6.0))
         let cardDriven = Int(ceil(Double(totalCards) / 8.0))
         let preferredCount = max(3, max(sourceDriven, cardDriven))
 
         return min(itemCount, min(totalCards, min(preferredCount, 14)))
+    }
+
+    func splitLargeAutomaticAllocations(
+        _ allocations: [AISourceRangeAllocation],
+        characterCounts: [Int],
+        maxCardsPerAllocation: Int
+    ) -> [AISourceRangeAllocation] {
+        let safeLimit = max(maxCardsPerAllocation, 1)
+
+        return allocations.flatMap { allocation -> [AISourceRangeAllocation] in
+            guard allocation.cardCount > safeLimit else { return [allocation] }
+
+            let lowerBound = max(allocation.startIndex - 1, 0)
+            let upperBound = min(allocation.endIndex, characterCounts.count)
+            guard lowerBound < upperBound else {
+                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
+            }
+
+            let requestedSplitCount = Int(ceil(Double(allocation.cardCount) / Double(safeLimit)))
+            let splitCount = min(requestedSplitCount, upperBound - lowerBound)
+            guard splitCount > 1 else {
+                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
+            }
+
+            let localCounts = Array(characterCounts[lowerBound..<upperBound])
+            let localRanges = weightedCoverageRanges(for: localCounts, groupCount: splitCount)
+            guard !localRanges.isEmpty else {
+                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
+            }
+
+            let cardCounts = evenlyDistributedCardCounts(allocation.cardCount, across: localRanges.count)
+            return zip(localRanges, cardCounts).map { range, cardCount in
+                AISourceRangeAllocation(
+                    startIndex: lowerBound + range.lowerBound + 1,
+                    endIndex: lowerBound + range.upperBound + 1,
+                    cardCount: cardCount
+                )
+            }
+        }
+    }
+
+    func splitAllocationByCardsOnly(
+        _ allocation: AISourceRangeAllocation,
+        maxCardsPerAllocation: Int
+    ) -> [AISourceRangeAllocation] {
+        let splitCount = Int(ceil(Double(allocation.cardCount) / Double(maxCardsPerAllocation)))
+        return evenlyDistributedCardCounts(allocation.cardCount, across: splitCount)
+            .map { cardCount in
+                AISourceRangeAllocation(
+                    startIndex: allocation.startIndex,
+                    endIndex: allocation.endIndex,
+                    cardCount: cardCount
+                )
+            }
+    }
+
+    func evenlyDistributedCardCounts(_ totalCards: Int, across count: Int) -> [Int] {
+        guard totalCards > 0, count > 0 else { return [] }
+        var result = Array(repeating: totalCards / count, count: count)
+        for index in 0..<(totalCards % count) {
+            result[index] += 1
+        }
+        return result
     }
 
     func distributedCardCounts(
@@ -798,6 +876,24 @@ extension DeckWorkspaceViewModel {
 
         for offset in 0 ..< leftoverCards {
             counts[orderedIndices[offset % orderedIndices.count]] += 1
+        }
+
+        return counts
+    }
+
+    func cappedDistributedCardCounts(
+        totalCards: Int,
+        across weights: [Double],
+        maxCardsPerAllocation: Int
+    ) -> [Int] {
+        let safeLimit = max(maxCardsPerAllocation, 1)
+        var counts = distributedCardCounts(totalCards: totalCards, across: weights)
+        guard !counts.isEmpty, counts.count * safeLimit >= totalCards else { return counts }
+
+        while let overIndex = counts.firstIndex(where: { $0 > safeLimit }),
+              let underIndex = counts.firstIndex(where: { $0 < safeLimit }) {
+            counts[overIndex] -= 1
+            counts[underIndex] += 1
         }
 
         return counts

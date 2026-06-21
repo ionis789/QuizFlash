@@ -470,7 +470,7 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
         case 51...90:
             adaptiveBatchSize = 10
         case 91...180:
-            adaptiveBatchSize = 12
+            adaptiveBatchSize = 10
         case 181...320:
             adaptiveBatchSize = 14
         default:
