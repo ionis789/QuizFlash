@@ -96,8 +96,7 @@ struct AuthIconTextField: View {
     }
 
     private var inputTextColor: Color {
-        guard isPassword, usesAutofillReadableText, !isPasswordVisible else { return .primary }
-        return .black
+        .primary
     }
 
     private func updateAutofillReadableState(oldValue: String, newValue: String) {
