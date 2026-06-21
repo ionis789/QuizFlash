@@ -243,6 +243,7 @@
 "Deck Title" = "Deck Title";
 "DECK-SCOPED SETTINGS" = "DECK-SCOPED SETTINGS";
 "Deeper cards with structure, context, and key nuance." = "Deeper cards with structure, context, and key nuance.";
+"DeepSeek endpoint with deepseek-v4-flash defaults." = "DeepSeek endpoint with deepseek-v4-flash defaults.";
 "Default" = "Default";
 "Default %@" = "Default %@";
 "Default size for editors and play modes." = "Default size for editors and play modes.";

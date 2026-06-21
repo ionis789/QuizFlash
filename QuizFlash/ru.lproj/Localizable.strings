@@ -243,6 +243,7 @@
 "Deck Title" = "Название колоды";
 "DECK-SCOPED SETTINGS" = "НАСТРОЙКИ ПАЛУБЫ";
 "Deeper cards with structure, context, and key nuance." = "Более глубокие карточки со структурой, контекстом и ключевыми нюансами.";
+"DeepSeek endpoint with deepseek-v4-flash defaults." = "Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.";
 "Default" = "По умолчанию";
 "Default %@" = "По умолчанию %@";
 "Default size for editors and play modes." = "Размер по умолчанию для редактора и игровых режимов.";

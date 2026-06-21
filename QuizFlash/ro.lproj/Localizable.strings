@@ -243,6 +243,7 @@
 "Deck Title" = "Deck Titlu";
 "DECK-SCOPED SETTINGS" = "SETĂRI PENTRU PUNTE";
 "Deeper cards with structure, context, and key nuance." = "Carduri mai profunde, cu structură, context și nuanțe-cheie.";
+"DeepSeek endpoint with deepseek-v4-flash defaults." = "Endpoint DeepSeek cu setările implicite deepseek-v4-flash.";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
 "Default size for editors and play modes." = "Dimensiune implicită pentru editor și modurile de joc.";

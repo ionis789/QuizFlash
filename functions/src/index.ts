@@ -9,7 +9,7 @@ initializeApp();
 
 const deepSeekAPIKey = defineSecret("DEEPSEEK_API_KEY");
 const deepSeekBaseURL = defineString("DEEPSEEK_BASE_URL", {default: "https://api.deepseek.com"});
-const deepSeekModel = defineString("DEEPSEEK_MODEL", {default: "deepseek-chat"});
+const deepSeekModel = defineString("DEEPSEEK_MODEL", {default: "deepseek-v4-flash"});
 const premiumMonthlyAIBudgetCents = defineInt("PREMIUM_MONTHLY_AI_BUDGET_CENTS", {default: 200});
 
 const freeLifetimeGenerationLimit = 5;
@@ -259,6 +259,7 @@ async function callDeepSeekForCards(
     },
     body: JSON.stringify({
       model: deepSeekModel.value(),
+      thinking: {type: "disabled"},
       response_format: {type: "json_object"},
       messages: [
         {

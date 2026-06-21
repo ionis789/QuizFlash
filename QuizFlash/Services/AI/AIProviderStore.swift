@@ -121,7 +121,7 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .deepSeek:
-            return "DeepSeek endpoint with deepseek-chat defaults."
+            return "DeepSeek endpoint with deepseek-v4-flash defaults."
         case .openAI:
             return "OpenAI endpoint with GPT-4.1 Mini defaults."
         case .openRouter:
@@ -136,7 +136,7 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
     func localizedSubtitle(locale: Locale) -> String {
         switch self {
         case .deepSeek:
-            return AppLocalization.string("DeepSeek endpoint with deepseek-chat defaults.", locale: locale)
+            return AppLocalization.string("DeepSeek endpoint with deepseek-v4-flash defaults.", locale: locale)
         case .openAI:
             return AppLocalization.string("OpenAI endpoint with GPT-4.1 Mini defaults.", locale: locale)
         case .openRouter:
@@ -153,6 +153,9 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
 
 /// One saved AI provider configuration editable from the Settings screen.
 struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
+    private static let deepSeekV4FlashModel = "deepseek-v4-flash"
+    private static let deepSeekNonThinkingExtraBodyJSONString = #"{"thinking":{"type":"disabled"}}"#
+
     var id: UUID
     var name: String
     var requestStyle: AIProviderRequestStyle
@@ -345,8 +348,9 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
                 name: "DeepSeek",
                 endpointURLString: "https://api.deepseek.com/chat/completions",
                 apiKey: "",
-                textModel: "deepseek-chat",
-                visionModel: "deepseek-chat"
+                textModel: Self.deepSeekV4FlashModel,
+                visionModel: Self.deepSeekV4FlashModel,
+                extraBodyJSONString: Self.deepSeekNonThinkingExtraBodyJSONString
             )
         case .openAI:
             return AIProviderProfile(

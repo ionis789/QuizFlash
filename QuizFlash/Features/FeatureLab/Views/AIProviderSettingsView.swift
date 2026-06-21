@@ -298,8 +298,8 @@ struct AIProviderSettingsView: View {
                     syntaxExampleRow(
                         provider: "DeepSeek",
                         endpoint: "api.deepseek.com/chat/completions",
-                        textModel: "deepseek-chat",
-                        visionModel: "deepseek-chat"
+                        textModel: "deepseek-v4-flash",
+                        visionModel: "deepseek-v4-flash"
                     )
 
                     syntaxExampleRow(
