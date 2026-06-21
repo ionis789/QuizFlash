@@ -226,6 +226,10 @@ extension AIFlashcardService {
         Use standard renderable LaTeX for the notation style implied by the source. Preserve the source's semantic relation and variable roles instead of copying damaged glyphs literally or substituting vague prose.
         If a native character, letter variant, operator glyph, relation glyph, or compact symbolic mark functions as mathematical or formal notation, render it through LaTeX math instead of mixing raw native glyphs with rendered formulas.
         Keep notation style consistent across all cards in the same response: the same formal object, relation, operator, or variable role should not alternate between raw text, native symbols, and LaTeX.
+        Apply the same notation rules to every card surface: front, back, question, choices, and explanation. Do not leave formal notation raw in a prompt just because it is short.
+        If a card's main answer is a semantic equation, recursive definition, inference rule, truth table, grammar rule, or other central formal object, place that formal object in its own text zone using display math when it is long or visually dense; keep the prose interpretation in a separate zone.
+        Formal algorithms, recursive definitions, syntax trees, grammars, truth tables, and inference schemas are not executable code merely because they are structured. Represent them as text zones with math notation unless the source is actual runnable/programming syntax.
+        Avoid ASCII art for formal structures unless the source itself is teaching ASCII notation. Prefer compact prose, semantic lists, or display math zones that render predictably on mobile.
         If the source notation is visibly damaged by extraction artifacts, preserve only the unambiguous formal statement. Do not invent missing variables, operators, proof steps, or formulas from a broken fragment.
 
         FORMAL NOTATION IS NOT CODE
