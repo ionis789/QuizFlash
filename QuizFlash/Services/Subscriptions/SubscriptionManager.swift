@@ -110,23 +110,30 @@ final class SubscriptionManager {
     }
 
     func consumeAIGenerationQuota(targetCards: Int) async throws {
-        let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
-            "targetCards": targetCards
-        ])
+        do {
+            let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
+                "targetCards": targetCards
+            ])
 
-        guard let response = result.data as? [String: Any] else {
-            await refresh()
-            return
+            guard let response = result.data as? [String: Any] else {
+                await refresh()
+                return
+            }
+
+            applyQuotaResponse(response)
+        } catch {
+            try await consumeAIGenerationQuotaDirectly(targetCards: targetCards)
         }
+    }
 
+    private func applyQuotaResponse(_ response: [String: Any]) {
         if response["premium"] as? Bool == true {
             freeGenerationsUsed = nil
             freeGenerationsLimit = nil
-            return
+        } else {
+            freeGenerationsUsed = response["freeGenerationsUsed"] as? Int ?? freeGenerationsUsed
+            freeGenerationsLimit = response["freeGenerationsLimit"] as? Int ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
         }
-
-        freeGenerationsUsed = response["freeGenerationsUsed"] as? Int ?? freeGenerationsUsed
-        freeGenerationsLimit = response["freeGenerationsLimit"] as? Int ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
     }
 
     /// Placeholder action until App Store Connect purchases are available.
@@ -142,6 +149,67 @@ final class SubscriptionManager {
         freeGenerationsUsed = nil
         freeGenerationsLimit = nil
         lastErrorMessage = nil
+    }
+
+    private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {
+        guard targetCards <= DeckWorkspaceViewModel.maximumAICardsPerGeneration else {
+            throw SubscriptionManagerError.aiCardLimitExceeded(maximum: DeckWorkspaceViewModel.maximumAICardsPerGeneration)
+        }
+
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw SubscriptionManagerError.signInRequired
+        }
+
+        let userRef = firestore.collection("users").document(uid)
+        let response: [String: Any] = try await withCheckedThrowingContinuation { continuation in
+            firestore.runTransaction({ transaction, errorPointer -> Any? in
+                let snapshot: DocumentSnapshot
+                do {
+                    snapshot = try transaction.getDocument(userRef)
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+
+                let data = snapshot.data() ?? [:]
+                let premium = data["premium"] as? Bool == true || data["plan"] as? String == "premium"
+
+                if premium {
+                    return [
+                        "premium": true
+                    ]
+                }
+
+                let used = data["freeGenerationsUsed"] as? Int ?? 0
+                let limit = data["freeGenerationsLimit"] as? Int ?? Self.defaultFreeGenerationsLimit
+
+                guard used < limit else {
+                    errorPointer?.pointee = SubscriptionManagerError.freeGenerationLimitReached as NSError
+                    return nil
+                }
+
+                let nextUsed = used + 1
+                transaction.setData([
+                    "freeGenerationsUsed": nextUsed,
+                    "freeGenerationsLimit": limit,
+                    "updatedAt": FieldValue.serverTimestamp()
+                ], forDocument: userRef, merge: true)
+
+                return [
+                    "premium": false,
+                    "freeGenerationsUsed": nextUsed,
+                    "freeGenerationsLimit": limit
+                ]
+            }) { object, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: object as? [String: Any] ?? [:])
+                }
+            }
+        }
+
+        applyQuotaResponse(response)
     }
 
     private var firestore: Firestore {
@@ -185,11 +253,20 @@ enum SubscriptionPlanSource: String, Sendable {
 
 enum SubscriptionManagerError: LocalizedError {
     case storeUnavailable
+    case signInRequired
+    case aiCardLimitExceeded(maximum: Int)
+    case freeGenerationLimitReached
 
     var errorDescription: String? {
         switch self {
         case .storeUnavailable:
             return "Purchases are not available until App Store Connect is ready."
+        case .signInRequired:
+            return "Sign in is required."
+        case .aiCardLimitExceeded(let maximum):
+            return "This plan allows up to \(maximum) cards per generation."
+        case .freeGenerationLimitReached:
+            return "Free AI generation limit reached."
         }
     }
 }

@@ -22,6 +22,32 @@ service cloud.firestore {
       ]);
     }
 
+    function currentFreeGenerationsUsed() {
+      return resource.data.keys().hasAny(['freeGenerationsUsed'])
+        ? resource.data.freeGenerationsUsed
+        : 0;
+    }
+
+    function currentFreeGenerationsLimit() {
+      return resource.data.keys().hasAny(['freeGenerationsLimit'])
+        ? resource.data.freeGenerationsLimit
+        : 5;
+    }
+
+    function consumesOneFreeGeneration() {
+      let used = currentFreeGenerationsUsed();
+      let limit = currentFreeGenerationsLimit();
+      return !(resource.data.premium == true || resource.data.plan == 'premium')
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'freeGenerationsUsed',
+          'freeGenerationsLimit',
+          'updatedAt'
+        ])
+        && request.resource.data.freeGenerationsUsed == used + 1
+        && request.resource.data.freeGenerationsLimit == limit
+        && used < limit;
+    }
+
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid)
@@ -34,7 +60,8 @@ service cloud.firestore {
           'freeGenerationsLimit',
           'initialMigrationCompleted'
         ]);
-      allow update: if owns(uid) && !sensitiveUserFieldsChanged();
+      allow update: if owns(uid)
+        && (!sensitiveUserFieldsChanged() || consumesOneFreeGeneration());
       allow delete: if false;
 
       match /decks/{deckId} {
