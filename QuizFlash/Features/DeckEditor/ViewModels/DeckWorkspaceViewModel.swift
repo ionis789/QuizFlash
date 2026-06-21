@@ -128,7 +128,7 @@ struct DeckWorkspaceStateSnapshot: Equatable {
 @MainActor
 final class DeckWorkspaceViewModel {
 
-    static let maximumAICardsPerGeneration = 30
+    var maximumAICardsPerGeneration = SubscriptionManager.freeMaxCardsPerGeneration
 
     // MARK: - AI State
     var aiState: AIGenerationState = .idle
@@ -230,13 +230,37 @@ final class DeckWorkspaceViewModel {
         }
     }
 
+    func setMaximumAICardsPerGeneration(_ limit: Int) {
+        let safeLimit = max(limit, 5)
+        guard maximumAICardsPerGeneration != safeLimit else { return }
+
+        maximumAICardsPerGeneration = safeLimit
+        setRequestedCardCount(requestedCardCount)
+        clampManualAllocationsToCurrentLimit()
+    }
+
     var manualAllocationValidationMessage: String? {
-        guard let source = preparedAISource else { return "No source selected." }
+        manualAllocationValidationMessage(locale: .current)
+    }
+
+    func manualAllocationValidationMessage(locale: Locale) -> String? {
+        guard let source = preparedAISource else {
+            return AppLocalization.string("No source selected.", locale: locale)
+        }
+
         let allocations = normalizedManualAllocations(for: source.itemCount)
-        guard !allocations.isEmpty else { return "Add at least one range." }
+        guard !allocations.isEmpty else {
+            return AppLocalization.string("Add at least one range.", locale: locale)
+        }
 
         if hasOverlappingAllocations(allocations) {
-            return "Manual ranges overlap. Make each range distinct."
+            return AppLocalization.string("Manual ranges overlap. Make each range distinct.", locale: locale)
+        }
+
+        let allocatedCardCount = allocations.reduce(0) { $0 + $1.cardCount }
+        if allocatedCardCount > maximumAICardsPerGeneration {
+            let format = AppLocalization.string("Reduce cards to %d or fewer.", locale: locale)
+            return String.localizedStringWithFormat(format, maximumAICardsPerGeneration)
         }
 
         return nil

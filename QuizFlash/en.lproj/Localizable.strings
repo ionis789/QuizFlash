@@ -112,6 +112,7 @@
 "Add manually" = "Add manually";
 "Add Media Answer" = "Add Media Answer";
 "Add Range" = "Add Range";
+"Add at least one range." = "Add at least one range.";
 "Add Right" = "Add Right";
 "Add source text before saving." = "Add source text before saving.";
 "Add text and mark a blank to preview the card." = "Add text and mark a blank to preview the card.";
@@ -401,6 +402,7 @@
 "Manual" = "Manual";
 "Manual input" = "Manual input";
 "Manual premium" = "Manual premium";
+"Manual ranges overlap. Make each range distinct." = "Manual ranges overlap. Make each range distinct.";
 "Mark at least one correct answer." = "Mark at least one correct answer.";
 "Mark Blank" = "Mark Blank";
 "Mark Correct" = "Mark Correct";
@@ -443,6 +445,7 @@
 "No answer selected" = "No answer selected";
 "No blank selected" = "No blank selected";
 "No cards moved today" = "No cards moved today";
+"No source selected." = "No source selected.";
 "No cards yet" = "No cards yet";
 "No catalog matches" = "No catalog matches";
 "No choices added" = "No choices added";
@@ -553,6 +556,7 @@
 "Resize Zone" = "Resize Zone";
 "Resume AI generation" = "Resume AI generation";
 "Resume Deck" = "Resume Deck";
+"Reduce cards to %d or fewer." = "Reduce cards to %d or fewer.";
 "RETRY" = "RETRY";
 "Retry" = "Retry";
 "Retry cards" = "Retry";

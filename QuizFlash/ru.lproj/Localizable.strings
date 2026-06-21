@@ -112,6 +112,7 @@
 "Add manually" = "Добавить вручную";
 "Add Media Answer" = "Добавить ответ с медиа";
 "Add Range" = "Добавить диапазон";
+"Add at least one range." = "Добавьте минимум один диапазон.";
 "Add Right" = "Добавить справа";
 "Add source text before saving." = "Добавьте исходный текст перед сохранением.";
 "Add text and mark a blank to preview the card." = "Добавьте текст и отметьте пропуск для предпросмотра.";
@@ -401,6 +402,7 @@
 "Manual" = "Вручную";
 "Manual input" = "Ручной ввод";
 "Manual premium" = "Premium вручную";
+"Manual ranges overlap. Make each range distinct." = "Ручные диапазоны пересекаются. Сделайте каждый диапазон отдельным.";
 "Mark at least one correct answer." = "Отметьте минимум один правильный ответ.";
 "Mark Blank" = "Отметить пропуск";
 "Mark Correct" = "Отметить верным";
@@ -443,6 +445,7 @@
 "No answer selected" = "Ответ не выбран";
 "No blank selected" = "Пропуск не выбран";
 "No cards moved today" = "Сегодня не было активных карточек";
+"No source selected." = "Источник не выбран.";
 "No cards yet" = "Карточек пока нет";
 "No catalog matches" = "Нет совпадений по каталогу";
 "No choices added" = "Варианты не добавлены";
@@ -553,6 +556,7 @@
 "Resize Zone" = "Изменить размер зоны";
 "Resume AI generation" = "Возобновить AI генерацию";
 "Resume Deck" = "Продолжить колоду";
+"Reduce cards to %d or fewer." = "Уменьшите число карточек до %d или меньше.";
 "RETRY" = "ПОВТОРИТЬ";
 "Retry" = "Повтор";
 "Retry cards" = "Повторить";

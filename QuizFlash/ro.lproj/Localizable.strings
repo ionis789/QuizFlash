@@ -112,6 +112,7 @@
 "Add manually" = "Adaugă manual";
 "Add Media Answer" = "Adaugă răspuns media";
 "Add Range" = "Adaugă interval";
+"Add at least one range." = "Adaugă cel puțin un interval.";
 "Add Right" = "Adaugă la dreapta";
 "Add source text before saving." = "Adaugă textul sursă înainte de salvare.";
 "Add text and mark a blank to preview the card." = "Adaugă text și marchează un spațiu liber pentru previzualizare.";
@@ -401,6 +402,7 @@
 "Manual" = "Manual";
 "Manual input" = "Introducere manuală";
 "Manual premium" = "Premium manual";
+"Manual ranges overlap. Make each range distinct." = "Intervalele manuale se suprapun. Fă fiecare interval distinct.";
 "Mark at least one correct answer." = "Marchează cel puțin un răspuns corect.";
 "Mark Blank" = "Marchează spațiul";
 "Mark Correct" = "Marchează corect";
@@ -443,6 +445,7 @@
 "No answer selected" = "Niciun răspuns selectat";
 "No blank selected" = "Niciun gol selectat";
 "No cards moved today" = "Niciun card mutat azi";
+"No source selected." = "Nicio sursă selectată.";
 "No cards yet" = "Niciun card încă";
 "No catalog matches" = "Nicio potrivire de catalog";
 "No choices added" = "Nicio variantă adăugată";
@@ -553,6 +556,7 @@
 "Resize Zone" = "Redimensionează zona";
 "Resume AI generation" = "Reia generarea AI";
 "Resume Deck" = "Reia deckul";
+"Reduce cards to %d or fewer." = "Redu cardurile la %d sau mai puține.";
 "RETRY" = "ÎNCERCAȚI";
 "Retry" = "Reîncearcă";
 "Retry cards" = "De repetat";

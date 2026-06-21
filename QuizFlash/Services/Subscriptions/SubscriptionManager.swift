@@ -20,6 +20,8 @@ final class SubscriptionManager {
 
     static let shared = SubscriptionManager()
     static let defaultFreeGenerationsLimit = 5
+    static let freeMaxCardsPerGeneration = 30
+    static let premiumMaxCardsPerGeneration = 100
 
     // MARK: - State
 
@@ -109,6 +111,10 @@ final class SubscriptionManager {
         return AppLocalization.string("Upgrade to Premium to generate more cards.", locale: locale)
     }
 
+    var maxCardsPerGeneration: Int {
+        isPremium ? Self.premiumMaxCardsPerGeneration : Self.freeMaxCardsPerGeneration
+    }
+
     func consumeAIGenerationQuota(targetCards: Int) async throws {
         do {
             let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
@@ -128,9 +134,13 @@ final class SubscriptionManager {
 
     private func applyQuotaResponse(_ response: [String: Any]) {
         if response["premium"] as? Bool == true {
+            isPremium = true
+            planSource = .manualFirestore
             freeGenerationsUsed = nil
             freeGenerationsLimit = nil
         } else {
+            isPremium = false
+            planSource = .free
             freeGenerationsUsed = response["freeGenerationsUsed"] as? Int ?? freeGenerationsUsed
             freeGenerationsLimit = response["freeGenerationsLimit"] as? Int ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
         }
@@ -152,10 +162,6 @@ final class SubscriptionManager {
     }
 
     private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {
-        guard targetCards <= DeckWorkspaceViewModel.maximumAICardsPerGeneration else {
-            throw SubscriptionManagerError.aiCardLimitExceeded(maximum: DeckWorkspaceViewModel.maximumAICardsPerGeneration)
-        }
-
         guard let uid = Auth.auth().currentUser?.uid else {
             throw SubscriptionManagerError.signInRequired
         }
@@ -173,6 +179,12 @@ final class SubscriptionManager {
 
                 let data = snapshot.data() ?? [:]
                 let premium = data["premium"] as? Bool == true || data["plan"] as? String == "premium"
+                let maxCards = premium ? Self.premiumMaxCardsPerGeneration : Self.freeMaxCardsPerGeneration
+
+                guard targetCards <= maxCards else {
+                    errorPointer?.pointee = SubscriptionManagerError.aiCardLimitExceeded(maximum: maxCards) as NSError
+                    return nil
+                }
 
                 if premium {
                     return [

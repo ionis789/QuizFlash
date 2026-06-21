@@ -113,6 +113,7 @@ Add Left	Add Left	Adaugă la stânga	Добавить слева
 Add manually	Add manually	Adaugă manual	Добавить вручную
 Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
 Add Range	Add Range	Adaugă interval	Добавить диапазон
+Add at least one range.	Add at least one range.	Adaugă cel puțin un interval.	Добавьте минимум один диапазон.
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
@@ -402,6 +403,7 @@ Log Out	Log Out	Deconectare	Выйти
 Manual	Manual	Manual	Вручную
 Manual input	Manual input	Introducere manuală	Ручной ввод
 Manual premium	Manual premium	Premium manual	Premium вручную
+Manual ranges overlap. Make each range distinct.	Manual ranges overlap. Make each range distinct.	Intervalele manuale se suprapun. Fă fiecare interval distinct.	Ручные диапазоны пересекаются. Сделайте каждый диапазон отдельным.
 Mark at least one correct answer.	Mark at least one correct answer.	Marchează cel puțin un răspuns corect.	Отметьте минимум один правильный ответ.
 Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
@@ -444,6 +446,7 @@ No answer added	No answer added	Niciun răspuns adăugat	Ответ не доб�
 No answer selected	No answer selected	Niciun răspuns selectat	Ответ не выбран
 No blank selected	No blank selected	Niciun gol selectat	Пропуск не выбран
 No cards moved today	No cards moved today	Niciun card mutat azi	Сегодня не было активных карточек
+No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
 No cards yet	No cards yet	Niciun card încă	Карточек пока нет
 No catalog matches	No catalog matches	Nicio potrivire de catalog	Нет совпадений по каталогу
 No choices added	No choices added	Nicio variantă adăugată	Варианты не добавлены
@@ -554,6 +557,7 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
+Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d sau mai puține.	Уменьшите число карточек до %d или меньше.
 Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить

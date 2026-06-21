@@ -14,7 +14,7 @@ const premiumMonthlyAIBudgetCents = defineInt("PREMIUM_MONTHLY_AI_BUDGET_CENTS",
 
 const freeLifetimeGenerationLimit = 5;
 const freeMaxCardsPerGeneration = 30;
-const premiumMaxCardsPerGeneration = 30;
+const premiumMaxCardsPerGeneration = 100;
 
 type GenerateDeckRequest = {
   source?: {

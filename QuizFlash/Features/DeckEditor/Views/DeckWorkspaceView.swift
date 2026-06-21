@@ -338,6 +338,10 @@ struct DeckWorkspaceView: View {
                 syncAIWorkspaceGenerationState()
                 performLaunchActionIfNeeded()
             }
+            .task {
+                await subscriptionManager.refresh()
+                syncAIGenerationLimit()
+            }
             .onChange(of: viewModel.draftCards) { _, _ in
                 refreshDerivedDeckState()
             }
@@ -355,12 +359,19 @@ struct DeckWorkspaceView: View {
                       router.createWorkspaceEditingDeckID != nil else { return }
                 router.clearCreateWorkspaceEditingContext()
             }
+            .onChange(of: subscriptionManager.isPremium) { _, _ in
+                syncAIGenerationLimit()
+            }
             .customTabBarVisibility(tabRule)
             .alert(localized("AI usage"), isPresented: $showAIAccessAlert) {
                 Button(localized("OK"), role: .cancel) { }
             } message: {
                 Text(aiAccessAlertMessage)
             }
+    }
+
+    func syncAIGenerationLimit() {
+        viewModel.setMaximumAICardsPerGeneration(subscriptionManager.maxCardsPerGeneration)
     }
 
     var pickerBoundContent: some View {

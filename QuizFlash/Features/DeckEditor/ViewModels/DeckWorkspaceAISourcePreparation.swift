@@ -501,7 +501,7 @@ extension DeckWorkspaceViewModel {
 
     /// Updates the auto-generation target card count selected in the sheet.
     func setRequestedCardCount(_ count: Int) {
-        let clampedCount = min(max(count, 5), Self.maximumAICardsPerGeneration)
+        let clampedCount = min(max(count, 5), maximumAICardsPerGeneration)
         guard requestedCardCount != clampedCount else { return }
 
         requestedCardCount = clampedCount
@@ -605,7 +605,20 @@ extension DeckWorkspaceViewModel {
         let otherCardCount = manualAISourceAllocations
             .filter { $0.id != allocationID }
             .reduce(0) { $0 + max($1.cardCount, 0) }
-        return max(Self.maximumAICardsPerGeneration - otherCardCount, 1)
+        return max(maximumAICardsPerGeneration - otherCardCount, 1)
+    }
+
+    func clampManualAllocationsToCurrentLimit() {
+        guard !manualAISourceAllocations.isEmpty else { return }
+
+        var remaining = maximumAICardsPerGeneration
+        manualAISourceAllocations = manualAISourceAllocations.map { allocation in
+            var clamped = allocation
+            let nextCount = min(max(clamped.cardCount, 1), max(remaining, 1))
+            clamped.cardCount = nextCount
+            remaining -= nextCount
+            return clamped
+        }
     }
 
     func normalizedManualAllocations(for itemCount: Int) -> [AISourceRangeAllocation] {

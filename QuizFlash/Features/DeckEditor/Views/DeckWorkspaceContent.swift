@@ -358,23 +358,35 @@ extension DeckWorkspaceView {
     func presentAIGenerationSourcePicker() {
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
-        guard canUseAIGeneration() else { return }
-        viewModel.showAIPickerOptions = true
+
+        guard !isCheckingAIAccess else { return }
+        isCheckingAIAccess = true
+        Task { @MainActor in
+            defer { isCheckingAIAccess = false }
+            await subscriptionManager.refresh()
+            syncAIGenerationLimit()
+            guard canUseAIGeneration() else { return }
+            viewModel.showAIPickerOptions = true
+        }
     }
 
     func confirmAIGenerationIfAllowed() {
         guard !isCheckingAIAccess else { return }
         guard canUseAIGeneration() else { return }
 
-        let targetCardCount = viewModel.targetCardCount(for: viewModel.resolvedAISourceAllocations)
-        guard targetCardCount > 0 else { return }
-
         isCheckingAIAccess = true
         Task { @MainActor in
             defer { isCheckingAIAccess = false }
 
             do {
+                await subscriptionManager.refresh()
+                syncAIGenerationLimit()
+
+                let targetCardCount = viewModel.targetCardCount(for: viewModel.resolvedAISourceAllocations)
+                guard targetCardCount > 0 else { return }
+
                 try await subscriptionManager.consumeAIGenerationQuota(targetCards: targetCardCount)
+                syncAIGenerationLimit()
                 viewModel.confirmAIGenerationFromSheet()
             } catch {
                 aiAccessAlertMessage = error.localizedDescription

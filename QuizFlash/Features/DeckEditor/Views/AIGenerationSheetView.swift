@@ -160,7 +160,7 @@ struct AIGenerationSheetView: View {
         VStack(spacing: 0) {
             TickCardCountPicker(
                 value: viewModel.requestedCardCount,
-                range: 5 ... DeckWorkspaceViewModel.maximumAICardsPerGeneration
+                range: 5 ... viewModel.maximumAICardsPerGeneration
             ) { newValue in
                 viewModel.setRequestedCardCount(newValue)
             }
@@ -376,7 +376,7 @@ struct AIGenerationSheetView: View {
                 .buttonStyle(.plain)
             }
 
-            if let message = viewModel.manualAllocationValidationMessage {
+            if let message = viewModel.manualAllocationValidationMessage(locale: appPreferences.resolvedLocale) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.orange)
