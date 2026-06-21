@@ -33,10 +33,15 @@ service cloud.firestore {
         : 5;
     }
 
+    function currentUserIsPremium() {
+      return (resource.data.keys().hasAny(['premium']) && resource.data.premium == true)
+        || (resource.data.keys().hasAny(['plan']) && resource.data.plan == 'premium');
+    }
+
     function consumesOneFreeGeneration() {
       let used = currentFreeGenerationsUsed();
       let limit = currentFreeGenerationsLimit();
-      return !(resource.data.premium == true || resource.data.plan == 'premium')
+      return !currentUserIsPremium()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'freeGenerationsUsed',
           'freeGenerationsLimit',
