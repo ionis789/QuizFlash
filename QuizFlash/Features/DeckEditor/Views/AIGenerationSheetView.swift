@@ -160,7 +160,7 @@ struct AIGenerationSheetView: View {
         VStack(spacing: 0) {
             TickCardCountPicker(
                 value: viewModel.requestedCardCount,
-                range: 5 ... 100
+                range: 5 ... DeckWorkspaceViewModel.maximumAICardsPerGeneration
             ) { newValue in
                 viewModel.setRequestedCardCount(newValue)
             }
@@ -354,7 +354,7 @@ struct AIGenerationSheetView: View {
                     allocation: allocation,
                     upperBound: max(viewModel.preparedAISource?.itemCount ?? 1, 1),
                     maximumEndIndex: viewModel.maximumManualEndIndex(for: allocation),
-                    cardCountUpperBound: 100,
+                    cardCountUpperBound: viewModel.maximumManualCardCount(for: allocation),
                     canRemove: viewModel.manualAISourceAllocations.count > 1,
                     onEndChange: { viewModel.updateManualAllocation(id: allocation.id, endIndex: $0) },
                     onCardCountChange: { viewModel.updateManualAllocation(id: allocation.id, cardCount: $0) },

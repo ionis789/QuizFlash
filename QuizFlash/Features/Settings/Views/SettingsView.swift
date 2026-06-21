@@ -695,7 +695,12 @@ struct SettingsView: View {
             return AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
         }
 
-        return "\(used)/\(limit)"
+        return AppLocalization.numbered(
+            max(limit - used, 0),
+            singular: "%d AI generation left",
+            plural: "%d AI generations left",
+            locale: appPreferences.resolvedLocale
+        )
     }
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {

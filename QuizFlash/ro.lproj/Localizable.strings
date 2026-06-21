@@ -53,6 +53,8 @@
 "%d flashcards" = "%d flashcarduri";
 "%d goal days" = "%d zile cu țintă";
 "%d hidden" = "%d ascunse";
+"%d AI generation left" = "%d generare AI rămasă";
+"%d AI generations left" = "%d generări AI rămase";
 "%d left" = "%d rămase";
 "%d manual" = "%d manuale";
 "%d match" = "%d potrivire";

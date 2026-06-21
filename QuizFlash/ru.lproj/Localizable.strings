@@ -53,6 +53,8 @@
 "%d flashcards" = "%d флэшкарточек";
 "%d goal days" = "%d дней с целью";
 "%d hidden" = "%d скрыто";
+"%d AI generation left" = "Осталась %d AI-генерация";
+"%d AI generations left" = "Осталось %d AI-генераций";
 "%d left" = "Осталось %d";
 "%d manual" = "%d вручную";
 "%d match" = "%d совпадение";

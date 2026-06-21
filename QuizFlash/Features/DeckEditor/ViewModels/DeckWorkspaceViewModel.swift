@@ -128,6 +128,8 @@ struct DeckWorkspaceStateSnapshot: Equatable {
 @MainActor
 final class DeckWorkspaceViewModel {
 
+    static let maximumAICardsPerGeneration = 30
+
     // MARK: - AI State
     var aiState: AIGenerationState = .idle
     var showPersistenceError = false
