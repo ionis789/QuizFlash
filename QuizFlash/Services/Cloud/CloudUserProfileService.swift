@@ -10,7 +10,7 @@ import Observation
 
 // MARK: - Cloud User Profile Service
 
-/// Owns Firebase user-profile callable operations.
+/// Owns Firebase user-profile operations.
 @Observable
 @MainActor
 final class CloudUserProfileService {
@@ -41,7 +41,7 @@ final class CloudUserProfileService {
 
     // MARK: - Public
 
-    /// Creates or refreshes the server-owned user profile document.
+    /// Creates or refreshes the user profile document.
     func upsertUserProfile(for user: AuthUserSnapshot?) async {
         guard let user else {
             lastUpsertedUID = nil
@@ -50,12 +50,8 @@ final class CloudUserProfileService {
         }
 
         do {
-            var payload: [String: Any] = ["providers": user.providers]
-            if let email = user.email { payload["email"] = email }
-            if let displayName = user.displayName { payload["displayName"] = displayName }
-            if let photoURL = user.photoURLString { payload["photoURL"] = photoURL }
-
-            _ = try await functions.httpsCallable("upsertUserProfile").call(payload)
+            try await upsertUserProfileDirectly(for: user)
+            await upsertUserProfileThroughFunctionIfAvailable(for: user)
             lastUpsertedUID = user.uid
             lastErrorMessage = nil
         } catch {
@@ -71,6 +67,30 @@ final class CloudUserProfileService {
     /// Reads the server-owned user profile document.
     func userProfileDocument(uid: String) async throws -> [String: Any]? {
         try await firestore.collection("users").document(uid).getDocument().data()
+    }
+
+    private func upsertUserProfileDirectly(for user: AuthUserSnapshot) async throws {
+        var payload: [String: Any] = [
+            "providers": user.providers,
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+        if let email = user.email { payload["email"] = email }
+        if let displayName = user.displayName { payload["displayName"] = displayName }
+        if let photoURL = user.photoURLString { payload["photoURL"] = photoURL }
+
+        try await firestore
+            .collection("users")
+            .document(user.uid)
+            .setData(payload, merge: true)
+    }
+
+    private func upsertUserProfileThroughFunctionIfAvailable(for user: AuthUserSnapshot) async {
+        var payload: [String: Any] = ["providers": user.providers]
+        if let email = user.email { payload["email"] = email }
+        if let displayName = user.displayName { payload["displayName"] = displayName }
+        if let photoURL = user.photoURLString { payload["photoURL"] = photoURL }
+
+        _ = try? await functions.httpsCallable("upsertUserProfile").call(payload)
     }
 
     private var functions: Functions {
