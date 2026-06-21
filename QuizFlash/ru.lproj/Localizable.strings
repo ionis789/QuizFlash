@@ -696,7 +696,6 @@
 "No signed-in user was found." = "Пользователь не найден.";
 "No account was found for this email." = "Аккаунт с этим email не найден.";
 "or" = "или";
-"Opening QuizFlash" = "Открываем QuizFlash";
 "Password" = "Пароль";
 "Password reset link sent." = "Ссылка для сброса пароля отправлена.";
 "Passwords do not match." = "Пароли не совпадают.";

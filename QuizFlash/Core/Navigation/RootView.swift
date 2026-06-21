@@ -19,13 +19,13 @@ struct RootView: View {
                         .transition(.opacity)
                 case .signedIn:
                     MainAppView()
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(.opacity)
                 case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
                     LoginView()
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: authManager.sessionState)
+            .animation(.easeInOut(duration: 0.45), value: authManager.sessionState)
         }
     }
 }

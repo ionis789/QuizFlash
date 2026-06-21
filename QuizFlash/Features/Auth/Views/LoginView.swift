@@ -305,7 +305,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .password,
+                        passwordTextContentType: .oneTimeCode,
                         text: $password
                     )
 
@@ -313,7 +313,7 @@ private struct CreateAccountView: View {
                         title: AppLocalization.string("Confirm Password", locale: locale),
                         icon: "lock",
                         isPassword: true,
-                        passwordTextContentType: .password,
+                        passwordTextContentType: .oneTimeCode,
                         text: $passwordConfirmation
                     )
 
@@ -485,35 +485,15 @@ private struct EmailVerificationSuccessView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-
-                if let email = user.email {
-                    Text(email)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.secondary.opacity(0.82))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                        .padding(.top, UIConstants.Spacing.small)
-                }
             }
-
-            HStack(spacing: UIConstants.Spacing.medium) {
-                Text(AppLocalization.string("Opening QuizFlash", locale: locale))
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                ProgressActivityDots(color: themeManager.accentColor.color)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: UIConstants.Size.buttonHeight)
-            .background(Color.primary.opacity(0.06), in: Capsule())
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, UIConstants.Spacing.large)
         .frame(maxWidth: 440)
-        .transition(.opacity.combined(with: .scale(scale: 0.94)))
+        .transition(.opacity)
         .task(id: user.uid) {
-            try? await Task.sleep(for: .milliseconds(1500))
+            try? await Task.sleep(for: .milliseconds(1200))
             guard !Task.isCancelled else { return }
             onContinue()
         }
