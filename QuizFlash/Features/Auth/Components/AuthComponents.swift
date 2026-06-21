@@ -40,7 +40,6 @@ struct AuthIconTextField: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .foregroundStyle(inputTextColor)
-            .statusTextMotion(trigger: usesAutofillReadableText)
             .onChange(of: text) { oldValue, newValue in
                 updateAutofillReadableState(oldValue: oldValue, newValue: newValue)
             }
@@ -78,7 +77,7 @@ struct AuthIconTextField: View {
                 .accessibilityHidden(isPasswordVisible)
 
             TextField(title, text: $text)
-                .textContentType(passwordTextContentType)
+                .textContentType(nil)
                 .focused($focusedPasswordField, equals: .plain)
                 .opacity(isPasswordVisible ? 1 : 0)
                 .allowsHitTesting(isPasswordVisible)
