@@ -160,19 +160,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CB4867292FDFC60500356D9C /* Exceptions for "QuizFlash" folder in "QuizFlash" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = CB5C2D732EF8A48400FB1D07 /* QuizFlash */;
-		};
 		CB27A62B2F89A0FC00666115 /* Exceptions for "QuizFlash" folder in "QuizFlashTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Features/FeatureLab/Resources/Lottie/swipe_arrow.json,
 			);
 			target = D0A100082F70000100TEST00 /* QuizFlashTests */;
+		};
+		CB4867292FDFC60500356D9C /* Exceptions for "QuizFlash" folder in "QuizFlash" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CB5C2D732EF8A48400FB1D07 /* QuizFlash */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -880,16 +880,6 @@
 			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
 		};
-		CB48672A2FDFC60500356D9C /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
-		};
-		CB48672C2FDFC60500356D9C /* FirebaseFunctions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFunctions;
-		};
 		CB4867232FDFC60500356D9C /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CB4867272FDFC60500356D9C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
@@ -899,6 +889,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CB4867272FDFC60500356D9C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		CB48672A2FDFC60500356D9C /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		CB48672C2FDFC60500356D9C /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFunctions;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
