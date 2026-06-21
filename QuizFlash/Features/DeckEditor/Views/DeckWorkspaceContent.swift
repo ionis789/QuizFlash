@@ -75,32 +75,35 @@ extension DeckWorkspaceView {
             .animation(.easeInOut(duration: 0.35), value: viewModel.draftCards.isEmpty)
     }
 
+    func mainCardsListContent(using scrollProxy: ScrollViewProxy) -> AnyView {
+        if viewModel.draftCards.isEmpty && !hasActiveGenerationRuntime {
+            return AnyView(emptyStateView.transition(.opacity))
+        }
+
+        return AnyView(activeCardsListContent)
+    }
+
     @ViewBuilder
-    func mainCardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
-        if viewModel.draftCards.isEmpty
-            && !hasActiveGenerationRuntime {
-            emptyStateView.transition(.opacity)
-        } else {
-            unifiedRuntimeCard
+    var activeCardsListContent: some View {
+        unifiedRuntimeCard
 
-            if hasUnifiedAISession {
-                if !displayedDraftRowsBeforeAISlots.isEmpty {
-                    draftCardRows(displayedDraftRowsBeforeAISlots)
-                }
-
-                aiPendingSlots
-
-                inlineHistoricalCardsToggle(
-                    title: localized("Earlier cards"),
-                    hiddenCount: hiddenSessionCardsCount
-                )
-
-                if !displayedHistoricalDraftCards.isEmpty {
-                    draftCardRows(displayedHistoricalDraftCards)
-                }
-            } else if !viewModel.draftCards.isEmpty {
+        if hasUnifiedAISession {
+            if !displayedDraftRowsBeforeAISlots.isEmpty {
                 draftCardRows(displayedDraftRowsBeforeAISlots)
             }
+
+            aiPendingSlots
+
+            inlineHistoricalCardsToggle(
+                title: localized("Earlier cards"),
+                hiddenCount: hiddenSessionCardsCount
+            )
+
+            if !displayedHistoricalDraftCards.isEmpty {
+                draftCardRows(displayedHistoricalDraftCards)
+            }
+        } else if !viewModel.draftCards.isEmpty {
+            draftCardRows(displayedDraftRowsBeforeAISlots)
         }
     }
 
