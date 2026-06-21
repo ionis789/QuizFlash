@@ -38,6 +38,19 @@ service cloud.firestore {
         || (resource.data.keys().hasAny(['plan']) && resource.data.plan == 'premium');
     }
 
+    function initializesFreeAccountState() {
+      return !resource.data.keys().hasAny(['premium', 'plan'])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'plan',
+          'freeGenerationsUsed',
+          'freeGenerationsLimit',
+          'updatedAt'
+        ])
+        && request.resource.data.plan == 'free'
+        && request.resource.data.freeGenerationsUsed == currentFreeGenerationsUsed()
+        && request.resource.data.freeGenerationsLimit == currentFreeGenerationsLimit();
+    }
+
     function consumesOneFreeGeneration() {
       let used = currentFreeGenerationsUsed();
       let limit = currentFreeGenerationsLimit();
@@ -64,7 +77,9 @@ service cloud.firestore {
           'freeGenerationsLimit'
         ]);
       allow update: if owns(uid)
-        && (!sensitiveUserFieldsChanged() || consumesOneFreeGeneration());
+        && (!sensitiveUserFieldsChanged()
+          || initializesFreeAccountState()
+          || consumesOneFreeGeneration());
       allow delete: if false;
 
       match /decks/{deckId} {
