@@ -96,7 +96,7 @@ struct AuthIconTextField: View {
     }
 
     private var inputTextColor: Color {
-        guard isPassword, usesAutofillReadableText else { return .primary }
+        guard isPassword, usesAutofillReadableText, !isPasswordVisible else { return .primary }
         return .black
     }
 
