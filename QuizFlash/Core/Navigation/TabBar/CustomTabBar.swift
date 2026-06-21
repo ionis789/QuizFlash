@@ -34,23 +34,19 @@ struct CustomTabBar: View {
             onSelection: onTabSelection,
             onReselect: onTabSelection
         ) { tab, isSelected in
-            VStack(spacing: 6) {
-                Image(systemName: tab.symbol)
-                    .font(.title2)
-                    .symbolVariant(.fill)
-
-                Text(tab.localizedTitle(locale: appPreferences.resolvedLocale))
-                    .font(.caption2)
-                    .lineLimit(1)
-            }
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
-            .foregroundStyle(isSelected ? selectedColor : inactiveColor)
+            Image(systemName: tab.symbol)
+                .font(.system(size: 25, weight: .bold, design: .rounded))
+                .symbolVariant(.fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transaction { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
+                .foregroundStyle(isSelected ? selectedColor : inactiveColor)
+                .accessibilityLabel(tab.localizedTitle(locale: appPreferences.resolvedLocale))
         }
         .frame(height: UIConstants.Size.bottomChromeBarHeight)
-        .padding(.horizontal, 25)
+        .padding(.horizontal, 22)
         .ignoresSafeArea(.container, edges: .bottom)
     }
 }

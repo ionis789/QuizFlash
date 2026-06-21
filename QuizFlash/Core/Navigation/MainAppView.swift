@@ -526,18 +526,6 @@ struct MainAppView: View {
             }
             .tag(AppTabBar.library)
 
-            // LABS TAB
-            if appFeatures.showsLabsTab {
-                NavigationStack(path: $router.labsPath) {
-                    FeatureLabView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .navigationDestination(for: FeatureLabRoute.self) { route in
-                            featureLabDestination(for: route)
-                        }
-                }
-                .tag(AppTabBar.labs)
-            }
-
             // CREATE TAB
             NavigationStack(path: $router.createPath) {
                 createWorkspaceRootView
@@ -560,6 +548,9 @@ struct MainAppView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: AppRoute.self) { route in
                         appRouteDestination(for: route)
+                    }
+                    .navigationDestination(for: FeatureLabRoute.self) { route in
+                        featureLabDestination(for: route)
                     }
             }
             .tag(AppTabBar.settings)

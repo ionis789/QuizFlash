@@ -420,6 +420,23 @@ struct SettingsView: View {
                 }
             }
 
+            if !FeatureLabRoute.visibleRoutes(in: .current).isEmpty {
+                settingsBlock {
+                    NavigationLink {
+                        FeatureLabView()
+                    } label: {
+                        SettingsNavigationRow(
+                            icon: "testtube.2",
+                            tint: themeManager.accentColor.color,
+                            title: "Labs",
+                            detail: nil,
+                            value: nil
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
             settingsBlock {
                 Button {
                     Task { @MainActor in

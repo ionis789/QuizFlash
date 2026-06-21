@@ -13,7 +13,7 @@ final class AppFeaturesTests: XCTestCase {
     func testDevelopmentBuildEnablesDevelopmentFeatureSet() {
         let features = AppFeatures(buildFlavor: .development)
 
-        XCTAssertTrue(features.showsLabsTab)
+        XCTAssertFalse(features.showsLabsTab)
         XCTAssertTrue(features.allowsDevelopmentRoutes)
         XCTAssertTrue(features.showsInternalLabs)
         XCTAssertTrue(features.showsVisualDebugOverlays)
@@ -39,12 +39,12 @@ final class AppFeaturesTests: XCTestCase {
         )
     }
 
-    func testVisibleTabsIncludeLabsInDevelopment() {
+    func testVisibleTabsExcludeLabsInDevelopment() {
         let features = AppFeatures(buildFlavor: .development)
 
         XCTAssertEqual(
             AppTabBar.visibleTabs(features: features),
-            [.home, .library, .labs, .create, .settings]
+            [.home, .library, .create, .settings]
         )
     }
 
@@ -54,7 +54,14 @@ final class AppFeaturesTests: XCTestCase {
 
         XCTAssertEqual(
             FeatureLabRoute.visibleRoutes(in: developmentFeatures),
-            [.developmentSettings, .sharedUICatalog, .contextMenu]
+            [
+                .developmentSettings,
+                .flashCardsPlayModeSimulation,
+                .animatedObjectsLab,
+                .sharedUICatalog,
+                .contextMenu,
+                .progressiveBlurHeaderLab
+            ]
         )
         XCTAssertEqual(
             FeatureLabRoute.visibleRoutes(in: productionFeatures),
@@ -65,7 +72,7 @@ final class AppFeaturesTests: XCTestCase {
         )
     }
 
-    func testSanitizeForFeaturesClearsLabsNavigationAndFallsBackToHome() {
+    func testSanitizeForFeaturesClearsLabsNavigationAndFallsBackToSettings() {
         let router = NavigationManager()
         router.activeTab = .labs
         router.append(FeatureLabRoute.contextMenu)
@@ -74,7 +81,7 @@ final class AppFeaturesTests: XCTestCase {
 
         router.sanitizeForFeatures(AppFeatures(buildFlavor: .production))
 
-        XCTAssertEqual(router.activeTab, .home)
+        XCTAssertEqual(router.activeTab, .settings)
         XCTAssertEqual(router.labsPath.count, 0)
     }
 }

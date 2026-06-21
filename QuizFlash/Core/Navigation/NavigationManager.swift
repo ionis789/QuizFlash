@@ -109,14 +109,12 @@ final class NavigationManager {
         createWorkspaceEditingDeckID = nil
     }
 
-    /// Clears labs-only state when the current build does not ship development tooling.
+    /// Clears labs-only tab state now that Labs lives under Settings.
     func sanitizeForFeatures(_ features: AppFeatures = .current) {
-        guard !features.showsLabsTab else { return }
-
         labsPath = NavigationPath()
 
         if activeTab == .labs {
-            activeTab = .home
+            activeTab = .settings
         }
     }
 }
@@ -169,7 +167,7 @@ extension AppRoute: Hashable {
 
 // MARK: - Feature Lab Route
 
-/// Routes owned by the dedicated feature-lab tab.
+/// Routes owned by the feature-lab section inside Settings.
 enum FeatureLabRoute: Hashable, CaseIterable {
     case developmentSettings
     case flashCardsPlayModeSimulation

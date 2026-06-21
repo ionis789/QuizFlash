@@ -17,7 +17,7 @@ nonisolated struct AppFeatures: Sendable {
     }
 
     var showsLabsTab: Bool {
-        buildFlavor == .development
+        false
     }
 
     var allowsDevelopmentRoutes: Bool {
