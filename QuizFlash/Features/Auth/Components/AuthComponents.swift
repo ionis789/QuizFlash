@@ -51,7 +51,6 @@ struct AuthIconTextField: View {
                     Text(passwordVisibilityTitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .statusTextMotion(trigger: isPasswordVisible)
                         .frame(minWidth: 44, alignment: .trailing)
                 }
                 .buttonStyle(.plain)
@@ -110,8 +109,6 @@ struct AuthIconTextField: View {
         let changedCharacters = abs(newValue.count - oldValue.count)
         if oldValue.isEmpty && newValue.count >= 8 || changedCharacters >= 8 {
             usesAutofillReadableText = true
-        } else if changedCharacters == 1 {
-            usesAutofillReadableText = false
         }
     }
 
