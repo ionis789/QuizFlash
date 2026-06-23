@@ -8,8 +8,8 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - The iOS app boots Firebase in `App/QuizFlashApp.swift` and uses Firebase Auth, Firestore, and Firebase Functions.
 - Firestore rules are deployed to the fresh `quizflash-6b0ea` project. The project has no legacy user or deck data and must not acquire a first-login migration path.
 - Firestore is the live backend for Auth-linked profiles, background deck sync, manual premium state, and the Spark-compatible free AI quota fallback.
-- `functions/src/index.ts` contains Cloud Functions for profile upsert, AI quota consumption, DeepSeek generation, and account-data deletion. Cloud Functions deployment requires the Firebase Blaze plan; do not report a local source change as deployed until deployment succeeds.
-- `CloudAIGenerationService` exists but the editor currently uses the configurable direct `AIFlashcardService` path. A project-owned DeepSeek key must not remain in a shipped client path.
+- Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
+- Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
 - RevenueCat is not integrated yet. `SubscriptionManager` currently reads Firebase custom claims and the user document; `restorePurchases()` is intentionally a placeholder.
 
 ## Authority And Identity
@@ -65,16 +65,16 @@ Required behavior:
 
 ## DeepSeek Production Boundary
 
-Use DeepSeek only from a trusted backend once Cloud Functions are deployable:
+The trusted production boundary is the `quizflash-ai` Cloudflare Worker, not Firebase Cloud Functions. Read `ai-proxy.md` before changing this flow.
 
-1. Store `DEEPSEEK_API_KEY` as a Firebase Functions secret. Use configuration parameters only for non-secret values such as base URL, model, and a budget ceiling.
-2. Keep the current Functions request schema narrow: authenticated UID, validated source, validated `targetCards`, and validated generation options. Do not forward arbitrary client headers, models, prompts, pricing, or provider configuration.
-3. Enforce per-plan card limits, quota, per-user concurrency, request size, source-text size, monthly cost, and provider retry policy in the callable function. Handle provider `429`/`Retry-After` explicitly and return a stable app error.
-4. Record non-sensitive operational fields in a server-owned usage document: request ID, time, model, input/output token counts when returned, generated-card count, calculated cost, status, and failure class. Never store API keys or full user source text merely for telemetry.
-5. Calculate cost from the actual model/token pricing used by the deployed model. The current `costCents` increment of `0` is scaffolding, not a real budget enforcement implementation.
-6. Validate DeepSeek JSON against the shared deck/card DTO before persistence. Reject malformed, oversized, or unexpected output; never write provider output directly into SwiftData or Firestore without validation.
-7. Keep `AIProviderStore` only for developer-selected personal keys or debug testing. It persists provider profiles locally and is not an acceptable storage location for the app's production key. Gate or remove that path in release builds before a public launch.
-8. Enable App Check and set callable functions to enforce it before production rollout, after verifying the iOS App Check provider and test devices. Do not silently turn App Check off to bypass a configuration issue.
+1. Keep `DEEPSEEK_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`, and `RESPONSE_CACHE_ENCRYPTION_KEY` only as Cloudflare Worker secrets. Never place their values in the app, repository, Firestore, traces, screenshots, or chat.
+2. Release iOS sends the OpenAI-compatible DeepSeek body through the Worker. The Worker validates auth/session/model/minimal structure, then forwards raw request bytes and returns raw response bytes without prompt rewriting, JSON repair, DTO mapping, title generation, or LaTeX processing.
+3. Enforce free/premium card limits, free quota, premium monthly budget, per-user concurrency, idempotency, and provider-call retry caching in the Worker using Firebase profile reads, Durable Objects, and D1.
+4. Keep iOS as the owner of planner allocations, dynamic message composition, retries, generated-title flow, card DTO decoding, LaTeX normalization, and SwiftData insertion. Title and card requests must share the same transparent proxy path.
+5. Record only operational metadata in D1: generation/provider-call IDs, model, token usage, estimated `microUSD` cost, response status, duration, and encrypted short-lived retry response. Do not store source text or prompt text in telemetry.
+6. Derive cost from the response model plus cache-hit, cache-miss, and completion token usage. Do not use the client-requested model alias as the billing source.
+7. Keep `AIProviderStore` only for DEBUG developer profiles. Release builds must use `CloudAIProxyClient` and never send an API key.
+8. Prompt configuration may be backend-owned for iteration, but it does not authorize anything. Preserve the transparent raw provider transport and use versioned cached templates so a prompt update never requires an app update or a new per-request network round trip.
 
 ## Firebase Operations
 
@@ -101,7 +101,7 @@ Do not add a paywall first. Build entitlement synchronization first, then the pu
 
 For a backend or billing change, verify all applicable layers:
 
-1. `npm run build` in `functions/` and the targeted iOS `xcodebuild` destination.
+1. `npm run build` and `npm test` in `worker/`, then the targeted iOS `xcodebuild` destination.
 2. Firestore rules behavior for owner/non-owner and protected fields.
 3. Fresh account, free-limit boundary, premium boundary, entitlement downgrade, sign-out/sign-in, and app relaunch.
 4. Function error mapping for unauthenticated, invalid target count, quota exhausted, provider rate limit, provider malformed JSON, and timeout.
