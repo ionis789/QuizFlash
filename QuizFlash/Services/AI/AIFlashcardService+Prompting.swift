@@ -108,7 +108,7 @@ extension AIFlashcardService {
         if cardType == .flashcards {
             message += "\n- Build atomic active-recall cards with one crisp recall task per card."
             message += "\n- Keep front zones short and direct."
-            message += "\n- Keep back zones high-signal and sized to the selected depth."
+            message += "\n- Keep back zones high-signal and sized to the selected depth. Each text zone must contain exactly one complete sentence or independent statement."
         } else {
             message += "\n- Build multiple-choice quiz cards with plausible choices and explicit isCorrect flags."
             message += "\n- When the answer is a named concept, API, keyword, convention, signature, or short construct, use compact choices built from those exact surfaces and keep prose in the explanation."
@@ -154,7 +154,7 @@ extension AIFlashcardService {
         if cardType == .flashcards {
             message += "\nBuild atomic active-recall cards, not mini essays."
             message += "\nPreserve the source's natural form: formal notation should stay renderable as math, executable syntax should stay code, and narrative content should stay clear prose."
-            message += "\nUse semantic zones only when they make the recall task clearer."
+            message += "\nUse one text zone per complete sentence or independent statement. Keep formulas, compact labels, and code snippets as their own atomic zones."
         } else {
             message += "\nBuild multiple-choice quiz cards with plausible distractors and explicit isCorrect flags."
             message += "\nPreserve formal notation, executable syntax, or prose according to the source's actual form."
@@ -196,6 +196,9 @@ extension AIFlashcardService {
         If an idea is anchored by a named concept, keyword, convention, API, signature, formula, date, actor, work title, or other short recall surface, keep that compact surface visible instead of hiding it inside a sentence.
         If an idea is predominantly explanatory or narrative, write clear natural language. Do not invent formulas, symbols, or code when the source does not teach the idea that way.
         Use semantic zones. A zone should represent one meaningful unit: prompt, definition, formula, condition, consequence, contrast, example, exception, snippet, or explanation.
+        A text zone must contain exactly one complete natural-language sentence or one independent statement. Never place two sentences or independent propositions in the same text zone, even when they are short or joined by punctuation.
+        Split coordinated claims, sentence-like list items, and explanation clauses into separate text zones whenever they communicate distinct facts.
+        Keep an atomic formula, code snippet, compact label, or short recall surface in its own zone; do not split it merely to satisfy the sentence rule.
         Do not force a fixed number of zones. Choose the number of zones from the content itself so each card is readable, scannable, and not visually crowded.
         Split prose into separate zones whenever one paragraph would hide distinct ideas, roles, causes, consequences, examples, contrasts, or interpretations.
         Prefer preserving precise source structure over making every answer sound like a paragraph.
@@ -326,7 +329,8 @@ extension AIFlashcardService {
             Use only "flashcard" cards in this response.
             For AI-generated cards, use only "text" and "code" zone types.
             Do not emit deck metadata, ids, dates, creation source, counters, "container", "image", "sketch", "empty", "mediaBase64", or "codeLanguage".
-            Use multiple flat zones only when it improves readability, but vary the count naturally by card content.
+            Each text zone must contain exactly one complete sentence, one independent statement, or one atomic non-sentence item such as a formula or compact label. Never combine separate statements in one text zone.
+            Vary the zone count naturally by card content, without padding.
             Formal notation belongs in "text" zones with $...$ or $$...$$ delimiters.
             For compact executable syntax inside prose, use a "text" zone with inline backticks.
             For a real executable snippet where block structure helps, use a standalone code zone with raw code text, no markdown fences, and no language label:
@@ -397,7 +401,7 @@ extension AIFlashcardService {
             FLASHCARD RULES
             - Prefer one atomic recall target per card.
             - Keep prompts concise and direct.
-            - Split long answers into small semantic zones; do not return one dense paragraph.
+            - Every answer text zone must contain exactly one complete sentence or independent statement. Split separate claims into separate zones; do not return one dense paragraph or combine several propositions in one zone.
             - Vary zone count naturally. Use as many focused zones as the content needs for clear reading, without padding.
             - Use **bold** selectively in text zones for the terms, names, contrasts, or ideas that carry the recall target.
             - Use code zones or display equations only when they materially teach the concept.
@@ -427,6 +431,7 @@ extension AIFlashcardService {
             - Mark every choice with an explicit isCorrect flag.
             - Keep distractors plausible but unambiguously wrong.
             - Add a concise explanation when it helps learning.
+            - In question and explanation text, use one zone for each complete sentence or independent statement. Keep an atomic formula, code snippet, or compact choice as one zone.
             - Keep choices compact and parallel; avoid paragraph-length choices.
             - Each choice should contain exactly one compact text or code zone.
             - For math-heavy questions, split setup prose, central formulas, and the actual question into separate question zones when one paragraph would crowd the card.

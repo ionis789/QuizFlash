@@ -291,6 +291,7 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Skip source material that is only document scaffolding"))
         XCTAssertTrue(prompt.contains("If a source span has no durable study value by itself"))
         XCTAssertTrue(prompt.contains("small semantic zones"))
+        XCTAssertTrue(prompt.contains("Never place two sentences or independent propositions in the same text zone"))
         XCTAssertTrue(prompt.contains("not from topic labels or keywords"))
         XCTAssertTrue(prompt.contains("Do not force a fixed number of zones"))
         XCTAssertTrue(prompt.contains("FORMAL / MATHEMATICAL NOTATION"))
