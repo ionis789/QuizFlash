@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>AIProxyBaseURL</key>
-	<string>https://REPLACE_WITH_WORKER_URL</string>
+	<string>https://quizflash-ai.quizflash-platform.workers.dev</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
