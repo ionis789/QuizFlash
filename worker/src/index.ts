@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import {defaultPromptBundle, type PromptBundleRecord, validatedPromptBundle} from "./promptBundle";
 
 type Env = {
   AI_DB: D1Database;
@@ -23,6 +24,7 @@ type Entitlement = {
 type StartRequest = {
   idempotencyKey?: unknown;
   targetCards?: unknown;
+  knownPromptVersion?: unknown;
 };
 
 type SessionStart = {
@@ -30,6 +32,8 @@ type SessionStart = {
   targetCards: number;
   entitlement: Entitlement;
   monthlyBudgetMicroUSD: number;
+  promptVersion: string;
+  promptHash: string;
 };
 
 type SessionState = {
@@ -62,6 +66,13 @@ type StoredProviderCall = {
   response_ciphertext: string | null;
   response_iv: string | null;
   response_expires_at_ms: number | null;
+};
+
+type StoredPromptConfig = {
+  version: string;
+  hash: string;
+  status: "draft" | "active" | "retired";
+  templates_json: string;
 };
 
 const freeLifetimeGenerationLimit = 5;
@@ -114,14 +125,16 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     if (!existing) {
       await this.env.AI_DB.prepare(
         `INSERT INTO ai_generations (
-          id, uid, idempotency_key, status, premium, target_cards, created_at_ms, updated_at_ms
-        ) VALUES (?, ?, ?, 'reserved', ?, ?, ?, ?)`
+          id, uid, idempotency_key, status, premium, target_cards, prompt_version, prompt_hash, created_at_ms, updated_at_ms
+        ) VALUES (?, ?, ?, 'reserved', ?, ?, ?, ?, ?, ?)`
       ).bind(
         generationId,
         input.entitlement.uid,
         input.idempotencyKey,
         input.entitlement.premium ? 1 : 0,
         input.targetCards,
+        input.promptVersion,
+        input.promptHash,
         now,
         now
       ).run();
@@ -269,6 +282,9 @@ export default {
       if (request.method === "GET" && url.pathname === "/v1/entitlements") {
         return timedJSON(await readEntitlement(request, env), startedAt);
       }
+      if (request.method === "GET" && url.pathname === "/v1/prompt-config") {
+        return timedJSON(await readPromptConfig(request, env), startedAt);
+      }
       if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
         return proxyCompletion(request, env, startedAt);
       }
@@ -291,6 +307,8 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
   const payload = await request.json<StartRequest>();
   const targetCards = positiveInteger(payload.targetCards, "targetCards");
   const idempotencyKey = nonEmptyString(payload.idempotencyKey, "idempotencyKey", 128);
+  const knownPromptVersion = optionalString(payload.knownPromptVersion, "knownPromptVersion", 64);
+  const promptConfig = await activePromptConfig(env);
   const profile = await readFirestoreProfile(uid, env);
   const entitlement: Entitlement = {
     uid,
@@ -299,12 +317,61 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
     freeGenerationsLimit: profile.freeGenerationsLimit
   };
   const stub = env.USER_GENERATION.getByName(uid);
-  return stub.start({
+  const session = await stub.start({
     idempotencyKey,
     targetCards,
     entitlement,
-    monthlyBudgetMicroUSD: positiveInteger(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD, "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD")
+    monthlyBudgetMicroUSD: positiveInteger(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD, "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD"),
+    promptVersion: promptConfig.version,
+    promptHash: promptConfig.hash
   });
+  return promptStartResponse(session, promptConfig, knownPromptVersion);
+}
+
+async function readPromptConfig(request: Request, env: Env): Promise<Record<string, unknown>> {
+  await verifyFirebaseIDToken(bearerToken(request), env);
+  const knownPromptVersion = optionalString(new URL(request.url).searchParams.get("knownPromptVersion"), "knownPromptVersion", 64);
+  return promptConfigResponse(await activePromptConfig(env), knownPromptVersion);
+}
+
+async function activePromptConfig(env: Env): Promise<PromptBundleRecord> {
+  const active = await env.AI_DB.prepare(
+    "SELECT version, hash, status, templates_json FROM ai_prompt_configs WHERE status = 'active' LIMIT 1"
+  ).first<StoredPromptConfig>();
+  if (active) {
+    const validated = await validatedPromptBundle({
+      version: active.version,
+      status: active.status,
+      templates: JSON.parse(active.templates_json) as Record<string, string>
+    });
+    if (validated.hash !== active.hash) throw new WorkerError(500, "internal", "Active prompt configuration hash is invalid.");
+    return validated;
+  }
+
+  const seeded = await validatedPromptBundle(defaultPromptBundle);
+  const now = Date.now();
+  await env.AI_DB.prepare(
+    "INSERT OR IGNORE INTO ai_prompt_configs (version, hash, status, templates_json, created_at_ms, activated_at_ms) VALUES (?, ?, 'active', ?, ?, ?)"
+  ).bind(seeded.version, seeded.hash, JSON.stringify(seeded.templates), now, now).run();
+  return seeded;
+}
+
+export function promptStartResponse(session: Record<string, unknown>, promptConfig: PromptBundleRecord, knownPromptVersion: string | undefined): Record<string, unknown> {
+  return {
+    ...session,
+    ...promptConfigResponse(promptConfig, knownPromptVersion)
+  };
+}
+
+export function promptConfigResponse(promptConfig: PromptBundleRecord, knownPromptVersion: string | undefined): Record<string, unknown> {
+  const response: Record<string, unknown> = {
+    promptVersion: promptConfig.version,
+    promptHash: promptConfig.hash
+  };
+  if (knownPromptVersion !== promptConfig.version) {
+    response.promptBundle = promptConfig;
+  }
+  return response;
 }
 
 async function finishGeneration(request: Request, env: Env, failed: boolean): Promise<Record<string, unknown>> {
@@ -582,6 +649,11 @@ function bearerToken(request: Request): string {
 function nonEmptyString(value: unknown, name: string, maxLength: number): string {
   if (typeof value !== "string" || !value.trim() || value.length > maxLength) throw new WorkerError(400, "invalid-argument", `${name} is invalid.`);
   return value;
+}
+
+function optionalString(value: unknown, name: string, maxLength: number): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return nonEmptyString(value, name, maxLength);
 }
 
 function positiveInteger(value: unknown, name: string): number {

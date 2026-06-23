@@ -13,11 +13,31 @@ nonisolated struct CloudAIGenerationSession: Sendable {
     let uid: String
     let targetCards: Int
     let quota: CloudAIQuotaState
+    let promptBundle: AIPromptBundle
+    let promptCacheStatus: String
 }
 
 nonisolated enum AIRequestTransport: Sendable {
     case directProvider
     case cloudProxy(CloudAIGenerationSession)
+
+    var promptBundle: AIPromptBundle? {
+        switch self {
+        case .directProvider:
+            return nil
+        case .cloudProxy(let generation):
+            return generation.promptBundle
+        }
+    }
+
+    var promptCacheStatus: String? {
+        switch self {
+        case .directProvider:
+            return nil
+        case .cloudProxy(let generation):
+            return generation.promptCacheStatus
+        }
+    }
 }
 
 nonisolated struct CloudAIQuotaState: Decodable, Sendable {
@@ -37,25 +57,76 @@ final class CloudAIProxyClient {
         self.session = session
     }
 
+    func prefetchPromptBundle() async {
+        guard let user = Auth.auth().currentUser,
+              let idToken = try? await user.getIDToken(),
+              let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            return
+        }
+
+        let knownPromptVersion = await AIPromptBundleCache.shared.knownPromptVersion()
+        var components = URLComponents(url: baseURL.appending(path: "v1/prompt-config"), resolvingAgainstBaseURL: false)
+        if let knownPromptVersion {
+            components?.queryItems = [URLQueryItem(name: "knownPromptVersion", value: knownPromptVersion)]
+        }
+        guard let url = components?.url else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let promptResponse = try? JSONDecoder().decode(PromptConfigResponse.self, from: data),
+                  let bundle = promptResponse.promptBundle else {
+                return
+            }
+            _ = try await AIPromptBundleCache.shared.store(bundle)
+        } catch {
+            return
+        }
+    }
+
     func startGeneration(targetCards: Int, idempotencyKey: UUID = UUID()) async throws -> CloudAIGenerationSession {
         guard let user = Auth.auth().currentUser else {
             throw CloudAIProxyError.signInRequired
         }
         let idToken = try await user.getIDToken()
         let baseURL = try CloudAIProxyConfiguration.baseURL()
+        let knownPromptVersion = await AIPromptBundleCache.shared.knownPromptVersion()
         let response: StartResponse = try await sendJSON(
             endpoint: baseURL.appending(path: "v1/generations/start"),
             method: "POST",
             bearerToken: idToken,
-            body: StartRequest(idempotencyKey: idempotencyKey.uuidString, targetCards: targetCards)
+            body: StartRequest(
+                idempotencyKey: idempotencyKey.uuidString,
+                targetCards: targetCards,
+                knownPromptVersion: knownPromptVersion
+            )
         )
+        let promptBundle: AIPromptBundle
+        let promptCacheStatus: String
+        if let bundle = response.promptBundle {
+            promptBundle = try await AIPromptBundleCache.shared.store(bundle)
+            promptCacheStatus = "miss"
+        } else {
+            promptBundle = try await AIPromptBundleCache.shared.bundle(
+                version: response.promptVersion,
+                hash: response.promptHash
+            )
+            promptCacheStatus = "hit"
+        }
         return CloudAIGenerationSession(
             baseURL: baseURL,
             generationID: response.generationID,
             sessionToken: response.sessionToken,
             uid: user.uid,
             targetCards: response.targetCards,
-            quota: response.quota
+            quota: response.quota,
+            promptBundle: promptBundle,
+            promptCacheStatus: promptCacheStatus
         )
     }
 
@@ -158,8 +229,22 @@ nonisolated enum CloudAIProxyError: LocalizedError {
     }
 }
 
-private struct StartRequest: Encodable { let idempotencyKey: String; let targetCards: Int }
-private struct StartResponse: Decodable { let generationID: String; let sessionToken: String; let targetCards: Int; let quota: CloudAIQuotaState }
+private struct StartRequest: Encodable {
+    let idempotencyKey: String
+    let targetCards: Int
+    let knownPromptVersion: String?
+}
+
+private struct StartResponse: Decodable {
+    let generationID: String
+    let sessionToken: String
+    let targetCards: Int
+    let quota: CloudAIQuotaState
+    let promptVersion: String
+    let promptHash: String
+    let promptBundle: AIPromptBundle?
+}
+private struct PromptConfigResponse: Decodable { let promptBundle: AIPromptBundle? }
 private struct FinishRequest: Encodable { let generationID: String; let sessionToken: String; let validatedCards: Int }
 private struct FailRequest: Encodable { let generationID: String; let sessionToken: String }
 private struct EmptyResponse: Decodable { }

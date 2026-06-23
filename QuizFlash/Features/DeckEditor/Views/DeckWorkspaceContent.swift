@@ -370,6 +370,11 @@ extension DeckWorkspaceView {
               !hasUnifiedAISession else { return }
 
         viewModel.showAIPickerOptions = true
+#if !DEBUG
+        Task {
+            await CloudAIProxyClient.shared.prefetchPromptBundle()
+        }
+#endif
     }
 
     func confirmAIGenerationIfAllowed() async -> Bool {

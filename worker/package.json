@@ -7,7 +7,8 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "prompt:publish": "node scripts/publishPromptBundle.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.62",

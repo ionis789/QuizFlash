@@ -1,5 +1,7 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
+import {promptStartResponse} from "../src";
+import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("returns a health response without touching provider credentials", async () => {
@@ -20,5 +22,23 @@ describe("QuizFlash AI proxy", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: {code: "unauthenticated"}
     });
+  });
+
+  it("omits the prompt bundle when the client already has the active version", async () => {
+    const promptConfig = await validatedPromptBundle(defaultPromptBundle);
+    const response = promptStartResponse({generationId: "generation"}, promptConfig, promptConfig.version);
+
+    expect(response.promptVersion).toBe(promptConfig.version);
+    expect(response.promptHash).toBe(promptConfig.hash);
+    expect(response.promptBundle).toBeUndefined();
+  });
+
+  it("includes the prompt bundle when the client version is missing or stale", async () => {
+    const promptConfig = await validatedPromptBundle(defaultPromptBundle);
+    const response = promptStartResponse({generationId: "generation"}, promptConfig, "old");
+
+    expect(response.promptVersion).toBe(promptConfig.version);
+    expect(response.promptHash).toBe(promptConfig.hash);
+    expect(response.promptBundle).toEqual(promptConfig);
   });
 });

@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+
+import {createHash} from "node:crypto";
+import {mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {spawnSync} from "node:child_process";
+
+const requiredTemplateKeys = [
+  "schema.flashcard",
+  "schema.quiz",
+  "system.base",
+  "title.system",
+  "title.user"
+];
+
+const args = process.argv.slice(2);
+const bundlePath = args.find((arg) => !arg.startsWith("--"));
+const activate = args.includes("--activate");
+
+if (!bundlePath) {
+  console.error("Usage: node scripts/publishPromptBundle.mjs <bundle.json> [--activate]");
+  process.exit(1);
+}
+
+const bundle = JSON.parse(await readFile(bundlePath, "utf8"));
+validateBundle(bundle);
+const hash = sha256(stableJSONString(bundle.templates));
+const now = Date.now();
+const status = activate ? "active" : "draft";
+const sql = `
+BEGIN TRANSACTION;
+INSERT INTO ai_prompt_configs (version, hash, status, templates_json, created_at_ms, activated_at_ms)
+VALUES (${sqlString(bundle.version)}, ${sqlString(hash)}, 'draft', ${sqlString(JSON.stringify(bundle.templates))}, ${now}, NULL)
+ON CONFLICT(version) DO UPDATE SET
+  hash = excluded.hash,
+  status = 'draft',
+  templates_json = excluded.templates_json;
+${activate ? `
+UPDATE ai_prompt_configs SET status = 'retired' WHERE status = 'active' AND version <> ${sqlString(bundle.version)};
+UPDATE ai_prompt_configs SET status = 'active', activated_at_ms = ${now} WHERE version = ${sqlString(bundle.version)};
+` : ""}
+COMMIT;
+`;
+
+const tempDir = await mkdtemp(join(tmpdir(), "quizflash-prompt-"));
+const sqlPath = join(tempDir, "publish-prompt.sql");
+await writeFile(sqlPath, sql);
+const result = spawnSync("npx", ["wrangler", "d1", "execute", "quizflash-ai", "--file", sqlPath], {
+  cwd: new URL("..", import.meta.url),
+  stdio: "inherit"
+});
+await rm(tempDir, {recursive: true, force: true});
+
+if (result.status !== 0) process.exit(result.status ?? 1);
+console.log(`Published prompt bundle ${bundle.version} (${hash}) as ${status}.`);
+
+function validateBundle(bundle) {
+  if (!bundle || typeof bundle !== "object") throw new Error("Bundle must be an object.");
+  if (typeof bundle.version !== "string" || !bundle.version.trim()) throw new Error("Bundle version is required.");
+  if (!bundle.templates || typeof bundle.templates !== "object" || Array.isArray(bundle.templates)) {
+    throw new Error("Bundle templates must be an object.");
+  }
+  const missing = requiredTemplateKeys.filter((key) => typeof bundle.templates[key] !== "string" || !bundle.templates[key].trim());
+  if (missing.length > 0) throw new Error(`Missing required templates: ${missing.join(", ")}`);
+}
+
+function stableJSONString(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJSONString).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJSONString(value[key])}`).join(",")}}`;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function sqlString(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}

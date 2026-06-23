@@ -258,6 +258,15 @@ extension AIFlashcardService {
             "request_style": provider.requestStyle.title,
             "prompt_payload": "request_prepared.payload contains exact sanitized provider JSON body"
         ]
+        if let promptBundle {
+            metadata["prompt_version"] = promptBundle.version
+            metadata["prompt_hash"] = promptBundle.hash
+            metadata["prompt_cache"] = promptCacheStatus ?? "resolved"
+        } else {
+            metadata["prompt_version"] = "local"
+            metadata["prompt_hash"] = "none"
+            metadata["prompt_cache"] = "none"
+        }
 
         for (index, message) in messages.enumerated() {
             let prefix = "message_\(index + 1)"

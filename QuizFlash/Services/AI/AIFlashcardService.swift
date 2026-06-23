@@ -56,6 +56,8 @@ public final class AIFlashcardService: @unchecked Sendable {
     let transport: AIRequestTransport
     let session: URLSession
     let debugTraceStore: AIDebugTraceStore
+    let promptBundle: AIPromptBundle?
+    let promptCacheStatus: String?
     let maxCharsPerChunk = 12_000
     let maxConcurrentTextPlanRequests = 6
     let maxConcurrentVisionPlanRequests = 4
@@ -160,11 +162,14 @@ public final class AIFlashcardService: @unchecked Sendable {
     init(
         provider: AIProviderProfile,
         transport: AIRequestTransport = .directProvider,
-        debugTraceStore: AIDebugTraceStore = .shared
+        debugTraceStore: AIDebugTraceStore = .shared,
+        promptBundle: AIPromptBundle? = nil
     ) {
         self.provider = provider
         self.transport = transport
         self.debugTraceStore = debugTraceStore
+        self.promptBundle = promptBundle ?? transport.promptBundle
+        self.promptCacheStatus = transport.promptCacheStatus
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = timeoutIntervalForRequest
         config.timeoutIntervalForResource = timeoutIntervalForResource
