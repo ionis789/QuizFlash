@@ -53,6 +53,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     // -------------------------------------------------------------------------
 
     let provider: AIProviderProfile
+    let transport: AIRequestTransport
     let session: URLSession
     let debugTraceStore: AIDebugTraceStore
     let maxCharsPerChunk = 12_000
@@ -64,7 +65,14 @@ public final class AIFlashcardService: @unchecked Sendable {
     let baseRetryDelayNanoseconds: UInt64 = 1_200_000_000
     let maxRetryDelayNanoseconds: UInt64 = 12_000_000_000
 
-    var apiEndpoint: URL? { provider.resolvedRequestURL }
+    var apiEndpoint: URL? {
+        switch transport {
+        case .directProvider:
+            return provider.resolvedRequestURL
+        case .cloudProxy(let generation):
+            return generation.baseURL.appending(path: "v1/chat/completions")
+        }
+    }
     var textModel: String { provider.trimmedTextModel }
     var visionModel: String { provider.trimmedVisionModel }
 
@@ -151,9 +159,11 @@ public final class AIFlashcardService: @unchecked Sendable {
 
     init(
         provider: AIProviderProfile,
+        transport: AIRequestTransport = .directProvider,
         debugTraceStore: AIDebugTraceStore = .shared
     ) {
         self.provider = provider
+        self.transport = transport
         self.debugTraceStore = debugTraceStore
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = timeoutIntervalForRequest

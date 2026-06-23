@@ -41,7 +41,14 @@ extension AIFlashcardService {
         parser: @escaping @Sendable (Data) async throws -> T
     ) async throws -> T {
         guard let url = apiEndpoint else { throw AIServiceError.networkError }
-        let apiKey = try resolvedAPIKey()
+        let apiKey: String?
+        switch transport {
+        case .directProvider:
+            apiKey = try resolvedAPIKey()
+        case .cloudProxy:
+            apiKey = nil
+        }
+        let providerCallID = UUID()
 
         var lastServiceError: AIServiceError?
 
@@ -58,7 +65,21 @@ extension AIFlashcardService {
                 return try await withTraceScope(requestScope) { [self] in
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
-                    self.applyStandardHeaders(to: &request, apiKey: apiKey)
+                    switch self.transport {
+                    case .directProvider:
+                        guard let apiKey else { throw AIServiceError.invalidAPIKey }
+                        self.applyStandardHeaders(to: &request, apiKey: apiKey)
+                    case .cloudProxy(let generation):
+                        let operation = requestScope?.operation?.lowercased().contains("title") == true
+                            ? "title"
+                            : "cards"
+                        CloudAIProxyClient.prepareProviderRequest(
+                            &request,
+                            generation: generation,
+                            operation: operation,
+                            providerCallID: providerCallID
+                        )
+                    }
 
                     let body = self.requestBody(messages: messages, model: model)
                     let traceBody = self.traceJSONString(forJSONObject: body) ?? "Failed to pretty-print request body."

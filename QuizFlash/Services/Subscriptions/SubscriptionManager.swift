@@ -132,6 +132,14 @@ final class SubscriptionManager {
         }
     }
 
+    func applyCloudAIQuotaState(_ state: CloudAIQuotaState) {
+        isPremium = state.premium
+        planSource = state.premium ? .manualFirestore : .free
+        freeGenerationsUsed = state.premium ? nil : state.freeGenerationsUsed
+        freeGenerationsLimit = state.premium ? nil : state.freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
+        lastErrorMessage = nil
+    }
+
     private func applyQuotaResponse(_ response: [String: Any]) {
         if response["premium"] as? Bool == true {
             isPremium = true

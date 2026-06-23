@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "quizflash-ai",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-06",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "quizflash-6b0ea",
+    "FIREBASE_WEB_API_KEY": "AIzaSyCO4FDvtx0KD550myOaKEMq5KxhwfFfId4",
+    "DEEPSEEK_BASE_URL": "https://api.deepseek.com",
+    "DEEPSEEK_MODEL": "deepseek-v4-flash",
+    "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD": "2000000"
+  },
+  "d1_databases": [
+    {
+      "binding": "AI_DB",
+      "database_name": "quizflash-ai",
+      "database_id": "c5b3adaa-e32c-4417-a28c-56e22ef1f938",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "USER_GENERATION",
+        "class_name": "UserGenerationCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["UserGenerationCoordinator"]
+    }
+  ],
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  }
+}

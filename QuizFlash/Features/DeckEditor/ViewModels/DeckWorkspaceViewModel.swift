@@ -324,6 +324,7 @@ final class DeckWorkspaceViewModel {
     @ObservationIgnored var aiGeneratedShortfallCount = 0
     @ObservationIgnored var clearsPendingAISourceOnSheetDismiss = false
     @ObservationIgnored var aiGenerationSessionID: UUID?
+    @ObservationIgnored var cloudAIGenerationSession: CloudAIGenerationSession?
     var remainingAIAllocations: [AISourceRangeAllocation] = []
     var isAIGenerationPausedForBackground = false
     var isAIGenerationPaused = false

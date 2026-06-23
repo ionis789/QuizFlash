@@ -6,6 +6,9 @@ xcuserdata/
 *.xcuserstate
 .build/
 node_modules/
+worker/.wrangler/
+worker/.dev.vars
+worker/.env
 functions/lib/
 
 # Codex local artifacts

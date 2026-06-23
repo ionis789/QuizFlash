@@ -236,6 +236,16 @@ extension DeckWorkspaceViewModel {
         let generatedCardCount = aiGeneratedCardCount
         let deckTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let sessionID = aiGenerationSessionID
+        let cloudSession = cloudAIGenerationSession
+
+        if let cloudSession {
+            Task {
+                _ = try? await CloudAIProxyClient.shared.finishGeneration(
+                    cloudSession,
+                    validatedCards: generatedCardCount
+                )
+            }
+        }
 
         if let sessionID {
             Task { [aiBackgroundCoordinator] in
@@ -266,6 +276,7 @@ extension DeckWorkspaceViewModel {
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
+        cloudAIGenerationSession = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
@@ -282,6 +293,21 @@ extension DeckWorkspaceViewModel {
         if isBackground && isNetworkError {
             pauseAIGeneration(isBackgroundTimeout: true)
             return
+        }
+
+        let cloudSession = cloudAIGenerationSession
+        let generatedCardCount = aiGeneratedCardCount
+        if let cloudSession {
+            Task {
+                if generatedCardCount > 0 {
+                    _ = try? await CloudAIProxyClient.shared.finishGeneration(
+                        cloudSession,
+                        validatedCards: generatedCardCount
+                    )
+                } else {
+                    await CloudAIProxyClient.shared.failGeneration(cloudSession)
+                }
+            }
         }
 
         if let sessionID = aiGenerationSessionID {
@@ -302,6 +328,7 @@ extension DeckWorkspaceViewModel {
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
+        cloudAIGenerationSession = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
@@ -332,6 +359,21 @@ extension DeckWorkspaceViewModel {
         showAICancelDialog = false
         finalizeAIGenerationClock()
 
+        let cloudSession = cloudAIGenerationSession
+        let generatedCardCount = aiGeneratedCardCount
+        if let cloudSession {
+            Task {
+                if keepingGeneratedCards && generatedCardCount > 0 {
+                    _ = try? await CloudAIProxyClient.shared.finishGeneration(
+                        cloudSession,
+                        validatedCards: generatedCardCount
+                    )
+                } else {
+                    await CloudAIProxyClient.shared.failGeneration(cloudSession)
+                }
+            }
+        }
+
         cancelAIGenerationTask()
 
         if !keepingGeneratedCards {
@@ -350,6 +392,7 @@ extension DeckWorkspaceViewModel {
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
+        cloudAIGenerationSession = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
@@ -631,6 +674,7 @@ extension DeckWorkspaceViewModel {
     }
 
     func makeAIService() -> AIFlashcardService? {
+#if DEBUG
         guard let activeProfile = aiProviderStore.activeProfile else {
             aiState = .error("No AI provider is configured. Open Settings > AI Providers.")
             return nil
@@ -641,7 +685,17 @@ extension DeckWorkspaceViewModel {
             return nil
         }
 
-        return AIFlashcardService(provider: activeProfile)
+        return AIFlashcardService(provider: activeProfile, transport: .directProvider)
+#else
+        guard let cloudAIGenerationSession else {
+            aiState = .error("AI generation session is unavailable.")
+            return nil
+        }
+        return AIFlashcardService(
+            provider: .preset(.deepSeek),
+            transport: .cloudProxy(cloudAIGenerationSession)
+        )
+#endif
     }
 
     func requestAIDeckTitleIfNeeded(
