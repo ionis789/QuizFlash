@@ -670,21 +670,25 @@ private struct EmptyDeckPromptIllustration: View {
     var body: some View {
         ZStack {
             backCard
-                .offset(x: -28, y: isFloating ? 8 : 14)
-                .rotationEffect(.degrees(-9))
+                .offset(x: isFloating ? -14 : -30, y: 12)
+                .rotationEffect(.degrees(isFloating ? -4 : -11))
+                .scaleEffect(isFloating ? 0.98 : 1)
 
             middleCard
-                .offset(x: 22, y: isFloating ? 10 : 4)
-                .rotationEffect(.degrees(7))
+                .offset(x: isFloating ? -2 : 22, y: 6)
+                .rotationEffect(.degrees(isFloating ? 11 : 4))
+                .scaleEffect(isFloating ? 1 : 0.98)
 
             frontCard
-                .offset(y: isFloating ? -4 : 3)
+                .offset(x: isFloating ? 12 : -3)
+                .rotationEffect(.degrees(isFloating ? -2 : 2))
+                .scaleEffect(isFloating ? 0.99 : 1)
         }
         .frame(width: 180, height: 168)
         .accessibilityHidden(true)
         .onAppear {
             guard animatesWhileWaiting, !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
                 isFloating = true
             }
         }

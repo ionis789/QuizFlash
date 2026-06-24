@@ -136,6 +136,7 @@ extension DeckWorkspaceView {
                     }
                 }
             }
+            .frame(minHeight: UIConstants.Size.capsuleHeight)
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
