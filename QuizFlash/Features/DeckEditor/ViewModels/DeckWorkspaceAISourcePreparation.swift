@@ -237,16 +237,17 @@ extension DeckWorkspaceViewModel {
             return
         }
 
-        guard url.startAccessingSecurityScopedResource() else {
-            aiState = .error("Could not access the PDF file.")
-            return
-        }
+        let didAccess = url.startAccessingSecurityScopedResource()
 
         let options = effectiveAIGenerationOptions()
 
         aiGenerationTask = Task { [weak self] in
             guard let self else { return }
-            defer { url.stopAccessingSecurityScopedResource() }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
 
             do {
                 aiState = .extractingText
@@ -318,18 +319,21 @@ extension DeckWorkspaceViewModel {
     }
 
     func preparePDFSource(from url: URL) async {
-        guard url.startAccessingSecurityScopedResource() else {
+        let localURL: URL
+        do {
+            localURL = try await AIGenerationSessionStore.shared.importPDFToDisk(from: url)
+        } catch {
             clearAISourcePreparation()
+            aiState = .error("Could not access the PDF file.")
             return
         }
-        defer { url.stopAccessingSecurityScopedResource() }
 
-        var pageTexts = await extractPDFKitPageTexts(from: url)
+        var pageTexts = await extractPDFKitPageTexts(from: localURL)
         var needsOCRCorrection = DocumentTextExtractor.needsAICorrectionForExtractedText(pageTexts)
         await Task.yield()
 
         if !DocumentTextExtractor.isUsableExtractedText(pageTexts) {
-            pageTexts = await DocumentTextExtractor.extractVisionTextsFromPDFPages(from: url)
+            pageTexts = await DocumentTextExtractor.extractVisionTextsFromPDFPages(from: localURL)
             needsOCRCorrection = true
             await Task.yield()
         }
@@ -340,12 +344,12 @@ extension DeckWorkspaceViewModel {
             return
         }
 
-        let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: url)
+        let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: localURL)
         await Task.yield()
-        let pageCount = max(pageTexts.count, await extractPDFPageCount(from: url))
+        let pageCount = max(pageTexts.count, await extractPDFPageCount(from: localURL))
         let extractedChars = pageTexts.reduce(0) { $0 + $1.count }
         let info = PDFAnalysisInfo(
-            quality: await extractPDFQuality(from: url),
+            quality: await extractPDFQuality(from: localURL),
             pageCount: pageCount,
             extractedChars: extractedChars
         )
@@ -359,7 +363,7 @@ extension DeckWorkspaceViewModel {
             ),
             textSegments: makeTextSegments(from: pageTexts, labelPrefix: "Page"),
             images: [],
-            pdfURL: url,
+            pdfURL: localURL,
             needsOCRCorrection: needsOCRCorrection
         )
 

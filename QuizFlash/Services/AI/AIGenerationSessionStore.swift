@@ -139,6 +139,11 @@ actor AIGenerationSessionStore {
         await jobStore.loadImagesFromDisk(at: urls)
     }
 
+    /// Helper to copy a selected PDF into app-owned storage before analysis/generation.
+    func importPDFToDisk(from sourceURL: URL) async throws -> URL {
+        try await jobStore.importPDFToDisk(from: sourceURL)
+    }
+
     /// Helper to create a Security-Scoped Bookmark for a PDF URL so it can be re-accessed later.
     func createBookmark(for url: URL) async throws -> Data {
         try await jobStore.createBookmark(for: url)

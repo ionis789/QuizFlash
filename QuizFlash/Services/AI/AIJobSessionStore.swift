@@ -83,6 +83,14 @@ actor AIJobSessionStore {
         return dir
     }
 
+    private var pdfsDirectoryURL: URL {
+        let dir = applicationSupportDirectory.appendingPathComponent("ai_session_pdfs", isDirectory: true)
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        }
+        return dir
+    }
+
     init(
         fileManager: FileManager = .default,
         rootDirectoryURL: URL? = nil,
@@ -147,6 +155,11 @@ actor AIJobSessionStore {
             try fileManager.removeItem(at: imagesDirectoryURL)
             try fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true, attributes: nil)
         }
+
+        if fileManager.fileExists(atPath: pdfsDirectoryURL.path) {
+            try fileManager.removeItem(at: pdfsDirectoryURL)
+            try fileManager.createDirectory(at: pdfsDirectoryURL, withIntermediateDirectories: true, attributes: nil)
+        }
     }
 
     /// Saves temporary AI source photos to disk.
@@ -173,16 +186,43 @@ actor AIJobSessionStore {
         return images
     }
 
+    /// Copies an externally selected PDF into the app sandbox for stable access during generation.
+    func importPDFToDisk(from sourceURL: URL) throws -> URL {
+        let didAccess = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let sourceExtension = sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
+        let destinationURL = pdfsDirectoryURL
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(sourceExtension)
+
+        do {
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+        } catch {
+            let data = try Data(contentsOf: sourceURL)
+            try data.write(to: destinationURL, options: [.atomic, .completeFileProtection])
+        }
+
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var mutableDestinationURL = destinationURL
+        try? mutableDestinationURL.setResourceValues(resourceValues)
+
+        return destinationURL
+    }
+
     /// Creates a security-scoped bookmark for a PDF source.
     func createBookmark(for url: URL) throws -> Data {
-        guard url.startAccessingSecurityScopedResource() else {
-            throw NSError(
-                domain: "QuizFlashAIJobSessionStore",
-                code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "Cannot access the selected document."]
-            )
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
         }
-        defer { url.stopAccessingSecurityScopedResource() }
 
         return try url.bookmarkData(
             options: .minimalBookmark,
