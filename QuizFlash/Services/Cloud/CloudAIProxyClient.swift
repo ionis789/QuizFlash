@@ -244,7 +244,7 @@ private struct StartRequest: Encodable {
     let knownPromptVersion: String?
 }
 
-private struct StartResponse: Decodable {
+struct StartResponse: Decodable {
     let generationID: String
     let sessionToken: String
     let targetCards: Int
@@ -252,14 +252,37 @@ private struct StartResponse: Decodable {
     let promptVersion: String
     let promptHash: String
     let promptBundle: AIPromptBundle?
+
+    enum CodingKeys: String, CodingKey {
+        case generationID = "generationId"
+        case sessionToken, targetCards, quota, promptVersion, promptHash, promptBundle
+    }
 }
 private struct PromptConfigResponse: Decodable {
     let promptVersion: String
     let promptHash: String
     let promptBundle: AIPromptBundle?
 }
-private struct FinishRequest: Encodable { let generationID: String; let sessionToken: String; let validatedCards: Int }
-private struct FailRequest: Encodable { let generationID: String; let sessionToken: String }
+struct FinishRequest: Encodable {
+    let generationID: String
+    let sessionToken: String
+    let validatedCards: Int
+
+    enum CodingKeys: String, CodingKey {
+        case generationID = "generationId"
+        case sessionToken, validatedCards
+    }
+}
+
+struct FailRequest: Encodable {
+    let generationID: String
+    let sessionToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case generationID = "generationId"
+        case sessionToken
+    }
+}
 private struct EmptyResponse: Decodable { }
 private struct ProxyErrorEnvelope: Decodable {
     struct ErrorPayload: Decodable { let message: String? }
