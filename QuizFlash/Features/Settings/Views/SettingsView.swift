@@ -346,9 +346,10 @@ struct SettingsView: View {
                     accountInfoRow(
                         icon: "wand.and.stars",
                         tint: .purple,
-                        title: AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale),
-                        value: aiUsageSummary
-                    )
+                        title: AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale)
+                    ) {
+                        aiUsageTrailing
+                    }
                 }
             }
 
@@ -723,6 +724,28 @@ struct SettingsView: View {
         value: String,
         showsDisclosure: Bool = false
     ) -> some View {
+        accountInfoRow(
+            icon: icon,
+            tint: tint,
+            title: title,
+            showsDisclosure: showsDisclosure
+        ) {
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private func accountInfoRow<Trailing: View>(
+        icon: String,
+        tint: Color,
+        title: String,
+        showsDisclosure: Bool = false,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
         HStack(spacing: UIConstants.Spacing.medium) {
             ZStack {
                 RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
@@ -740,18 +763,49 @@ struct SettingsView: View {
 
             Spacer(minLength: UIConstants.Spacing.medium)
 
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-                .multilineTextAlignment(.trailing)
+            trailing()
 
             if showsDisclosure {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var aiUsageTrailing: some View {
+        if isPremiumUser,
+           let quota = subscriptionManager.cloudAIUsageQuota,
+           let limitMicroUSD = quota.limitMicroUSD,
+           limitMicroUSD > 0 {
+            VStack(alignment: .trailing, spacing: 6) {
+                Text("\(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.10))
+
+                        Capsule()
+                            .fill(.purple)
+                            .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
+                    }
+                }
+                .frame(width: 132, height: 5)
+            }
+            .frame(width: 132, alignment: .trailing)
+        } else {
+            Text(aiUsageSummary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .multilineTextAlignment(.trailing)
         }
     }
 
@@ -854,6 +908,11 @@ struct SettingsView: View {
             plural: "%d AI generations left",
             locale: appPreferences.resolvedLocale
         )
+    }
+
+    private func formattedMicroUSD(_ value: Int) -> String {
+        let amount = Double(max(value, 0)) / 1_000_000
+        return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
     }
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {

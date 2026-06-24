@@ -121,6 +121,28 @@ final class CloudAIProxyClient {
         _ = try? await currentPromptBundle()
     }
 
+    func currentUsageQuota() async throws -> CloudAIQuotaState {
+        guard let user = Auth.auth().currentUser,
+              let idToken = try? await user.getIDToken(),
+              let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            throw CloudAIProxyError.signInRequired
+        }
+
+        var request = URLRequest(url: baseURL.appending(path: "v1/entitlements"))
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CloudAIProxyError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
+        }
+
+        return try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
+    }
+
     func currentPromptBundle() async throws -> AIPromptBundle {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),

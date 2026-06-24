@@ -96,6 +96,12 @@ final class SubscriptionManager {
             let limit = userData?["freeGenerationsLimit"] as? Int
             freeGenerationsUsed = isPremium ? nil : usage ?? 0
             freeGenerationsLimit = isPremium ? nil : limit ?? Self.defaultFreeGenerationsLimit
+
+            if isPremium, let quota = try? await CloudAIProxyClient.shared.currentUsageQuota() {
+                applyCloudAIQuotaState(quota)
+            } else if !isPremium {
+                cloudAIUsageQuota = nil
+            }
         } catch {
             lastErrorMessage = error.localizedDescription
         }
