@@ -390,6 +390,7 @@ extension DeckWorkspaceView {
             guard targetCardCount > 0 else { return false }
 
 #if DEBUG
+            viewModel.debugAIPromptBundle = try await CloudAIProxyClient.shared.currentPromptBundle()
             try await subscriptionManager.consumeAIGenerationQuota(targetCards: targetCardCount)
             syncAIGenerationLimit()
 #else

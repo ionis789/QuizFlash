@@ -685,7 +685,7 @@ extension DeckWorkspaceViewModel {
             return nil
         }
 
-        guard let promptBundle = AIPromptBundleCache.loadStoredBundleSynchronously() else {
+        guard let promptBundle = debugAIPromptBundle ?? AIPromptBundleCache.loadStoredBundleSynchronously() else {
             aiState = .error("AI prompt configuration is unavailable.")
             return nil
         }

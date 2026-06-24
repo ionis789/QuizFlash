@@ -58,10 +58,14 @@ final class CloudAIProxyClient {
     }
 
     func prefetchPromptBundle() async {
+        _ = try? await currentPromptBundle()
+    }
+
+    func currentPromptBundle() async throws -> AIPromptBundle {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
               let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
-            return
+            throw CloudAIProxyError.signInRequired
         }
 
         let knownPromptVersion = await AIPromptBundleCache.shared.knownPromptVersion()
@@ -69,24 +73,29 @@ final class CloudAIProxyClient {
         if let knownPromptVersion {
             components?.queryItems = [URLQueryItem(name: "knownPromptVersion", value: knownPromptVersion)]
         }
-        guard let url = components?.url else { return }
+        guard let url = components?.url else { throw CloudAIProxyError.configurationMissing }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let promptResponse = try? JSONDecoder().decode(PromptConfigResponse.self, from: data),
-                  let bundle = promptResponse.promptBundle else {
-                return
-            }
-            _ = try await AIPromptBundleCache.shared.store(bundle)
-        } catch {
-            return
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CloudAIProxyError.invalidResponse
         }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
+        }
+
+        let promptResponse = try JSONDecoder().decode(PromptConfigResponse.self, from: data)
+        if let bundle = promptResponse.promptBundle {
+            return try await AIPromptBundleCache.shared.store(bundle)
+        }
+
+        return try await AIPromptBundleCache.shared.bundle(
+            version: promptResponse.promptVersion,
+            hash: promptResponse.promptHash
+        )
     }
 
     func startGeneration(targetCards: Int, idempotencyKey: UUID = UUID()) async throws -> CloudAIGenerationSession {
@@ -244,7 +253,11 @@ private struct StartResponse: Decodable {
     let promptHash: String
     let promptBundle: AIPromptBundle?
 }
-private struct PromptConfigResponse: Decodable { let promptBundle: AIPromptBundle? }
+private struct PromptConfigResponse: Decodable {
+    let promptVersion: String
+    let promptHash: String
+    let promptBundle: AIPromptBundle?
+}
 private struct FinishRequest: Encodable { let generationID: String; let sessionToken: String; let validatedCards: Int }
 private struct FailRequest: Encodable { let generationID: String; let sessionToken: String }
 private struct EmptyResponse: Decodable { }
