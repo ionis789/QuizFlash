@@ -194,10 +194,12 @@ extension DeckWorkspaceViewModel {
         let updatedCount = aiGeneratedCardCount + 1
         let progress = min(1.0, Double(updatedCount) / Double(max(aiTargetCardCount, 1)))
 
-        draftCards.append(draft)
-        registerSessionDraftID(draft.id, marksAsAI: true)
-        aiGeneratedCardCount = updatedCount
-        aiState = .generatingCards(progress: progress, foundCount: updatedCount)
+        withAnimation(.easeOut(duration: UIConstants.Animation.standard)) {
+            draftCards.append(draft)
+            registerSessionDraftID(draft.id, marksAsAI: true)
+            aiGeneratedCardCount = updatedCount
+            aiState = .generatingCards(progress: progress, foundCount: updatedCount)
+        }
     }
 
     func makeDraftContent(from generatedCard: AIFlashcard) throws -> DraftCardContent {
@@ -580,6 +582,32 @@ extension DeckWorkspaceViewModel {
         clearsPendingAISourceOnSheetDismiss = false
         aiSheetDestination = nil
         startAIGeneration()
+    }
+
+    @discardableResult
+    func stageAIGenerationDisplayForSheetDismiss() -> Bool {
+        guard canConfirmAIGeneration else { return false }
+
+        let targetCardCount = targetCardCount(for: resolvedAISourceAllocations)
+        guard targetCardCount > 0 else { return false }
+
+        cancelAIGenerationTask()
+        resetAIGenerationRevealPipeline()
+        clearAIGenerationPauseState()
+
+        clearsPendingAISourceOnSheetDismiss = false
+        aiSessionDraftCardIDs.removeAll()
+        aiGenerationBaseCardCount = draftCards.count
+        aiTargetCardCount = targetCardCount
+        aiGeneratedCardCount = 0
+        aiAccumulatedGenerationDuration = 0
+        aiGenerationStartedAt = nil
+
+        withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
+            aiState = .generatingCards(progress: 0, foundCount: 0)
+        }
+
+        return true
     }
 
     func resumePausedAIGeneration() {

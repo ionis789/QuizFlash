@@ -74,14 +74,70 @@ struct AIStreamingTextStatusView: View {
     let title: String
 
     var body: some View {
-        Text(title)
+        AIShimmeringStatusText(title)
             .font(.system(size: 34, weight: .heavy, design: .rounded))
-            .foregroundStyle(.primary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.top, UIConstants.Spacing.huge)
             .padding(.bottom, UIConstants.Spacing.extraLarge)
+    }
+}
+
+private struct AIShimmeringStatusText: View {
+    let title: String
+    @State private var isAnimating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .foregroundStyle(.white.opacity(0.32))
+            .overlay {
+                if reduceMotion {
+                    Text(title)
+                        .foregroundStyle(.primary)
+                } else {
+                    shimmerLayer
+                }
+            }
+            .accessibilityLabel(title)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
+    }
+
+    private var shimmerLayer: some View {
+        GeometryReader { geometry in
+            Text(title)
+                .foregroundStyle(.white)
+                .mask(alignment: .leading) {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .white.opacity(0.12), location: 0.28),
+                            .init(color: .white, location: 0.5),
+                            .init(color: .white.opacity(0.12), location: 0.72),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: max(geometry.size.width * 0.62, 120))
+                    .offset(
+                        x: isAnimating
+                            ? geometry.size.width * 1.15
+                            : -geometry.size.width * 0.68
+                    )
+                }
+        }
+        .allowsHitTesting(false)
     }
 }
 

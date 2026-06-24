@@ -224,7 +224,7 @@ struct DeckWorkspaceView: View {
 
     var displayedDraftCards: [DraftCard] {
         if hasUnifiedAISession {
-            return sortDraftCards(viewModel.sessionDraftCards)
+            return sortAISessionDraftCards(viewModel.sessionDraftCards)
         }
         return sortDraftCards(viewModel.draftCards)
     }
@@ -245,7 +245,7 @@ struct DeckWorkspaceView: View {
     }
 
     var sortedAISessionDraftCards: [DraftCard] {
-        sortDraftCards(viewModel.aiSessionDraftCards)
+        sortAISessionDraftCards(viewModel.aiSessionDraftCards)
     }
 
     var canToggleHistoricalSessionCards: Bool {

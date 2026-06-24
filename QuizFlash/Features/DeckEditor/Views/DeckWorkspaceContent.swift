@@ -64,9 +64,9 @@ extension DeckWorkspaceView {
             .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
             .animation(
                 hasUnifiedAISession
-                    ? .spring(response: 0.48, dampingFraction: 0.82, blendDuration: 0.08)
+                    ? nil
                     : .spring(response: 0.36, dampingFraction: 0.84),
-                value: viewModel.draftCards.map(\.id)
+                value: hasUnifiedAISession ? [] : viewModel.draftCards.map(\.id)
             )
             .animation(
                 .spring(response: 0.56, dampingFraction: 0.8, blendDuration: 0.1),
@@ -254,12 +254,12 @@ extension DeckWorkspaceView {
             .transition(
                 !viewModel.isSelectingCards
                     ? .asymmetric(
-                        insertion: .offset(y: -18)
+                        insertion: .offset(y: 18)
                             .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.88, anchor: .top)),
-                        removal: .offset(y: -14)
+                            .combined(with: .scale(scale: 0.96, anchor: .bottom)),
+                        removal: .offset(y: 12)
                             .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.94, anchor: .top))
+                            .combined(with: .scale(scale: 0.98, anchor: .bottom))
                     )
                     : .identity
             )
@@ -609,6 +609,22 @@ extension DeckWorkspaceView {
             return appPreferences.createDeckSortOrder.usesNewestFallback
                 ? lhs.id.uuidString > rhs.id.uuidString
                 : lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    func sortAISessionDraftCards(_ cards: [DraftCard]) -> [DraftCard] {
+        cards.sorted { lhs, rhs in
+            if lhs.cardNumber != rhs.cardNumber {
+                return lhs.cardNumber < rhs.cardNumber
+            }
+
+            let lhsDate = lhs.createdAt ?? .distantPast
+            let rhsDate = rhs.createdAt ?? .distantPast
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+
+            return lhs.id.uuidString < rhs.id.uuidString
         }
     }
 
