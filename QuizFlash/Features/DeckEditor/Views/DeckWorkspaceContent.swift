@@ -287,6 +287,12 @@ extension DeckWorkspaceView {
 
     var emptyStateView: some View {
         VStack(spacing: UIConstants.Spacing.large) {
+            EmptyDeckPromptIllustration(
+                accent: accent,
+                actionColor: themeManager.roleColor(.buttonDangerForeground)
+            )
+            .padding(.bottom, UIConstants.Spacing.small)
+
             Button {
                 presentAIGenerationSourcePicker()
             } label: {
@@ -654,6 +660,111 @@ extension DeckWorkspaceView {
                   !viewModel.hasPendingAISource else { return }
             viewModel.showAIPickerOptions = true
         }
+    }
+}
+
+private struct EmptyDeckPromptIllustration: View {
+    let accent: Color
+    let actionColor: Color
+
+    var body: some View {
+        ZStack {
+            backCard
+                .offset(x: -28, y: 12)
+                .rotationEffect(.degrees(-9))
+
+            middleCard
+                .offset(x: 22, y: 6)
+                .rotationEffect(.degrees(7))
+
+            frontCard
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .foregroundStyle(actionColor.opacity(0.9))
+                .offset(x: 58, y: -58)
+
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                .foregroundStyle(accent.opacity(0.88))
+                .offset(x: -64, y: 58)
+        }
+        .frame(width: 180, height: 168)
+        .accessibilityHidden(true)
+    }
+
+    private var backCard: some View {
+        RoundedRectangle(cornerRadius: 30, style: .continuous)
+            .fill(Color.primary.opacity(0.045))
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(accent.opacity(0.16), lineWidth: 1.5)
+            }
+            .frame(width: 108, height: 132)
+    }
+
+    private var middleCard: some View {
+        RoundedRectangle(cornerRadius: 30, style: .continuous)
+            .fill(Color.primary.opacity(0.065))
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(actionColor.opacity(0.2), lineWidth: 1.5)
+            }
+            .frame(width: 108, height: 132)
+    }
+
+    private var frontCard: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(Color.primary.opacity(0.1))
+            .overlay {
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                actionColor.opacity(0.52),
+                                accent.opacity(0.42),
+                                Color.white.opacity(0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+            }
+            .overlay {
+                VStack(spacing: 18) {
+                    HStack(spacing: 18) {
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.52))
+                            .frame(width: 18, height: 5)
+                            .rotationEffect(.degrees(10))
+
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.52))
+                            .frame(width: 18, height: 5)
+                            .rotationEffect(.degrees(-10))
+                    }
+
+                    EmptyDeckFrown()
+                        .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .frame(width: 34, height: 18)
+                }
+                .offset(y: 4)
+            }
+            .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
+            .frame(width: 118, height: 142)
+    }
+}
+
+private struct EmptyDeckFrown: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + 2, y: rect.maxY - 3))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - 2, y: rect.maxY - 3),
+            control: CGPoint(x: rect.midX, y: rect.minY + 2)
+        )
+        return path
     }
 }
 
