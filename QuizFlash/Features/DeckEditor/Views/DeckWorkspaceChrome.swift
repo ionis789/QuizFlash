@@ -117,14 +117,18 @@ extension DeckWorkspaceView {
     var headerMetadataRow: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                Spacer(minLength: 0)
+                if shouldShowTopAIGenerationControls {
+                    generationHeaderStatusControl
+                } else {
+                    Spacer(minLength: 0)
 
-                if shouldShowMockAIHeaderAction {
-                    mockAIActionControl
-                }
+                    if shouldShowMockAIHeaderAction {
+                        mockAIActionControl
+                    }
 
-                if !viewModel.draftCards.isEmpty || (aiVisualStatusText != nil && !shouldShowTopAIGenerationControls) {
-                    headerGenerateActionControl
+                    if !viewModel.draftCards.isEmpty || aiVisualStatusText != nil {
+                        headerGenerateActionControl
+                    }
                 }
             }
 
@@ -399,52 +403,51 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var topAIGenerationControls: some View {
-        CreateDeckCapsuleContainer {
-            HStack(spacing: UIConstants.Spacing.small) {
-                AIShimmeringStatusText(localized("Generating cards"))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
-                    .lineLimit(1)
-                    .frame(maxWidth: 126, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                CreateDeckAIStatusIndicator(
-                    countText: aiToolbarCountText,
+        HStack(spacing: UIConstants.Spacing.small) {
+            Button {
+                if viewModel.hasPausedAIGeneration {
+                    viewModel.resumePausedAIGeneration()
+                } else {
+                    viewModel.pauseAIGeneration()
+                }
+            } label: {
+                ChromeSoftCircleSymbol(
+                    systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill",
+                    size: UIConstants.Size.actionButton,
                     tint: aiToolbarTint
                 )
-
-                Button {
-                    if viewModel.hasPausedAIGeneration {
-                        viewModel.resumePausedAIGeneration()
-                    } else {
-                        viewModel.pauseAIGeneration()
-                    }
-                } label: {
-                    Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(aiToolbarTint)
-                        .frame(width: 24, height: 24)
-                }
-                .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
-                .accessibilityLabel(
-                    viewModel.hasPausedAIGeneration
-                        ? localized("Resume AI generation")
-                        : localized("Pause AI generation")
-                )
-
-                Button {
-                    viewModel.requestAIGenerationCancel()
-                } label: {
-                    ChromeSoftCircleSymbol(
-                        systemName: "xmark",
-                        size: 24
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(localized("Cancel AI generation"))
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                viewModel.hasPausedAIGeneration
+                    ? localized("Resume AI generation")
+                    : localized("Pause AI generation")
+            )
+
+            Button {
+                viewModel.requestAIGenerationCancel()
+            } label: {
+                ChromeSoftCircleSymbol(
+                    systemName: "xmark",
+                    size: UIConstants.Size.actionButton
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("Cancel AI generation"))
         }
-        .background(.clear)
+    }
+
+    var generationHeaderStatusControl: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            AIShimmeringStatusText(localized("Generating cards"))
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+
+            ProgressActivityDots(color: aiToolbarTint)
+                .frame(minWidth: 28)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(aiToolbarStatusText ?? localized("Generating cards"))
     }
 
