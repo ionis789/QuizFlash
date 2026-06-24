@@ -8,6 +8,7 @@ describe("QuizFlash AI proxy", () => {
     const response = await SELF.fetch("https://example.test/health");
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-ID")).toMatch(/^[0-9a-f-]{36}$/);
     await expect(response.json()).resolves.toEqual({ok: true});
   });
 

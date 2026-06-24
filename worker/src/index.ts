@@ -45,6 +45,25 @@ type SessionState = {
   expiresAtMs: number;
 };
 
+type QuotaResponse = {
+  premium: boolean;
+  freeGenerationsUsed: number | null;
+  freeGenerationsLimit: number | null;
+  monthlyCostMicroUSD: number;
+};
+
+type GenerationSessionResponse = {
+  generationId: string;
+  sessionToken: string;
+  targetCards: number;
+  expiresAt: string;
+  quota: QuotaResponse;
+};
+
+type SessionStartResult =
+  | {kind: "session"; session: GenerationSessionResponse}
+  | {kind: "rejection"; status: number; code: string; message: string};
+
 type ProviderUsage = {
   prompt_tokens?: number;
   completion_tokens?: number;
@@ -88,11 +107,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     super(ctx, env);
   }
 
-  async start(input: SessionStart): Promise<Record<string, unknown>> {
+  async start(input: SessionStart): Promise<SessionStartResult> {
     const now = Date.now();
     const active = await this.ctx.storage.get<SessionState>("active");
     if (active && active.expiresAtMs > now && active.idempotencyKey !== input.idempotencyKey) {
-      throw new WorkerError(429, "resource-exhausted", "Another AI generation is already running.");
+      return sessionRejection(429, "resource-exhausted", "Another AI generation is already running.");
     }
 
     const existing = await this.env.AI_DB.prepare(
@@ -100,17 +119,20 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     ).bind(input.entitlement.uid, input.idempotencyKey).first<{ id: string; status: string; premium: number; target_cards: number }>();
 
     if (existing?.status === "succeeded" || existing?.status === "partial") {
-      return this.sessionResponse(existing.id, input.entitlement.uid, existing.premium === 1, existing.target_cards, now);
+      return {
+        kind: "session",
+        session: await this.sessionResponse(existing.id, input.entitlement.uid, existing.premium === 1, existing.target_cards, now)
+      };
     }
 
     const quota = await this.ensureFreeQuota(input.entitlement, now);
     if (!input.entitlement.premium && quota.used >= quota.limit) {
-      throw new WorkerError(429, "resource-exhausted", "Free AI generation limit reached.");
+      return sessionRejection(429, "resource-exhausted", "Free AI generation limit reached.");
     }
 
     const maxCards = input.entitlement.premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
     if (input.targetCards > maxCards) {
-      throw new WorkerError(412, "failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
+      return sessionRejection(412, "failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
     }
 
     const period = monthKey(now);
@@ -118,7 +140,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       "SELECT cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
     ).bind(input.entitlement.uid, period).first<{ cost_micro_usd: number }>();
     if (input.entitlement.premium && (monthly?.cost_micro_usd ?? 0) >= input.monthlyBudgetMicroUSD) {
-      throw new WorkerError(429, "resource-exhausted", "Monthly AI budget reached.");
+      return sessionRejection(429, "resource-exhausted", "Monthly AI budget reached.");
     }
 
     const generationId = existing?.id ?? crypto.randomUUID();
@@ -150,7 +172,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       expiresAtMs: now + activeSessionTTLMilliseconds
     } satisfies SessionState);
     await this.ctx.storage.setAlarm(now + activeSessionTTLMilliseconds);
-    return response;
+    return {kind: "session", session: response};
   }
 
   async authorize(generationId: string, sessionToken: string): Promise<SessionState> {
@@ -161,7 +183,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     return active;
   }
 
-  async finish(generationId: string, sessionToken: string, validatedCards: number): Promise<Record<string, unknown>> {
+  async finish(generationId: string, sessionToken: string, validatedCards: number): Promise<QuotaResponse> {
     const active = await this.authorize(generationId, sessionToken);
     const now = Date.now();
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
@@ -202,7 +224,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     await this.clearActive(generationId);
   }
 
-  async entitlement(entitlement: Entitlement): Promise<Record<string, unknown>> {
+  async entitlement(entitlement: Entitlement): Promise<QuotaResponse> {
     await this.ensureFreeQuota(entitlement, Date.now());
     return this.entitlementResponse(entitlement.uid, entitlement.premium);
   }
@@ -217,7 +239,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     }
   }
 
-  private async sessionResponse(generationId: string, uid: string, premium: boolean, targetCards: number, now: number): Promise<Record<string, unknown>> {
+  private async sessionResponse(generationId: string, uid: string, premium: boolean, targetCards: number, now: number): Promise<GenerationSessionResponse> {
     const sessionToken = await sessionTokenFor(generationId, this.env.RESPONSE_CACHE_ENCRYPTION_KEY);
     return {
       generationId,
@@ -228,7 +250,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     };
   }
 
-  private async entitlementResponse(uid: string, premium: boolean): Promise<Record<string, unknown>> {
+  private async entitlementResponse(uid: string, premium: boolean): Promise<QuotaResponse> {
     const quota = await this.env.AI_DB.prepare(
       "SELECT used_generations, limit_generations FROM ai_free_quota WHERE uid = ?"
     ).bind(uid).first<{ used_generations: number; limit_generations: number }>();
@@ -268,30 +290,31 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const startedAt = performance.now();
+    const requestID = crypto.randomUUID();
+    const url = new URL(request.url);
     try {
-      const url = new URL(request.url);
       if (request.method === "POST" && url.pathname === "/v1/generations/start") {
-        return timedJSON(await startGeneration(request, env), startedAt);
+        return timedJSON(await startGeneration(request, env), startedAt, requestID);
       }
       if (request.method === "POST" && url.pathname === "/v1/generations/finish") {
-        return timedJSON(await finishGeneration(request, env, false), startedAt);
+        return timedJSON(await finishGeneration(request, env, false), startedAt, requestID);
       }
       if (request.method === "POST" && url.pathname === "/v1/generations/fail") {
-        return timedJSON(await finishGeneration(request, env, true), startedAt);
+        return timedJSON(await finishGeneration(request, env, true), startedAt, requestID);
       }
       if (request.method === "GET" && url.pathname === "/v1/entitlements") {
-        return timedJSON(await readEntitlement(request, env), startedAt);
+        return timedJSON(await readEntitlement(request, env), startedAt, requestID);
       }
       if (request.method === "GET" && url.pathname === "/v1/prompt-config") {
-        return timedJSON(await readPromptConfig(request, env), startedAt);
+        return timedJSON(await readPromptConfig(request, env), startedAt, requestID);
       }
       if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
         return proxyCompletion(request, env, startedAt);
       }
-      if (request.method === "GET" && url.pathname === "/health") return Response.json({ok: true});
+      if (request.method === "GET" && url.pathname === "/health") return timedJSON({ok: true}, startedAt, requestID);
       throw new WorkerError(404, "not-found", "Endpoint not found.");
     } catch (error) {
-      return errorResponse(error, startedAt);
+      return errorResponse(error, startedAt, requestID, url.pathname);
     }
   },
   async scheduled(_: ScheduledController, env: Env): Promise<void> {
@@ -302,30 +325,45 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function startGeneration(request: Request, env: Env): Promise<Record<string, unknown>> {
-  const idToken = bearerToken(request);
-  const uid = await verifyFirebaseIDToken(idToken, env);
-  const payload = await request.json<StartRequest>();
-  const targetCards = positiveInteger(payload.targetCards, "targetCards");
-  const idempotencyKey = nonEmptyString(payload.idempotencyKey, "idempotencyKey", 128);
-  const knownPromptVersion = optionalString(payload.knownPromptVersion, "knownPromptVersion", 64);
-  const promptConfig = await activePromptConfig(env);
-  const profile = await readFirestoreProfile(uid, env);
-  const entitlement: Entitlement = {
-    uid,
-    premium: profile.premium,
-    freeGenerationsUsed: profile.freeGenerationsUsed,
-    freeGenerationsLimit: profile.freeGenerationsLimit
-  };
-  const stub = env.USER_GENERATION.getByName(uid);
-  const session = await stub.start({
-    idempotencyKey,
-    targetCards,
-    entitlement,
-    monthlyBudgetMicroUSD: positiveInteger(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD, "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD"),
-    promptVersion: promptConfig.version,
-    promptHash: promptConfig.hash
-  });
-  return promptStartResponse(session, promptConfig, knownPromptVersion);
+  let stage = "authenticate";
+  try {
+    const idToken = bearerToken(request);
+    const uid = await verifyFirebaseIDToken(idToken, env);
+    stage = "parse_request";
+    const payload = await request.json<StartRequest>();
+    const targetCards = positiveInteger(payload.targetCards, "targetCards");
+    const idempotencyKey = nonEmptyString(payload.idempotencyKey, "idempotencyKey", 128);
+    const knownPromptVersion = optionalString(payload.knownPromptVersion, "knownPromptVersion", 64);
+    stage = "prompt_config";
+    const promptConfig = await activePromptConfig(env);
+    stage = "entitlement";
+    const profile = await readFirestoreProfile(uid, env);
+    const entitlement: Entitlement = {
+      uid,
+      premium: profile.premium,
+      freeGenerationsUsed: profile.freeGenerationsUsed,
+      freeGenerationsLimit: profile.freeGenerationsLimit
+    };
+    stage = "session_reservation";
+    const stub = env.USER_GENERATION.getByName(uid);
+    const startResult = await stub.start({
+      idempotencyKey,
+      targetCards,
+      entitlement,
+      monthlyBudgetMicroUSD: positiveInteger(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD, "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD"),
+      promptVersion: promptConfig.version,
+      promptHash: promptConfig.hash
+    });
+    if (startResult.kind === "rejection") {
+      throw new WorkerError(startResult.status, startResult.code, startResult.message);
+    }
+    return promptStartResponse({...startResult.session}, promptConfig, knownPromptVersion);
+  } catch (error) {
+    if (!(error instanceof WorkerError)) {
+      console.error(JSON.stringify({event: "generation_start_failed", stage, error_name: errorName(error)}));
+    }
+    throw error;
+  }
 }
 
 async function readPromptConfig(request: Request, env: Env): Promise<Record<string, unknown>> {
@@ -383,18 +421,18 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
     await stub.fail(generationId, sessionToken);
     return {status: "failed"};
   }
-  return stub.finish(generationId, sessionToken, Math.max(0, Number(payload.validatedCards) || 0));
+  return {...await stub.finish(generationId, sessionToken, Math.max(0, Number(payload.validatedCards) || 0))};
 }
 
 async function readEntitlement(request: Request, env: Env): Promise<Record<string, unknown>> {
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
   const profile = await readFirestoreProfile(uid, env);
-  return env.USER_GENERATION.getByName(uid).entitlement({
+  return {...await env.USER_GENERATION.getByName(uid).entitlement({
     uid,
     premium: profile.premium,
     freeGenerationsUsed: profile.freeGenerationsUsed,
     freeGenerationsLimit: profile.freeGenerationsLimit
-  });
+  })};
 }
 
 async function proxyCompletion(request: Request, env: Env, startedAt: number): Promise<Response> {
@@ -602,7 +640,8 @@ async function aesKey(secret: string): Promise<CryptoKey> {
 }
 
 async function sessionTokenFor(generationId: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", textEncoder.encode(secret), {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+  const sessionSecret = requiredSessionSecret(secret);
+  const key = await crypto.subtle.importKey("raw", textEncoder.encode(sessionSecret), {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
   return base64URL(await crypto.subtle.sign("HMAC", key, textEncoder.encode(generationId)));
 }
 
@@ -624,15 +663,24 @@ function providerResponse(
   return new Response(data, {status, headers});
 }
 
-function timedJSON(payload: Record<string, unknown>, startedAt: number): Response {
-  return Response.json(payload, {headers: {"Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`}});
+function timedJSON(payload: Record<string, unknown>, startedAt: number, requestID: string): Response {
+  return Response.json(payload, {headers: {
+    "Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`,
+    "X-Request-ID": requestID
+  }});
 }
 
-function errorResponse(error: unknown, startedAt: number): Response {
+function errorResponse(error: unknown, startedAt: number, requestID: string, route: string): Response {
   const workerError = error instanceof WorkerError ? error : new WorkerError(500, "internal", "Internal server error.");
+  if (!(error instanceof WorkerError)) {
+    console.error(JSON.stringify({event: "worker_request_failed", request_id: requestID, route, error_name: errorName(error)}));
+  }
   return Response.json({error: {code: workerError.code, message: workerError.message}}, {
     status: workerError.status,
-    headers: {"Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`}
+    headers: {
+      "Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`,
+      "X-Request-ID": requestID
+    }
   });
 }
 
@@ -654,6 +702,19 @@ function nonEmptyString(value: unknown, name: string, maxLength: number): string
 function optionalString(value: unknown, name: string, maxLength: number): string | undefined {
   if (value === undefined || value === null) return undefined;
   return nonEmptyString(value, name, maxLength);
+}
+
+function requiredSessionSecret(secret: string | undefined): string {
+  if (!secret?.trim()) throw new WorkerError(503, "unavailable", "AI session configuration is unavailable.");
+  return secret;
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error && error.name ? error.name : "unknown";
+}
+
+function sessionRejection(status: number, code: string, message: string): SessionStartResult {
+  return {kind: "rejection", status, code, message};
 }
 
 function positiveInteger(value: unknown, name: string): number {
