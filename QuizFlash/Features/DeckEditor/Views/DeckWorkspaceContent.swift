@@ -689,8 +689,8 @@ private struct EmptyDeckPromptIllustration: View {
                 .scaleEffect(isFloating ? 0.98 : 1)
 
             middleCard
-                .offset(x: isFloating ? -2 : 22, y: 6)
-                .rotationEffect(.degrees(isFloating ? 11 : 4))
+                .offset(x: isFloating ? -2 : 24, y: 8)
+                .rotationEffect(.degrees(isFloating ? 13 : 11))
                 .scaleEffect(isFloating ? 1 : 0.98)
 
             frontCard
