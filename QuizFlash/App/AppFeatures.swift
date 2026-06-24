@@ -21,7 +21,7 @@ nonisolated struct AppFeatures: Sendable {
     }
 
     var allowsDevelopmentRoutes: Bool {
-        buildFlavor == .development
+        true
     }
 
     var showsInternalLabs: Bool {
@@ -33,6 +33,6 @@ nonisolated struct AppFeatures: Sendable {
     }
 
     var enablesAITraceTooling: Bool {
-        buildFlavor == .development
+        true
     }
 }

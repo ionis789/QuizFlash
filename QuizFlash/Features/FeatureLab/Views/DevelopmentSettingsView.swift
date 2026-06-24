@@ -10,6 +10,8 @@ import SwiftUI
 struct DevelopmentSettingsView: View {
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(AIProviderStore.self) private var aiProviderStore
+    @State private var didCopyPDFImportDebug = false
+    @State private var pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -33,6 +35,9 @@ struct DevelopmentSettingsView: View {
         .background(Color.black.ignoresSafeArea())
         .navigationTitle("Development")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
+        }
     }
 
     private var buildModeSection: some View {
@@ -214,6 +219,21 @@ struct DevelopmentSettingsView: View {
 
             SettingsCardDivider()
 
+            Button {
+                copyPDFImportDebugReport()
+            } label: {
+                SettingsNavigationRow(
+                    icon: didCopyPDFImportDebug ? "checkmark" : "doc.on.doc",
+                    tint: .orange,
+                    title: "PDF Import Debug",
+                    detail: "Copy picker and import events for LiveContainer diagnosis.",
+                    value: "\(pdfImportDebugEventCount)"
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
             NavigationLink {
                 LatexSymbolLabView()
             } label: {
@@ -243,6 +263,17 @@ struct DevelopmentSettingsView: View {
                 )
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private func copyPDFImportDebugReport() {
+        UIPasteboard.general.string = PDFImportDebugStore.report()
+        pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
+        didCopyPDFImportDebug = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopyPDFImportDebug = false
         }
     }
 
