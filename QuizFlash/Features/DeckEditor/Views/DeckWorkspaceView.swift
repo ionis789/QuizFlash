@@ -377,8 +377,14 @@ struct DeckWorkspaceView: View {
     var pickerBoundContent: some View {
         generationSheetContent
             .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
-            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
-                if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
+            .sheet(isPresented: $viewModel.showAIPDFPicker) {
+                DeckWorkspacePDFDocumentPicker { url in
+                    viewModel.showAIPDFPicker = false
+                    viewModel.pdfWasSelected(url)
+                } onCancel: {
+                    viewModel.showAIPDFPicker = false
+                }
+                .ignoresSafeArea()
             }
     }
 
@@ -594,6 +600,50 @@ struct DeckWorkspaceView: View {
             Button(localized("OK"), role: .cancel) { }
         } message: {
             Text(viewModel.persistenceErrorMessage)
+        }
+    }
+}
+
+private struct DeckWorkspacePDFDocumentPicker: UIViewControllerRepresentable {
+    let onPicked: (URL) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPicked: onPicked, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let controller = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf], asCopy: true)
+        controller.allowsMultipleSelection = false
+        controller.delegate = context.coordinator
+        controller.shouldShowFileExtensions = true
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) { }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPicked: (URL) -> Void
+        let onCancel: () -> Void
+
+        init(onPicked: @escaping (URL) -> Void, onCancel: @escaping () -> Void) {
+            self.onPicked = onPicked
+            self.onCancel = onCancel
+        }
+
+        func documentPicker(
+            _ controller: UIDocumentPickerViewController,
+            didPickDocumentsAt urls: [URL]
+        ) {
+            guard let url = urls.first else {
+                onCancel()
+                return
+            }
+            onPicked(url)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onCancel()
         }
     }
 }
