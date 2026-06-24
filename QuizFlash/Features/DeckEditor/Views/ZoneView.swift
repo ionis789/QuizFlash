@@ -128,6 +128,7 @@ struct ZoneEditorView: View {
     var maxEditableZoneHeight: CGFloat?
     var rendersRichText: Bool
     var showsZoneSurfaces: Bool
+    var showsZoneHeightGuides: Bool
     var alignmentFeedback: ZoneAlignmentFeedback
     var previewDirection: Binding<AddDirection?>
 
@@ -147,6 +148,7 @@ struct ZoneEditorView: View {
         maxEditableZoneHeight: CGFloat? = nil,
         rendersRichText: Bool = false,
         showsZoneSurfaces: Bool = true,
+        showsZoneHeightGuides: Bool = false,
         alignmentFeedback: ZoneAlignmentFeedback = .inactive,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -160,6 +162,7 @@ struct ZoneEditorView: View {
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.rendersRichText = rendersRichText
         self.showsZoneSurfaces = showsZoneSurfaces
+        self.showsZoneHeightGuides = showsZoneHeightGuides
         self.alignmentFeedback = alignmentFeedback
         self.previewDirection = previewDirection
     }
@@ -238,6 +241,7 @@ struct ZoneEditorView: View {
                     maxEditableZoneHeight: maxEditableZoneHeight,
                     rendersRichText: rendersRichText,
                     showsZoneSurfaces: showsZoneSurfaces,
+                    showsZoneHeightGuides: showsZoneHeightGuides,
                     alignmentFeedback: alignmentFeedback,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
@@ -516,6 +520,7 @@ struct ZoneContentView: View {
     var maxEditableZoneHeight: CGFloat?
     var rendersRichText: Bool
     var showsZoneSurfaces: Bool
+    var showsZoneHeightGuides: Bool
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
 
@@ -547,6 +552,7 @@ struct ZoneContentView: View {
         maxEditableZoneHeight: CGFloat? = nil,
         rendersRichText: Bool = false,
         showsZoneSurfaces: Bool = true,
+        showsZoneHeightGuides: Bool = false,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -560,6 +566,7 @@ struct ZoneContentView: View {
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.rendersRichText = rendersRichText
         self.showsZoneSurfaces = showsZoneSurfaces
+        self.showsZoneHeightGuides = showsZoneHeightGuides
         self.onSelect = onSelect
         self._previewDirection = previewDirection
     }
@@ -603,6 +610,8 @@ struct ZoneContentView: View {
                 blockFrameReporter(layout: layout, zone: zone)
                 if effectiveShowsZoneSurfaces {
                     blockSurface(layout: layout, zone: zone)
+                } else if showsZoneHeightGuides, !zone.isEditorMediaLeaf {
+                    zoneHeightGuide(layout: layout, zone: zone)
                 }
 
                 if effectiveShowsZoneSurfaces {
@@ -772,12 +781,19 @@ struct ZoneContentView: View {
             .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
             .allowsHitTesting(false)
         } else {
-            Rectangle()
-                .fill(editorZoneHeightGuideColor(for: zone))
-                .frame(width: 1, height: layout.blockSize.height)
-                .offset(x: 0, y: 0)
-                .allowsHitTesting(false)
+            zoneHeightGuide(layout: layout, zone: zone)
         }
+    }
+
+    private func zoneHeightGuide(
+        layout: ZoneContentLayoutResult,
+        zone: ZoneModel
+    ) -> some View {
+        Rectangle()
+            .fill(editorZoneHeightGuideColor(for: zone))
+            .frame(width: 1, height: layout.blockSize.height)
+            .offset(x: 0, y: 0)
+            .allowsHitTesting(false)
     }
 
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {

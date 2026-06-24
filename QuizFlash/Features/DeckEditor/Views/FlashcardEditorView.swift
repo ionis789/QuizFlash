@@ -838,6 +838,7 @@ struct FlashcardEditorView: View {
             scrollResetToken: activeSide,
             scrollRestorationRequest: activeSide == side ? scrollRestorationRequest : nil,
             rendersRichText: rendersRichText,
+            showsZoneHeightGuides: true,
             showsDebugOverlays: showsEditorDebugOverlays && activeSide == side,
             onScrollOffsetChange: { offsetY in
                 guard activeSide == side else { return }

@@ -82,6 +82,7 @@ struct ZoneEditorCanvas: View {
     let scrollResetToken: Int
     let scrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     let rendersRichText: Bool
+    let showsZoneHeightGuides: Bool
     let showsDebugOverlays: Bool
     let onScrollOffsetChange: (CGFloat) -> Void
     let onEmptySpaceTap: (ZoneEditorCanvasTapContext) -> Void
@@ -155,6 +156,7 @@ struct ZoneEditorCanvas: View {
         scrollResetToken: Int,
         scrollRestorationRequest: ZoneEditorScrollRestorationRequest? = nil,
         rendersRichText: Bool = false,
+        showsZoneHeightGuides: Bool = false,
         showsDebugOverlays: Bool = true,
         onScrollOffsetChange: @escaping (CGFloat) -> Void,
         onEmptySpaceTap: @escaping (ZoneEditorCanvasTapContext) -> Void,
@@ -172,6 +174,7 @@ struct ZoneEditorCanvas: View {
         self.scrollResetToken = scrollResetToken
         self.scrollRestorationRequest = scrollRestorationRequest
         self.rendersRichText = rendersRichText
+        self.showsZoneHeightGuides = showsZoneHeightGuides
         self.showsDebugOverlays = showsDebugOverlays
         self.onScrollOffsetChange = onScrollOffsetChange
         self.onEmptySpaceTap = onEmptySpaceTap
@@ -563,6 +566,7 @@ struct ZoneEditorCanvas: View {
                         availableWidth: contentWidth,
                         maxEditableZoneHeight: contentHeight,
                         rendersRichText: false,
+                        showsZoneHeightGuides: showsZoneHeightGuides,
                         alignmentFeedback: .inactive,
                         previewDirection: $previewDirection
                     )
