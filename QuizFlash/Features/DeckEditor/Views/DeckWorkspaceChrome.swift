@@ -462,6 +462,14 @@ extension DeckWorkspaceView {
 
             ProgressActivityDots(color: aiToolbarTint)
                 .frame(minWidth: 28)
+
+            if viewModel.aiTargetCardCount > 0 {
+                Text("\(viewModel.aiGeneratedCardCount)/\(viewModel.aiTargetCardCount)")
+                    .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: UIConstants.Animation.standard), value: viewModel.aiGeneratedCardCount)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(aiToolbarStatusText ?? localized("Generating cards"))

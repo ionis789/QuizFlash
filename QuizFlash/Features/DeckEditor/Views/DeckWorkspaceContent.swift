@@ -139,7 +139,17 @@ extension DeckWorkspaceView {
         if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
             let leadingRowCount = displayedDraftRowsBeforeAISlots.count
 
-            if createdCount > 0 {
+            if createdCount == 0, viewModel.isGenerating {
+                EmptyDeckPromptIllustration(
+                    accent: accent,
+                    actionColor: themeManager.roleColor(.buttonDangerForeground),
+                    surfaceColor: themeManager.roleColor(.cardSurfaceFill),
+                    animatesWhileWaiting: true
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.top, UIConstants.Spacing.small)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else if createdCount > 0 {
                 draftCardRows(
                     sortedAISessionDraftCards,
                     startingIndex: leadingRowCount
@@ -272,7 +282,8 @@ extension DeckWorkspaceView {
             } label: {
                 EmptyDeckPromptIllustration(
                     accent: accent,
-                    actionColor: themeManager.roleColor(.buttonDangerForeground)
+                    actionColor: themeManager.roleColor(.buttonDangerForeground),
+                    surfaceColor: themeManager.roleColor(.cardSurfaceFill)
                 )
                 .contentShape(Rectangle())
             }
@@ -647,26 +658,38 @@ extension DeckWorkspaceView {
 private struct EmptyDeckPromptIllustration: View {
     let accent: Color
     let actionColor: Color
+    let surfaceColor: Color
+    var animatesWhileWaiting = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isFloating = false
 
     var body: some View {
         ZStack {
             backCard
-                .offset(x: -28, y: 12)
+                .offset(x: -28, y: isFloating ? 8 : 14)
                 .rotationEffect(.degrees(-9))
 
             middleCard
-                .offset(x: 22, y: 6)
+                .offset(x: 22, y: isFloating ? 10 : 4)
                 .rotationEffect(.degrees(7))
 
             frontCard
+                .offset(y: isFloating ? -4 : 3)
         }
         .frame(width: 180, height: 168)
         .accessibilityHidden(true)
+        .onAppear {
+            guard animatesWhileWaiting, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) {
+                isFloating = true
+            }
+        }
     }
 
     private var backCard: some View {
         RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(Color.primary.opacity(0.045))
+            .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .stroke(accent.opacity(0.16), lineWidth: 1.5)
@@ -676,7 +699,7 @@ private struct EmptyDeckPromptIllustration: View {
 
     private var middleCard: some View {
         RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(Color.primary.opacity(0.065))
+            .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .stroke(actionColor.opacity(0.2), lineWidth: 1.5)
@@ -686,7 +709,7 @@ private struct EmptyDeckPromptIllustration: View {
 
     private var frontCard: some View {
         RoundedRectangle(cornerRadius: 32, style: .continuous)
-            .fill(Color.primary.opacity(0.1))
+            .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .stroke(
@@ -702,40 +725,8 @@ private struct EmptyDeckPromptIllustration: View {
                         lineWidth: 2
                     )
             }
-            .overlay {
-                VStack(spacing: 12) {
-                    HStack(spacing: 20) {
-                        Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.48))
-                            .frame(width: 17, height: 5)
-                            .rotationEffect(.degrees(-14))
-
-                        Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.48))
-                            .frame(width: 17, height: 5)
-                            .rotationEffect(.degrees(14))
-                    }
-
-                    EmptyDeckFrown()
-                        .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                        .frame(width: 42, height: 16)
-                }
-                .offset(y: 8)
-            }
             .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
             .frame(width: 118, height: 142)
-    }
-}
-
-private struct EmptyDeckFrown: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + 2, y: rect.maxY - 4))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - 2, y: rect.maxY - 4),
-            control: CGPoint(x: rect.midX, y: rect.midY - 2)
-        )
-        return path
     }
 }
 
