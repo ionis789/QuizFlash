@@ -727,21 +727,9 @@ private struct EmptyDeckPromptIllustration: View {
                             .rotationEffect(.degrees(14))
                     }
 
-                    HStack(alignment: .top, spacing: 11) {
-                        EmptyDeckTear()
-                            .fill(accent.opacity(0.48))
-                            .frame(width: 7, height: 13)
-                            .offset(x: -3, y: -2)
-
-                        EmptyDeckFrown()
-                            .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                            .frame(width: 42, height: 24)
-
-                        EmptyDeckTear()
-                            .fill(actionColor.opacity(0.38))
-                            .frame(width: 6, height: 11)
-                            .offset(x: 2, y: 2)
-                    }
+                    EmptyDeckFrown()
+                        .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                        .frame(width: 42, height: 16)
                 }
                 .offset(y: 8)
             }
@@ -753,38 +741,10 @@ private struct EmptyDeckPromptIllustration: View {
 private struct EmptyDeckFrown: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX + 2, y: rect.maxY - 3))
+        path.move(to: CGPoint(x: rect.minX + 2, y: rect.maxY - 4))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - 2, y: rect.maxY - 3),
-            control: CGPoint(x: rect.midX, y: rect.minY + 2)
-        )
-        return path
-    }
-}
-
-private struct EmptyDeckTear: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.midY + rect.height * 0.16),
-            control1: CGPoint(x: rect.maxX - rect.width * 0.1, y: rect.minY + rect.height * 0.18),
-            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.32)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.midX, y: rect.maxY),
-            control1: CGPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.18),
-            control2: CGPoint(x: rect.midX + rect.width * 0.22, y: rect.maxY)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.minX, y: rect.midY + rect.height * 0.16),
-            control1: CGPoint(x: rect.midX - rect.width * 0.22, y: rect.maxY),
-            control2: CGPoint(x: rect.minX, y: rect.maxY - rect.height * 0.18)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.midX, y: rect.minY),
-            control1: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.32),
-            control2: CGPoint(x: rect.minX + rect.width * 0.1, y: rect.minY + rect.height * 0.18)
+            to: CGPoint(x: rect.maxX - 2, y: rect.maxY - 4),
+            control: CGPoint(x: rect.midX, y: rect.midY - 2)
         )
         return path
     }
