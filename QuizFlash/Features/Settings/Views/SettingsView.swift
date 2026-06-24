@@ -780,12 +780,18 @@ struct SettingsView: View {
            let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
            let limitMicroUSD = quota.limitMicroUSD,
            limitMicroUSD > 0 {
-            VStack(alignment: .trailing, spacing: 6) {
-                Text("\(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
-                    .font(.caption.weight(.semibold))
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formattedUsagePercent(quota.usageProgress))
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                    .minimumScaleFactor(0.82)
+
+                Text("\(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
 
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -797,9 +803,9 @@ struct SettingsView: View {
                             .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
                     }
                 }
-                .frame(width: 132, height: 5)
+                .frame(width: 150, height: 5)
             }
-            .frame(width: 132, alignment: .trailing)
+            .frame(width: 150, alignment: .trailing)
         } else {
             Text(aiUsageSummary)
                 .font(.subheadline.weight(.semibold))
@@ -914,6 +920,11 @@ struct SettingsView: View {
     private func formattedMicroUSD(_ value: Int) -> String {
         let amount = Double(max(value, 0)) / 1_000_000
         return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+
+    private func formattedUsagePercent(_ progress: Double) -> String {
+        let boundedProgress = max(0, min(progress, 1))
+        return boundedProgress.formatted(.percent.precision(.fractionLength(0)))
     }
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {
