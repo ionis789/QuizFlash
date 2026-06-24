@@ -124,6 +124,12 @@ extension DeckWorkspaceView {
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
                 if shouldShowTopAIGenerationControls {
                     generationHeaderStatusControl
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .leading)),
+                                removal: .opacity.combined(with: .scale(scale: 0.94, anchor: .leading))
+                            )
+                        )
                 } else {
                     Spacer(minLength: 0)
 
@@ -133,10 +139,21 @@ extension DeckWorkspaceView {
 
                     if !viewModel.draftCards.isEmpty || aiVisualStatusText != nil {
                         headerGenerateActionControl
+                            .transition(
+                                .asymmetric(
+                                    insertion: .offset(x: 12)
+                                        .combined(with: .opacity)
+                                        .combined(with: .scale(scale: 0.92, anchor: .trailing)),
+                                    removal: .offset(x: 6)
+                                        .combined(with: .opacity)
+                                        .combined(with: .scale(scale: 0.97, anchor: .trailing))
+                                )
+                            )
                     }
                 }
             }
             .frame(minHeight: UIConstants.Size.capsuleHeight)
+            .animation(.easeInOut(duration: UIConstants.Animation.standard), value: shouldShowTopAIGenerationControls)
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip

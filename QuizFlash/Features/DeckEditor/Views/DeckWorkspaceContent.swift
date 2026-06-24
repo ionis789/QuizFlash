@@ -136,27 +136,34 @@ extension DeckWorkspaceView {
     var aiPendingSlots: some View {
         let createdCount = sortedAISessionDraftCards.count
 
-        if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
-            let leadingRowCount = displayedDraftRowsBeforeAISlots.count
+        Group {
+            if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
+                let leadingRowCount = displayedDraftRowsBeforeAISlots.count
 
-            if createdCount == 0, viewModel.isGenerating {
-                EmptyDeckPromptIllustration(
-                    accent: accent,
-                    actionColor: themeManager.roleColor(.buttonDangerForeground),
-                    surfaceColor: themeManager.roleColor(.cardSurfaceFill),
-                    frontSurfaceColor: themeManager.roleColor(.screenBackgroundPrimary),
-                    animatesWhileWaiting: true
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.top, UIConstants.Spacing.small)
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            } else if createdCount > 0 {
-                draftCardRows(
-                    sortedAISessionDraftCards,
-                    startingIndex: leadingRowCount
-                )
+                if createdCount == 0, viewModel.isGenerating {
+                    EmptyDeckPromptIllustration(
+                        accent: accent,
+                        actionColor: themeManager.roleColor(.buttonDangerForeground),
+                        surfaceColor: themeManager.roleColor(.cardSurfaceFill),
+                        animatesWhileWaiting: true
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, UIConstants.Spacing.small)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                            removal: .scale(scale: 0.66).combined(with: .opacity)
+                        )
+                    )
+                } else if createdCount > 0 {
+                    draftCardRows(
+                        sortedAISessionDraftCards,
+                        startingIndex: leadingRowCount
+                    )
+                }
             }
         }
+        .animation(.easeInOut(duration: UIConstants.Animation.standard), value: createdCount)
     }
 
     @ViewBuilder
@@ -284,8 +291,7 @@ extension DeckWorkspaceView {
                 EmptyDeckPromptIllustration(
                     accent: accent,
                     actionColor: themeManager.roleColor(.buttonDangerForeground),
-                    surfaceColor: themeManager.roleColor(.cardSurfaceFill),
-                    frontSurfaceColor: themeManager.roleColor(.screenBackgroundPrimary)
+                    surfaceColor: themeManager.roleColor(.cardSurfaceFill)
                 )
                 .contentShape(Rectangle())
             }
@@ -661,7 +667,6 @@ private struct EmptyDeckPromptIllustration: View {
     let accent: Color
     let actionColor: Color
     let surfaceColor: Color
-    let frontSurfaceColor: Color
     var animatesWhileWaiting = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -699,7 +704,7 @@ private struct EmptyDeckPromptIllustration: View {
             .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(accent.opacity(0.16), lineWidth: 1.5)
+                    .stroke(accent, lineWidth: 1.5)
             }
             .frame(width: 108, height: 132)
     }
@@ -709,22 +714,21 @@ private struct EmptyDeckPromptIllustration: View {
             .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(actionColor.opacity(0.2), lineWidth: 1.5)
+                    .stroke(actionColor, lineWidth: 1.5)
             }
             .frame(width: 108, height: 132)
     }
 
     private var frontCard: some View {
         RoundedRectangle(cornerRadius: 32, style: .continuous)
-            .fill(frontSurfaceColor)
+            .fill(surfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .stroke(
                         LinearGradient(
                             colors: [
-                                actionColor.opacity(0.52),
-                                accent.opacity(0.42),
-                                Color.white.opacity(0.1)
+                                actionColor,
+                                accent
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
