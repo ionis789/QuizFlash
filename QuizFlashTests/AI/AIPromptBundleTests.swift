@@ -49,12 +49,6 @@ final class AIPromptBundleTests: XCTestCase {
         XCTAssertEqual(reloaded, bundle)
     }
 
-    private static let validTemplates = [
-        "schema.flashcard": "flashcard schema",
-        "schema.quiz": "quiz schema",
-        "system.base": "system",
-        "title.system": "title system",
-        "title.user": "title user"
-    ]
+    private static let validTemplates = AIPromptBundleFixture.templates
 
 }

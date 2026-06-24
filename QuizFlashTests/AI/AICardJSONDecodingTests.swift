@@ -274,9 +274,9 @@ final class AICardJSONDecodingTests: XCTestCase {
         }
     }
 
-    func testPromptUsesCanonicalCardDTOSchema() {
+    func testPromptUsesCanonicalCardDTOSchema() throws {
         let service = makeService()
-        let prompt = service.systemPrompt(
+        let prompt = try service.systemPrompt(
             targetCards: 2,
             isOCR: false,
             options: AIGenerationOptions(cardType: .flashcards)
@@ -290,7 +290,7 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Generate cards only from learnable substance"))
         XCTAssertTrue(prompt.contains("Skip source material that is only document scaffolding"))
         XCTAssertTrue(prompt.contains("If a source span has no durable study value by itself"))
-        XCTAssertTrue(prompt.contains("small semantic zones"))
+        XCTAssertTrue(prompt.contains("Use semantic zones"))
         XCTAssertTrue(prompt.contains("Never place two sentences or independent propositions in the same text zone"))
         XCTAssertTrue(prompt.contains("not from topic labels or keywords"))
         XCTAssertTrue(prompt.contains("Do not force a fixed number of zones"))
@@ -362,9 +362,9 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(metadata["prompt_payload"]?.contains("exact sanitized provider JSON body") == true)
     }
 
-    func testQuizPromptPrefersCompactChoicesForNamedTechnicalAnswers() {
+    func testQuizPromptPrefersCompactChoicesForNamedTechnicalAnswers() throws {
         let service = makeService()
-        let prompt = service.systemPrompt(
+        let prompt = try service.systemPrompt(
             targetCards: 3,
             isOCR: false,
             options: AIGenerationOptions(cardType: .quiz)
@@ -378,9 +378,9 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("long formulas in their own question zone"))
     }
 
-    func testOCRPromptConstrainsNoisyFormalNotationRepair() {
+    func testOCRPromptConstrainsNoisyFormalNotationRepair() throws {
         let service = makeService()
-        let prompt = service.systemPrompt(
+        let prompt = try service.systemPrompt(
             targetCards: 2,
             isOCR: true,
             options: AIGenerationOptions(cardType: .flashcards)
@@ -487,9 +487,9 @@ final class AICardJSONDecodingTests: XCTestCase {
         )
     }
 
-    func testPromptSupportsSimpleDepthProfile() {
+    func testPromptSupportsSimpleDepthProfile() throws {
         let service = makeService()
-        let prompt = service.systemPrompt(
+        let prompt = try service.systemPrompt(
             targetCards: 2,
             isOCR: false,
             options: AIGenerationOptions(cardType: .flashcards, cardLevel: .simple)
@@ -504,9 +504,9 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertFalse(prompt.contains("For programming sources"))
     }
 
-    func testTextPromptDoesNotInjectKeywordBasedProgrammingProfile() {
+    func testTextPromptDoesNotInjectKeywordBasedProgrammingProfile() throws {
         let service = makeService()
-        let prompt = service.buildTextUserMessage(
+        let prompt = try service.buildTextUserMessage(
             text: """
             public class UserService {
                 public User findById(String id) throws IOException {
@@ -545,7 +545,8 @@ final class AICardJSONDecodingTests: XCTestCase {
                 apiKey: "test",
                 textModel: "test-text",
                 visionModel: "test-vision"
-            )
+            ),
+            promptBundle: try! AIPromptBundleFixture.bundle()
         )
     }
 }

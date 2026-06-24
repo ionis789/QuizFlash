@@ -685,7 +685,16 @@ extension DeckWorkspaceViewModel {
             return nil
         }
 
-        return AIFlashcardService(provider: activeProfile, transport: .directProvider)
+        guard let promptBundle = AIPromptBundleCache.loadStoredBundleSynchronously() else {
+            aiState = .error("AI prompt configuration is unavailable.")
+            return nil
+        }
+
+        return AIFlashcardService(
+            provider: activeProfile,
+            transport: .directProvider,
+            promptBundle: promptBundle
+        )
 #else
         guard let cloudAIGenerationSession else {
             aiState = .error("AI generation session is unavailable.")

@@ -43,7 +43,7 @@ extension AIFlashcardService {
             plans: plans,
             maxConcurrent: maxConcurrentTextPlanRequests,
             execute: { [self] plan, coveredPrompts in
-                let messages = buildTextMessages(
+                let messages = try buildTextMessages(
                     text: plan.text,
                     targetCards: plan.targetCards,
                     needsOCRCorrection: needsOCRCorrection,
@@ -100,7 +100,7 @@ extension AIFlashcardService {
             plans: plans,
             maxConcurrent: maxConcurrentVisionPlanRequests,
             execute: { [self] plan, coveredPrompts in
-                let messages = buildVisionMessages(
+                let messages = try buildVisionMessages(
                     images: plan.images,
                     targetCards: plan.targetCards,
                     options: options,

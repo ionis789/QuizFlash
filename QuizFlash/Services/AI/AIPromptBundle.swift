@@ -6,19 +6,83 @@
 import CryptoKit
 import Foundation
 
+nonisolated enum AIPromptTemplateKey {
+    static let cardTypeFlashcard = "cardType.flashcard"
+    static let cardTypeQuiz = "cardType.quiz"
+    static let depthPro = "depth.pro"
+    static let depthSimple = "depth.simple"
+    static let languageAuto = "language.auto"
+    static let languageLocked = "language.locked"
+    static let layoutFlashcard = "layout.flashcard"
+    static let layoutQuiz = "layout.quiz"
+    static let rulesFlashcard = "rules.flashcard"
+    static let rulesQuiz = "rules.quiz"
+    static let schemaFlashcard = "schema.flashcard"
+    static let schemaQuiz = "schema.quiz"
+    static let sourceTruncated = "source.truncated"
+    static let systemBase = "system.base"
+    static let systemOCR = "system.ocr"
+    static let titleSystem = "title.system"
+    static let titleUser = "title.user"
+    static let userTextBase = "user.text.base"
+    static let userTextCoveredHeader = "user.text.covered.header"
+    static let userTextCoveredItem = "user.text.covered.item"
+    static let userTextFlashcard = "user.text.flashcard"
+    static let userTextLanguage = "user.text.language"
+    static let userTextQuiz = "user.text.quiz"
+    static let userTextRepeat = "user.text.repeat"
+    static let userTextSource = "user.text.source"
+    static let userVisionBase = "user.vision.base"
+    static let userVisionCoveredHeader = "user.vision.covered.header"
+    static let userVisionCoveredItem = "user.vision.covered.item"
+    static let userVisionFlashcard = "user.vision.flashcard"
+    static let userVisionLanguage = "user.vision.language"
+    static let userVisionQuiz = "user.vision.quiz"
+    static let userVisionRepeat = "user.vision.repeat"
+
+    static let required: Set<String> = [
+        cardTypeFlashcard,
+        cardTypeQuiz,
+        depthPro,
+        depthSimple,
+        languageAuto,
+        languageLocked,
+        layoutFlashcard,
+        layoutQuiz,
+        rulesFlashcard,
+        rulesQuiz,
+        schemaFlashcard,
+        schemaQuiz,
+        sourceTruncated,
+        systemBase,
+        systemOCR,
+        titleSystem,
+        titleUser,
+        userTextBase,
+        userTextCoveredHeader,
+        userTextCoveredItem,
+        userTextFlashcard,
+        userTextLanguage,
+        userTextQuiz,
+        userTextRepeat,
+        userTextSource,
+        userVisionBase,
+        userVisionCoveredHeader,
+        userVisionCoveredItem,
+        userVisionFlashcard,
+        userVisionLanguage,
+        userVisionQuiz,
+        userVisionRepeat
+    ]
+}
+
 nonisolated struct AIPromptBundle: Codable, Equatable, Sendable {
     let version: String
     let hash: String
     let status: String
     let templates: [String: String]
 
-    static let requiredTemplateKeys: Set<String> = [
-        "schema.flashcard",
-        "schema.quiz",
-        "system.base",
-        "title.system",
-        "title.user"
-    ]
+    static let requiredTemplateKeys = AIPromptTemplateKey.required
 
     func validated() throws -> AIPromptBundle {
         guard !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -57,10 +121,9 @@ nonisolated struct AIPromptBundle: Codable, Equatable, Sendable {
 
 actor AIPromptBundleCache {
     static let shared = AIPromptBundleCache()
+    static let cacheKey = "quizflash.ai.promptBundle.v1"
 
     private let defaults: UserDefaults
-    private let cacheKey = "quizflash.ai.promptBundle.v1"
-    private let decoder = JSONDecoder()
     private var inMemoryBundle: AIPromptBundle?
 
     init(defaults: UserDefaults = .standard) {
@@ -86,8 +149,17 @@ actor AIPromptBundleCache {
     func store(_ bundle: AIPromptBundle) throws -> AIPromptBundle {
         let validated = try bundle.validated()
         let data = try makeAIPromptBundleEncoder().encode(validated)
-        defaults.set(data, forKey: cacheKey)
+        defaults.set(data, forKey: Self.cacheKey)
         inMemoryBundle = validated
+        return validated
+    }
+
+    static func loadStoredBundleSynchronously(defaults: UserDefaults = .standard) -> AIPromptBundle? {
+        guard let data = defaults.data(forKey: cacheKey),
+              let bundle = try? JSONDecoder().decode(AIPromptBundle.self, from: data),
+              let validated = try? bundle.validated() else {
+            return nil
+        }
         return validated
     }
 
@@ -95,9 +167,7 @@ actor AIPromptBundleCache {
         if let inMemoryBundle {
             return inMemoryBundle
         }
-        guard let data = defaults.data(forKey: cacheKey),
-              let bundle = try? decoder.decode(AIPromptBundle.self, from: data),
-              let validated = try? bundle.validated() else {
+        guard let validated = Self.loadStoredBundleSynchronously(defaults: defaults) else {
             return nil
         }
         inMemoryBundle = validated

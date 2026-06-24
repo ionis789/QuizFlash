@@ -82,7 +82,7 @@ extension AIFlashcardService {
             metadata: ["source_char_count": String(trimmedText.count)]
         ) { [self] in
             try await self.sendDeckTitleRequest(
-                messages: self.buildDeckTitleMessages(fromText: trimmedText),
+                messages: try self.buildDeckTitleMessages(fromText: trimmedText),
                 model: self.textModel
             )
         }
