@@ -129,9 +129,6 @@ extension DeckWorkspaceView {
                 }
             )
             .transition(runtimeCardTransition)
-        } else if case .generatingCards = viewModel.aiState {
-            AIStreamingTextStatusView(title: localized("Generating cards"))
-            .transition(runtimeCardTransition)
         }
     }
 

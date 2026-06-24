@@ -69,11 +69,28 @@ extension DeckWorkspaceView {
                 fallbackTitle: localized("Untitled Deck")
             )
         } trailing: {
-            HStack(spacing: UIConstants.Spacing.small) {
-                addCardButton
-                moreActionsButton
+            if shouldShowTopAIGenerationControls {
+                topAIGenerationControls
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .trailing)),
+                            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .trailing))
+                        )
+                    )
+            } else {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    addCardButton
+                    moreActionsButton
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .trailing)),
+                        removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .trailing))
+                    )
+                )
             }
         }
+        .animation(.easeInOut(duration: UIConstants.Animation.standard), value: shouldShowTopAIGenerationControls)
     }
 
     @ViewBuilder
@@ -106,7 +123,7 @@ extension DeckWorkspaceView {
                     mockAIActionControl
                 }
 
-                if !viewModel.draftCards.isEmpty || aiVisualStatusText != nil {
+                if !viewModel.draftCards.isEmpty || (aiVisualStatusText != nil && !shouldShowTopAIGenerationControls) {
                     headerGenerateActionControl
                 }
             }
@@ -144,6 +161,13 @@ extension DeckWorkspaceView {
     var shouldShowPrimaryGenerateAction: Bool {
         !hasUnifiedAISession
             && !shouldShowFloatingGenerate
+    }
+
+    var shouldShowTopAIGenerationControls: Bool {
+        if case .generatingCards = viewModel.aiState {
+            return true
+        }
+        return viewModel.hasPausedAIGeneration
     }
 
     var destinationMetadataControl: some View {
@@ -371,6 +395,57 @@ extension DeckWorkspaceView {
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
             }
         }
+    }
+
+    @ViewBuilder
+    var topAIGenerationControls: some View {
+        CreateDeckCapsuleContainer {
+            HStack(spacing: UIConstants.Spacing.small) {
+                AIShimmeringStatusText(localized("Generating cards"))
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .frame(maxWidth: 126, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                CreateDeckAIStatusIndicator(
+                    countText: aiToolbarCountText,
+                    tint: aiToolbarTint
+                )
+
+                Button {
+                    if viewModel.hasPausedAIGeneration {
+                        viewModel.resumePausedAIGeneration()
+                    } else {
+                        viewModel.pauseAIGeneration()
+                    }
+                } label: {
+                    Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(aiToolbarTint)
+                        .frame(width: 24, height: 24)
+                }
+                .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
+                .accessibilityLabel(
+                    viewModel.hasPausedAIGeneration
+                        ? localized("Resume AI generation")
+                        : localized("Pause AI generation")
+                )
+
+                Button {
+                    viewModel.requestAIGenerationCancel()
+                } label: {
+                    ChromeSoftCircleSymbol(
+                        systemName: "xmark",
+                        size: 24
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized("Cancel AI generation"))
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .background(.clear)
+        .accessibilityLabel(aiToolbarStatusText ?? localized("Generating cards"))
     }
 
     var addCardButton: some View {

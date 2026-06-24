@@ -84,7 +84,7 @@ struct AIStreamingTextStatusView: View {
     }
 }
 
-private struct AIShimmeringStatusText: View {
+struct AIShimmeringStatusText: View {
     let title: String
     @State private var isAnimating = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
