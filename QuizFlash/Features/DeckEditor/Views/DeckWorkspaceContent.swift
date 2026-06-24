@@ -144,6 +144,7 @@ extension DeckWorkspaceView {
                     accent: accent,
                     actionColor: themeManager.roleColor(.buttonDangerForeground),
                     surfaceColor: themeManager.roleColor(.cardSurfaceFill),
+                    frontSurfaceColor: themeManager.roleColor(.screenBackgroundPrimary),
                     animatesWhileWaiting: true
                 )
                 .frame(maxWidth: .infinity)
@@ -283,7 +284,8 @@ extension DeckWorkspaceView {
                 EmptyDeckPromptIllustration(
                     accent: accent,
                     actionColor: themeManager.roleColor(.buttonDangerForeground),
-                    surfaceColor: themeManager.roleColor(.cardSurfaceFill)
+                    surfaceColor: themeManager.roleColor(.cardSurfaceFill),
+                    frontSurfaceColor: themeManager.roleColor(.screenBackgroundPrimary)
                 )
                 .contentShape(Rectangle())
             }
@@ -659,6 +661,7 @@ private struct EmptyDeckPromptIllustration: View {
     let accent: Color
     let actionColor: Color
     let surfaceColor: Color
+    let frontSurfaceColor: Color
     var animatesWhileWaiting = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -709,7 +712,7 @@ private struct EmptyDeckPromptIllustration: View {
 
     private var frontCard: some View {
         RoundedRectangle(cornerRadius: 32, style: .continuous)
-            .fill(surfaceColor)
+            .fill(frontSurfaceColor)
             .overlay {
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .stroke(
