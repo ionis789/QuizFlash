@@ -45,6 +45,66 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
     let freeGenerationsUsed: Int?
     let freeGenerationsLimit: Int?
     let monthlyCostMicroUSD: Int
+    let limitMicroUSD: Int?
+    let consumedMicroUSD: Int
+    let reservedMicroUSD: Int
+    let availableMicroUSD: Int?
+    let percent: Double?
+
+    var usageProgress: Double {
+        guard let limitMicroUSD, limitMicroUSD > 0 else { return 0 }
+        return min(1, Double(consumedMicroUSD + reservedMicroUSD) / Double(limitMicroUSD))
+    }
+
+    init(
+        premium: Bool,
+        freeGenerationsUsed: Int?,
+        freeGenerationsLimit: Int?,
+        monthlyCostMicroUSD: Int,
+        limitMicroUSD: Int? = nil,
+        consumedMicroUSD: Int? = nil,
+        reservedMicroUSD: Int = 0,
+        availableMicroUSD: Int? = nil,
+        percent: Double? = nil
+    ) {
+        self.premium = premium
+        self.freeGenerationsUsed = freeGenerationsUsed
+        self.freeGenerationsLimit = freeGenerationsLimit
+        self.monthlyCostMicroUSD = monthlyCostMicroUSD
+        self.limitMicroUSD = limitMicroUSD
+        self.consumedMicroUSD = consumedMicroUSD ?? monthlyCostMicroUSD
+        self.reservedMicroUSD = reservedMicroUSD
+        self.availableMicroUSD = availableMicroUSD
+        self.percent = percent
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case premium
+        case freeGenerationsUsed
+        case freeGenerationsLimit
+        case monthlyCostMicroUSD
+        case limitMicroUSD
+        case consumedMicroUSD
+        case reservedMicroUSD
+        case availableMicroUSD
+        case percent
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let monthlyCost = try container.decodeIfPresent(Int.self, forKey: .monthlyCostMicroUSD) ?? 0
+        self.init(
+            premium: try container.decode(Bool.self, forKey: .premium),
+            freeGenerationsUsed: try container.decodeIfPresent(Int.self, forKey: .freeGenerationsUsed),
+            freeGenerationsLimit: try container.decodeIfPresent(Int.self, forKey: .freeGenerationsLimit),
+            monthlyCostMicroUSD: monthlyCost,
+            limitMicroUSD: try container.decodeIfPresent(Int.self, forKey: .limitMicroUSD),
+            consumedMicroUSD: try container.decodeIfPresent(Int.self, forKey: .consumedMicroUSD),
+            reservedMicroUSD: try container.decodeIfPresent(Int.self, forKey: .reservedMicroUSD) ?? 0,
+            availableMicroUSD: try container.decodeIfPresent(Int.self, forKey: .availableMicroUSD),
+            percent: try container.decodeIfPresent(Double.self, forKey: .percent)
+        )
+    }
 }
 
 @MainActor
@@ -133,28 +193,33 @@ final class CloudAIProxyClient {
             sessionToken: response.sessionToken,
             uid: user.uid,
             targetCards: response.targetCards,
-            quota: response.quota,
+            quota: response.usageQuota,
             promptBundle: promptBundle,
             promptCacheStatus: promptCacheStatus
         )
     }
 
     func finishGeneration(_ generation: CloudAIGenerationSession, validatedCards: Int) async throws -> CloudAIQuotaState {
-        try await sendJSON(
+        let response: QuotaResponseEnvelope = try await sendJSON(
             endpoint: generation.baseURL.appending(path: "v1/generations/finish"),
             method: "POST",
             headers: ["X-QuizFlash-UID": generation.uid],
             body: FinishRequest(generationID: generation.generationID, sessionToken: generation.sessionToken, validatedCards: validatedCards)
         )
+        SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
+        return response.usageQuota
     }
 
     func failGeneration(_ generation: CloudAIGenerationSession) async {
-        let _: EmptyResponse? = try? await sendJSON(
+        let response: QuotaResponseEnvelope? = try? await sendJSON(
             endpoint: generation.baseURL.appending(path: "v1/generations/fail"),
             method: "POST",
             headers: ["X-QuizFlash-UID": generation.uid],
             body: FailRequest(generationID: generation.generationID, sessionToken: generation.sessionToken)
         )
+        if let response {
+            SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
+        }
     }
 
     nonisolated static func prepareProviderRequest(
@@ -170,6 +235,14 @@ final class CloudAIProxyClient {
         request.setValue(operation, forHTTPHeaderField: "X-QuizFlash-Operation")
         request.setValue(providerCallID.uuidString, forHTTPHeaderField: "X-QuizFlash-Provider-Call-ID")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    }
+
+    nonisolated static func usageQuota(from response: HTTPURLResponse) -> CloudAIQuotaState? {
+        guard let rawValue = response.value(forHTTPHeaderField: "X-QuizFlash-Usage-Quota"),
+              let data = rawValue.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(CloudAIQuotaState.self, from: data)
     }
 
     private func sendJSON<Request: Encodable, Response: Decodable>(
@@ -190,6 +263,9 @@ final class CloudAIProxyClient {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw CloudAIProxyError.invalidResponse }
         guard (200...299).contains(httpResponse.statusCode) else {
+            if let quota = Self.usageQuota(from: data) {
+                SubscriptionManager.shared.applyCloudAIQuotaState(quota)
+            }
             throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
         }
         do {
@@ -206,6 +282,13 @@ final class CloudAIProxyClient {
             return "AI request failed (HTTP \(fallbackStatus))."
         }
         return message
+    }
+
+    private static func usageQuota(from data: Data) -> CloudAIQuotaState? {
+        guard let payload = try? JSONDecoder().decode(QuotaResponseEnvelope.self, from: data) else {
+            return nil
+        }
+        return payload.usageQuota
     }
 }
 
@@ -248,14 +331,41 @@ struct StartResponse: Decodable {
     let generationID: String
     let sessionToken: String
     let targetCards: Int
-    let quota: CloudAIQuotaState
+    let usageQuota: CloudAIQuotaState
     let promptVersion: String
     let promptHash: String
     let promptBundle: AIPromptBundle?
 
     enum CodingKeys: String, CodingKey {
         case generationID = "generationId"
-        case sessionToken, targetCards, quota, promptVersion, promptHash, promptBundle
+        case sessionToken, targetCards, quota, usageQuota, promptVersion, promptHash, promptBundle
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        generationID = try container.decode(String.self, forKey: .generationID)
+        sessionToken = try container.decode(String.self, forKey: .sessionToken)
+        targetCards = try container.decode(Int.self, forKey: .targetCards)
+        usageQuota = try container.decodeIfPresent(CloudAIQuotaState.self, forKey: .usageQuota)
+            ?? container.decode(CloudAIQuotaState.self, forKey: .quota)
+        promptVersion = try container.decode(String.self, forKey: .promptVersion)
+        promptHash = try container.decode(String.self, forKey: .promptHash)
+        promptBundle = try container.decodeIfPresent(AIPromptBundle.self, forKey: .promptBundle)
+    }
+}
+
+private struct QuotaResponseEnvelope: Decodable {
+    let usageQuota: CloudAIQuotaState
+
+    enum CodingKeys: String, CodingKey {
+        case usageQuota
+        case quota
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        usageQuota = try container.decodeIfPresent(CloudAIQuotaState.self, forKey: .usageQuota)
+            ?? container.decode(CloudAIQuotaState.self, forKey: .quota)
     }
 }
 private struct PromptConfigResponse: Decodable {

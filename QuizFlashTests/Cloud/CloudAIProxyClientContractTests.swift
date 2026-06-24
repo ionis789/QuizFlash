@@ -14,11 +14,16 @@ final class CloudAIProxyClientContractTests: XCTestCase {
               "generationId": "generation-123",
               "sessionToken": "session-token",
               "targetCards": 5,
-              "quota": {
+              "usageQuota": {
                 "premium": false,
                 "freeGenerationsUsed": 1,
                 "freeGenerationsLimit": 5,
-                "monthlyCostMicroUSD": 0
+                "monthlyCostMicroUSD": 0,
+                "limitMicroUSD": null,
+                "consumedMicroUSD": 0,
+                "reservedMicroUSD": 0,
+                "availableMicroUSD": null,
+                "percent": null
               },
               "promptVersion": "v1",
               "promptHash": "hash"
@@ -30,6 +35,37 @@ final class CloudAIProxyClientContractTests: XCTestCase {
 
         XCTAssertEqual(response.generationID, "generation-123")
         XCTAssertEqual(response.sessionToken, "session-token")
+        XCTAssertEqual(response.usageQuota.freeGenerationsUsed, 1)
+    }
+
+    func testDecodesLegacyQuotaField() throws {
+        let payload = Data(
+            """
+            {
+              "generationId": "generation-123",
+              "sessionToken": "session-token",
+              "targetCards": 5,
+              "quota": {
+                "premium": true,
+                "freeGenerationsUsed": null,
+                "freeGenerationsLimit": null,
+                "monthlyCostMicroUSD": 12000,
+                "limitMicroUSD": 20000,
+                "consumedMicroUSD": 12000,
+                "reservedMicroUSD": 0,
+                "availableMicroUSD": 8000,
+                "percent": 0.6
+              },
+              "promptVersion": "v1",
+              "promptHash": "hash"
+            }
+            """.utf8
+        )
+
+        let response = try JSONDecoder().decode(StartResponse.self, from: payload)
+
+        XCTAssertTrue(response.usageQuota.premium)
+        XCTAssertEqual(response.usageQuota.usageProgress, 0.6, accuracy: 0.001)
     }
 
     func testEncodesWorkerGenerationIDForSessionCompletion() throws {

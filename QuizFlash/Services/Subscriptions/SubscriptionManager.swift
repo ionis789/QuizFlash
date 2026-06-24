@@ -29,6 +29,7 @@ final class SubscriptionManager {
     private(set) var planSource: SubscriptionPlanSource = .none
     private(set) var freeGenerationsUsed: Int?
     private(set) var freeGenerationsLimit: Int?
+    private(set) var cloudAIUsageQuota: CloudAIQuotaState?
     private(set) var lastErrorMessage: String?
     var presentPaywall = false
 
@@ -115,6 +116,10 @@ final class SubscriptionManager {
         isPremium ? Self.premiumMaxCardsPerGeneration : Self.freeMaxCardsPerGeneration
     }
 
+    var cloudAIUsageProgress: Double {
+        cloudAIUsageQuota?.usageProgress ?? 0
+    }
+
     func consumeAIGenerationQuota(targetCards: Int) async throws {
         do {
             let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
@@ -137,6 +142,7 @@ final class SubscriptionManager {
         planSource = state.premium ? .manualFirestore : .free
         freeGenerationsUsed = state.premium ? nil : state.freeGenerationsUsed
         freeGenerationsLimit = state.premium ? nil : state.freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
+        cloudAIUsageQuota = state
         lastErrorMessage = nil
     }
 
@@ -167,6 +173,7 @@ final class SubscriptionManager {
         freeGenerationsUsed = nil
         freeGenerationsLimit = nil
         lastErrorMessage = nil
+        cloudAIUsageQuota = nil
     }
 
     private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {

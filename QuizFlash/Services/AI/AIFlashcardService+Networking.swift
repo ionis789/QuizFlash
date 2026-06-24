@@ -117,6 +117,13 @@ extension AIFlashcardService {
                         payload: String(decoding: data, as: UTF8.self)
                     )
 
+                    if case .cloudProxy = self.transport,
+                       let usageQuota = CloudAIProxyClient.usageQuota(from: http) {
+                        await MainActor.run {
+                            SubscriptionManager.shared.applyCloudAIQuotaState(usageQuota)
+                        }
+                    }
+
                     guard (200...299).contains(http.statusCode) else {
                         throw self.httpError(from: http, data: data)
                     }
@@ -543,6 +550,9 @@ extension AIFlashcardService {
         case 408:
             return RetriableRequestError(serviceError: .timeout, retryAfter: retryAfter)
         case 429:
+            if apiErrorCode(from: data) == "AI_QUOTA_EXHAUSTED" {
+                return AIServiceError.unknown(message)
+            }
             return RetriableRequestError(serviceError: .rateLimitExceeded, retryAfter: retryAfter)
         case 500, 502, 503, 504:
             return RetriableRequestError(serviceError: .unknown(message), retryAfter: retryAfter)

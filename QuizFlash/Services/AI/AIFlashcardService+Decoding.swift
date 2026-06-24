@@ -86,6 +86,18 @@ extension AIFlashcardService {
         return "\(provider.trimmedName) HTTP \(statusCode)"
     }
 
+    func apiErrorCode(from data: Data) -> String? {
+        if
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let error = object["error"] as? [String: Any],
+            let code = error["code"] as? String
+        {
+            return code
+        }
+
+        return nil
+    }
+
     func decodeGeneratedCards(
         from jsonString: String,
         contract: AIGeneratedCardContract

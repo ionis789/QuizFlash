@@ -31,7 +31,6 @@ type SessionStart = {
   idempotencyKey: string;
   targetCards: number;
   entitlement: Entitlement;
-  monthlyBudgetMicroUSD: number;
   promptVersion: string;
   promptHash: string;
 };
@@ -40,6 +39,7 @@ type SessionState = {
   generationId: string;
   idempotencyKey: string;
   sessionToken: string;
+  uid: string;
   premium: boolean;
   targetCards: number;
   expiresAtMs: number;
@@ -50,6 +50,11 @@ type QuotaResponse = {
   freeGenerationsUsed: number | null;
   freeGenerationsLimit: number | null;
   monthlyCostMicroUSD: number;
+  limitMicroUSD: number | null;
+  consumedMicroUSD: number;
+  reservedMicroUSD: number;
+  availableMicroUSD: number | null;
+  percent: number | null;
 };
 
 type GenerationSessionResponse = {
@@ -58,11 +63,12 @@ type GenerationSessionResponse = {
   targetCards: number;
   expiresAt: string;
   quota: QuotaResponse;
+  usageQuota: QuotaResponse;
 };
 
 type SessionStartResult =
   | {kind: "session"; session: GenerationSessionResponse}
-  | {kind: "rejection"; status: number; code: string; message: string};
+  | {kind: "rejection"; status: number; code: string; message: string; usageQuota?: QuotaResponse};
 
 type ProviderUsage = {
   prompt_tokens?: number;
@@ -94,20 +100,71 @@ type StoredPromptConfig = {
   templates_json: string;
 };
 
+type UsageReservation = {
+  providerCallId: string;
+  generationId: string;
+  uid: string;
+  period: string;
+  reservedCostMicroUSD: number;
+  expiresAtMs: number;
+};
+
+type ProviderCallAccountingInput = {
+  providerCallId: string;
+  generationId: string;
+  operation: string;
+  requestedModel: string;
+  httpStatus: number;
+  rawResponseBytes: number;
+  metadata: ProviderMetadata;
+  responseCiphertext: string;
+  responseIV: string;
+  responseExpiresAtMs: number;
+  createdAtMs: number;
+};
+
+type ProviderCallAccountingResult = {
+  quota: QuotaResponse;
+  event: UsageEventResponse;
+};
+
+type UsageEventResponse = {
+  providerCallId: string;
+  pricingVersion: string;
+  accountingStatus: ProviderAccountingStatus;
+  costMicroUSD: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  responseModel: string | null;
+};
+
+type ProviderAccountingStatus = "accounted" | "accounting_error" | "not_billable";
+
 const freeLifetimeGenerationLimit = 5;
 const freeMaxCardsPerGeneration = 30;
 const premiumMaxCardsPerGeneration = 100;
+const premiumPlan = "premium";
+const monthlyPeriod = "monthly";
+const defaultPremiumMonthlyBudgetMicroUSD = 2_000_000;
+const pricingVersion = "deepseek-v4-flash@2026-06";
 const activeSessionTTLMilliseconds = 20 * 60 * 1_000;
 const providerResponseTTLMilliseconds = 15 * 60 * 1_000;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 export class UserGenerationCoordinator extends DurableObject<Env> {
+  private queue: Promise<void> = Promise.resolve();
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
   }
 
   async start(input: SessionStart): Promise<SessionStartResult> {
+    return this.enqueue(() => this.startLocked(input));
+  }
+
+  private async startLocked(input: SessionStart): Promise<SessionStartResult> {
     const now = Date.now();
     const active = await this.ctx.storage.get<SessionState>("active");
     if (active && active.expiresAtMs > now && active.idempotencyKey !== input.idempotencyKey) {
@@ -127,7 +184,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
     const quota = await this.ensureFreeQuota(input.entitlement, now);
     if (!input.entitlement.premium && quota.used >= quota.limit) {
-      return sessionRejection(429, "resource-exhausted", "Free AI generation limit reached.");
+      return sessionRejection(429, "resource-exhausted", "Free AI generation limit reached.", await this.entitlementResponse(input.entitlement.uid, false));
     }
 
     const maxCards = input.entitlement.premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
@@ -135,12 +192,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       return sessionRejection(412, "failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
     }
 
-    const period = monthKey(now);
-    const monthly = await this.env.AI_DB.prepare(
-      "SELECT cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
-    ).bind(input.entitlement.uid, period).first<{ cost_micro_usd: number }>();
-    if (input.entitlement.premium && (monthly?.cost_micro_usd ?? 0) >= input.monthlyBudgetMicroUSD) {
-      return sessionRejection(429, "resource-exhausted", "Monthly AI budget reached.");
+    if (input.entitlement.premium) {
+      const usageQuota = await this.entitlementResponse(input.entitlement.uid, true);
+      if ((usageQuota.availableMicroUSD ?? 0) <= 0) {
+        return sessionRejection(429, "AI_QUOTA_EXHAUSTED", "Monthly AI budget reached.", usageQuota);
+      }
     }
 
     const generationId = existing?.id ?? crypto.randomUUID();
@@ -167,6 +223,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       generationId,
       idempotencyKey: input.idempotencyKey,
       sessionToken: response.sessionToken as string,
+      uid: input.entitlement.uid,
       premium: input.entitlement.premium,
       targetCards: input.targetCards,
       expiresAtMs: now + activeSessionTTLMilliseconds
@@ -184,6 +241,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
   }
 
   async finish(generationId: string, sessionToken: string, validatedCards: number): Promise<QuotaResponse> {
+    return this.enqueue(() => this.finishLocked(generationId, sessionToken, validatedCards));
+  }
+
+  private async finishLocked(generationId: string, sessionToken: string, validatedCards: number): Promise<QuotaResponse> {
     const active = await this.authorize(generationId, sessionToken);
     const now = Date.now();
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
@@ -215,13 +276,22 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     return this.entitlementResponse(generation.uid, generation.premium === 1);
   }
 
-  async fail(generationId: string, sessionToken: string): Promise<void> {
+  async fail(generationId: string, sessionToken: string): Promise<QuotaResponse> {
+    return this.enqueue(() => this.failLocked(generationId, sessionToken));
+  }
+
+  private async failLocked(generationId: string, sessionToken: string): Promise<QuotaResponse> {
     await this.authorize(generationId, sessionToken);
     const now = Date.now();
+    const generation = await this.env.AI_DB.prepare(
+      "SELECT uid, premium FROM ai_generations WHERE id = ?"
+    ).bind(generationId).first<{ uid: string; premium: number }>();
+    if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
     await this.env.AI_DB.prepare(
       "UPDATE ai_generations SET status = 'failed', updated_at_ms = ?, completed_at_ms = ? WHERE id = ? AND status = 'reserved'"
     ).bind(now, now, generationId).run();
     await this.clearActive(generationId);
+    return this.entitlementResponse(generation.uid, generation.premium === 1);
   }
 
   async entitlement(entitlement: Entitlement): Promise<QuotaResponse> {
@@ -229,24 +299,162 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     return this.entitlementResponse(entitlement.uid, entitlement.premium);
   }
 
-  async alarm(): Promise<void> {
-    const active = await this.ctx.storage.get<SessionState>("active");
-    if (active && active.expiresAtMs <= Date.now()) {
+  async usageQuotaForSession(generationId: string, sessionToken: string): Promise<QuotaResponse> {
+    const active = await this.authorize(generationId, sessionToken);
+    return this.entitlementResponse(active.uid, active.premium);
+  }
+
+  async reserveProviderCall(generationId: string, sessionToken: string, providerCallId: string): Promise<QuotaResponse> {
+    return this.enqueue(async () => {
+      const active = await this.authorize(generationId, sessionToken);
+      const existing = await this.env.AI_DB.prepare(
+        "SELECT provider_call_id FROM ai_provider_calls WHERE provider_call_id = ?"
+      ).bind(providerCallId).first<{ provider_call_id: string }>();
+      if (existing || !active.premium) return this.entitlementResponse(active.uid, active.premium);
+
+      const quota = await this.entitlementResponse(active.uid, true);
+      const available = quota.availableMicroUSD ?? 0;
+      if (available <= 0) {
+        throw new WorkerError(429, "AI_QUOTA_EXHAUSTED", "Monthly AI budget reached.", quota);
+      }
+
+      const now = Date.now();
+      const period = monthKey(now);
       await this.env.AI_DB.prepare(
-        "UPDATE ai_generations SET status = 'expired', updated_at_ms = ? WHERE id = ? AND status = 'reserved'"
-      ).bind(Date.now(), active.generationId).run();
-      await this.clearActive(active.generationId);
-    }
+        `INSERT INTO ai_monthly_usage (uid, period, generated_cards, request_count, cost_micro_usd, reserved_cost_micro_usd, updated_at_ms)
+         VALUES (?, ?, 0, 0, 0, ?, ?)
+         ON CONFLICT(uid, period) DO UPDATE SET
+           reserved_cost_micro_usd = reserved_cost_micro_usd + excluded.reserved_cost_micro_usd,
+           updated_at_ms = excluded.updated_at_ms`
+      ).bind(active.uid, period, available, now).run();
+      await this.ctx.storage.put(`reservation:${providerCallId}`, {
+        providerCallId,
+        generationId,
+        uid: active.uid,
+        period,
+        reservedCostMicroUSD: available,
+        expiresAtMs: now + providerResponseTTLMilliseconds
+      } satisfies UsageReservation);
+      await this.ctx.storage.setAlarm(Math.min(active.expiresAtMs, now + providerResponseTTLMilliseconds));
+      return this.entitlementResponse(active.uid, true);
+    });
+  }
+
+  async releaseProviderCallReservation(providerCallId: string): Promise<void> {
+    await this.enqueue(() => this.releaseReservation(providerCallId, Date.now()));
+  }
+
+  async finalizeProviderCall(input: ProviderCallAccountingInput): Promise<ProviderCallAccountingResult> {
+    return this.enqueue(async () => {
+      const generation = await this.env.AI_DB.prepare(
+        "SELECT uid, premium FROM ai_generations WHERE id = ?"
+      ).bind(input.generationId).first<{ uid: string; premium: number }>();
+      if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
+
+      const existing = await this.env.AI_DB.prepare(
+        "SELECT provider_call_id FROM ai_provider_calls WHERE provider_call_id = ?"
+      ).bind(input.providerCallId).first<{ provider_call_id: string }>();
+      if (existing) {
+        await this.releaseReservation(input.providerCallId, input.createdAtMs);
+        const quota = await this.entitlementResponse(generation.uid, generation.premium === 1);
+        return {quota, event: usageEvent(input.providerCallId, input.metadata)};
+      }
+
+      const statements: D1PreparedStatement[] = [
+        this.env.AI_DB.prepare(
+          `INSERT INTO ai_provider_calls (
+            provider_call_id, generation_id, operation, requested_model, response_model, provider_response_id,
+            http_status, finish_reason, raw_response_bytes, prompt_tokens, completion_tokens, total_tokens,
+            cache_hit_tokens, cache_miss_tokens, estimated_cost_micro_usd, final_cost_micro_usd,
+            pricing_version, accounting_status, accounted_at_ms, response_ciphertext, response_iv,
+            response_expires_at_ms, created_at_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          input.providerCallId, input.generationId, input.operation, input.requestedModel, input.metadata.model, input.metadata.responseID,
+          input.httpStatus, input.metadata.finishReason, input.rawResponseBytes, input.metadata.promptTokens, input.metadata.completionTokens,
+          input.metadata.totalTokens, input.metadata.cacheHitTokens, input.metadata.cacheMissTokens, input.metadata.costMicroUSD,
+          input.metadata.costMicroUSD, input.metadata.pricingVersion, input.metadata.accountingStatus,
+          input.metadata.accountingStatus === "accounted" ? input.createdAtMs : null,
+          input.responseCiphertext, input.responseIV, input.responseExpiresAtMs, input.createdAtMs
+        )
+      ];
+
+      const reservationKey = `reservation:${input.providerCallId}`;
+      const reservation = await this.ctx.storage.get<UsageReservation>(reservationKey);
+      if (reservation) {
+        statements.push(this.env.AI_DB.prepare(
+          `UPDATE ai_monthly_usage
+           SET reserved_cost_micro_usd = MAX(0, reserved_cost_micro_usd - ?), updated_at_ms = ?
+           WHERE uid = ? AND period = ?`
+        ).bind(reservation.reservedCostMicroUSD, input.createdAtMs, reservation.uid, reservation.period));
+      }
+
+      if (input.metadata.accountingStatus === "accounted") {
+        const cost = input.metadata.costMicroUSD;
+        statements.push(
+          this.env.AI_DB.prepare(
+            `UPDATE ai_generations SET
+              status = 'running', total_prompt_tokens = total_prompt_tokens + ?,
+              total_completion_tokens = total_completion_tokens + ?, total_tokens = total_tokens + ?,
+              total_cache_hit_tokens = total_cache_hit_tokens + ?, total_cache_miss_tokens = total_cache_miss_tokens + ?,
+              cost_micro_usd = cost_micro_usd + ?, updated_at_ms = ? WHERE id = ?`
+          ).bind(input.metadata.promptTokens, input.metadata.completionTokens, input.metadata.totalTokens, input.metadata.cacheHitTokens, input.metadata.cacheMissTokens, cost, input.createdAtMs, input.generationId),
+          this.env.AI_DB.prepare(
+            `INSERT INTO ai_monthly_usage (uid, period, generated_cards, request_count, cost_micro_usd, reserved_cost_micro_usd, updated_at_ms)
+             VALUES (?, ?, 0, 0, ?, 0, ?)
+             ON CONFLICT(uid, period) DO UPDATE SET
+               cost_micro_usd = cost_micro_usd + excluded.cost_micro_usd,
+               updated_at_ms = excluded.updated_at_ms`
+          ).bind(generation.uid, monthKey(input.createdAtMs), cost, input.createdAtMs)
+        );
+      } else if (input.httpStatus >= 200 && input.httpStatus <= 299 && input.metadata.accountingStatus === "accounting_error") {
+        console.error(JSON.stringify({
+          event: "provider_accounting_error",
+          generation_id: input.generationId,
+          provider_call_id: input.providerCallId,
+          response_model: input.metadata.model,
+          usage_present: input.metadata.usagePresent
+        }));
+      }
+
+      await this.env.AI_DB.batch(statements);
+      if (reservation) await this.ctx.storage.delete(reservationKey);
+      const quota = await this.entitlementResponse(generation.uid, generation.premium === 1);
+      return {quota, event: usageEvent(input.providerCallId, input.metadata)};
+    });
+  }
+
+  async alarm(): Promise<void> {
+    await this.enqueue(async () => {
+      const now = Date.now();
+      const reservations = await this.ctx.storage.list<UsageReservation>({prefix: "reservation:"});
+      for (const key of reservations.keys()) {
+        const reservation = reservations.get(key);
+        if (reservation && reservation.expiresAtMs <= now) {
+          await this.releaseReservation(reservation.providerCallId, now);
+        }
+      }
+
+      const active = await this.ctx.storage.get<SessionState>("active");
+      if (active && active.expiresAtMs <= Date.now()) {
+        await this.env.AI_DB.prepare(
+          "UPDATE ai_generations SET status = 'expired', updated_at_ms = ? WHERE id = ? AND status = 'reserved'"
+        ).bind(Date.now(), active.generationId).run();
+        await this.clearActive(active.generationId);
+      }
+    });
   }
 
   private async sessionResponse(generationId: string, uid: string, premium: boolean, targetCards: number, now: number): Promise<GenerationSessionResponse> {
     const sessionToken = await sessionTokenFor(generationId, this.env.RESPONSE_CACHE_ENCRYPTION_KEY);
+    const usageQuota = await this.entitlementResponse(uid, premium);
     return {
       generationId,
       sessionToken,
       targetCards,
       expiresAt: new Date(now + activeSessionTTLMilliseconds).toISOString(),
-      quota: await this.entitlementResponse(uid, premium)
+      quota: usageQuota,
+      usageQuota
     };
   }
 
@@ -255,13 +463,23 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       "SELECT used_generations, limit_generations FROM ai_free_quota WHERE uid = ?"
     ).bind(uid).first<{ used_generations: number; limit_generations: number }>();
     const monthly = await this.env.AI_DB.prepare(
-      "SELECT cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
-    ).bind(uid, monthKey(Date.now())).first<{ cost_micro_usd: number }>();
+      "SELECT cost_micro_usd, reserved_cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
+    ).bind(uid, monthKey(Date.now())).first<{ cost_micro_usd: number; reserved_cost_micro_usd: number }>();
+    const consumed = Math.max(0, monthly?.cost_micro_usd ?? 0);
+    const reserved = Math.max(0, monthly?.reserved_cost_micro_usd ?? 0);
+    const limit = premium ? await activePlanLimitMicroUSD(this.env, premiumPlan) : null;
+    const available = limit === null ? null : Math.max(0, limit - consumed - reserved);
+    const percent = limit && limit > 0 ? Math.min(1, (consumed + reserved) / limit) : null;
     return {
       premium,
       freeGenerationsUsed: premium ? null : quota?.used_generations ?? 0,
       freeGenerationsLimit: premium ? null : quota?.limit_generations ?? freeLifetimeGenerationLimit,
-      monthlyCostMicroUSD: monthly?.cost_micro_usd ?? 0
+      monthlyCostMicroUSD: consumed,
+      limitMicroUSD: limit,
+      consumedMicroUSD: consumed,
+      reservedMicroUSD: reserved,
+      availableMicroUSD: available,
+      percent
     };
   }
 
@@ -284,6 +502,25 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       await this.ctx.storage.delete("active");
       await this.ctx.storage.deleteAlarm();
     }
+  }
+
+  private async releaseReservation(providerCallId: string, now: number): Promise<UsageReservation | undefined> {
+    const key = `reservation:${providerCallId}`;
+    const reservation = await this.ctx.storage.get<UsageReservation>(key);
+    if (!reservation) return undefined;
+    await this.env.AI_DB.prepare(
+      `UPDATE ai_monthly_usage
+       SET reserved_cost_micro_usd = MAX(0, reserved_cost_micro_usd - ?), updated_at_ms = ?
+       WHERE uid = ? AND period = ?`
+    ).bind(reservation.reservedCostMicroUSD, now, reservation.uid, reservation.period).run();
+    await this.ctx.storage.delete(key);
+    return reservation;
+  }
+
+  private async enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(operation, operation);
+    this.queue = next.then(() => undefined, () => undefined);
+    return next;
   }
 }
 
@@ -350,12 +587,11 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
       idempotencyKey,
       targetCards,
       entitlement,
-      monthlyBudgetMicroUSD: positiveInteger(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD, "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD"),
       promptVersion: promptConfig.version,
       promptHash: promptConfig.hash
     });
     if (startResult.kind === "rejection") {
-      throw new WorkerError(startResult.status, startResult.code, startResult.message);
+      throw new WorkerError(startResult.status, startResult.code, startResult.message, startResult.usageQuota);
     }
     return promptStartResponse({...startResult.session}, promptConfig, knownPromptVersion);
   } catch (error) {
@@ -394,6 +630,19 @@ async function activePromptConfig(env: Env): Promise<PromptBundleRecord> {
   return seeded;
 }
 
+async function activePlanLimitMicroUSD(env: Env, plan: string): Promise<number> {
+  const configured = await env.AI_DB.prepare(
+    "SELECT limit_micro_usd FROM ai_plan_limits WHERE plan = ? AND period = ? AND active = 1 ORDER BY updated_at_ms DESC LIMIT 1"
+  ).bind(plan, monthlyPeriod).first<{ limit_micro_usd: number }>();
+  if (configured) return Math.max(0, configured.limit_micro_usd);
+  return fallbackPremiumMonthlyBudgetMicroUSD(env);
+}
+
+function fallbackPremiumMonthlyBudgetMicroUSD(env: Env): number {
+  const parsed = Number(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPremiumMonthlyBudgetMicroUSD;
+}
+
 export function promptStartResponse(session: Record<string, unknown>, promptConfig: PromptBundleRecord, knownPromptVersion: string | undefined): Record<string, unknown> {
   return {
     ...session,
@@ -418,10 +667,11 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
   const sessionToken = nonEmptyString(payload.sessionToken, "sessionToken", 256);
   const stub = env.USER_GENERATION.getByName(nonEmptyString(request.headers.get("X-QuizFlash-UID"), "X-QuizFlash-UID", 128));
   if (failed) {
-    await stub.fail(generationId, sessionToken);
-    return {status: "failed"};
+    const usageQuota = await stub.fail(generationId, sessionToken);
+    return {status: "failed", usageQuota, quota: usageQuota};
   }
-  return {...await stub.finish(generationId, sessionToken, Math.max(0, Number(payload.validatedCards) || 0))};
+  const usageQuota = await stub.finish(generationId, sessionToken, Math.max(0, Number(payload.validatedCards) || 0));
+  return {usageQuota, quota: usageQuota};
 }
 
 async function readEntitlement(request: Request, env: Env): Promise<Record<string, unknown>> {
@@ -442,7 +692,7 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
   const operation = request.headers.get("X-QuizFlash-Operation") === "title" ? "title" : "cards";
   const uid = nonEmptyString(request.headers.get("X-QuizFlash-UID"), "X-QuizFlash-UID", 128);
   const stub = env.USER_GENERATION.getByName(uid);
-  const active = await stub.authorize(generationId, sessionToken);
+  await stub.authorize(generationId, sessionToken);
   const rawBody = await request.arrayBuffer();
   const requestPayload = parseProviderRequest(rawBody, env.DEEPSEEK_MODEL);
   const cached = await env.AI_DB.prepare(
@@ -450,113 +700,141 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
   ).bind(providerCallId).first<StoredProviderCall>();
   if (cached?.response_ciphertext && cached.response_iv && (cached.response_expires_at_ms ?? 0) > Date.now()) {
     const cachedBytes = await decryptResponse(cached.response_ciphertext, cached.response_iv, env.RESPONSE_CACHE_ENCRYPTION_KEY);
-    return providerResponse(cachedBytes, cached.http_status, startedAt, "cache");
+    const quota = await stub.usageQuotaForSession(generationId, sessionToken);
+    return providerResponse(cachedBytes, cached.http_status, startedAt, "cache", undefined, undefined, undefined, quota, {
+      providerCallId,
+      pricingVersion,
+      accountingStatus: "not_billable",
+      costMicroUSD: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      responseModel: null
+    });
   }
 
-  const upstreamStartedAt = performance.now();
-  const upstream = await fetch(`${env.DEEPSEEK_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.DEEPSEEK_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: rawBody
-  });
-  const upstreamDuration = performance.now() - upstreamStartedAt;
-  const responseBytes = await upstream.arrayBuffer();
-  const metadata = extractProviderMetadata(responseBytes, requestPayload.model);
-  const encrypted = await encryptResponse(responseBytes, env.RESPONSE_CACHE_ENCRYPTION_KEY);
-  const now = Date.now();
-  await env.AI_DB.prepare(
-    `INSERT INTO ai_provider_calls (
-      provider_call_id, generation_id, operation, requested_model, response_model, provider_response_id,
-      http_status, finish_reason, raw_response_bytes, prompt_tokens, completion_tokens, total_tokens,
-      cache_hit_tokens, cache_miss_tokens, estimated_cost_micro_usd, response_ciphertext, response_iv,
-      response_expires_at_ms, created_at_ms
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(provider_call_id) DO NOTHING`
-  ).bind(
-    providerCallId, generationId, operation, requestPayload.model, metadata.model, metadata.responseID,
-    upstream.status, metadata.finishReason, responseBytes.byteLength, metadata.promptTokens, metadata.completionTokens,
-    metadata.totalTokens, metadata.cacheHitTokens, metadata.cacheMissTokens, metadata.costMicroUSD,
-    encrypted.ciphertext, encrypted.iv, now + providerResponseTTLMilliseconds, now
-  ).run();
-  if (upstream.ok) {
-    await recordUsage(env, generationId, active.premium, metadata, now);
+  await stub.reserveProviderCall(generationId, sessionToken, providerCallId);
+  let finalized = false;
+  try {
+    const upstreamStartedAt = performance.now();
+    const upstream = await fetch(`${env.DEEPSEEK_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.DEEPSEEK_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: rawBody
+    });
+    const upstreamDuration = performance.now() - upstreamStartedAt;
+    const responseBytes = await upstream.arrayBuffer();
+    const metadata = extractProviderMetadata(responseBytes, requestPayload.model, upstream.ok);
+    const encrypted = await encryptResponse(responseBytes, env.RESPONSE_CACHE_ENCRYPTION_KEY);
+    const now = Date.now();
+    const accounting = await stub.finalizeProviderCall({
+      providerCallId,
+      generationId,
+      operation,
+      requestedModel: requestPayload.model,
+      httpStatus: upstream.status,
+      rawResponseBytes: responseBytes.byteLength,
+      metadata,
+      responseCiphertext: encrypted.ciphertext,
+      responseIV: encrypted.iv,
+      responseExpiresAtMs: now + providerResponseTTLMilliseconds,
+      createdAtMs: now
+    });
+    finalized = true;
+    return providerResponse(
+      responseBytes,
+      upstream.status,
+      startedAt,
+      "upstream",
+      upstreamDuration,
+      upstream.headers.get("Retry-After"),
+      upstream.headers.get("X-Request-ID") ?? upstream.headers.get("X-Request-Id"),
+      accounting.quota,
+      accounting.event
+    );
+  } finally {
+    if (!finalized) {
+      await stub.releaseProviderCallReservation(providerCallId);
+    }
   }
-  return providerResponse(
-    responseBytes,
-    upstream.status,
-    startedAt,
-    "upstream",
-    upstreamDuration,
-    upstream.headers.get("Retry-After"),
-    upstream.headers.get("X-Request-ID") ?? upstream.headers.get("X-Request-Id")
-  );
-}
-
-async function recordUsage(env: Env, generationId: string, premium: boolean, metadata: ProviderMetadata, now: number): Promise<void> {
-  const generation = await env.AI_DB.prepare("SELECT uid FROM ai_generations WHERE id = ?").bind(generationId).first<{ uid: string }>();
-  if (!generation) return;
-  await env.AI_DB.batch([
-    env.AI_DB.prepare(
-      `UPDATE ai_generations SET
-        status = 'running', total_prompt_tokens = total_prompt_tokens + ?,
-        total_completion_tokens = total_completion_tokens + ?, total_tokens = total_tokens + ?,
-        total_cache_hit_tokens = total_cache_hit_tokens + ?, total_cache_miss_tokens = total_cache_miss_tokens + ?,
-        cost_micro_usd = cost_micro_usd + ?, updated_at_ms = ? WHERE id = ?`
-    ).bind(metadata.promptTokens, metadata.completionTokens, metadata.totalTokens, metadata.cacheHitTokens, metadata.cacheMissTokens, metadata.costMicroUSD, now, generationId),
-    env.AI_DB.prepare(
-      `INSERT INTO ai_monthly_usage (uid, period, generated_cards, request_count, cost_micro_usd, updated_at_ms)
-       VALUES (?, ?, 0, 0, ?, ?)
-       ON CONFLICT(uid, period) DO UPDATE SET
-         cost_micro_usd = cost_micro_usd + excluded.cost_micro_usd,
-         updated_at_ms = excluded.updated_at_ms`
-    ).bind(generation.uid, monthKey(now), metadata.costMicroUSD, now)
-  ]);
-  void premium;
 }
 
 type ProviderMetadata = {
   model: string | null;
   responseID: string | null;
   finishReason: string | null;
+  usagePresent: boolean;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
   cacheHitTokens: number;
   cacheMissTokens: number;
   costMicroUSD: number;
+  pricingVersion: string;
+  accountingStatus: ProviderAccountingStatus;
 };
 
-function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: string): ProviderMetadata {
+export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: string, billable: boolean): ProviderMetadata {
   try {
     const envelope = JSON.parse(textDecoder.decode(bytes)) as ProviderEnvelope;
+    const usagePresent = envelope.usage !== undefined;
     const usage = envelope.usage ?? {};
     const promptTokens = numeric(usage.prompt_tokens);
     const completionTokens = numeric(usage.completion_tokens);
     const cacheHitTokens = numeric(usage.prompt_cache_hit_tokens);
     const cacheMissTokens = numeric(usage.prompt_cache_miss_tokens) || promptTokens;
     const model = envelope.model ?? null;
+    const costMicroUSD = billable && usagePresent && model !== null
+      ? estimateCostMicroUSD(model, cacheHitTokens, cacheMissTokens, completionTokens)
+      : 0;
+    const accountingStatus: ProviderAccountingStatus = !billable
+      ? "not_billable"
+      : usagePresent && model !== null && isPricedModel(model)
+        ? "accounted"
+        : "accounting_error";
     return {
       model,
       responseID: envelope.id ?? null,
       finishReason: envelope.choices?.[0]?.finish_reason ?? null,
+      usagePresent,
       promptTokens,
       completionTokens,
       totalTokens: numeric(usage.total_tokens) || promptTokens + completionTokens,
       cacheHitTokens,
       cacheMissTokens,
-      costMicroUSD: estimateCostMicroUSD(model ?? requestedModel, cacheHitTokens, cacheMissTokens, completionTokens)
+      costMicroUSD,
+      pricingVersion,
+      accountingStatus
     };
   } catch {
-    return {model: null, responseID: null, finishReason: null, promptTokens: 0, completionTokens: 0, totalTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0, costMicroUSD: 0};
+    void requestedModel;
+    return {
+      model: null,
+      responseID: null,
+      finishReason: null,
+      usagePresent: false,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheHitTokens: 0,
+      cacheMissTokens: 0,
+      costMicroUSD: 0,
+      pricingVersion,
+      accountingStatus: billable ? "accounting_error" : "not_billable"
+    };
   }
 }
 
 export function estimateCostMicroUSD(model: string, cacheHitTokens: number, cacheMissTokens: number, completionTokens: number): number {
-  if (model.trim().toLowerCase() !== "deepseek-v4-flash") return 0;
+  if (!isPricedModel(model)) return 0;
   return Math.round((cacheHitTokens * 0.0028 + cacheMissTokens * 0.14 + completionTokens * 0.28));
+}
+
+function isPricedModel(model: string): boolean {
+  return model.trim().toLowerCase() === "deepseek-v4-flash";
 }
 
 function parseProviderRequest(rawBody: ArrayBuffer, allowedModel: string): { model: string } {
@@ -652,7 +930,9 @@ function providerResponse(
   source: string,
   upstreamDuration?: number,
   retryAfter?: string | null,
-  requestID?: string | null
+  requestID?: string | null,
+  usageQuota?: QuotaResponse,
+  usageEvent?: UsageEventResponse
 ): Response {
   const headers = new Headers({"Content-Type": "application/json", "X-QuizFlash-Proxy": source});
   const timing = [`proxy;dur=${(performance.now() - startedAt).toFixed(1)}`];
@@ -660,6 +940,8 @@ function providerResponse(
   headers.set("Server-Timing", timing.join(", "));
   if (retryAfter) headers.set("Retry-After", retryAfter);
   if (requestID) headers.set("X-Request-ID", requestID);
+  if (usageQuota) headers.set("X-QuizFlash-Usage-Quota", compactJSON(usageQuota));
+  if (usageEvent) headers.set("X-QuizFlash-Usage-Event", compactJSON(usageEvent));
   return new Response(data, {status, headers});
 }
 
@@ -675,17 +957,24 @@ function errorResponse(error: unknown, startedAt: number, requestID: string, rou
   if (!(error instanceof WorkerError)) {
     console.error(JSON.stringify({event: "worker_request_failed", request_id: requestID, route, error_name: errorName(error)}));
   }
-  return Response.json({error: {code: workerError.code, message: workerError.message}}, {
+  const body: Record<string, unknown> = {error: {code: workerError.code, message: workerError.message}};
+  if (workerError.usageQuota) {
+    body.usageQuota = workerError.usageQuota;
+    body.quota = workerError.usageQuota;
+  }
+  const headers: Record<string, string> = {
+    "Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`,
+    "X-Request-ID": requestID
+  };
+  if (workerError.usageQuota) headers["X-QuizFlash-Usage-Quota"] = compactJSON(workerError.usageQuota);
+  return Response.json(body, {
     status: workerError.status,
-    headers: {
-      "Server-Timing": `proxy;dur=${(performance.now() - startedAt).toFixed(1)}`,
-      "X-Request-ID": requestID
-    }
+    headers
   });
 }
 
 class WorkerError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) { super(message); }
+  constructor(readonly status: number, readonly code: string, message: string, readonly usageQuota?: QuotaResponse) { super(message); }
 }
 
 function bearerToken(request: Request): string {
@@ -713,14 +1002,31 @@ function errorName(error: unknown): string {
   return error instanceof Error && error.name ? error.name : "unknown";
 }
 
-function sessionRejection(status: number, code: string, message: string): SessionStartResult {
-  return {kind: "rejection", status, code, message};
+function sessionRejection(status: number, code: string, message: string, usageQuota?: QuotaResponse): SessionStartResult {
+  return {kind: "rejection", status, code, message, usageQuota};
 }
 
 function positiveInteger(value: unknown, name: string): number {
   const number = typeof value === "string" ? Number(value) : value;
   if (!Number.isInteger(number) || (number as number) < 1) throw new WorkerError(400, "invalid-argument", `${name} is invalid.`);
   return number as number;
+}
+
+function usageEvent(providerCallId: string, metadata: ProviderMetadata): UsageEventResponse {
+  return {
+    providerCallId,
+    pricingVersion: metadata.pricingVersion,
+    accountingStatus: metadata.accountingStatus,
+    costMicroUSD: metadata.costMicroUSD,
+    promptTokens: metadata.promptTokens,
+    completionTokens: metadata.completionTokens,
+    totalTokens: metadata.totalTokens,
+    responseModel: metadata.model
+  };
+}
+
+function compactJSON(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function numeric(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
