@@ -745,8 +745,23 @@ private struct EmptyDeckPromptIllustration: View {
                         lineWidth: 2
                     )
             }
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 9) {
+                    promptLine(width: 55, opacity: 0.64)
+                    promptLine(width: 74, opacity: 0.46)
+                    promptLine(width: 44, opacity: 0.34)
+                }
+                .padding(.top, 37)
+                .padding(.leading, 27)
+            }
             .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
             .frame(width: 118, height: 142)
+    }
+
+    private func promptLine(width: CGFloat, opacity: Double) -> some View {
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(opacity))
+            .frame(width: width, height: 5)
     }
 }
 
