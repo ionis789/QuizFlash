@@ -287,23 +287,27 @@ extension DeckWorkspaceView {
 
     var emptyStateView: some View {
         VStack(spacing: UIConstants.Spacing.large) {
-            EmptyDeckPromptIllustration(
-                accent: accent,
-                actionColor: themeManager.roleColor(.buttonDangerForeground)
-            )
+            Button {
+                presentAIGenerationSourcePicker()
+            } label: {
+                EmptyDeckPromptIllustration(
+                    accent: accent,
+                    actionColor: themeManager.roleColor(.buttonDangerForeground)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canStartLocalGeneration)
+            .opacity(canStartLocalGeneration ? 1 : 0.48)
+            .accessibilityLabel(localized("Generate cards with AI"))
             .padding(.bottom, UIConstants.Spacing.small)
 
             Button {
                 presentAIGenerationSourcePicker()
             } label: {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 21, weight: .heavy, design: .rounded))
-
-                    Text(localized("Generate with AI"))
-                        .font(.system(size: 25, weight: .heavy, design: .rounded))
-                        .lineLimit(1)
-                }
+                Text(localized("Generate with AI"))
+                    .font(.system(size: 25, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 .padding(.horizontal, UIConstants.Spacing.standard)
                 .padding(.vertical, 6)
@@ -330,18 +334,6 @@ extension DeckWorkspaceView {
                 showAddCardTypeDialog = true
             } label: {
                 HStack(spacing: 9) {
-                    ZStack(alignment: .bottomTrailing) {
-                        Image(systemName: "rectangle.stack")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(accent.opacity(0.9))
-
-                        Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .heavy, design: .rounded))
-                            .foregroundStyle(accent)
-                            .offset(x: 5, y: 4)
-                    }
-                    .frame(width: 20, height: 20)
-
                     Text(localized("Add manually"))
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary.opacity(0.86))
@@ -678,16 +670,6 @@ private struct EmptyDeckPromptIllustration: View {
                 .rotationEffect(.degrees(7))
 
             frontCard
-
-            Image(systemName: "sparkles")
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
-                .foregroundStyle(actionColor.opacity(0.9))
-                .offset(x: 58, y: -58)
-
-            Image(systemName: "plus")
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .foregroundStyle(accent.opacity(0.88))
-                .offset(x: -64, y: 58)
         }
         .frame(width: 180, height: 168)
         .accessibilityHidden(true)
@@ -732,24 +714,36 @@ private struct EmptyDeckPromptIllustration: View {
                     )
             }
             .overlay {
-                VStack(spacing: 18) {
-                    HStack(spacing: 18) {
+                VStack(spacing: 12) {
+                    HStack(spacing: 20) {
                         Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.52))
-                            .frame(width: 18, height: 5)
-                            .rotationEffect(.degrees(10))
+                            .fill(Color.primary.opacity(0.48))
+                            .frame(width: 17, height: 5)
+                            .rotationEffect(.degrees(-14))
 
                         Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.52))
-                            .frame(width: 18, height: 5)
-                            .rotationEffect(.degrees(-10))
+                            .fill(Color.primary.opacity(0.48))
+                            .frame(width: 17, height: 5)
+                            .rotationEffect(.degrees(14))
                     }
 
-                    EmptyDeckFrown()
-                        .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .frame(width: 34, height: 18)
+                    HStack(alignment: .top, spacing: 11) {
+                        EmptyDeckTear()
+                            .fill(accent.opacity(0.48))
+                            .frame(width: 7, height: 13)
+                            .offset(x: -3, y: -2)
+
+                        EmptyDeckFrown()
+                            .stroke(Color.primary.opacity(0.42), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                            .frame(width: 42, height: 24)
+
+                        EmptyDeckTear()
+                            .fill(actionColor.opacity(0.38))
+                            .frame(width: 6, height: 11)
+                            .offset(x: 2, y: 2)
+                    }
                 }
-                .offset(y: 4)
+                .offset(y: 8)
             }
             .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
             .frame(width: 118, height: 142)
@@ -763,6 +757,34 @@ private struct EmptyDeckFrown: Shape {
         path.addQuadCurve(
             to: CGPoint(x: rect.maxX - 2, y: rect.maxY - 3),
             control: CGPoint(x: rect.midX, y: rect.minY + 2)
+        )
+        return path
+    }
+}
+
+private struct EmptyDeckTear: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY + rect.height * 0.16),
+            control1: CGPoint(x: rect.maxX - rect.width * 0.1, y: rect.minY + rect.height * 0.18),
+            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.32)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.maxY),
+            control1: CGPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.18),
+            control2: CGPoint(x: rect.midX + rect.width * 0.22, y: rect.maxY)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX, y: rect.midY + rect.height * 0.16),
+            control1: CGPoint(x: rect.midX - rect.width * 0.22, y: rect.maxY),
+            control2: CGPoint(x: rect.minX, y: rect.maxY - rect.height * 0.18)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY),
+            control1: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.32),
+            control2: CGPoint(x: rect.minX + rect.width * 0.1, y: rect.minY + rect.height * 0.18)
         )
         return path
     }
