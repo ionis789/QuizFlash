@@ -773,7 +773,9 @@ extension DeckWorkspaceViewModel {
 
                 guard pendingAIDeckTitleRequestID == requestID else { return }
                 guard deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                deckTitle = suggestedTitle
+                withAnimation(.smooth(duration: UIConstants.Animation.medium, extraBounce: 0)) {
+                    self.deckTitle = suggestedTitle
+                }
             } catch is CancellationError {
                 return
             } catch {

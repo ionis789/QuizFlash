@@ -22,6 +22,11 @@ extension DeckWorkspaceView {
                 .focused($isTitleFocused)
                 .submitLabel(.done)
                 .onSubmit { isTitleFocused = false }
+                .frame(minHeight: heroTitleReservedHeight, alignment: .leading)
+                .id(heroTitleTransitionIdentity)
+                .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .leading)))
+                .animation(.easeInOut(duration: UIConstants.Animation.medium), value: heroTitleReservedHeight)
+                .animation(.easeInOut(duration: UIConstants.Animation.medium), value: heroTitleTransitionIdentity)
 
             if shouldShowHeaderMetadataRow {
                 headerMetadataRow
@@ -172,6 +177,17 @@ extension DeckWorkspaceView {
             return true
         }
         return viewModel.hasPausedAIGeneration
+    }
+
+    var heroTitleReservedHeight: CGFloat {
+        guard hasActiveGenerationRuntime else { return 0 }
+        return ceil(UIFont.systemFont(ofSize: 42, weight: .heavy).lineHeight * 2)
+    }
+
+    var heroTitleTransitionIdentity: String {
+        guard hasActiveGenerationRuntime, !isTitleFocused else { return "manual-title" }
+        let title = viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? "ai-title-pending" : "ai-title-resolved"
     }
 
     var destinationMetadataControl: some View {
