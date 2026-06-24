@@ -189,10 +189,21 @@ actor AIJobSessionStore {
     /// Copies an externally selected PDF into the app sandbox for stable access during generation.
     func importPDFToDisk(from sourceURL: URL) throws -> URL {
         let didAccess = sourceURL.startAccessingSecurityScopedResource()
+        PDFImportDebugStore.record(
+            "importPDFToDisk start",
+            details: [
+                "didAccess": String(didAccess),
+                "source": sourceURL.debugDescription
+            ]
+        )
         defer {
             if didAccess {
                 sourceURL.stopAccessingSecurityScopedResource()
             }
+            PDFImportDebugStore.record(
+                "importPDFToDisk stopAccess",
+                details: ["didAccess": String(didAccess)]
+            )
         }
 
         let sourceExtension = sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
@@ -202,15 +213,39 @@ actor AIJobSessionStore {
 
         do {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            PDFImportDebugStore.record(
+                "importPDFToDisk copyItem success",
+                details: ["destination": destinationURL.path]
+            )
         } catch {
+            PDFImportDebugStore.record(
+                "importPDFToDisk copyItem failed",
+                details: ["error": error.localizedDescription]
+            )
             let data = try Data(contentsOf: sourceURL)
+            PDFImportDebugStore.record(
+                "importPDFToDisk data fallback read",
+                details: ["bytes": String(data.count)]
+            )
             try data.write(to: destinationURL, options: [.atomic, .completeFileProtection])
+            PDFImportDebugStore.record(
+                "importPDFToDisk data fallback wrote",
+                details: ["destination": destinationURL.path]
+            )
         }
 
         var resourceValues = URLResourceValues()
         resourceValues.isExcludedFromBackup = true
         var mutableDestinationURL = destinationURL
         try? mutableDestinationURL.setResourceValues(resourceValues)
+
+        PDFImportDebugStore.record(
+            "importPDFToDisk finished",
+            details: [
+                "exists": String(fileManager.fileExists(atPath: destinationURL.path)),
+                "destination": destinationURL.path
+            ]
+        )
 
         return destinationURL
     }

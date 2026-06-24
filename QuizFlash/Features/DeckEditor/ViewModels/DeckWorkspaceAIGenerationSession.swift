@@ -817,6 +817,10 @@ extension DeckWorkspaceViewModel {
             case .photos(let items):
                 await self.preparePhotoSource(from: items)
             case .pdf(let url):
+                PDFImportDebugStore.record(
+                    "startPendingAISourcePreparation pdf",
+                    details: ["url": url.debugDescription]
+                )
                 await self.preparePDFSource(from: url)
             }
         }

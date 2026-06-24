@@ -379,9 +379,14 @@ struct DeckWorkspaceView: View {
             .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
             .sheet(isPresented: $viewModel.showAIPDFPicker) {
                 DeckWorkspacePDFDocumentPicker { url in
+                    PDFImportDebugStore.record(
+                        "pdf picker onPicked closure",
+                        details: ["url": url.debugDescription]
+                    )
                     viewModel.showAIPDFPicker = false
                     viewModel.pdfWasSelected(url)
                 } onCancel: {
+                    PDFImportDebugStore.record("pdf picker onCancel closure")
                     viewModel.showAIPDFPicker = false
                 }
                 .ignoresSafeArea()
@@ -613,6 +618,7 @@ private struct DeckWorkspacePDFDocumentPicker: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        PDFImportDebugStore.record("UIDocumentPicker makeUIViewController")
         let controller = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf], asCopy: true)
         controller.allowsMultipleSelection = false
         controller.delegate = context.coordinator
@@ -620,7 +626,9 @@ private struct DeckWorkspacePDFDocumentPicker: UIViewControllerRepresentable {
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) { }
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {
+        PDFImportDebugStore.record("UIDocumentPicker updateUIViewController")
+    }
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
         let onPicked: (URL) -> Void
@@ -635,6 +643,13 @@ private struct DeckWorkspacePDFDocumentPicker: UIViewControllerRepresentable {
             _ controller: UIDocumentPickerViewController,
             didPickDocumentsAt urls: [URL]
         ) {
+            PDFImportDebugStore.record(
+                "UIDocumentPicker didPick",
+                details: [
+                    "count": String(urls.count),
+                    "first": urls.first?.debugDescription ?? "<none>"
+                ]
+            )
             guard let url = urls.first else {
                 onCancel()
                 return
@@ -643,6 +658,7 @@ private struct DeckWorkspacePDFDocumentPicker: UIViewControllerRepresentable {
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            PDFImportDebugStore.record("UIDocumentPicker cancelled")
             onCancel()
         }
     }

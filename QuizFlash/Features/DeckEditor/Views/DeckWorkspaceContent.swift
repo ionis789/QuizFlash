@@ -415,8 +415,17 @@ extension DeckWorkspaceView {
 
     func chooseAIPDFSourceFromPicker() {
         isTitleFocused = false
+        PDFImportDebugStore.clear()
+        PDFImportDebugStore.record("chooseAIPDFSourceFromPicker")
         viewModel.showAIPickerOptions = false
         viewModel.showAIPDFPicker = true
+        PDFImportDebugStore.record(
+            "chooseAIPDFSourceFromPicker flags set",
+            details: [
+                "showAIPickerOptions": String(viewModel.showAIPickerOptions),
+                "showAIPDFPicker": String(viewModel.showAIPDFPicker)
+            ]
+        )
     }
 
     func openCardEditor(for kind: CardKind) {

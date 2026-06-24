@@ -38,6 +38,8 @@ struct SettingsView: View {
     @State private var cachedProfileImageSignature: Int?
     @State private var profileImageDecodeTask: Task<Void, Never>?
     @State private var cachedDeckCount = 0
+    @State private var didCopyPDFImportDebug = false
+    @State private var pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -99,6 +101,7 @@ struct SettingsView: View {
         }
         .task {
             cachedDeckCount = decks.count
+            pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
         }
@@ -439,6 +442,21 @@ struct SettingsView: View {
 
             settingsBlock {
                 Button {
+                    copyPDFImportDebugReport()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: didCopyPDFImportDebug ? "checkmark" : "doc.on.doc",
+                        tint: .orange,
+                        title: "PDF Import Debug",
+                        detail: "Copy picker and import events for LiveContainer diagnosis.",
+                        value: "\(pdfImportDebugEventCount)"
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            settingsBlock {
+                Button {
                     Task { @MainActor in
                         do {
                             try await authManager.logout()
@@ -617,6 +635,18 @@ struct SettingsView: View {
             locale: appPreferences.resolvedLocale
         )
         showAuthError = true
+    }
+
+    private func copyPDFImportDebugReport() {
+        let report = PDFImportDebugStore.report()
+        UIPasteboard.general.string = report
+        pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
+        didCopyPDFImportDebug = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopyPDFImportDebug = false
+        }
     }
 
     private func updateProfilePhoto(from item: PhotosPickerItem?) {

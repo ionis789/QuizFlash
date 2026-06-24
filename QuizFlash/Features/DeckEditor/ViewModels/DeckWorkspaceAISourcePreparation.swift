@@ -108,6 +108,10 @@ extension DeckWorkspaceViewModel {
     /// Runs a PDFKit quality check in the background and populates `pdfAnalysis`
     /// before the generation sheet becomes visible — no perceptible delay for the user.
     func pdfWasSelected(_ url: URL) {
+        PDFImportDebugStore.record(
+            "pdfWasSelected",
+            details: ["url": url.debugDescription]
+        )
         preparedAISource = nil
         pdfAnalysis = nil
         beginAISourcePreparation(.pdf)
@@ -233,11 +237,20 @@ extension DeckWorkspaceViewModel {
         aiService: AIFlashcardService
     ) {
         guard let url = source.pdfURL else {
+            PDFImportDebugStore.record("processPDFForAI missing url")
             aiState = .error("Could not access the PDF file.")
             return
         }
 
         let didAccess = url.startAccessingSecurityScopedResource()
+        PDFImportDebugStore.record(
+            "processPDFForAI start",
+            details: [
+                "didAccess": String(didAccess),
+                "url": url.path,
+                "segments": String(source.textSegments.count)
+            ]
+        )
 
         let options = effectiveAIGenerationOptions()
 
@@ -247,12 +260,17 @@ extension DeckWorkspaceViewModel {
                 if didAccess {
                     url.stopAccessingSecurityScopedResource()
                 }
+                PDFImportDebugStore.record(
+                    "processPDFForAI stopAccess",
+                    details: ["didAccess": String(didAccess)]
+                )
             }
 
             do {
                 aiState = .extractingText
                 let texts = source.textSegments.map(\.text)
                 guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+                    PDFImportDebugStore.record("processPDFForAI unusable text")
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
@@ -319,32 +337,62 @@ extension DeckWorkspaceViewModel {
     }
 
     func preparePDFSource(from url: URL) async {
+        PDFImportDebugStore.record(
+            "preparePDFSource start",
+            details: ["url": url.debugDescription]
+        )
         let localURL: URL
         do {
             localURL = try await AIGenerationSessionStore.shared.importPDFToDisk(from: url)
         } catch {
             clearAISourcePreparation()
+            PDFImportDebugStore.record(
+                "preparePDFSource import failed",
+                details: ["error": error.localizedDescription]
+            )
             aiState = .error("Could not access the PDF file.")
             return
         }
 
         var pageTexts = await extractPDFKitPageTexts(from: localURL)
         var needsOCRCorrection = DocumentTextExtractor.needsAICorrectionForExtractedText(pageTexts)
+        PDFImportDebugStore.record(
+            "preparePDFSource pdfkit extracted",
+            details: [
+                "pages": String(pageTexts.count),
+                "chars": String(pageTexts.reduce(0) { $0 + $1.count }),
+                "usable": String(DocumentTextExtractor.isUsableExtractedText(pageTexts))
+            ]
+        )
         await Task.yield()
 
         if !DocumentTextExtractor.isUsableExtractedText(pageTexts) {
+            PDFImportDebugStore.record("preparePDFSource ocr fallback start")
             pageTexts = await DocumentTextExtractor.extractVisionTextsFromPDFPages(from: localURL)
             needsOCRCorrection = true
+            PDFImportDebugStore.record(
+                "preparePDFSource ocr fallback finished",
+                details: [
+                    "pages": String(pageTexts.count),
+                    "chars": String(pageTexts.reduce(0) { $0 + $1.count }),
+                    "usable": String(DocumentTextExtractor.isUsableExtractedText(pageTexts))
+                ]
+            )
             await Task.yield()
         }
 
         guard DocumentTextExtractor.isUsableExtractedText(pageTexts) else {
             clearAISourcePreparation()
+            PDFImportDebugStore.record("preparePDFSource failed unusable text")
             aiState = .error(localizedTextExtractionFailureMessage)
             return
         }
 
         let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: localURL)
+        PDFImportDebugStore.record(
+            "preparePDFSource thumbnails",
+            details: ["count": String(thumbnails.count)]
+        )
         await Task.yield()
         let pageCount = max(pageTexts.count, await extractPDFPageCount(from: localURL))
         let extractedChars = pageTexts.reduce(0) { $0 + $1.count }
@@ -368,6 +416,14 @@ extension DeckWorkspaceViewModel {
         )
 
         prepareSheetState(for: source, pdfAnalysis: info)
+        PDFImportDebugStore.record(
+            "preparePDFSource prepared",
+            details: [
+                "pageCount": String(pageCount),
+                "chars": String(extractedChars),
+                "needsOCRCorrection": String(needsOCRCorrection)
+            ]
+        )
     }
 
     func prepareSheetState(
