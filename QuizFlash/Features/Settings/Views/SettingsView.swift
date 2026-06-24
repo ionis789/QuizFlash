@@ -101,6 +101,7 @@ struct SettingsView: View {
             cachedDeckCount = decks.count
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
+            await subscriptionManager.refreshCloudAIUsageQuota()
         }
         .onDisappear {
             profileImageDecodeTask?.cancel()
@@ -776,7 +777,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var aiUsageTrailing: some View {
         if isPremiumUser,
-           let quota = subscriptionManager.cloudAIUsageQuota,
+           let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
            let limitMicroUSD = quota.limitMicroUSD,
            limitMicroUSD > 0 {
             VStack(alignment: .trailing, spacing: 6) {

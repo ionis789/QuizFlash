@@ -22,6 +22,7 @@ final class SubscriptionManager {
     static let defaultFreeGenerationsLimit = 5
     static let freeMaxCardsPerGeneration = 30
     static let premiumMaxCardsPerGeneration = 100
+    static let defaultPremiumMonthlyAIUsageLimitMicroUSD = 2_000_000
 
     // MARK: - State
 
@@ -97,9 +98,9 @@ final class SubscriptionManager {
             freeGenerationsUsed = isPremium ? nil : usage ?? 0
             freeGenerationsLimit = isPremium ? nil : limit ?? Self.defaultFreeGenerationsLimit
 
-            if isPremium, let quota = try? await CloudAIProxyClient.shared.currentUsageQuota() {
-                applyCloudAIQuotaState(quota)
-            } else if !isPremium {
+            if isPremium {
+                await refreshCloudAIUsageQuota()
+            } else {
                 cloudAIUsageQuota = nil
             }
         } catch {
@@ -123,7 +124,46 @@ final class SubscriptionManager {
     }
 
     var cloudAIUsageProgress: Double {
-        cloudAIUsageQuota?.usageProgress ?? 0
+        cloudAIUsageQuotaForDisplay?.usageProgress ?? 0
+    }
+
+    var cloudAIUsageQuotaForDisplay: CloudAIQuotaState? {
+        if let cloudAIUsageQuota {
+            if !isPremium || (cloudAIUsageQuota.limitMicroUSD ?? 0) > 0 {
+                return cloudAIUsageQuota
+            }
+        }
+
+        guard isPremium else { return nil }
+        return CloudAIQuotaState(
+            premium: true,
+            freeGenerationsUsed: nil,
+            freeGenerationsLimit: nil,
+            monthlyCostMicroUSD: 0,
+            limitMicroUSD: Self.defaultPremiumMonthlyAIUsageLimitMicroUSD,
+            consumedMicroUSD: 0,
+            reservedMicroUSD: 0,
+            availableMicroUSD: Self.defaultPremiumMonthlyAIUsageLimitMicroUSD,
+            percent: 0
+        )
+    }
+
+    func refreshCloudAIUsageQuota() async {
+        guard Auth.auth().currentUser != nil else {
+            cloudAIUsageQuota = nil
+            return
+        }
+
+        guard isPremium else {
+            cloudAIUsageQuota = nil
+            return
+        }
+
+        do {
+            applyCloudAIQuotaState(try await CloudAIProxyClient.shared.currentUsageQuota())
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
     }
 
     func consumeAIGenerationQuota(targetCards: Int) async throws {
@@ -144,6 +184,13 @@ final class SubscriptionManager {
     }
 
     func applyCloudAIQuotaState(_ state: CloudAIQuotaState) {
+        if isPremium && !state.premium {
+            freeGenerationsUsed = nil
+            freeGenerationsLimit = nil
+            lastErrorMessage = nil
+            return
+        }
+
         isPremium = state.premium
         planSource = state.premium ? .manualFirestore : .free
         freeGenerationsUsed = state.premium ? nil : state.freeGenerationsUsed
