@@ -432,9 +432,20 @@ struct AIGenerationSheetView: View {
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(120))
-            onPrimaryAction { didStartGeneration in
+            onPrimaryAction { didPrepareGeneration in
                 Task { @MainActor in
-                    if !didStartGeneration {
+                    if didPrepareGeneration {
+                        let startGeneration = {
+                            viewModel.confirmAIGenerationFromSheet()
+                        }
+
+                        viewModel.clearsPendingAISourceOnSheetDismiss = false
+                        if let fullScreenSheetDismiss {
+                            fullScreenSheetDismiss(completion: startGeneration)
+                        } else {
+                            startGeneration()
+                        }
+                    } else {
                         isSubmittingGeneration = false
                     }
                 }

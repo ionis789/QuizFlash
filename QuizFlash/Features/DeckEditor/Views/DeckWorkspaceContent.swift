@@ -129,20 +129,8 @@ extension DeckWorkspaceView {
                 }
             )
             .transition(runtimeCardTransition)
-        } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
-            AIStreamingProgressCard(
-                foundCount: foundCount,
-                targetCount: max(viewModel.aiTargetCardCount, 1),
-                progress: progress,
-                elapsedStartDate: viewModel.aiGenerationStartedAt,
-                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration,
-                onCancel: {
-                    viewModel.requestAIGenerationCancel()
-                },
-                onPause: {
-                    viewModel.pauseAIGeneration()
-                }
-            )
+        } else if case .generatingCards = viewModel.aiState {
+            AIStreamingTextStatusView(title: localized("Generating cards"))
             .transition(runtimeCardTransition)
         }
     }
@@ -154,12 +142,7 @@ extension DeckWorkspaceView {
         if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
             let leadingRowCount = displayedDraftRowsBeforeAISlots.count
 
-            if createdCount == 0 {
-                streamingPendingMessage(
-                    title: localized("First cards are on the way"),
-                    subtitle: localized("The first AI results will appear here in a moment.")
-                )
-            } else {
+            if createdCount > 0 {
                 draftCardRows(
                     sortedAISessionDraftCards,
                     startingIndex: leadingRowCount
@@ -396,7 +379,6 @@ extension DeckWorkspaceView {
             viewModel.cloudAIGenerationSession = cloudSession
             subscriptionManager.applyCloudAIQuotaState(cloudSession.quota)
 #endif
-            viewModel.confirmAIGenerationFromSheet()
             return true
         } catch {
             aiAccessAlertMessage = error.localizedDescription

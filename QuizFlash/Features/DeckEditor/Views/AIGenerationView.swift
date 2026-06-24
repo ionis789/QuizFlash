@@ -67,6 +67,24 @@ struct AIExtractingLoadingView: View {
     }
 }
 
+// MARK: - AI Streaming Text Status
+
+/// Text-only generation state shown while AI batches are still pending.
+struct AIStreamingTextStatusView: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 34, weight: .heavy, design: .rounded))
+            .foregroundStyle(.primary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.top, UIConstants.Spacing.huge)
+            .padding(.bottom, UIConstants.Spacing.extraLarge)
+    }
+}
+
 // MARK: - AI Streaming Progress Card
 
 /// Compact progress card shown while AI batches arrive incrementally.
