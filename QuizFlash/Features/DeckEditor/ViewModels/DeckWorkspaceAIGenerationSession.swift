@@ -702,28 +702,6 @@ extension DeckWorkspaceViewModel {
     }
 
     func makeAIService() -> AIFlashcardService? {
-#if DEBUG
-        guard let activeProfile = aiProviderStore.activeProfile else {
-            aiState = .error("No AI provider is configured. Open Settings > AI Providers.")
-            return nil
-        }
-
-        if let validationMessage = activeProfile.generationValidationMessage {
-            aiState = .error(validationMessage)
-            return nil
-        }
-
-        guard let promptBundle = debugAIPromptBundle ?? AIPromptBundleCache.loadStoredBundleSynchronously() else {
-            aiState = .error("AI prompt configuration is unavailable.")
-            return nil
-        }
-
-        return AIFlashcardService(
-            provider: activeProfile,
-            transport: .directProvider,
-            promptBundle: promptBundle
-        )
-#else
         guard let cloudAIGenerationSession else {
             aiState = .error("AI generation session is unavailable.")
             return nil
@@ -732,7 +710,6 @@ extension DeckWorkspaceViewModel {
             provider: .preset(.deepSeek),
             transport: .cloudProxy(cloudAIGenerationSession)
         )
-#endif
     }
 
     func requestAIDeckTitleIfNeeded(

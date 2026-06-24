@@ -367,15 +367,9 @@ extension DeckWorkspaceView {
             let targetCardCount = viewModel.targetCardCount(for: viewModel.resolvedAISourceAllocations)
             guard targetCardCount > 0 else { return false }
 
-#if DEBUG
-            viewModel.debugAIPromptBundle = try await CloudAIProxyClient.shared.currentPromptBundle()
-            try await subscriptionManager.consumeAIGenerationQuota(targetCards: targetCardCount)
-            syncAIGenerationLimit()
-#else
             let cloudSession = try await CloudAIProxyClient.shared.startGeneration(targetCards: targetCardCount)
             viewModel.cloudAIGenerationSession = cloudSession
             subscriptionManager.applyCloudAIQuotaState(cloudSession.quota)
-#endif
             return true
         } catch {
             aiAccessAlertMessage = error.localizedDescription
