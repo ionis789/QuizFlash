@@ -27,7 +27,7 @@ const now = Date.now();
 const period = "monthly";
 const sql = `
 UPDATE ai_plan_limits
-SET active = 0, updated_at_ms = ${now}
+SET active = 0
 WHERE plan = ${sqlString(plan)} AND period = ${sqlString(period)} AND active = 1;
 INSERT INTO ai_plan_limits (plan, limit_micro_usd, period, active, updated_at_ms)
 VALUES (${sqlString(plan)}, ${limitMicroUSD}, ${sqlString(period)}, 1, ${now});
