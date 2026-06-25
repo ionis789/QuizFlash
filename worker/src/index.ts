@@ -100,6 +100,22 @@ type StoredPromptConfig = {
   templates_json: string;
 };
 
+type UsageGenerationRow = {
+  generationId: string;
+  status: string;
+  premium: number;
+  targetCards: number;
+  validatedCards: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cacheHitTokens: number;
+  cacheMissTokens: number;
+  costMicroUSD: number;
+  createdAtMs: number;
+  completedAtMs: number | null;
+};
+
 type ProviderCallAccountingInput = {
   providerCallId: string;
   generationId: string;
@@ -446,6 +462,9 @@ export default {
       if (request.method === "GET" && url.pathname === "/v1/entitlements") {
         return timedJSON(await readEntitlement(request, env), startedAt, requestID);
       }
+      if (request.method === "GET" && url.pathname === "/v1/usage/generations") {
+        return timedJSON(await readUsageGenerations(request, env), startedAt, requestID);
+      }
       if (request.method === "GET" && url.pathname === "/v1/prompt-config") {
         return timedJSON(await readPromptConfig(request, env), startedAt, requestID);
       }
@@ -587,6 +606,47 @@ async function readEntitlement(request: Request, env: Env): Promise<Record<strin
     freeGenerationsUsed: profile.freeGenerationsUsed,
     freeGenerationsLimit: profile.freeGenerationsLimit
   })};
+}
+
+async function readUsageGenerations(request: Request, env: Env): Promise<Record<string, unknown>> {
+  const uid = await verifyFirebaseIDToken(bearerToken(request), env);
+  const rows = await env.AI_DB.prepare(
+    `SELECT
+      id AS "generationId",
+      status,
+      premium,
+      target_cards AS "targetCards",
+      validated_cards AS "validatedCards",
+      total_prompt_tokens AS "promptTokens",
+      total_completion_tokens AS "completionTokens",
+      total_tokens AS "totalTokens",
+      total_cache_hit_tokens AS "cacheHitTokens",
+      total_cache_miss_tokens AS "cacheMissTokens",
+      cost_micro_usd AS "costMicroUSD",
+      created_at_ms AS "createdAtMs",
+      completed_at_ms AS "completedAtMs"
+    FROM ai_generations
+    WHERE uid = ?
+    ORDER BY created_at_ms DESC
+    LIMIT 20`
+  ).bind(uid).all<UsageGenerationRow>();
+  return {
+    generations: (rows.results ?? []).map((row) => ({
+      generationId: row.generationId,
+      status: row.status,
+      premium: row.premium === 1,
+      targetCards: Math.max(0, row.targetCards ?? 0),
+      validatedCards: Math.max(0, row.validatedCards ?? 0),
+      promptTokens: Math.max(0, row.promptTokens ?? 0),
+      completionTokens: Math.max(0, row.completionTokens ?? 0),
+      totalTokens: Math.max(0, row.totalTokens ?? 0),
+      cacheHitTokens: Math.max(0, row.cacheHitTokens ?? 0),
+      cacheMissTokens: Math.max(0, row.cacheMissTokens ?? 0),
+      costMicroUSD: Math.max(0, row.costMicroUSD ?? 0),
+      createdAtMs: Math.max(0, row.createdAtMs ?? 0),
+      completedAtMs: row.completedAtMs ?? null
+    }))
+  };
 }
 
 async function proxyCompletion(request: Request, env: Env, startedAt: number): Promise<Response> {

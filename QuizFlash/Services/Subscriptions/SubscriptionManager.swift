@@ -31,6 +31,9 @@ final class SubscriptionManager {
     private(set) var freeGenerationsUsed: Int?
     private(set) var freeGenerationsLimit: Int?
     private(set) var cloudAIUsageQuota: CloudAIQuotaState?
+    #if DEBUG
+    private(set) var cloudAIGenerationHistory: [CloudAIGenerationUsageRecord] = []
+    #endif
     private(set) var lastErrorMessage: String?
     var presentPaywall = false
 
@@ -100,8 +103,14 @@ final class SubscriptionManager {
 
             if isPremium {
                 await refreshCloudAIUsageQuota()
+                #if DEBUG
+                await refreshCloudAIGenerationHistory()
+                #endif
             } else {
                 cloudAIUsageQuota = nil
+                #if DEBUG
+                cloudAIGenerationHistory = []
+                #endif
             }
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -166,6 +175,27 @@ final class SubscriptionManager {
         }
     }
 
+    #if DEBUG
+    func refreshCloudAIGenerationHistory() async {
+        guard Auth.auth().currentUser != nil else {
+            cloudAIGenerationHistory = []
+            return
+        }
+
+        guard isPremium else {
+            cloudAIGenerationHistory = []
+            return
+        }
+
+        do {
+            cloudAIGenerationHistory = try await CloudAIProxyClient.shared.currentUsageGenerations()
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+    #endif
+
     func consumeAIGenerationQuota(targetCards: Int) async throws {
         do {
             let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
@@ -227,6 +257,9 @@ final class SubscriptionManager {
         freeGenerationsLimit = nil
         lastErrorMessage = nil
         cloudAIUsageQuota = nil
+        #if DEBUG
+        cloudAIGenerationHistory = []
+        #endif
     }
 
     private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {

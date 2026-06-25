@@ -107,6 +107,42 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
     }
 }
 
+#if DEBUG
+nonisolated struct CloudAIGenerationUsageRecord: Decodable, Identifiable, Sendable {
+    let generationID: String
+    let status: String
+    let premium: Bool
+    let targetCards: Int
+    let validatedCards: Int
+    let promptTokens: Int
+    let completionTokens: Int
+    let totalTokens: Int
+    let cacheHitTokens: Int
+    let cacheMissTokens: Int
+    let costMicroUSD: Int
+    let createdAtMs: Int
+    let completedAtMs: Int?
+
+    var id: String { generationID }
+
+    enum CodingKeys: String, CodingKey {
+        case generationID = "generationId"
+        case status
+        case premium
+        case targetCards
+        case validatedCards
+        case promptTokens
+        case completionTokens
+        case totalTokens
+        case cacheHitTokens
+        case cacheMissTokens
+        case costMicroUSD
+        case createdAtMs
+        case completedAtMs
+    }
+}
+#endif
+
 @MainActor
 final class CloudAIProxyClient {
     static let shared = CloudAIProxyClient()
@@ -142,6 +178,30 @@ final class CloudAIProxyClient {
 
         return try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
     }
+
+    #if DEBUG
+    func currentUsageGenerations() async throws -> [CloudAIGenerationUsageRecord] {
+        guard let user = Auth.auth().currentUser,
+              let idToken = try? await user.getIDToken(),
+              let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            throw CloudAIProxyError.signInRequired
+        }
+
+        var request = URLRequest(url: baseURL.appending(path: "v1/usage/generations"))
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CloudAIProxyError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
+        }
+
+        return try JSONDecoder().decode(UsageGenerationsResponse.self, from: data).generations
+    }
+    #endif
 
     func currentPromptBundle() async throws -> AIPromptBundle {
         guard let user = Auth.auth().currentUser,
@@ -229,6 +289,9 @@ final class CloudAIProxyClient {
             body: FinishRequest(generationID: generation.generationID, sessionToken: generation.sessionToken, validatedCards: validatedCards)
         )
         SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
+        #if DEBUG
+        await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
+        #endif
         return response.usageQuota
     }
 
@@ -241,6 +304,9 @@ final class CloudAIProxyClient {
         )
         if let response {
             SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
+            #if DEBUG
+            await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
+            #endif
         }
     }
 
@@ -390,6 +456,13 @@ private struct QuotaResponseEnvelope: Decodable {
             ?? container.decode(CloudAIQuotaState.self, forKey: .quota)
     }
 }
+
+#if DEBUG
+private struct UsageGenerationsResponse: Decodable {
+    let generations: [CloudAIGenerationUsageRecord]
+}
+#endif
+
 private struct PromptConfigResponse: Decodable {
     let promptVersion: String
     let promptHash: String

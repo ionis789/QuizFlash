@@ -102,6 +102,9 @@ struct SettingsView: View {
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
             await subscriptionManager.refreshCloudAIUsageQuota()
+            #if DEBUG
+            await subscriptionManager.refreshCloudAIGenerationHistory()
+            #endif
         }
         .onDisappear {
             profileImageDecodeTask?.cancel()
@@ -215,7 +218,9 @@ struct SettingsView: View {
                     }
                 }
 
-                if !isPremiumUser {
+                if isPremiumUser {
+                    premiumUsageProgressLine
+                } else {
                     Button {
                         isPremiumSheetPresented = true
                     } label: {
@@ -343,16 +348,14 @@ struct SettingsView: View {
                         title: AppLocalization.string("Plan", locale: appPreferences.resolvedLocale),
                         value: subscriptionManager.planSource.localizedTitle(locale: appPreferences.resolvedLocale)
                     )
-
-                    accountInfoRow(
-                        icon: "wand.and.stars",
-                        tint: .purple,
-                        title: AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale)
-                    ) {
-                        aiUsageTrailing
-                    }
                 }
             }
+
+            #if DEBUG
+            if isPremiumUser {
+                aiUsageDebugBlock
+            }
+            #endif
 
             settingsBlock {
                 SettingsMenuPickerRow(
@@ -694,6 +697,134 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private var premiumUsageProgressLine: some View {
+        if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
+           let limitMicroUSD = quota.limitMicroUSD,
+           limitMicroUSD > 0 {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.12))
+
+                    Capsule()
+                        .fill(.purple)
+                        .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
+                }
+            }
+            .frame(height: 6)
+            .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
+            .accessibilityValue("\(formattedUsagePercent(quota.usageProgress)), \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+        }
+    }
+
+    #if DEBUG
+    private var aiUsageDebugBlock: some View {
+        settingsBlock {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Label("AI usage debug", systemImage: "wand.and.stars")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    Button {
+                        Task { @MainActor in
+                            await subscriptionManager.refreshCloudAIUsageQuota()
+                            await subscriptionManager.refreshCloudAIGenerationHistory()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(themeManager.accentColor.color)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
+                   let limitMicroUSD = quota.limitMicroUSD,
+                   limitMicroUSD > 0 {
+                    Text("\(formattedUsagePercent(quota.usageProgress)) · \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+
+                if subscriptionManager.cloudAIGenerationHistory.isEmpty {
+                    Text("No generations yet")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    VStack(spacing: UIConstants.Spacing.small) {
+                        ForEach(subscriptionManager.cloudAIGenerationHistory) { generation in
+                            aiGenerationDebugRow(generation)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func aiGenerationDebugRow(_ generation: CloudAIGenerationUsageRecord) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text(generation.status.uppercased())
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.purple)
+                    .lineLimit(1)
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text(formattedMicroUSD(generation.costMicroUSD))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                debugMetric("tokens", generation.totalTokens)
+                debugMetric("in", generation.promptTokens)
+                debugMetric("out", generation.completionTokens)
+                debugMetric("cards", "\(generation.validatedCards)/\(generation.targetCards)")
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                debugMetric("hit", generation.cacheHitTokens)
+                debugMetric("miss", generation.cacheMissTokens)
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text(debugDate(generation.createdAtMs))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private func debugMetric(_ title: String, _ value: Int) -> some View {
+        debugMetric(title, "\(value)")
+    }
+
+    private func debugMetric(_ title: String, _ value: String) -> some View {
+        Text("\(title) \(value)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+    }
+    #endif
+
     private func profileMetric(
         icon: String?,
         title: String,
@@ -771,48 +902,6 @@ struct SettingsView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var aiUsageTrailing: some View {
-        if isPremiumUser,
-           let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
-           let limitMicroUSD = quota.limitMicroUSD,
-           limitMicroUSD > 0 {
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(formattedUsagePercent(quota.usageProgress))
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Text("\(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.10))
-
-                        Capsule()
-                            .fill(.purple)
-                            .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
-                    }
-                }
-                .frame(width: 150, height: 5)
-            }
-            .frame(width: 150, alignment: .trailing)
-        } else {
-            Text(aiUsageSummary)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-                .multilineTextAlignment(.trailing)
         }
     }
 
@@ -899,24 +988,6 @@ struct SettingsView: View {
             .joined(separator: ", ")
     }
 
-    private var aiUsageSummary: String {
-        if isPremiumUser {
-            return AppLocalization.string("Premium active", locale: appPreferences.resolvedLocale)
-        }
-
-        guard let used = subscriptionManager.freeGenerationsUsed,
-              let limit = subscriptionManager.freeGenerationsLimit else {
-            return AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
-        }
-
-        return AppLocalization.numbered(
-            max(limit - used, 0),
-            singular: "%d AI generation left",
-            plural: "%d AI generations left",
-            locale: appPreferences.resolvedLocale
-        )
-    }
-
     private func formattedMicroUSD(_ value: Int) -> String {
         let amount = Double(max(value, 0)) / 1_000_000
         return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
@@ -926,6 +997,13 @@ struct SettingsView: View {
         let boundedProgress = max(0, min(progress, 1))
         return boundedProgress.formatted(.percent.precision(.fractionLength(0)))
     }
+
+    #if DEBUG
+    private func debugDate(_ milliseconds: Int) -> String {
+        Date(timeIntervalSince1970: Double(milliseconds) / 1_000)
+            .formatted(date: .abbreviated, time: .shortened)
+    }
+    #endif
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {
         Binding(
