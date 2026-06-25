@@ -424,6 +424,8 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
 // MARK: - Section Header
 
 private struct HomeDashboardSectionHeader: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let count: Int?
     let subtitle: String?
@@ -458,13 +460,13 @@ private struct HomeDashboardSectionHeader: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(title)
                         .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let count {
                         Text("(\(count))")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill).opacity(0.72))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -505,12 +507,12 @@ private struct HomeDashboardEmptyPlaceholderContent: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .bold, design: .rounded))
+            .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
             .foregroundStyle(themeManager.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 40 : 36, alignment: .center)
+            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 48 : 44, alignment: .center)
     }
 }
 

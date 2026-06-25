@@ -300,6 +300,8 @@ private struct HomeTopHeaderStatLine: View {
 
 /// Left-side calendar column used by the coordinated iPad Home header.
 private struct HomePadCalendarColumnView: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let calendarVM: CalendarViewModel
     let layout: HomeCalendarAdaptiveLayout
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
@@ -327,6 +329,7 @@ private struct HomePadCalendarColumnView: View {
         return HStack(alignment: .center, spacing: headerState.calendarState.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
                 .font(.system(size: headerState.calendarState.titleFontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

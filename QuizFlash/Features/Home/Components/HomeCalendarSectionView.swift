@@ -97,6 +97,7 @@ struct HomeCalendarSectionView: View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
                 .font(.system(size: state.titleFontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
