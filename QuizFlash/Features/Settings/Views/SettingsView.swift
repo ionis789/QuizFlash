@@ -209,17 +209,7 @@ struct SettingsView: View {
                     .background(.ultraThinMaterial, in: Capsule())
             }
 
-            Toggle(isOn: noGoalDraftBinding) {
-                Text(AppLocalization.string("No goal", locale: appPreferences.resolvedLocale))
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(themeManager.textPrimary)
-            }
-            .tint(themeManager.accentColor.color)
-
-            if goalDraftEnabled {
-                goalDraftControls
-                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
-            }
+            goalDraftControls
 
             Button(action: applyGoalDraft) {
                 Text(AppLocalization.string("Update Goal", locale: appPreferences.resolvedLocale))
@@ -240,45 +230,95 @@ struct SettingsView: View {
     }
 
     private var goalDraftControls: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(spacing: UIConstants.Spacing.standard) {
-                goalStepButton(systemName: "minus") {
-                    updateGoalDraft(by: -AppPreferences.dailyCardsGoalStep)
-                }
+        SettingsGoalTickPicker(
+            selection: goalDraftTickSelection,
+            upperBound: goalTickUpperBound,
+            step: AppPreferences.dailyCardsGoalStep,
+            locale: appPreferences.resolvedLocale,
+            onChange: setGoalDraftTickSelection
+        )
+        .padding(.top, UIConstants.Spacing.tiny)
+    }
 
-                VStack(spacing: 2) {
-                    Text("\(goalDraftValue)")
-                        .font(.system(size: 34, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .contentTransition(.numericText())
+    private struct SettingsGoalTickPicker: View {
+        @Environment(ThemeManager.self) private var themeManager
 
-                    Text(AppLocalization.string("Daily cards", locale: appPreferences.resolvedLocale))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(themeManager.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
+        let selection: Int
+        let upperBound: Int
+        let step: Int
+        let locale: Locale
+        let onChange: (Int) -> Void
 
-                goalStepButton(systemName: "plus") {
-                    updateGoalDraft(by: AppPreferences.dailyCardsGoalStep)
-                }
-            }
-
-            Slider(
-                value: goalDraftSliderBinding,
-                in: Double(AppPreferences.dailyCardsGoalRange.lowerBound)...Double(AppPreferences.dailyCardsGoalRange.upperBound),
-                step: Double(AppPreferences.dailyCardsGoalStep)
-            )
-            .tint(themeManager.accentColor.color)
-
-            HStack {
-                Text("\(AppPreferences.dailyCardsGoalRange.lowerBound)")
-                Spacer()
-                Text("\(AppPreferences.dailyCardsGoalRange.upperBound)")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(themeManager.textSecondary)
+        private var safeUpperBound: Int {
+            max(upperBound, 1)
         }
-        .padding(.leading, 54)
+
+        private var safeSelection: Int {
+            min(max(selection, 0), safeUpperBound)
+        }
+
+        private var selectionBinding: Binding<Int> {
+            Binding {
+                safeSelection
+            } set: { newSelection in
+                onChange(min(max(newSelection, 0), safeUpperBound))
+            }
+        }
+
+        private var valueText: String {
+            guard safeSelection > 0 else {
+                return AppLocalization.string("No goal", locale: locale)
+            }
+
+            return "\(safeSelection * step)"
+        }
+
+        private var pickerConfig: TickPickerConfig {
+            TickPickerConfig(
+                tickWidth: 2,
+                tickHeight: 34,
+                tickHPadding: 4,
+                inActiveHeightProgress: 0.48,
+                interactionHeight: 76,
+                tickAreaTopPadding: 8,
+                activeTint: themeManager.accentColor.color,
+                inActiveTint: .primary,
+                alignment: .bottom
+            )
+        }
+
+        var body: some View {
+            VStack(spacing: UIConstants.Spacing.small) {
+                Text(valueText)
+                    .font(.system(size: safeSelection == 0 ? 28 : 34, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .contentTransition(.numericText())
+
+                Circle()
+                    .fill(themeManager.textPrimary.opacity(0.20))
+                    .frame(width: 7, height: 7)
+
+                TickPicker(
+                    count: safeUpperBound,
+                    config: pickerConfig,
+                    selection: selectionBinding,
+                    highlightedRange: nil
+                )
+
+                HStack {
+                    Text(AppLocalization.string("No goal", locale: locale))
+                    Spacer()
+                    Text("\(safeUpperBound * step)")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(themeManager.textSecondary)
+            }
+            .padding(.horizontal, UIConstants.Spacing.tiny)
+        }
     }
 
     private var settingsGoalIcon: some View {
@@ -1016,24 +1056,6 @@ struct SettingsView: View {
         )
     }
 
-    private var noGoalDraftBinding: Binding<Bool> {
-        Binding(
-            get: { !goalDraftEnabled },
-            set: { noGoal in
-                goalDraftEnabled = !noGoal
-            }
-        )
-    }
-
-    private var goalDraftSliderBinding: Binding<Double> {
-        Binding(
-            get: { Double(goalDraftValue) },
-            set: { value in
-                setGoalDraftValue(Int(value.rounded()))
-            }
-        )
-    }
-
     private var goalAppliedSummary: String {
         guard let dailyGoal = appPreferences.dailyCardsGoal else {
             return AppLocalization.string("No goal applied", locale: appPreferences.resolvedLocale)
@@ -1057,6 +1079,18 @@ struct SettingsView: View {
         return appPreferences.dailyCardsGoal != draftGoal
     }
 
+    private var goalTickUpperBound: Int {
+        AppPreferences.dailyCardsGoalRange.upperBound / AppPreferences.dailyCardsGoalStep
+    }
+
+    private var goalDraftTickSelection: Int {
+        guard goalDraftEnabled else { return 0 }
+        return min(
+            max(goalDraftValue / AppPreferences.dailyCardsGoalStep, 1),
+            goalTickUpperBound
+        )
+    }
+
     private func syncGoalDraftFromPreferences() {
         if let dailyCardsGoal = appPreferences.dailyCardsGoal {
             goalDraftEnabled = true
@@ -1071,28 +1105,14 @@ struct SettingsView: View {
         appPreferences.dailyCardsGoal = goalDraftEnabled ? goalDraftValue : nil
     }
 
-    private func updateGoalDraft(by delta: Int) {
-        setGoalDraftValue(goalDraftValue + delta)
-    }
-
-    private func setGoalDraftValue(_ value: Int) {
-        let step = AppPreferences.dailyCardsGoalStep
-        let steppedValue = Int((Double(value) / Double(step)).rounded()) * step
-        goalDraftValue = min(
-            max(steppedValue, AppPreferences.dailyCardsGoalRange.lowerBound),
-            AppPreferences.dailyCardsGoalRange.upperBound
-        )
-    }
-
-    private func goalStepButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-                .frame(width: 42, height: 42)
-                .background(themeManager.roleColor(.widgetSurfaceFill), in: Circle())
+    private func setGoalDraftTickSelection(_ selection: Int) {
+        guard selection > 0 else {
+            goalDraftEnabled = false
+            return
         }
-        .buttonStyle(.plain)
+
+        goalDraftEnabled = true
+        goalDraftValue = min(selection, goalTickUpperBound) * AppPreferences.dailyCardsGoalStep
     }
 
     private var defaultTextSizeBinding: Binding<Double> {

@@ -259,7 +259,7 @@ struct CardCountControl: View {
     }
 }
 
-private struct TickPickerConfig {
+struct TickPickerConfig {
     var tickWidth: CGFloat = 3
     var tickHeight: CGFloat = 30
     var tickHPadding: CGFloat = 3
@@ -277,7 +277,7 @@ private struct TickPickerConfig {
     }
 }
 
-private struct TickPicker: View {
+struct TickPicker: View {
     var count: Int
     var config: TickPickerConfig
     @Binding var selection: Int
