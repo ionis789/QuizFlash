@@ -497,20 +497,22 @@ private struct HomeDataCoordinator: View {
                 )
             }
             .task(id: dashboardSignature) {
+                let currentSignatures = refreshCachedHomeInputs()
                 viewModel.updateLogsCache(logs: dailyLogs)
                 await viewModel.refreshDashboardSnapshot(
                     selectedDate: selectedDate,
                     weekStart: weekStartDate,
                     userProfile: profile,
                     container: container,
-                    analyticsRevision: homeDataSignatures.analytics,
-                    deckRevision: homeDataSignatures.decks,
+                    analyticsRevision: currentSignatures.analytics,
+                    deckRevision: currentSignatures.decks,
                     dailyCardsGoal: appPreferences.dailyCardsGoal
                 )
             }
     }
 
-    private func refreshCachedHomeInputs() {
+    @discardableResult
+    private func refreshCachedHomeInputs() -> HomeDataSignatures {
         let nextSignatures = HomeDataSignatures(
             logs: HomeViewModel.logsFingerprint(for: dailyLogs),
             analytics: HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates),
@@ -528,6 +530,8 @@ private struct HomeDataCoordinator: View {
         if allDeckCount != allDecks.count {
             allDeckCount = allDecks.count
         }
+
+        return nextSignatures
     }
 
     private func refreshFolderCache() {

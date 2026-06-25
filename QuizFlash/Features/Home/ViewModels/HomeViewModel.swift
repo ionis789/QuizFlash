@@ -212,7 +212,6 @@ final class HomeViewModel {
             dailyCardsGoal: dailyCardsGoal
         )
         guard dashboardSnapshotSignature != signature else { return }
-        dashboardSnapshotSignature = signature
 
         let repository = HomeAnalyticsRepository(container: container)
         let analyticsSnapshot = await repository.loadDashboardSnapshot(
@@ -286,6 +285,7 @@ final class HomeViewModel {
             pastWeekPerformance: analyticsSnapshot.pastWeekPerformance,
             selectedDayBreakdown: analyticsSnapshot.selectedDayBreakdown
         )
+        dashboardSnapshotSignature = signature
     }
 
     /// Refreshes cached insight payloads used by the Home calendar cells.
