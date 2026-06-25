@@ -756,11 +756,14 @@
 "Attempts" = "Încercări";
 "Attempts %d" = "Încercări %d";
 "Cards Goal" = "Țintă carduri";
+"Current goal: %d cards" = "Țintă curentă: %d carduri";
 "Daily cards" = "Carduri zilnice";
 "No decks yet" = "Nu există încă deckuri";
 "No goal" = "Fără țintă";
+"No goal applied" = "Nicio țintă aplicată";
 "No reviews this week" = "Nicio revizuire săptămâna asta";
 "Ready when you are." = "Gata când ești tu.";
 "Reviewed cards target." = "Țintă pentru carduri revizuite.";
 "Study detail" = "Detalii studiu";
 "This week" = "Săptămâna aceasta";
+"Update Goal" = "Actualizează ținta";

@@ -296,10 +296,15 @@ final class HomeViewModel {
     func refreshCalendarInsights(
         dailyLogs: [DailyActivityLog],
         userProfile: UserProfile?,
+        studyAggregates: [HomeDailyStudyAggregate] = [],
+        analyticsRevision: Int = 0,
+        dailyCardsGoal: Int? = nil,
         referenceDate: Date = Date()
     ) {
         let signature = buildCalendarInsightsSignature(
             userProfile: userProfile,
+            analyticsRevision: analyticsRevision,
+            dailyCardsGoal: dailyCardsGoal,
             referenceDate: referenceDate
         )
         guard calendarInsightsSignature != signature else { return }
@@ -310,15 +315,22 @@ final class HomeViewModel {
             referenceDate: referenceDate
         )
 
-        var insights: [String: HomeCalendarDayInsight] = [:]
-        insights.reserveCapacity(dailyLogs.count)
+        let logsByKey = Dictionary(uniqueKeysWithValues: dailyLogs.map { ($0.dateString, $0) })
+        let aggregatesByKey = Dictionary(uniqueKeysWithValues: studyAggregates.map { ($0.dayKey, $0) })
+        let insightKeys = Set(logsByKey.keys).union(aggregatesByKey.keys)
 
-        for log in dailyLogs {
-            let key = log.dateString
+        var insights: [String: HomeCalendarDayInsight] = [:]
+        insights.reserveCapacity(insightKeys.count)
+
+        for key in insightKeys {
+            let log = logsByKey[key]
+            let aggregate = aggregatesByKey[key]
             insights[key] = buildCalendarDayInsight(
                 key: key,
-                date: log.date,
+                date: aggregate?.dayDate ?? log?.date ?? HomeViewModel.dateKeyFormatter.date(from: key) ?? referenceDate,
                 log: log,
+                aggregate: aggregate,
+                dailyCardsGoal: dailyCardsGoal,
                 streakDates: streakDates
             )
         }

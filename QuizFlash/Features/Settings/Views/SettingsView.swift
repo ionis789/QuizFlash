@@ -38,6 +38,8 @@ struct SettingsView: View {
     @State private var cachedProfileImageSignature: Int?
     @State private var profileImageDecodeTask: Task<Void, Never>?
     @State private var cachedDeckCount = 0
+    @State private var goalDraftEnabled = false
+    @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -97,8 +99,12 @@ struct SettingsView: View {
         .onChange(of: decks) { _, newDecks in
             cachedDeckCount = newDecks.count
         }
+        .onChange(of: appPreferences.dailyCardsGoal) { _, _ in
+            syncGoalDraftFromPreferences()
+        }
         .task {
             cachedDeckCount = decks.count
+            syncGoalDraftFromPreferences()
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
             await subscriptionManager.refreshCloudAIUsageQuota()
@@ -178,30 +184,113 @@ struct SettingsView: View {
     }
 
     private var cardsGoalSettings: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            SettingsToggleRow(
-                icon: "target",
-                tint: themeManager.accentColor.color,
-                title: "Cards Goal",
-                detail: "No goal",
-                isOn: noCardsGoalBinding
-            )
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                settingsGoalIcon
 
-            if appPreferences.dailyCardsGoal != nil {
-                SettingsSliderRow(
-                    icon: "number",
-                    tint: themeManager.accentColor.color,
-                    title: "Daily cards",
-                    detail: "Reviewed cards target.",
-                    valueSuffix: "",
-                    range: Double(AppPreferences.dailyCardsGoalRange.lowerBound)...Double(AppPreferences.dailyCardsGoalRange.upperBound),
-                    step: Double(AppPreferences.dailyCardsGoalStep),
-                    value: dailyCardsGoalBinding
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(AppLocalization.string("Cards Goal", locale: appPreferences.resolvedLocale))
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(themeManager.textPrimary)
+
+                    Text(goalAppliedSummary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: UIConstants.Spacing.standard)
+
+                Text(goalDraftSummary)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, UIConstants.Spacing.small)
+                    .background(.ultraThinMaterial, in: Capsule())
             }
+
+            Toggle(isOn: noGoalDraftBinding) {
+                Text(AppLocalization.string("No goal", locale: appPreferences.resolvedLocale))
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(themeManager.textPrimary)
+            }
+            .tint(themeManager.accentColor.color)
+
+            if goalDraftEnabled {
+                goalDraftControls
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+            }
+
+            Button(action: applyGoalDraft) {
+                Text(AppLocalization.string("Update Goal", locale: appPreferences.resolvedLocale))
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(goalDraftHasChanges ? themeManager.screenBackground : themeManager.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background {
+                        Capsule()
+                            .fill(goalDraftHasChanges ? themeManager.accentColor.color : themeManager.roleColor(.widgetSurfaceFill))
+                    }
+            }
+            .buttonStyle(.plain)
+            .disabled(!goalDraftHasChanges)
         }
-        .animation(.easeInOut(duration: 0.16), value: appPreferences.dailyCardsGoal)
+        .animation(.easeInOut(duration: 0.16), value: goalDraftEnabled)
+        .animation(.easeInOut(duration: 0.16), value: goalDraftValue)
+    }
+
+    private var goalDraftControls: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(spacing: UIConstants.Spacing.standard) {
+                goalStepButton(systemName: "minus") {
+                    updateGoalDraft(by: -AppPreferences.dailyCardsGoalStep)
+                }
+
+                VStack(spacing: 2) {
+                    Text("\(goalDraftValue)")
+                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .contentTransition(.numericText())
+
+                    Text(AppLocalization.string("Daily cards", locale: appPreferences.resolvedLocale))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(themeManager.textSecondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                goalStepButton(systemName: "plus") {
+                    updateGoalDraft(by: AppPreferences.dailyCardsGoalStep)
+                }
+            }
+
+            Slider(
+                value: goalDraftSliderBinding,
+                in: Double(AppPreferences.dailyCardsGoalRange.lowerBound)...Double(AppPreferences.dailyCardsGoalRange.upperBound),
+                step: Double(AppPreferences.dailyCardsGoalStep)
+            )
+            .tint(themeManager.accentColor.color)
+
+            HStack {
+                Text("\(AppPreferences.dailyCardsGoalRange.lowerBound)")
+                Spacer()
+                Text("\(AppPreferences.dailyCardsGoalRange.upperBound)")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(themeManager.textSecondary)
+        }
+        .padding(.leading, 54)
+    }
+
+    private var settingsGoalIcon: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
+                .fill(themeManager.accentColor.color.opacity(0.14))
+                .frame(width: 40, height: 40)
+
+            Image(systemName: "target")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(themeManager.accentColor.color)
+        }
     }
 
     private var profileCard: some View {
@@ -927,26 +1016,83 @@ struct SettingsView: View {
         )
     }
 
-    private var noCardsGoalBinding: Binding<Bool> {
+    private var noGoalDraftBinding: Binding<Bool> {
         Binding(
-            get: { appPreferences.dailyCardsGoal == nil },
+            get: { !goalDraftEnabled },
             set: { noGoal in
-                appPreferences.dailyCardsGoal = noGoal
-                    ? nil
-                    : (appPreferences.dailyCardsGoal ?? AppPreferences.defaultDailyCardsGoal)
+                goalDraftEnabled = !noGoal
             }
         )
     }
 
-    private var dailyCardsGoalBinding: Binding<Double> {
+    private var goalDraftSliderBinding: Binding<Double> {
         Binding(
-            get: { Double(appPreferences.dailyCardsGoal ?? AppPreferences.defaultDailyCardsGoal) },
+            get: { Double(goalDraftValue) },
             set: { value in
-                let step = AppPreferences.dailyCardsGoalStep
-                let steppedValue = Int((value / Double(step)).rounded()) * step
-                appPreferences.dailyCardsGoal = steppedValue
+                setGoalDraftValue(Int(value.rounded()))
             }
         )
+    }
+
+    private var goalAppliedSummary: String {
+        guard let dailyGoal = appPreferences.dailyCardsGoal else {
+            return AppLocalization.string("No goal applied", locale: appPreferences.resolvedLocale)
+        }
+
+        let format = AppLocalization.string("Current goal: %d cards", locale: appPreferences.resolvedLocale)
+        return String(format: format, locale: appPreferences.resolvedLocale, dailyGoal)
+    }
+
+    private var goalDraftSummary: String {
+        guard goalDraftEnabled else {
+            return AppLocalization.string("No goal", locale: appPreferences.resolvedLocale)
+        }
+
+        let format = AppLocalization.string("%d cards", locale: appPreferences.resolvedLocale)
+        return String(format: format, locale: appPreferences.resolvedLocale, goalDraftValue)
+    }
+
+    private var goalDraftHasChanges: Bool {
+        let draftGoal = goalDraftEnabled ? goalDraftValue : nil
+        return appPreferences.dailyCardsGoal != draftGoal
+    }
+
+    private func syncGoalDraftFromPreferences() {
+        if let dailyCardsGoal = appPreferences.dailyCardsGoal {
+            goalDraftEnabled = true
+            goalDraftValue = dailyCardsGoal
+        } else {
+            goalDraftEnabled = false
+            goalDraftValue = AppPreferences.defaultDailyCardsGoal
+        }
+    }
+
+    private func applyGoalDraft() {
+        appPreferences.dailyCardsGoal = goalDraftEnabled ? goalDraftValue : nil
+    }
+
+    private func updateGoalDraft(by delta: Int) {
+        setGoalDraftValue(goalDraftValue + delta)
+    }
+
+    private func setGoalDraftValue(_ value: Int) {
+        let step = AppPreferences.dailyCardsGoalStep
+        let steppedValue = Int((Double(value) / Double(step)).rounded()) * step
+        goalDraftValue = min(
+            max(steppedValue, AppPreferences.dailyCardsGoalRange.lowerBound),
+            AppPreferences.dailyCardsGoalRange.upperBound
+        )
+    }
+
+    private func goalStepButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+                .frame(width: 42, height: 42)
+                .background(themeManager.roleColor(.widgetSurfaceFill), in: Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var defaultTextSizeBinding: Binding<Double> {

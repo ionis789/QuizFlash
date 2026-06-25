@@ -756,11 +756,14 @@
 "Attempts" = "Попытки";
 "Attempts %d" = "Попытки %d";
 "Cards Goal" = "Цель по карточкам";
+"Current goal: %d cards" = "Текущая цель: %d карточек";
 "Daily cards" = "Карточек в день";
 "No decks yet" = "Колод пока нет";
 "No goal" = "Без цели";
+"No goal applied" = "Цель не задана";
 "No reviews this week" = "На этой неделе нет повторений";
 "Ready when you are." = "Готово, когда вы готовы.";
 "Reviewed cards target." = "Цель для пройденных карточек.";
 "Study detail" = "Детали учёбы";
 "This week" = "Эта неделя";
+"Update Goal" = "Обновить цель";

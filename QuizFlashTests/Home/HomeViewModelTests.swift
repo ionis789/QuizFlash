@@ -219,6 +219,26 @@ final class HomeViewModelTests: XCTestCase {
         let previousLog = DailyActivityLog(date: previousDay, dailyGoal: 40)
         previousLog.cardsReviewed = 10
         previousLog.xpEarnedToday = 35
+        let todayAggregate = HomeDailyStudyAggregate(
+            dayDate: today,
+            uniqueCardCount: 40,
+            rawReviewCount: 44,
+            landedCount: 36,
+            retryCount: 4,
+            xpEarned: 140,
+            newCardsLearned: 0,
+            dailyGoal: 40
+        )
+        let previousAggregate = HomeDailyStudyAggregate(
+            dayDate: previousDay,
+            uniqueCardCount: 10,
+            rawReviewCount: 10,
+            landedCount: 8,
+            retryCount: 2,
+            xpEarned: 35,
+            newCardsLearned: 0,
+            dailyGoal: 40
+        )
 
         let profile = UserProfile(
             totalXP: 1500,
@@ -232,6 +252,9 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.refreshCalendarInsights(
             dailyLogs: [todayLog, previousLog],
             userProfile: profile,
+            studyAggregates: [todayAggregate, previousAggregate],
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [todayAggregate, previousAggregate]),
+            dailyCardsGoal: 40,
             referenceDate: today
         )
 
@@ -243,6 +266,51 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.calendarInsightsCache[todayKey]?.isStreakDay, true)
         XCTAssertEqual(viewModel.calendarInsightsCache[previousKey]?.didStudy, true)
         XCTAssertEqual(viewModel.calendarInsightsCache[twoDaysAgoKey]?.isStreakDay, nil)
+    }
+
+    func testRefreshCalendarInsightsRecomputesGoalMarkersWhenGoalChanges() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 6, day: 25)))
+        let aggregate = HomeDailyStudyAggregate(
+            dayDate: selectedDate,
+            uniqueCardCount: 40,
+            rawReviewCount: 45,
+            landedCount: 32,
+            retryCount: 8,
+            xpEarned: 160,
+            newCardsLearned: 0,
+            dailyGoal: 40
+        )
+        let analyticsRevision = HomeViewModel.homeAnalyticsFingerprint(for: [aggregate])
+        let selectedKey = HomeViewModel.dateKeyFormatter.string(from: selectedDate)
+
+        let viewModel = HomeViewModel()
+        viewModel.updateLogsCache(logs: [])
+        viewModel.refreshCalendarInsights(
+            dailyLogs: [],
+            userProfile: nil,
+            studyAggregates: [aggregate],
+            analyticsRevision: analyticsRevision,
+            dailyCardsGoal: 40,
+            referenceDate: selectedDate
+        )
+
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.dailyGoal, 40)
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.cardsReviewed, 40)
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.isPerfectDay, true)
+
+        viewModel.refreshCalendarInsights(
+            dailyLogs: [],
+            userProfile: nil,
+            studyAggregates: [aggregate],
+            analyticsRevision: analyticsRevision,
+            dailyCardsGoal: 50,
+            referenceDate: selectedDate
+        )
+
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.dailyGoal, 50)
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.cardsReviewed, 40)
+        XCTAssertEqual(viewModel.calendarInsightsCache[selectedKey]?.isPerfectDay, false)
     }
 
     func testGreetingSummaryPrefersRecentDeckResumeContext() async throws {

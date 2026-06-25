@@ -412,6 +412,7 @@ private struct HomeDataCoordinator: View {
         var calendarInsightsTaskSignature: String {
             [
                 "\(logs)",
+                "\(analytics)",
                 profile,
                 dailyCardsGoal,
             ].joined(separator: "||")
@@ -490,10 +491,14 @@ private struct HomeDataCoordinator: View {
                 refreshCachedHomeInputs()
             }
             .task(id: calendarInsightsSignature) {
+                let currentSignatures = refreshCachedHomeInputs()
                 viewModel.updateLogsCache(logs: dailyLogs)
                 viewModel.refreshCalendarInsights(
                     dailyLogs: dailyLogs,
-                    userProfile: profile
+                    userProfile: profile,
+                    studyAggregates: homeStudyAggregates,
+                    analyticsRevision: currentSignatures.analytics,
+                    dailyCardsGoal: appPreferences.dailyCardsGoal
                 )
             }
             .task(id: dashboardSignature) {

@@ -831,15 +831,18 @@ extension HomeViewModel {
         key: String,
         date: Date,
         log: DailyActivityLog?,
+        aggregate: HomeDailyStudyAggregate? = nil,
+        dailyCardsGoal: Int? = nil,
         streakDates: Set<String>
     ) -> HomeCalendarDayInsight {
-        let cardsReviewed = log?.cardsReviewed ?? 0
-        let xpEarned = log?.xpEarnedToday ?? 0
-        let dailyGoal = AppPreferences.shared.dailyCardsGoal.map { max($0, 1) }
+        let cardsReviewed = aggregate?.uniqueCardCount ?? log?.cardsReviewed ?? 0
+        let xpEarned = aggregate?.xpEarned ?? log?.xpEarnedToday ?? 0
+        let dailyGoal = dailyCardsGoal.map { max($0, 1) }
         let didStudy = cardsReviewed > 0 || xpEarned > 0
         let activityFraction = didStudy
             ? (dailyGoal.map { max(min(Double(cardsReviewed) / Double($0), 1.0), xpEarned > 0 ? 0.22 : 0.12) } ?? 1.0)
             : 0
+        let didReachGoal = dailyGoal.map { cardsReviewed >= $0 } ?? false
 
         return HomeCalendarDayInsight(
             date: date,
@@ -849,7 +852,7 @@ extension HomeViewModel {
             dailyGoal: dailyGoal,
             activityFraction: activityFraction,
             didStudy: didStudy,
-            isPerfectDay: log?.isPerfectDay ?? false,
+            isPerfectDay: didReachGoal,
             isStreakDay: streakDates.contains(key)
         )
     }
@@ -873,12 +876,16 @@ extension HomeViewModel {
 
     func buildCalendarInsightsSignature(
         userProfile: UserProfile?,
+        analyticsRevision: Int = 0,
+        dailyCardsGoal: Int? = nil,
         referenceDate: Date
     ) -> String {
         [
             Self.dateKeyFormatter.string(from: referenceDate),
             profileSignature(for: userProfile),
-            "\(logsCacheRevision)"
+            "\(logsCacheRevision)",
+            "\(analyticsRevision)",
+            dailyCardsGoal.map(String.init) ?? "no-goal"
         ].joined(separator: "||")
     }
 

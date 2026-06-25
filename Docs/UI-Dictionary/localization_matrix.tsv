@@ -185,6 +185,7 @@ Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
+Current goal: %d cards	Current goal: %d cards	Țintă curentă: %d carduri	Текущая цель: %d карточек
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -474,6 +475,7 @@ No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
+No goal applied	No goal applied	Nicio țintă aplicată	Цель не задана
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
@@ -732,6 +734,7 @@ Unlock full AI features	Unlock full AI features	Deblochează toate funcțiile AI
 Unpin	Unpin	Anulează fixarea	Открепить
 Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
 Upcoming	Upcoming	Următoarele	Дальше
+Update Goal	Update Goal	Actualizează ținta	Обновить цель
 Upgrade to Premium to generate more cards.	Upgrade to Premium to generate more cards.	Treci la Premium ca să generezi mai multe carduri.	Перейдите на Premium, чтобы генерировать больше карточек.
 Use a stronger password.	Use a stronger password.	Folosește o parolă mai puternică.	Используйте более надежный пароль.
 Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
