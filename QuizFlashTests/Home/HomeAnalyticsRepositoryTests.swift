@@ -152,8 +152,8 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
         await repository.tearDown()
 
         XCTAssertEqual(snapshot.pastWeekPerformance.scorePercent, 100)
-        XCTAssertEqual(snapshot.pastWeekPerformance.previousScorePercent, 36)
-        XCTAssertEqual(snapshot.pastWeekPerformance.deltaPercent, 64)
+        XCTAssertEqual(snapshot.pastWeekPerformance.previousScorePercent, 35)
+        XCTAssertEqual(snapshot.pastWeekPerformance.deltaPercent, 65)
         XCTAssertEqual(snapshot.pastWeekPerformance.trend, .improving)
         XCTAssertEqual(snapshot.pastWeekPerformance.trendLine, "Improving day by day")
         XCTAssertEqual(snapshot.pastWeekPerformance.accuracyPercent, 100)
@@ -161,18 +161,18 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
         XCTAssertEqual(snapshot.pastWeekPerformance.goalCoveragePercent, 100)
         XCTAssertEqual(snapshot.pastWeekPerformance.efficiencyPercent, 100)
         XCTAssertEqual(snapshot.pastWeekPerformance.weekStartDate, weekStart)
-        XCTAssertEqual(snapshot.pastWeekPerformance.scoredDayCount, 6)
-        XCTAssertEqual(snapshot.pastWeekPerformance.activeDays, 6)
-        XCTAssertEqual(snapshot.pastWeekPerformance.goalHitDays, 6)
+        XCTAssertEqual(snapshot.pastWeekPerformance.scoredDayCount, 7)
+        XCTAssertEqual(snapshot.pastWeekPerformance.activeDays, 7)
+        XCTAssertEqual(snapshot.pastWeekPerformance.goalHitDays, 7)
         XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.count, 7)
         XCTAssertEqual(snapshot.pastWeekPerformance.previousDaySummaries.count, 7)
-        XCTAssertTrue(snapshot.pastWeekPerformance.currentDaySummaries.dropLast().allSatisfy(\.didStudy))
-        XCTAssertTrue(snapshot.pastWeekPerformance.currentDaySummaries.dropLast().allSatisfy(\.didReachGoal))
-        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.last?.cardsReviewed, 0)
-        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.last?.scorePercent, 0)
+        XCTAssertTrue(snapshot.pastWeekPerformance.currentDaySummaries.allSatisfy(\.didStudy))
+        XCTAssertTrue(snapshot.pastWeekPerformance.currentDaySummaries.allSatisfy(\.didReachGoal))
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.last?.cardsReviewed, 10)
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.last?.scorePercent, 100)
     }
 
-    func testLoadDashboardSnapshotBlanksFutureCalendarWeekDays() async throws {
+    func testLoadDashboardSnapshotUsesFullSelectedWeekForPerformance() async throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2
         let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 17, hour: 12)))
@@ -211,12 +211,47 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
         await repository.tearDown()
 
         XCTAssertEqual(snapshot.pastWeekPerformance.scorePercent, 100)
-        XCTAssertEqual(snapshot.pastWeekPerformance.scoredDayCount, 5)
-        XCTAssertEqual(snapshot.pastWeekPerformance.activeDays, 5)
+        XCTAssertEqual(snapshot.pastWeekPerformance.scoredDayCount, 7)
+        XCTAssertEqual(snapshot.pastWeekPerformance.activeDays, 7)
         XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.count, 7)
-        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.prefix(5).filter(\.didStudy).count, 5)
-        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.suffix(2).map(\.cardsReviewed), [0, 0])
-        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.suffix(2).map(\.didStudy), [false, false])
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.filter(\.didStudy).count, 7)
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.suffix(2).map(\.cardsReviewed), [30, 30])
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.suffix(2).map(\.didStudy), [true, true])
+    }
+
+    func testLoadDashboardSnapshotKeepsWeekStatsWhenSelectedDayIsEmpty() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
+        let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 13, hour: 12)))
+        let activeDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 16, hour: 12)))
+        let weekStart = try XCTUnwrap(calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start)
+        let container = try makeDashboardContainer(
+            with: [
+                makeAggregate(
+                    date: activeDate,
+                    uniqueCardCount: 12,
+                    rawReviewCount: 12,
+                    landedCount: 12,
+                    retryCount: 0,
+                    dailyGoal: 10
+                )
+            ]
+        )
+
+        let repository = HomeAnalyticsRepository(container: container)
+        let snapshot = await repository.loadDashboardSnapshot(
+            selectedDate: selectedDate,
+            weekStart: weekStart,
+            dailyCardsGoal: 10
+        )
+        await repository.tearDown()
+
+        XCTAssertEqual(snapshot.selectedDayStats.cardsReviewed, 0)
+        XCTAssertEqual(snapshot.selectedDayStats.correctCardCount, 0)
+        XCTAssertEqual(snapshot.pastWeekPerformance.activeDays, 1)
+        XCTAssertEqual(snapshot.pastWeekPerformance.goalHitDays, 1)
+        XCTAssertEqual(snapshot.pastWeekPerformance.goodRatePercent, 100)
+        XCTAssertEqual(snapshot.pastWeekPerformance.currentDaySummaries.map(\.cardsReviewed), [0, 0, 0, 12, 0, 0, 0])
     }
 
     func testLoadDashboardSnapshotReturnsEmptyPastWeekPerformanceWindowWithoutActivity() async throws {

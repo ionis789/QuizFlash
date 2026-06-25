@@ -84,12 +84,13 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.dashboardSnapshot.selectedDayInsight.paceLine.contains("3"))
     }
 
-    func testRefreshDashboardSnapshotKeepsCalendarWeekAndRevealsSelectedDayWindow() async throws {
+    func testRefreshDashboardSnapshotKeepsFullSelectedWeekPerformance() async throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2
         let firstSelectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 17)))
         let secondSelectedDate = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: firstSelectedDate))
         let weekStart = try XCTUnwrap(calendar.dateInterval(of: .weekOfYear, for: firstSelectedDate)?.start)
+        let weekEnd = try XCTUnwrap(calendar.date(byAdding: .day, value: 6, to: weekStart))
 
         let aggregates: [HomeDailyStudyAggregate] = (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: weekStart) ?? weekStart
@@ -147,21 +148,21 @@ final class HomeViewModelTests: XCTestCase {
 
         let secondSummary = viewModel.dashboardSnapshot.pastWeekPerformance
 
-        XCTAssertEqual(firstSummary.windowEndDate, firstSelectedDate)
+        XCTAssertEqual(firstSummary.windowEndDate, weekEnd)
         XCTAssertEqual(firstSummary.weekStartDate, weekStart)
-        XCTAssertEqual(firstSummary.scorePercent, 100)
-        XCTAssertEqual(firstSummary.scoredDayCount, 5)
-        XCTAssertEqual(firstSummary.activeDays, 5)
-        XCTAssertEqual(firstSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 0, 0])
-        XCTAssertEqual(secondSummary.windowEndDate, secondSelectedDate)
+        XCTAssertEqual(firstSummary.scorePercent, 95)
+        XCTAssertEqual(firstSummary.scoredDayCount, 7)
+        XCTAssertEqual(firstSummary.activeDays, 7)
+        XCTAssertEqual(firstSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 4, 10])
+        XCTAssertEqual(secondSummary.windowEndDate, weekEnd)
         XCTAssertEqual(secondSummary.weekStartDate, weekStart)
-        XCTAssertEqual(secondSummary.scorePercent, 94)
-        XCTAssertEqual(secondSummary.scoredDayCount, 6)
-        XCTAssertEqual(secondSummary.activeDays, 6)
-        XCTAssertLessThan(secondSummary.scorePercent, firstSummary.scorePercent)
+        XCTAssertEqual(secondSummary.scorePercent, 95)
+        XCTAssertEqual(secondSummary.scoredDayCount, 7)
+        XCTAssertEqual(secondSummary.activeDays, 7)
+        XCTAssertEqual(secondSummary.scorePercent, firstSummary.scorePercent)
         XCTAssertEqual(secondSummary.currentDaySummaries.first?.cardsReviewed, 10)
-        XCTAssertEqual(secondSummary.currentDaySummaries.last?.cardsReviewed, 0)
-        XCTAssertEqual(secondSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 4, 0])
+        XCTAssertEqual(secondSummary.currentDaySummaries.last?.cardsReviewed, 10)
+        XCTAssertEqual(secondSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 4, 10])
     }
 
     func testPerformanceDetailSheetPresentationStateTogglesWithoutMutatingSnapshot() async throws {

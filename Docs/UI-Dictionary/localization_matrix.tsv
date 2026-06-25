@@ -78,7 +78,7 @@ key	en	ro	ru
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
-%d%% good rate	%d%% good rate	%d%% rată bune	%d%% хороших
+%d%% good cards	%d%% good cards	%d%% carduri bune	%d%% хороших карточек
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -477,6 +477,7 @@ No goal	No goal	Fără țintă	Без цели
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
+No reviews this week	No reviews this week	Nicio revizuire săptămâna asta	На этой неделе нет повторений
 No reviews yet	No reviews yet	Fără revizuiri încă	Пока нет повторений
 No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
 No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.

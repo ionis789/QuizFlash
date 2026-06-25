@@ -464,15 +464,11 @@ actor HomeAnalyticsRepository {
         let calendar = Calendar.current
         let normalizedSelectedDate = HomeAnalyticsDayKey.normalizedDay(for: selectedDate)
         let normalizedWeekStart = HomeAnalyticsDayKey.normalizedDay(for: weekStart)
-        let selectedDayOffset = min(
-            max(calendar.dateComponents([.day], from: normalizedWeekStart, to: normalizedSelectedDate).day ?? 0, 0),
-            6
-        )
         guard
             let previousWeekStart = calendar.date(byAdding: .day, value: -7, to: normalizedWeekStart),
             let currentWeekEnd = calendar.date(byAdding: .day, value: 7, to: normalizedWeekStart),
-            let currentScoringEndDate = calendar.date(byAdding: .day, value: selectedDayOffset, to: normalizedWeekStart),
-            let previousScoringEndDate = calendar.date(byAdding: .day, value: selectedDayOffset, to: previousWeekStart)
+            let currentScoringEndDate = calendar.date(byAdding: .day, value: 6, to: normalizedWeekStart),
+            let previousScoringEndDate = calendar.date(byAdding: .day, value: 6, to: previousWeekStart)
         else {
             return .placeholder(referenceDate: normalizedSelectedDate)
         }
@@ -490,7 +486,6 @@ actor HomeAnalyticsRepository {
             start: normalizedWeekStart,
             aggregatesByKey: aggregatesByKey,
             scoringEndDate: currentScoringEndDate,
-            displayEndDate: currentScoringEndDate,
             dailyCardsGoal: dailyCardsGoal
         )
         let deltaPercent = currentMetrics.scorePercent - previousMetrics.scorePercent
@@ -505,7 +500,7 @@ actor HomeAnalyticsRepository {
 
         return HomePastWeekPerformanceSummary(
             weekStartDate: normalizedWeekStart,
-            windowEndDate: normalizedSelectedDate,
+            windowEndDate: currentScoringEndDate,
             scorePercent: currentMetrics.scorePercent,
             previousScorePercent: previousMetrics.scorePercent,
             deltaPercent: deltaPercent,

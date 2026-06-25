@@ -252,7 +252,7 @@ struct HomeDashboardView: View {
                         .foregroundStyle(accentColor)
                         .lineLimit(1)
 
-                    Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
+                    Text(weeklyPerformanceHeadline(for: summary))
                         .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black, design: .rounded))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
@@ -279,6 +279,14 @@ struct HomeDashboardView: View {
             ))
         }
         .buttonStyle(.plain)
+    }
+
+    private func weeklyPerformanceHeadline(for summary: HomePastWeekPerformanceSummary) -> String {
+        guard summary.hasActivity else {
+            return localized("No reviews this week")
+        }
+
+        return localizedFormat("%d%% good cards", summary.goodRatePercent)
     }
 
     @ViewBuilder

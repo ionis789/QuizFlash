@@ -752,13 +752,14 @@
 "%d cards reviewed" = "%d cards reviewed";
 "%d cards reviewed today." = "%d cards reviewed today.";
 "%d reviewed" = "%d reviewed";
-"%d%% good rate" = "%d%% good rate";
+"%d%% good cards" = "%d%% good cards";
 "Attempts" = "Attempts";
 "Attempts %d" = "Attempts %d";
 "Cards Goal" = "Cards Goal";
 "Daily cards" = "Daily cards";
 "No decks yet" = "No decks yet";
 "No goal" = "No goal";
+"No reviews this week" = "No reviews this week";
 "Ready when you are." = "Ready when you are.";
 "Reviewed cards target." = "Reviewed cards target.";
 "Study detail" = "Study detail";

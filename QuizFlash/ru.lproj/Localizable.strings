@@ -752,13 +752,14 @@
 "%d cards reviewed" = "%d карточек пройдено";
 "%d cards reviewed today." = "%d карточек пройдено сегодня.";
 "%d reviewed" = "%d пройдено";
-"%d%% good rate" = "%d%% хороших";
+"%d%% good cards" = "%d%% хороших карточек";
 "Attempts" = "Попытки";
 "Attempts %d" = "Попытки %d";
 "Cards Goal" = "Цель по карточкам";
 "Daily cards" = "Карточек в день";
 "No decks yet" = "Колод пока нет";
 "No goal" = "Без цели";
+"No reviews this week" = "На этой неделе нет повторений";
 "Ready when you are." = "Готово, когда вы готовы.";
 "Reviewed cards target." = "Цель для пройденных карточек.";
 "Study detail" = "Детали учёбы";

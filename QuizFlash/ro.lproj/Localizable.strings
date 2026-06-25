@@ -752,13 +752,14 @@
 "%d cards reviewed" = "%d carduri revizuite";
 "%d cards reviewed today." = "%d carduri revizuite azi.";
 "%d reviewed" = "%d revizuite";
-"%d%% good rate" = "%d%% rată bune";
+"%d%% good cards" = "%d%% carduri bune";
 "Attempts" = "Încercări";
 "Attempts %d" = "Încercări %d";
 "Cards Goal" = "Țintă carduri";
 "Daily cards" = "Carduri zilnice";
 "No decks yet" = "Nu există încă deckuri";
 "No goal" = "Fără țintă";
+"No reviews this week" = "Nicio revizuire săptămâna asta";
 "Ready when you are." = "Gata când ești tu.";
 "Reviewed cards target." = "Țintă pentru carduri revizuite.";
 "Study detail" = "Detalii studiu";
