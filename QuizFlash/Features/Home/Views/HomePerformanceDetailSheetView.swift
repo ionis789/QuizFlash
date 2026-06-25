@@ -109,7 +109,7 @@ struct HomePerformanceDetailSheetView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text(localized("Performance"))
+            Text(localized("Study detail"))
                 .font(.system(size: 28, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
 
@@ -166,7 +166,7 @@ struct HomePerformanceDetailSheetView: View {
 
     private var emptyStateSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(localized("Performance"))
+            Text(localized("Study detail"))
                 .font(.system(size: 28, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
 
@@ -208,11 +208,13 @@ struct HomePerformanceDetailSheetView: View {
                     value: "\(summary.activeDays)/\(summary.scoredDayCount)",
                     tint: accentColor
                 )
-                HomePerformanceMetricCard(
-                    title: localized("Goal days"),
-                    value: "\(summary.goalHitDays)",
-                    tint: .orange
-                )
+                if summary.hasGoal {
+                    HomePerformanceMetricCard(
+                        title: localized("Goal days"),
+                        value: "\(summary.goalHitDays)",
+                        tint: .orange
+                    )
+                }
                 HomePerformanceMetricCard(
                     title: localized("Unique rate"),
                     value: "\(summary.efficiencyPercent)%",

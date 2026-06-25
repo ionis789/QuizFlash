@@ -31,6 +31,8 @@ key	en	ro	ru
 %@: %@	%1$@: %2$@	%1$@: %2$@	%1$@: %2$@
 %@x	%@x	%@x	%@x
 %d %@	%d %@	%d %@	%d %@
+%d / %d cards reviewed	%d / %d cards reviewed	%d / %d carduri revizuite	%d / %d карточек пройдено
+%d active days	%d active days	%d zile active	%d активных дней
 %d AI	%d AI	%d AI	%d AI
 %d AI generation left	%d AI generation left	%d generare AI rămasă	Осталась %d AI-генерация
 %d AI generations left	%d AI generations left	%d generări AI rămase	Осталось %d AI-генераций
@@ -44,6 +46,8 @@ key	en	ro	ru
 %d cards left today	%d cards left today	%d carduri rămase azi	Сегодня осталось %d карточек
 %d cards lined up today	%d cards lined up today	%d carduri pregătite azi	На сегодня подготовлено %d карточек
 %d cards moved today	%d cards moved today	%d carduri mutate azi	%d карточек пройдено сегодня
+%d cards reviewed	%d cards reviewed	%d carduri revizuite	%d карточек пройдено
+%d cards reviewed today.	%d cards reviewed today.	%d carduri revizuite azi.	%d карточек пройдено сегодня.
 %d chars	%d chars	%d caractere	%d символов
 %d CORRECT CHOICES	%d CORRECT CHOICES	%d RĂSPUNSURI CORECTE	%d ПРАВИЛЬНЫХ ВАРИАНТОВ
 %d day	%d day	%d zi	%d день
@@ -51,8 +55,8 @@ key	en	ro	ru
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -69,10 +73,12 @@ key	en	ro	ru
 %d quiz	%d quiz	%d quiz	%d квиз
 %d retries	%d retries	%d retry-uri	%d повторов
 %d retry	%d retry	%d retry	%d повтор
+%d reviewed	%d reviewed	%d revizuite	%d пройдено
 %d selected	%d selected	%d selectate	Выбрано: %d
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
+%d%% good rate	%d%% good rate	%d%% rată bune	%d%% хороших
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -105,6 +111,7 @@ Add a question before saving.	Add a question before saving.	Adaugă întrebarea 
 Add Above	Add Above	Adaugă deasupra	Добавить выше
 Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Adăugați un examen pentru a urmări pregătirea în deckuri conectate și marcați ziua respectivă în calendarul Acasă.	Добавьте экзамен, чтобы отслеживать готовность всех связанных колод, и отметьте этот день в главном календаре.
 Add Answer	Add Answer	Adaugă răspuns	Добавить ответ
+Add at least one range.	Add at least one range.	Adaugă cel puțin un interval.	Добавьте минимум один диапазон.
 Add at least two answers.	Add at least two answers.	Adaugă cel puțin două răspunsuri.	Добавьте минимум два ответа.
 Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
@@ -113,7 +120,6 @@ Add Left	Add Left	Adaugă la stânga	Добавить слева
 Add manually	Add manually	Adaugă manual	Добавить вручную
 Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
 Add Range	Add Range	Adaugă interval	Добавить диапазон
-Add at least one range.	Add at least one range.	Adaugă cel puțin un interval.	Добавьте минимум один диапазон.
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
@@ -142,14 +148,15 @@ App Text	App Text	Text aplicație	Текст приложения
 Apple did not return an identity token.	Apple did not return an identity token.	Apple nu a returnat un token de identitate.	Apple не вернул токен идентификации.
 Apple returned an invalid identity token.	Apple returned an invalid identity token.	Apple a returnat un token de identitate invalid.	Apple вернул недействительный токен идентификации.
 Are you sure?	Are you sure?	Ești sigur?	Вы уверены?
+Attempts	Attempts	Încercări	Попытки
 Auto	Auto	Auto	Авто
 Auto Block	Auto Block	Bloc auto	Автоблок
 Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -173,9 +180,10 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
+Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -192,8 +200,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -239,6 +247,7 @@ Current Summary	Current Summary	Rezumat curent	Текущая сводка
 Current week	Current week	Săptămâna curentă	Текущая неделя
 Custom Color	Custom Color	Culoare personalizată	Свой цвет
 Cyan	Cyan	Cyan	Голубой
+Daily cards	Daily cards	Carduri zilnice	Карточек в день
 Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная нагрузка
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
@@ -296,8 +305,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -327,8 +336,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -448,7 +457,6 @@ No answer added	No answer added	Niciun răspuns adăugat	Ответ не доб�
 No answer selected	No answer selected	Niciun răspuns selectat	Ответ не выбран
 No blank selected	No blank selected	Niciun gol selectat	Пропуск не выбран
 No cards moved today	No cards moved today	Niciun card mutat azi	Сегодня не было активных карточек
-No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
 No cards yet	No cards yet	Niciun card încă	Карточек пока нет
 No catalog matches	No catalog matches	Nicio potrivire de catalog	Нет совпадений по каталогу
 No choices added	No choices added	Nicio variantă adăugată	Варианты не добавлены
@@ -458,13 +466,16 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
+No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
+No goal	No goal	Fără țintă	Без цели
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
 No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
+No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
@@ -519,8 +530,8 @@ Premium active	Premium active	Premium activ	Premium активен
 Premium is managed manually until App Store Connect is ready.	Premium is managed manually until App Store Connect is ready.	Premium este administrat manual până când App Store Connect este gata.	Premium управляется вручную, пока App Store Connect не готов.
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
@@ -529,8 +540,8 @@ PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -544,9 +555,11 @@ Reading	Reading	Citire	Чтение
 Reading Docs...	Reading Docs...	Se citesc documentele...	Чтение документов...
 Reading the source and setting up the generation pipeline.	Reading the source and setting up the generation pipeline.	Citirea sursei și configurarea conductei de generare.	Чтение исходников и настройка конвейера генерации.
 Ready	Ready	Pregătit	Готовность
+Ready when you are.	Ready when you are.	Gata când ești tu.	Готово, когда вы готовы.
 Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
 Recents	Recents	Recente	Недавние
 Red	Red	Roșu	Красный
+Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d sau mai puține.	Уменьшите число карточек до %d или меньше.
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
@@ -559,11 +572,11 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d sau mai puține.	Уменьшите число карточек до %d или меньше.
 Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
+Reviewed cards target.	Reviewed cards target.	Țintă pentru carduri revizuite.	Цель для пройденных карточек.
 Reviews	Reviews	Repetări	Повторы
 Right	Right	Corect	Верно
 Romanian	Romanian	Română	Румынский
@@ -641,6 +654,7 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
+Study detail	Study detail	Detalii studiu	Детали учёбы
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
@@ -682,6 +696,7 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+This week	This week	Săptămâna aceasta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.

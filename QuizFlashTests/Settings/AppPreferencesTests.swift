@@ -33,6 +33,24 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
     }
 
+    func testDailyCardsGoalDefaultsToNilAndPersistsOptionalValue() {
+        let suiteName = "AppPreferencesDailyCardsGoalTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let preferences = AppPreferences(userDefaults: defaults)
+        XCTAssertNil(preferences.dailyCardsGoal)
+
+        preferences.dailyCardsGoal = 55
+        XCTAssertEqual(AppPreferences(userDefaults: defaults).dailyCardsGoal, 55)
+
+        preferences.dailyCardsGoal = 700
+        XCTAssertEqual(AppPreferences(userDefaults: defaults).dailyCardsGoal, 500)
+
+        preferences.dailyCardsGoal = nil
+        XCTAssertNil(AppPreferences(userDefaults: defaults).dailyCardsGoal)
+    }
+
     func testAppLanguagePreferenceDrivesAppLocalizationHelper() {
         let suiteName = "AppPreferencesLanguageTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

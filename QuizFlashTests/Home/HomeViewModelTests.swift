@@ -49,6 +49,7 @@ final class HomeViewModelTests: XCTestCase {
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [selectedAggregate, previousAggregate]),
             deckRevision: 0,
+            dailyCardsGoal: 40,
             referenceDate: selectedDate
         )
 
@@ -61,21 +62,21 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.totalCardsReviewed, 54)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.totalXPEarned, 200)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.activeDays, 2)
-        XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.goalHitDays, 1)
+        XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.goalHitDays, 0)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.averageCardsPerActiveDay, 27)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.count, 7)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.filter(\.isSelectedDay).count, 1)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.last?.cardsReviewed, 30)
-        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.scorePercent, 64)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.scorePercent, 63)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.previousScorePercent, 0)
-        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.deltaPercent, 64)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.deltaPercent, 63)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trend, .improving)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trendLine, "Improving day by day")
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.accuracyPercent, 81)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.consistencyPercent, 29)
-        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalCoveragePercent, 25)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalCoveragePercent, 19)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.efficiencyPercent, 93)
-        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalHitDays, 1)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalHitDays, 0)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.currentDaySummaries.count, 7)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayBreakdown.cardsReviewed, 30)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayInsight.xpEarned, 120)
@@ -127,6 +128,7 @@ final class HomeViewModelTests: XCTestCase {
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
             deckRevision: 0,
+            dailyCardsGoal: 10,
             referenceDate: firstSelectedDate
         )
 
@@ -139,6 +141,7 @@ final class HomeViewModelTests: XCTestCase {
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
             deckRevision: 0,
+            dailyCardsGoal: 10,
             referenceDate: secondSelectedDate
         )
 
@@ -269,6 +272,7 @@ final class HomeViewModelTests: XCTestCase {
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
             deckRevision: HomeViewModel.decksFingerprint(for: [recentDeck]),
+            dailyCardsGoal: 40,
             referenceDate: today
         )
 
@@ -415,6 +419,7 @@ final class HomeViewModelTests: XCTestCase {
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
             deckRevision: HomeViewModel.decksFingerprint(for: [recentDeck]),
+            dailyCardsGoal: 40,
             referenceDate: today
         )
 

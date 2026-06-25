@@ -201,13 +201,15 @@ final class HomeViewModel {
         container: ModelContainer,
         analyticsRevision: Int,
         deckRevision: Int,
+        dailyCardsGoal: Int? = nil,
         referenceDate: Date = Date()
     ) async {
         let signature = buildDashboardSnapshotSignature(
             selectedDate: selectedDate,
             userProfile: userProfile,
             analyticsRevision: analyticsRevision,
-            deckRevision: deckRevision
+            deckRevision: deckRevision,
+            dailyCardsGoal: dailyCardsGoal
         )
         guard dashboardSnapshotSignature != signature else { return }
         dashboardSnapshotSignature = signature
@@ -215,7 +217,8 @@ final class HomeViewModel {
         let repository = HomeAnalyticsRepository(container: container)
         let analyticsSnapshot = await repository.loadDashboardSnapshot(
             selectedDate: selectedDate,
-            weekStart: weekStart
+            weekStart: weekStart,
+            dailyCardsGoal: dailyCardsGoal
         )
         await repository.tearDown()
         guard !Task.isCancelled else { return }
@@ -225,27 +228,29 @@ final class HomeViewModel {
             selectedDayStats.selectedDate,
             referenceDate: referenceDate
         )
-        let goalCompletionFraction = min(
-            Double(selectedDayStats.cardsReviewed) / Double(max(selectedDayStats.dailyGoal, 1)),
-            1.0
-        )
-        let remainingCardsToGoal = max(
-            selectedDayStats.dailyGoal - selectedDayStats.cardsReviewed,
-            0
-        )
+        let goalCompletionFraction = selectedDayStats.dailyGoal.map {
+            min(Double(selectedDayStats.cardsReviewed) / Double(max($0, 1)), 1.0)
+        } ?? 0
+        let remainingCardsToGoal = selectedDayStats.dailyGoal.map {
+            max($0 - selectedDayStats.cardsReviewed, 0)
+        } ?? 0
 
         let headline: String
         let detailLine: String
-        if selectedDayStats.cardsReviewed >= selectedDayStats.dailyGoal {
+        if let dailyGoal = selectedDayStats.dailyGoal,
+           selectedDayStats.cardsReviewed >= dailyGoal {
             headline = "Goal reached"
             detailLine = "You completed \(selectedDayStats.cardsReviewed) unique cards on \(selectedDateLabel.lowercased())."
-        } else if selectedDayStats.cardsReviewed > 0 {
+        } else if selectedDayStats.dailyGoal != nil, selectedDayStats.cardsReviewed > 0 {
             headline = "\(remainingCardsToGoal) cards to target"
             if selectedDayStats.rawReviewCount > selectedDayStats.cardsReviewed {
                 detailLine = "You already covered \(selectedDayStats.cardsReviewed) unique cards across \(selectedDayStats.rawReviewCount) review passes."
             } else {
                 detailLine = "You already covered \(selectedDayStats.cardsReviewed) unique cards and earned \(selectedDayStats.xpEarnedToday) XP."
             }
+        } else if selectedDayStats.cardsReviewed > 0 {
+            headline = "\(selectedDayStats.cardsReviewed) cards reviewed"
+            detailLine = "You already covered \(selectedDayStats.cardsReviewed) unique cards."
         } else {
             headline = "Fresh study window"
             detailLine = "No study logged for \(selectedDateLabel.lowercased()) yet."

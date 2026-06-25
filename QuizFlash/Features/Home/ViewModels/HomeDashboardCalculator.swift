@@ -95,7 +95,21 @@ extension HomeViewModel {
             let remainingCards = max(overview.remainingCardsToGoal, 0)
             let detail: String
 
-            if overview.didReachGoal {
+            if !overview.hasGoal, let lastOpenedAt = recentDeck.lastOpenedAt {
+                detail = String.localizedStringWithFormat(
+                    localized("Last opened %@."),
+                    Self.relativeTimeLabel(for: lastOpenedAt, referenceDate: referenceDate)
+                )
+            } else if !overview.hasGoal, let matchingHealth {
+                let deckPressure = matchingHealth.dueCards + matchingHealth.newCards
+                detail = deckPressure > 0
+                    ? localizedFormat("%d cards are ready.", [deckPressure])
+                    : localized("Ready when you are.")
+            } else if !overview.hasGoal {
+                detail = overview.cardsReviewed > 0
+                    ? localizedFormat("%d cards reviewed today.", [overview.cardsReviewed])
+                    : localized("Ready when you are.")
+            } else if overview.didReachGoal {
                 detail = localized("Today's goal is closed.")
             } else if let lastOpenedAt = recentDeck.lastOpenedAt {
                 detail = String.localizedStringWithFormat(
@@ -119,7 +133,9 @@ extension HomeViewModel {
             return HomeTodayFocusHeaderSummary(
                 introTitle: greetingTitle,
                 introSubtitle: localized("Continue where you left off."),
-                eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
+                eyebrow: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Today clear") : localized("Today goal"))
+                    : localized("Today"),
                 title: resolvedTitle,
                 detail: detail,
                 compactTitle: resolvedTitle,
@@ -127,9 +143,13 @@ extension HomeViewModel {
                 colorHex: recentDeck.colorHex,
                 primaryPill: "",
                 secondaryPill: nil,
-                progressFraction: overview.goalCompletionFraction,
-                progressValueText: overview.didReachGoal ? localized("Done") : "\(remainingCards)",
-                progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
+                progressFraction: overview.hasGoal ? overview.goalCompletionFraction : 0,
+                progressValueText: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Done") : "\(remainingCards)")
+                    : "\(overview.cardsReviewed)",
+                progressLabel: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Today") : localized("To goal"))
+                    : localized("Reviewed"),
                 ctaTitle: localized("Resume Deck"),
                 action: .openDeck(recentDeck.persistentModelID)
             )
@@ -143,12 +163,18 @@ extension HomeViewModel {
 
             return HomeTodayFocusHeaderSummary(
                 introTitle: greetingTitle,
-                introSubtitle: overview.cardsReviewed == 0
+                introSubtitle: overview.hasGoal && overview.cardsReviewed == 0
                     ? localized("Start today's goal from this deck.")
                     : localized("Continue where you left off."),
-                eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
+                eyebrow: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Today clear") : localized("Today goal"))
+                    : localized("Today"),
                 title: focusTitle,
-                detail: overview.cardsReviewed == 0
+                detail: !overview.hasGoal && overview.cardsReviewed > 0
+                    ? localizedFormat("%d cards reviewed today.", [overview.cardsReviewed])
+                    : !overview.hasGoal
+                    ? localized("Ready when you are.")
+                    : overview.cardsReviewed == 0
                     ? localized("Open this deck to start today's goal.")
                     : localizedFormat("%d cards are still open today.", [remainingCards]),
                 compactTitle: focusTitle,
@@ -156,9 +182,13 @@ extension HomeViewModel {
                 colorHex: focusDeck.colorHex,
                 primaryPill: "",
                 secondaryPill: nil,
-                progressFraction: overview.goalCompletionFraction,
-                progressValueText: overview.didReachGoal ? localized("Done") : "\(remainingCards)",
-                progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
+                progressFraction: overview.hasGoal ? overview.goalCompletionFraction : 0,
+                progressValueText: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Done") : "\(remainingCards)")
+                    : "\(overview.cardsReviewed)",
+                progressLabel: overview.hasGoal
+                    ? (overview.didReachGoal ? localized("Today") : localized("To goal"))
+                    : localized("Reviewed"),
                 ctaTitle: localized("Open Focus Deck"),
                 action: .openDeck(focusDeck.id)
             )
@@ -169,26 +199,36 @@ extension HomeViewModel {
 
         return HomeTodayFocusHeaderSummary(
             introTitle: greetingTitle,
-            introSubtitle: overview.didReachGoal
+            introSubtitle: overview.hasGoal && overview.didReachGoal
                 ? localized("Today is already closed.")
                 : localized("Pick a deck and continue."),
-            eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
+            eyebrow: overview.hasGoal
+                ? (overview.didReachGoal ? localized("Today clear") : localized("Today goal"))
+                : localized("Today"),
             title: Self.greetingPhase(for: referenceDate) == .night
                 ? localized("Pick a deck for tonight")
                 : localized("Pick a deck for today"),
-            detail: overview.didReachGoal
+            detail: !overview.hasGoal
+                ? localizedFormat("%d cards reviewed today.", [overview.cardsReviewed])
+                : overview.didReachGoal
                 ? localized("Today's goal is already closed.")
                 : localizedFormat("%d cards are still open today.", [overview.remainingCardsToGoal]),
-            compactTitle: overview.didReachGoal ? localized("Today is clear") : localized("Pick a deck"),
+            compactTitle: overview.hasGoal && overview.didReachGoal ? localized("Today is clear") : localized("Pick a deck"),
             compactDetail: localized("Open Home"),
             colorHex: "",
-            primaryPill: overview.didReachGoal
+            primaryPill: !overview.hasGoal
+                ? localizedFormat("%d reviewed", [overview.cardsReviewed])
+                : overview.didReachGoal
                 ? localized("Goal closed")
                 : localizedFormat("%d left", [overview.remainingCardsToGoal]),
             secondaryPill: secondaryPill,
-            progressFraction: overview.goalCompletionFraction,
-            progressValueText: overview.didReachGoal ? localized("Done") : "\(overview.remainingCardsToGoal)",
-            progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
+            progressFraction: overview.hasGoal ? overview.goalCompletionFraction : 0,
+            progressValueText: overview.hasGoal
+                ? (overview.didReachGoal ? localized("Done") : "\(overview.remainingCardsToGoal)")
+                : "\(overview.cardsReviewed)",
+            progressLabel: overview.hasGoal
+                ? (overview.didReachGoal ? localized("Today") : localized("To goal"))
+                : localized("Reviewed"),
             ctaTitle: nil,
             action: nil
         )
@@ -244,16 +284,21 @@ extension HomeViewModel {
                 progressFraction = matchingHealth.masteryFraction
                 progressValueText = "\(Int((matchingHealth.masteryFraction * 100).rounded()))%"
                 progressLabel = "Mastery"
-            } else if overview.didReachGoal {
+            } else if overview.hasGoal && overview.didReachGoal {
                 contextLine = "Today's target is already clear. A short review keeps the streak moving."
                 progressFraction = overview.goalCompletionFraction
                 progressValueText = "Done"
                 progressLabel = "Today"
-            } else {
+            } else if overview.hasGoal {
                 contextLine = "This deck is the cleanest way back into a focused pass without hunting around the library."
                 progressFraction = overview.goalCompletionFraction
                 progressValueText = "\(overview.remainingCardsToGoal)"
                 progressLabel = "To goal"
+            } else {
+                contextLine = "This deck is the cleanest way back into a focused pass without hunting around the library."
+                progressFraction = 0
+                progressValueText = "\(overview.cardsReviewed)"
+                progressLabel = "Reviewed"
             }
 
             return HomeGreetingSummary(
@@ -300,9 +345,13 @@ extension HomeViewModel {
                 colorHex: "",
                 primaryPill: "\(allDeckCount) decks",
                 secondaryPill: nil,
-                progressFraction: overview.goalCompletionFraction,
-                progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
-                progressLabel: overview.didReachGoal ? "Today" : "To goal",
+                progressFraction: overview.hasGoal ? overview.goalCompletionFraction : 0,
+                progressValueText: overview.hasGoal
+                    ? (overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
+                    : "\(overview.cardsReviewed)",
+                progressLabel: overview.hasGoal
+                    ? (overview.didReachGoal ? "Today" : "To goal")
+                    : "Reviewed",
                 ctaTitle: "Create Folder",
                 action: .createFolder
             )
@@ -320,9 +369,13 @@ extension HomeViewModel {
             colorHex: "",
             primaryPill: "\(totalXP) XP",
             secondaryPill: secondaryPill,
-            progressFraction: overview.goalCompletionFraction,
-            progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
-            progressLabel: overview.didReachGoal ? "Today" : "To goal",
+            progressFraction: overview.hasGoal ? overview.goalCompletionFraction : 0,
+            progressValueText: overview.hasGoal
+                ? (overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
+                : "\(overview.cardsReviewed)",
+            progressLabel: overview.hasGoal
+                ? (overview.didReachGoal ? "Today" : "To goal")
+                : "Reviewed",
             ctaTitle: nil,
             action: nil
         )
@@ -374,25 +427,28 @@ extension HomeViewModel {
             cards: cards
         )
         let cardsReviewed = reviewAggregate.uniqueCardCount
-        let dailyGoal = max(log?.dailyGoal ?? 50, 1)
+        let dailyGoal = AppPreferences.shared.dailyCardsGoal.map { max($0, 1) }
         let xpEarnedToday = reviewAggregate.xpEarned
         let newCardsLearned = log?.newCardsLearned ?? 0
-        let goalCompletionFraction = min(Double(cardsReviewed) / Double(dailyGoal), 1.0)
-        let remainingCardsToGoal = max(dailyGoal - cardsReviewed, 0)
+        let goalCompletionFraction = dailyGoal.map { min(Double(cardsReviewed) / Double($0), 1.0) } ?? 0
+        let remainingCardsToGoal = dailyGoal.map { max($0 - cardsReviewed, 0) } ?? 0
         let selectedDateLabel = Self.labelForSelectedDay(selectedDate)
 
         let headline: String
         let detailLine: String
-        if cardsReviewed >= dailyGoal {
+        if let dailyGoal, cardsReviewed >= dailyGoal {
             headline = "Goal reached"
             detailLine = "You completed \(cardsReviewed) unique cards on \(selectedDateLabel.lowercased())."
-        } else if cardsReviewed > 0 {
+        } else if dailyGoal != nil, cardsReviewed > 0 {
             headline = "\(remainingCardsToGoal) cards to target"
             if reviewAggregate.rawReviewCount > cardsReviewed {
                 detailLine = "You already covered \(cardsReviewed) unique cards across \(reviewAggregate.rawReviewCount) review passes."
             } else {
                 detailLine = "You already covered \(cardsReviewed) unique cards and earned \(xpEarnedToday) XP."
             }
+        } else if cardsReviewed > 0 {
+            headline = "\(cardsReviewed) cards reviewed"
+            detailLine = "You already covered \(cardsReviewed) unique cards."
         } else {
             headline = "Fresh study window"
             detailLine = "No study logged for \(selectedDateLabel.lowercased()) yet."
@@ -440,15 +496,15 @@ extension HomeViewModel {
         let daySummaries: [HomeWeeklyDaySummary] = (0..<7).compactMap { index in
             guard let day = calendar.date(byAdding: .day, value: index, to: weekStart) else { return nil }
             let dayKey = Self.dateKeyFormatter.string(from: day)
-            let log = logsCache[dayKey]
             let reviewAggregate = buildDailyReviewAggregate(
                 for: day,
                 cards: cards
             )
             let cardsReviewed = reviewAggregate.uniqueCardCount
             let xpEarned = reviewAggregate.xpEarned
-            let goal = max(log?.dailyGoal ?? 50, 1)
-            let intensityFraction = min(Double(cardsReviewed) / Double(goal), 1.0)
+            let goal = AppPreferences.shared.dailyCardsGoal.map { max($0, 1) }
+            let intensityFraction = goal.map { min(Double(cardsReviewed) / Double($0), 1.0) }
+                ?? (cardsReviewed > 0 || xpEarned > 0 ? 1.0 : 0.0)
 
             return HomeWeeklyDaySummary(
                 id: dayKey,
@@ -457,12 +513,12 @@ extension HomeViewModel {
                 cardsReviewed: cardsReviewed,
                 rawReviewCount: reviewAggregate.rawReviewCount,
                 xpEarned: xpEarned,
-                goal: goal,
+                dailyGoal: goal,
                 correctCardCount: reviewAggregate.correctCardCount,
                 retryCardCount: reviewAggregate.retryCardCount,
                 intensityFraction: intensityFraction,
                 didStudy: cardsReviewed > 0 || xpEarned > 0,
-                didReachGoal: cardsReviewed >= goal,
+                didReachGoal: goal.map { cardsReviewed >= $0 } ?? false,
                 isSelectedDay: calendar.isDate(day, inSameDayAs: startOfSelectedDay)
             )
         }
@@ -649,9 +705,12 @@ extension HomeViewModel {
         if selectedDayOverview.didReachGoal {
             headline = "This day is already in good shape"
             detailLine = "You cleared the target and can use any extra time for due-card cleanup."
-        } else if cardsReviewed > 0 {
+        } else if selectedDayOverview.hasGoal, cardsReviewed > 0 {
             headline = "This day still has room to improve"
             detailLine = "You are \(selectedDayOverview.remainingCardsToGoal) cards away from the target."
+        } else if cardsReviewed > 0 {
+            headline = "This day has study activity"
+            detailLine = "You reviewed \(cardsReviewed) unique cards."
         } else {
             headline = "This day is still open"
             detailLine = "No study has landed here yet, so it can absorb focused catch-up work."
@@ -662,6 +721,8 @@ extension HomeViewModel {
             recommendationLine = "Best next move: keep the streak warm with a short due-card pass."
         } else if let focusDeck = deckHealthSummaries.first {
             recommendationLine = "Best next move: open \(focusDeck.title) and work through the cards already waiting there."
+        } else if !selectedDayOverview.hasGoal {
+            recommendationLine = "Best next move: start a short review block."
         } else {
             recommendationLine = "Best next move: finish the remaining \(selectedDayOverview.remainingCardsToGoal) cards and lock the day."
         }
@@ -774,10 +835,10 @@ extension HomeViewModel {
     ) -> HomeCalendarDayInsight {
         let cardsReviewed = log?.cardsReviewed ?? 0
         let xpEarned = log?.xpEarnedToday ?? 0
-        let dailyGoal = max(log?.dailyGoal ?? 50, 1)
+        let dailyGoal = AppPreferences.shared.dailyCardsGoal.map { max($0, 1) }
         let didStudy = cardsReviewed > 0 || xpEarned > 0
         let activityFraction = didStudy
-            ? max(min(Double(cardsReviewed) / Double(dailyGoal), 1.0), xpEarned > 0 ? 0.22 : 0.12)
+            ? (dailyGoal.map { max(min(Double(cardsReviewed) / Double($0), 1.0), xpEarned > 0 ? 0.22 : 0.12) } ?? 1.0)
             : 0
 
         return HomeCalendarDayInsight(
@@ -797,14 +858,16 @@ extension HomeViewModel {
         selectedDate: Date,
         userProfile: UserProfile?,
         analyticsRevision: Int,
-        deckRevision: Int
+        deckRevision: Int,
+        dailyCardsGoal: Int?
     ) -> String {
         let selectedDateKey = Self.dateKeyFormatter.string(from: selectedDate)
         return [
             selectedDateKey,
             profileSignature(for: userProfile),
             "\(analyticsRevision)",
-            "\(deckRevision)"
+            "\(deckRevision)",
+            dailyCardsGoal.map(String.init) ?? "no-goal"
         ].joined(separator: "||")
     }
 

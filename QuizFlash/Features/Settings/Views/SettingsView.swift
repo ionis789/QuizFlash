@@ -177,6 +177,33 @@ struct SettingsView: View {
             : UIConstants.Spacing.extraLarge
     }
 
+    private var cardsGoalSettings: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            SettingsToggleRow(
+                icon: "target",
+                tint: themeManager.accentColor.color,
+                title: "Cards Goal",
+                detail: "No goal",
+                isOn: noCardsGoalBinding
+            )
+
+            if appPreferences.dailyCardsGoal != nil {
+                SettingsSliderRow(
+                    icon: "number",
+                    tint: themeManager.accentColor.color,
+                    title: "Daily cards",
+                    detail: "Reviewed cards target.",
+                    valueSuffix: "",
+                    range: Double(AppPreferences.dailyCardsGoalRange.lowerBound)...Double(AppPreferences.dailyCardsGoalRange.upperBound),
+                    step: Double(AppPreferences.dailyCardsGoalStep),
+                    value: dailyCardsGoalBinding
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.16), value: appPreferences.dailyCardsGoal)
+    }
+
     private var profileCard: some View {
         VStack(spacing: UIConstants.Spacing.small) {
             PhotosPicker(
@@ -359,6 +386,10 @@ struct SettingsView: View {
                         option.localizedTitle(locale: locale)
                     }
                 )
+            }
+
+            settingsBlock {
+                cardsGoalSettings
             }
 
             settingsBlock {
@@ -893,6 +924,28 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.weekStartDay },
             set: { appPreferences.weekStartDay = $0 }
+        )
+    }
+
+    private var noCardsGoalBinding: Binding<Bool> {
+        Binding(
+            get: { appPreferences.dailyCardsGoal == nil },
+            set: { noGoal in
+                appPreferences.dailyCardsGoal = noGoal
+                    ? nil
+                    : (appPreferences.dailyCardsGoal ?? AppPreferences.defaultDailyCardsGoal)
+            }
+        )
+    }
+
+    private var dailyCardsGoalBinding: Binding<Double> {
+        Binding(
+            get: { Double(appPreferences.dailyCardsGoal ?? AppPreferences.defaultDailyCardsGoal) },
+            set: { value in
+                let step = AppPreferences.dailyCardsGoalStep
+                let steppedValue = Int((value / Double(step)).rounded()) * step
+                appPreferences.dailyCardsGoal = steppedValue
+            }
         )
     }
 

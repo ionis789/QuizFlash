@@ -379,6 +379,8 @@ struct HomeView: View {
 // MARK: - Home Data Coordinator
 
 private struct HomeDataCoordinator: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     @Query(sort: \FolderModel.createdAt) private var folders: [FolderModel]
     @Query(sort: \DeckModel.title) private var allDecks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
@@ -405,11 +407,13 @@ private struct HomeDataCoordinator: View {
         var analytics: Int = 0
         var decks: Int = 0
         var profile: String = "no-profile"
+        var dailyCardsGoal: String = "no-goal"
 
         var calendarInsightsTaskSignature: String {
             [
                 "\(logs)",
                 profile,
+                dailyCardsGoal,
             ].joined(separator: "||")
         }
 
@@ -420,6 +424,7 @@ private struct HomeDataCoordinator: View {
                 profile,
                 "\(analytics)",
                 "\(decks)",
+                dailyCardsGoal,
             ].joined(separator: "||")
         }
     }
@@ -449,7 +454,12 @@ private struct HomeDataCoordinator: View {
             "\(recentlyOpenedQuery.count)",
             recentDecksPreviewSignature,
             userProfileDashboardSignature,
+            dailyCardsGoalSignature,
         ].joined(separator: "|")
+    }
+
+    private var dailyCardsGoalSignature: String {
+        appPreferences.dailyCardsGoal.map(String.init) ?? "no-goal"
     }
 
     private var recentDecksPreviewSignature: String {
@@ -494,7 +504,8 @@ private struct HomeDataCoordinator: View {
                     userProfile: profile,
                     container: container,
                     analyticsRevision: homeDataSignatures.analytics,
-                    deckRevision: homeDataSignatures.decks
+                    deckRevision: homeDataSignatures.decks,
+                    dailyCardsGoal: appPreferences.dailyCardsGoal
                 )
             }
     }
@@ -504,7 +515,8 @@ private struct HomeDataCoordinator: View {
             logs: HomeViewModel.logsFingerprint(for: dailyLogs),
             analytics: HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates),
             decks: HomeViewModel.decksFingerprint(for: allDecks),
-            profile: userProfileDashboardSignature
+            profile: userProfileDashboardSignature,
+            dailyCardsGoal: dailyCardsGoalSignature
         )
         if homeDataSignatures != nextSignatures {
             homeDataSignatures = nextSignatures

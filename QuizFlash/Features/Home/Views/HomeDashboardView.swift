@@ -174,104 +174,71 @@ struct HomeDashboardView: View {
 
     private var studyHeroSurface: some View {
         let overview = dashboardSnapshot.selectedDayOverview
-        let heroTint = overview.didReachGoal ? Color.green : dangerColor
 
         return HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
-            VStack(alignment: .leading, spacing: usesRegularMetrics ? 24 : 20) {
-                HStack(alignment: .top, spacing: usesRegularMetrics ? 18 : 14) {
-                    VStack(alignment: .leading, spacing: usesRegularMetrics ? 12 : 10) {
-                        Text(greetingTitle)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundStyle(themeManager.textSecondary)
+            VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(selectedDayTitle(for: overview))
+                        .font(.system(size: usesRegularMetrics ? 25 : 23, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
 
-                        Text(heroPrimaryTitle(for: overview))
-                            .font(.system(size: usesRegularMetrics ? 38 : 32, weight: .black, design: .rounded))
-                            .foregroundStyle(themeManager.textPrimary)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .frame(
-                                maxWidth: .infinity,
-                                minHeight: studyHeroHeadlineHeight,
-                                maxHeight: studyHeroHeadlineHeight,
-                                alignment: .topLeading
-                            )
-
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    AnimatedProgressRing(
-                        progress: overview.goalCompletionFraction,
-                        trackColor: themeManager.textPrimary.opacity(0.10),
-                        progressColor: heroTint,
-                        size: usesRegularMetrics ? 112 : 102,
-                        strokeWidth: 12
-                    ) { animatedProgress in
-                        Text("\(Int((animatedProgress * 100).rounded()))%")
-                            .font(.system(size: usesRegularMetrics ? 25 : 23, weight: .black, design: .rounded))
-                            .foregroundStyle(themeManager.textPrimary)
-                            .minimumScaleFactor(0.72)
-                            .lineLimit(1)
-                            .contentTransition(.numericText(value: animatedProgress * 100))
-                    }
-                    .frame(width: usesRegularMetrics ? 116 : 106, alignment: .trailing)
+                    Text(selectedDayReviewedLine(for: overview))
+                        .font(.system(size: usesRegularMetrics ? 34 : 30, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentTransition(.numericText())
                 }
 
-                HomeDashboardDailyOutcomePanel(
-                    reviewedTitle: localized("Reviewed"),
-                    goodTitle: localized("Good cards"),
-                    retryTitle: localized("Retry cards"),
-                    reviewedCount: overview.cardsReviewed,
-                    goodCount: overview.correctCardCount,
-                    retryCount: overview.retryCardCount,
-                    neutralTint: accentColor,
-                    goodTint: .green,
-                    retryTint: roseColor,
-                    usesRegularMetrics: usesRegularMetrics
-                )
+                HStack(spacing: 10) {
+                    HomeDashboardStatMetric(
+                        title: localized("Good"),
+                        value: "\(overview.correctCardCount)",
+                        tint: .green,
+                        usesRegularMetrics: usesRegularMetrics
+                    )
+                    HomeDashboardStatMetric(
+                        title: localized("Retry"),
+                        value: "\(overview.retryCardCount)",
+                        tint: roseColor,
+                        usesRegularMetrics: usesRegularMetrics
+                    )
+                    HomeDashboardStatMetric(
+                        title: localized("Attempts"),
+                        value: "\(overview.rawReviewCount)",
+                        tint: accentColor,
+                        usesRegularMetrics: usesRegularMetrics
+                    )
+                }
             }
-            .frame(
-                minHeight: studyHeroMinHeight,
-                alignment: .topLeading
-            )
+            .frame(minHeight: usesRegularMetrics ? 166 : 150, alignment: .topLeading)
         }
     }
 
-    private func heroPrimaryTitle(for overview: HomeSelectedDayOverviewSummary) -> String {
-        if overview.didReachGoal {
-            return localized("Target cleared for today")
-        }
-        if overview.cardsReviewed == 0 {
-            return localizedFormat("%d cards lined up today", overview.dailyGoal)
-        }
-        return overview.remainingCardsToGoal == 1
-            ? localized("1 card left today")
-            : localizedFormat("%d cards left today", overview.remainingCardsToGoal)
+    private func selectedDayTitle(for overview: HomeSelectedDayOverviewSummary) -> String {
+        appPreferences.resolvedCalendar.isDateInToday(overview.selectedDate)
+            ? localized("Today")
+            : overview.selectedDateLabel
     }
 
-    private func performanceTrendLine(for summary: HomePastWeekPerformanceSummary) -> String {
-        guard summary.activeDays > 0 else {
-            return localized("Needs attention")
+    private func selectedDayReviewedLine(for overview: HomeSelectedDayOverviewSummary) -> String {
+        if let dailyGoal = overview.dailyGoal {
+            return localizedFormat("%d / %d cards reviewed", overview.cardsReviewed, dailyGoal)
         }
-
-        switch summary.trend {
-        case .improving:
-            return localized("Improving day by day")
-        case .steady:
-            return localized("Stable this week")
-        case .slipping:
-            return localized("Needs attention")
-        }
+        return localizedFormat("%d cards reviewed", overview.cardsReviewed)
     }
 
-    private func activeDaysPillText(for summary: HomePastWeekPerformanceSummary) -> String {
+    private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.activeDays == 1 {
             return localized("1 active day")
         }
 
-        return localizedFormat("%d/%d active", summary.activeDays, summary.scoredDayCount)
+        return localizedFormat("%d active days", summary.activeDays)
     }
 
-    private func goalDaysPillText(for summary: HomePastWeekPerformanceSummary) -> String {
+    private func goalDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.goalHitDays == 1 {
             return localized("1 goal day")
         }
@@ -281,66 +248,40 @@ struct HomeDashboardView: View {
 
     private var performanceSurface: some View {
         let summary = dashboardSnapshot.pastWeekPerformance
-        let goalDayTint: Color = summary.deltaPercent > 0 ? .green : (summary.deltaPercent < 0 ? dangerColor : accentColor)
 
         return Button {
             viewModel.presentPerformanceDetail()
         } label: {
             HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: usesRegularMetrics ? 176 : 152, weight: .black, design: .rounded))
-                        .foregroundStyle(accentColor.opacity(0.18))
-                        .offset(x: usesRegularMetrics ? 18 : 22, y: usesRegularMetrics ? -26 : -18)
-                        .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
+                    Text(localized("This week"))
+                        .font(.system(size: usesRegularMetrics ? 25 : 23, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
 
-                    VStack(alignment: .leading, spacing: usesRegularMetrics ? 20 : 18) {
-                        HStack(alignment: .top, spacing: 14) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(localized("Performance"))
-                                    .font(.system(size: usesRegularMetrics ? 24 : 22, weight: .black, design: .rounded))
-                                    .foregroundStyle(themeManager.textPrimary)
-
-                                Text(localized("this week"))
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(themeManager.textSecondary)
-                            }
-
-                            Spacer(minLength: 0)
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("\(summary.scorePercent)%")
-                                .font(.system(size: usesRegularMetrics ? 68 : 60, weight: .black, design: .rounded))
-                                .foregroundStyle(themeManager.textPrimary)
-                                .minimumScaleFactor(0.72)
-                                .lineLimit(1)
-                                .contentTransition(.numericText(value: Double(summary.scorePercent)))
-
-                            Text(performanceTrendLine(for: summary))
-                                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(themeManager.textPrimary)
-                                .lineLimit(1)
-                        }
-
-                        HStack(alignment: .center, spacing: 12) {
-                            HomeDashboardPill(
-                                text: activeDaysPillText(for: summary),
-                                tint: accentColor,
-                                backgroundTint: accentColor.opacity(0.12)
+                    HStack(spacing: 10) {
+                        HomeDashboardStatMetric(
+                            title: localized("Active days"),
+                            value: activeDaysText(for: summary),
+                            tint: accentColor,
+                            usesRegularMetrics: usesRegularMetrics
+                        )
+                        if summary.hasGoal {
+                            HomeDashboardStatMetric(
+                                title: localized("Goal days"),
+                                value: goalDaysText(for: summary),
+                                tint: .orange,
+                                usesRegularMetrics: usesRegularMetrics
                             )
-
-                            HomeDashboardPill(
-                                text: goalDaysPillText(for: summary),
-                                tint: goalDayTint,
-                                backgroundTint: goalDayTint.opacity(0.14)
-                            )
-
-                            Spacer(minLength: 0)
                         }
+                        HomeDashboardStatMetric(
+                            title: localized("Good rate"),
+                            value: localizedFormat("%d%% good rate", summary.goodRatePercent),
+                            tint: .green,
+                            usesRegularMetrics: usesRegularMetrics
+                        )
                     }
-                    .frame(minHeight: performanceSurfaceMinHeight, alignment: .topLeading)
                 }
+                .frame(minHeight: usesRegularMetrics ? 126 : 116, alignment: .topLeading)
             }
         }
         .buttonStyle(.plain)
@@ -412,17 +353,10 @@ struct HomeDashboardView: View {
     private var foldersSurface: some View {
         VStack(alignment: .leading, spacing: 12) {
             if folderSnapshots.isEmpty {
-                HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(localized("No folders yet"))
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.primary)
-
-                        Text(localized("Create one from the section header."))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                HomeDashboardEmptyPlaceholder(
+                    title: localized("No folders yet"),
+                    usesRegularMetrics: usesRegularMetrics
+                )
             } else {
                 ForEach(folderSnapshots) { folder in
                     HomeDashboardFolderCard(snapshot: folder, usesRegularMetrics: usesRegularMetrics) {
@@ -439,26 +373,17 @@ struct HomeDashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             HomeDashboardSectionHeader(title: localized("Get started"))
 
-            if usesDashboardColumns {
-                HStack(alignment: .top, spacing: 14) {
-                    createDeckSurface
-                    workspaceWhatChangesSurface
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 14) {
-                    createDeckSurface
-                    workspaceWhatChangesSurface
-                }
-            }
+            createDeckSurface
         }
     }
 
     private var createDeckSurface: some View {
         HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(localized("Create a deck"))
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 12) {
+                HomeDashboardEmptyPlaceholderContent(
+                    title: localized("No decks yet"),
+                    usesRegularMetrics: usesRegularMetrics
+                )
 
                 Button(localized("Open Create")) {
                     onCreateDeck()
@@ -611,7 +536,77 @@ private struct HomeDashboardSurface<Content: View>: View {
     }
 }
 
+private struct HomeDashboardEmptyPlaceholder: View {
+    let title: String
+    let usesRegularMetrics: Bool
+
+    var body: some View {
+        HomeDashboardEmptyPlaceholderContent(
+            title: title,
+            usesRegularMetrics: usesRegularMetrics
+        )
+    }
+}
+
+private struct HomeDashboardEmptyPlaceholderContent: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let title: String
+    let usesRegularMetrics: Bool
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .bold, design: .rounded))
+            .foregroundStyle(themeManager.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, usesRegularMetrics ? 16 : 14)
+            .padding(.vertical, usesRegularMetrics ? 12 : 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: usesRegularMetrics ? 18 : 16, style: .continuous)
+                    .fill(themeManager.surfacePrimary)
+            }
+    }
+}
+
 // MARK: - Supporting Views
+
+private struct HomeDashboardStatMetric: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let title: String
+    let value: String
+    let tint: Color
+    let usesRegularMetrics: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .lineLimit(1)
+
+            Text(value)
+                .font(.system(size: usesRegularMetrics ? 18 : 16, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 72 : 66, alignment: .leading)
+        .padding(.horizontal, usesRegularMetrics ? 14 : 12)
+        .padding(.vertical, 12)
+        .background {
+            RoundedRectangle(cornerRadius: usesRegularMetrics ? 20 : 18, style: .continuous)
+                .fill(themeManager.surfacePrimary)
+                .overlay {
+                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 20 : 18, style: .continuous)
+                        .fill(tint.opacity(0.12))
+                }
+        }
+    }
+}
 
 private struct HomeDashboardDailyOutcomePanel: View {
     @Environment(ThemeManager.self) private var themeManager

@@ -197,12 +197,17 @@ final class AppPreferences {
     private enum Keys {
         static let language = "preferences.app.language"
         static let weekStartDay = "preferences.calendar.weekStartDay"
+        static let dailyCardsGoal = "preferences.home.dailyCardsGoal"
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
         static let defaultTextSize = "preferences.editor.defaultTextSize"
         static let defaultTextSizeScaleVersion = "preferences.editor.defaultTextSizeScaleVersion"
         static let zoneSurfaceStyle = "preferences.editor.zoneSurfaceStyle"
     }
+
+    static let defaultDailyCardsGoal = 50
+    static let dailyCardsGoalRange = 1...500
+    static let dailyCardsGoalStep = 5
 
     private static let currentTextSizeScaleVersion = 2
 
@@ -235,6 +240,23 @@ final class AppPreferences {
     var weekStartDay: AppWeekStartDayPreference {
         didSet {
             userDefaults.set(weekStartDay.rawValue, forKey: Keys.weekStartDay)
+        }
+    }
+
+    /// Optional Home cards target. `nil` disables goal-specific Home UI.
+    var dailyCardsGoal: Int? {
+        didSet {
+            guard let dailyCardsGoal else {
+                userDefaults.removeObject(forKey: Keys.dailyCardsGoal)
+                return
+            }
+
+            let clampedGoal = Self.clampedDailyCardsGoal(dailyCardsGoal)
+            if clampedGoal != dailyCardsGoal {
+                self.dailyCardsGoal = clampedGoal
+            } else {
+                userDefaults.set(clampedGoal, forKey: Keys.dailyCardsGoal)
+            }
         }
     }
 
@@ -278,6 +300,11 @@ final class AppPreferences {
         self.weekStartDay = AppWeekStartDayPreference(
             rawValue: userDefaults.string(forKey: Keys.weekStartDay) ?? ""
         ) ?? .system
+        if let storedGoal = userDefaults.object(forKey: Keys.dailyCardsGoal) as? Int {
+            self.dailyCardsGoal = Self.clampedDailyCardsGoal(storedGoal)
+        } else {
+            self.dailyCardsGoal = nil
+        }
         self.createDeckSortOrder = CreateDeckSortOrder(
             rawValue: userDefaults.string(forKey: Keys.createDeckSortOrder) ?? ""
         ) ?? .newest
@@ -290,6 +317,10 @@ final class AppPreferences {
         ) ?? .simple
         userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
         AppLocalization.applyLanguageOverride(appLanguage)
+    }
+
+    private static func clampedDailyCardsGoal(_ value: Int) -> Int {
+        min(max(value, dailyCardsGoalRange.lowerBound), dailyCardsGoalRange.upperBound)
     }
 
     private static func resolvedDefaultTextSize(from userDefaults: UserDefaults) -> FlashcardTextSize {

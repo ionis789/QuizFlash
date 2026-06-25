@@ -12,7 +12,7 @@ struct HomeSelectedDayOverviewSummary: Equatable {
     let selectedDateLabel: String
     let cardsReviewed: Int
     let rawReviewCount: Int
-    let dailyGoal: Int
+    let dailyGoal: Int?
     let goalCompletionFraction: Double
     let remainingCardsToGoal: Int
     let xpEarnedToday: Int
@@ -26,7 +26,18 @@ struct HomeSelectedDayOverviewSummary: Equatable {
 
     /// `true` when the selected day reached or exceeded its target workload.
     var didReachGoal: Bool {
-        cardsReviewed >= dailyGoal
+        guard let dailyGoal else { return false }
+        return cardsReviewed >= dailyGoal
+    }
+
+    var hasGoal: Bool {
+        dailyGoal != nil
+    }
+
+    var goodRatePercent: Int {
+        let outcomeCount = correctCardCount + retryCardCount
+        guard outcomeCount > 0 else { return 0 }
+        return Int((Double(correctCardCount) / Double(outcomeCount) * 100).rounded())
     }
 }
 
@@ -69,13 +80,23 @@ struct HomeWeeklyDaySummary: Identifiable, Equatable, Sendable {
     let cardsReviewed: Int
     let rawReviewCount: Int
     let xpEarned: Int
-    let goal: Int
+    let dailyGoal: Int?
     let correctCardCount: Int
     let retryCardCount: Int
     let intensityFraction: Double
     let didStudy: Bool
     let didReachGoal: Bool
     let isSelectedDay: Bool
+
+    var hasGoal: Bool {
+        dailyGoal != nil
+    }
+
+    var goodRatePercent: Int {
+        let outcomeCount = correctCardCount + retryCardCount
+        guard outcomeCount > 0 else { return 0 }
+        return Int((Double(correctCardCount) / Double(outcomeCount) * 100).rounded())
+    }
 }
 
 /// Seven-day momentum rollup that lets Home render weekly trend cards cheaply.
@@ -109,12 +130,22 @@ struct HomePastWeekPerformanceDaySummary: Identifiable, Equatable, Sendable {
     let rawReviewCount: Int
     let landedCount: Int
     let retryCount: Int
-    let dailyGoal: Int
+    let dailyGoal: Int?
     /// One-day quality score derived only from clean finishes and goal coverage.
     let scorePercent: Int
     let visualLevel: Int
     let didStudy: Bool
     let didReachGoal: Bool
+
+    var hasGoal: Bool {
+        dailyGoal != nil
+    }
+
+    var goodRatePercent: Int {
+        let outcomeCount = landedCount + retryCount
+        guard outcomeCount > 0 else { return 0 }
+        return Int((Double(landedCount) / Double(outcomeCount) * 100).rounded())
+    }
 }
 
 /// Accuracy-first performance index for the selected calendar week on Home.
@@ -149,6 +180,14 @@ struct HomePastWeekPerformanceSummary: Equatable, Sendable {
 
     var hasActivity: Bool {
         activeDays > 0
+    }
+
+    var hasGoal: Bool {
+        currentDaySummaries.contains(where: \.hasGoal)
+    }
+
+    var goodRatePercent: Int {
+        accuracyPercent
     }
 
     nonisolated static func placeholder(referenceDate: Date = Date()) -> HomePastWeekPerformanceSummary {
@@ -197,11 +236,15 @@ struct HomeCalendarDayInsight: Equatable {
     let dateString: String
     let cardsReviewed: Int
     let xpEarned: Int
-    let dailyGoal: Int
+    let dailyGoal: Int?
     let activityFraction: Double
     let didStudy: Bool
     let isPerfectDay: Bool
     let isStreakDay: Bool
+
+    var hasGoal: Bool {
+        dailyGoal != nil
+    }
 }
 
 /// Action-oriented summary that explains why the selected calendar day matters.
@@ -248,9 +291,9 @@ struct HomeDashboardSnapshot: Equatable {
             selectedDateLabel: "Today",
             cardsReviewed: 0,
             rawReviewCount: 0,
-            dailyGoal: 50,
+            dailyGoal: nil,
             goalCompletionFraction: 0,
-            remainingCardsToGoal: 50,
+            remainingCardsToGoal: 0,
             xpEarnedToday: 0,
             newCardsLearned: 0,
             correctCardCount: 0,

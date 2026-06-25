@@ -34,6 +34,9 @@ struct HomeCalendarOverviewCard: View {
         if overview.cardsReviewed == 0 {
             return "Fresh study window"
         }
+        if !overview.hasGoal {
+            return "\(overview.cardsReviewed) cards reviewed"
+        }
         return "\(overview.remainingCardsToGoal) cards to goal"
     }
 
@@ -72,21 +75,23 @@ struct HomeCalendarOverviewCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                AnimatedProgressRing(
-                    progress: overview.goalCompletionFraction,
-                    trackColor: themeManager.textPrimary.opacity(0.10),
-                    progressColor: completionTint,
-                    size: usesRegularMetrics ? 84 : 88,
-                    strokeWidth: 10
-                ) { _ in
-                    VStack(spacing: 2) {
-                        Text(overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
-                            .font(.system(size: 22, weight: .heavy, design: .rounded))
-                            .foregroundStyle(themeManager.textPrimary)
+                if overview.hasGoal {
+                    AnimatedProgressRing(
+                        progress: overview.goalCompletionFraction,
+                        trackColor: themeManager.textPrimary.opacity(0.10),
+                        progressColor: completionTint,
+                        size: usesRegularMetrics ? 84 : 88,
+                        strokeWidth: 10
+                    ) { _ in
+                        VStack(spacing: 2) {
+                            Text(overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
+                                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                                .foregroundStyle(themeManager.textPrimary)
 
-                        Text(overview.didReachGoal ? "Today" : "To goal")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(themeManager.textSecondary)
+                            Text(overview.didReachGoal ? "Today" : "To goal")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(themeManager.textSecondary)
+                        }
                     }
                 }
             }
@@ -103,7 +108,9 @@ struct HomeCalendarOverviewCard: View {
                 HomeCalendarCompactMetricTile(
                     title: "Cards",
                     value: "\(overview.cardsReviewed)",
-                    detail: overview.didReachGoal ? "target hit" : "\(overview.dailyGoal) goal",
+                    detail: overview.hasGoal
+                        ? (overview.didReachGoal ? "target hit" : "\(overview.dailyGoal ?? 0) goal")
+                        : "reviewed",
                     tint: completionTint,
                     usesRegularMetrics: usesRegularMetrics
                 )
@@ -319,23 +326,25 @@ struct HomeAnalyticsHeroCard: View {
 
                 Spacer(minLength: 0)
 
-                AnimatedProgressRing(
-                    progress: overview.goalCompletionFraction,
-                    trackColor: Color.primary.opacity(0.10),
-                    progressColor: completionTint,
-                    size: usesRegularMetrics ? 108 : 92,
-                    strokeWidth: 12
-                ) { _ in
-                    VStack(spacing: 2) {
-                        Text("\(overview.cardsReviewed)")
-                            .font(.system(size: usesRegularMetrics ? 26 : 22, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .statusTextMotion(trigger: overview.cardsReviewed)
+                if overview.hasGoal {
+                    AnimatedProgressRing(
+                        progress: overview.goalCompletionFraction,
+                        trackColor: Color.primary.opacity(0.10),
+                        progressColor: completionTint,
+                        size: usesRegularMetrics ? 108 : 92,
+                        strokeWidth: 12
+                    ) { _ in
+                        VStack(spacing: 2) {
+                            Text("\(overview.cardsReviewed)")
+                                .font(.system(size: usesRegularMetrics ? 26 : 22, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.primary)
+                                .statusTextMotion(trigger: overview.cardsReviewed)
 
-                        Text("/\(overview.dailyGoal)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                            .statusTextMotion(trigger: overview.dailyGoal)
+                            Text("/\(overview.dailyGoal ?? 0)")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .statusTextMotion(trigger: overview.dailyGoal ?? 0)
+                        }
                     }
                 }
             }
@@ -350,16 +359,22 @@ struct HomeAnalyticsHeroCard: View {
                 )
 
                 HomeHeroMetricTile(
-                    title: "To Goal",
-                    value: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
-                    detail: overview.didReachGoal ? "Target cleared" : "cards left",
+                    title: overview.hasGoal ? "To Goal" : "Reviewed",
+                    value: overview.hasGoal
+                        ? (overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
+                        : "\(overview.cardsReviewed)",
+                    detail: overview.hasGoal
+                        ? (overview.didReachGoal ? "Target cleared" : "cards left")
+                        : "cards",
                     tint: completionTint
                 )
 
                 HomeHeroMetricTile(
                     title: "Week",
                     value: "\(weeklyMomentum.activeDays)/7",
-                    detail: weeklyMomentum.goalHitDays == 0 ? "active days" : "\(weeklyMomentum.goalHitDays) goal hits",
+                    detail: overview.hasGoal && weeklyMomentum.goalHitDays > 0
+                        ? "\(weeklyMomentum.goalHitDays) goal hits"
+                        : "active days",
                     tint: .orange
                 )
             }

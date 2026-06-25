@@ -74,7 +74,8 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
 
         let snapshot = await repository.loadDashboardSnapshot(
             selectedDate: selectedDate,
-            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
+            dailyCardsGoal: 30
         )
         await repository.tearDown()
 
@@ -143,7 +144,11 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
         )
 
         let repository = HomeAnalyticsRepository(container: container)
-        let snapshot = await repository.loadDashboardSnapshot(selectedDate: selectedDate, weekStart: weekStart)
+        let snapshot = await repository.loadDashboardSnapshot(
+            selectedDate: selectedDate,
+            weekStart: weekStart,
+            dailyCardsGoal: 10
+        )
         await repository.tearDown()
 
         XCTAssertEqual(snapshot.pastWeekPerformance.scorePercent, 100)
@@ -198,7 +203,11 @@ final class HomeAnalyticsRepositoryTests: XCTestCase {
 
         let container = try makeDashboardContainer(with: aggregates)
         let repository = HomeAnalyticsRepository(container: container)
-        let snapshot = await repository.loadDashboardSnapshot(selectedDate: selectedDate, weekStart: weekStart)
+        let snapshot = await repository.loadDashboardSnapshot(
+            selectedDate: selectedDate,
+            weekStart: weekStart,
+            dailyCardsGoal: 10
+        )
         await repository.tearDown()
 
         XCTAssertEqual(snapshot.pastWeekPerformance.scorePercent, 100)
