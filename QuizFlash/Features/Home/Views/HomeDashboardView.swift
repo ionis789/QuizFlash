@@ -221,9 +221,9 @@ struct HomeDashboardView: View {
 
     private func selectedDayMetricsRow(for overview: HomeSelectedDayOverviewSummary) -> some View {
         HStack(spacing: usesRegularMetrics ? 18 : 14) {
-            metricText(localizedFormat("Good %d", overview.correctCardCount), color: .green)
-            metricText(localizedFormat("Retry %d", overview.retryCardCount), color: .orange)
-            metricText(localizedFormat("Attempts %d", overview.rawReviewCount), color: accentColor)
+            metricText(localizedFormat("Good %d", overview.correctCardCount))
+            metricText(localizedFormat("Retry %d", overview.retryCardCount))
+            metricText(localizedFormat("Attempts %d", overview.rawReviewCount))
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
@@ -265,21 +265,21 @@ struct HomeDashboardView: View {
     @ViewBuilder
     private func weeklyMetricsRow(for summary: HomePastWeekPerformanceSummary) -> some View {
         HStack(spacing: usesRegularMetrics ? 18 : 14) {
-            metricText(activeDaysText(for: summary), color: accentColor)
+            metricText(activeDaysText(for: summary))
 
             if summary.hasGoal {
-                metricText(goalDaysText(for: summary), color: .purple)
+                metricText(goalDaysText(for: summary))
             }
 
-            metricText(localizedFormat("%d%% good rate", summary.goodRatePercent), color: .green)
+            metricText(localizedFormat("%d%% good rate", summary.goodRatePercent))
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private func metricText(_ text: String, color: Color) -> some View {
+    private func metricText(_ text: String) -> some View {
         Text(text)
             .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
-            .foregroundStyle(color)
+            .foregroundStyle(themeManager.textSecondary)
             .lineLimit(2)
             .minimumScaleFactor(0.78)
             .multilineTextAlignment(.center)
