@@ -337,11 +337,11 @@ struct HomeDashboardView: View {
     }
 
     private var recentDecksSurface: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(recentDeckSnapshots, id: \.id) { deck in
-                HomeDashboardRecentDeckCard(
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
+                HomeDashboardLibraryDeckRow(
                     snapshot: deck,
-                    usesRegularMetrics: usesRegularMetrics
+                    isFirst: index == 0
                 ) {
                     onOpenDeck(deck.id)
                 }
@@ -1218,54 +1218,6 @@ private struct HomeDashboardLibraryDeckRow: View {
             onMoveToFolder: {},
             onDelete: {}
         )
-    }
-}
-
-private struct HomeDashboardRecentDeckCard: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let snapshot: LibraryDeckRowSnapshot
-    let usesRegularMetrics: Bool
-    let action: () -> Void
-
-    private var deckColor: Color {
-        Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
-    }
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(snapshot.title)
-                    .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(
-                    AppLocalization.numbered(
-                        snapshot.cardCount,
-                        singular: "%d card",
-                        plural: "%d cards",
-                        locale: appPreferences.resolvedLocale
-                    )
-                )
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, usesRegularMetrics ? 18 : 16)
-            .padding(.vertical, usesRegularMetrics ? 18 : 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
-                            .strokeBorder(deckColor.opacity(0.08), lineWidth: 1)
-                    }
-            }
-        }
-        .buttonStyle(.plain)
     }
 }
 
