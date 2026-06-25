@@ -185,7 +185,6 @@ Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
-Current goal: %d cards	Current goal: %d cards	Țintă curentă: %d carduri	Текущая цель: %d карточек
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -249,7 +248,6 @@ Current Summary	Current Summary	Rezumat curent	Текущая сводка
 Current week	Current week	Săptămâna curentă	Текущая неделя
 Custom Color	Custom Color	Culoare personalizată	Свой цвет
 Cyan	Cyan	Cyan	Голубой
-Daily cards	Daily cards	Carduri zilnice	Карточек в день
 Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная нагрузка
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
@@ -475,7 +473,6 @@ No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
-No goal applied	No goal applied	Nicio țintă aplicată	Цель не задана
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
@@ -583,7 +580,6 @@ RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
-Reviewed cards target.	Reviewed cards target.	Țintă pentru carduri revizuite.	Цель для пройденных карточек.
 Reviews	Reviews	Repetări	Повторы
 Right	Right	Corect	Верно
 Romanian	Romanian	Română	Румынский

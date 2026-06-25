@@ -311,96 +311,11 @@ private struct CompactTextSizeSliderRow: View {
                     .lineLimit(1)
             }
 
-            TextSizeSliderControl(textSize: $textSize, isDense: isDense)
+            CompactTextSizeSliderControl(textSize: $textSize, isDense: isDense)
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
-        .frame(minHeight: isDense ? 96 : 124)
+        .frame(minHeight: isDense ? 86 : 124)
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-    }
-}
-
-private struct TextSizeSliderControl: View {
-    @Binding var textSize: FlashcardTextSize
-    var isDense = false
-
-    private let trackHeight: CGFloat = 8
-    private var thumbWidth: CGFloat { isDense ? 48 : 58 }
-    private var thumbHeight: CGFloat { isDense ? 28 : 34 }
-
-    private var progress: CGFloat {
-        CGFloat(textSize.step - FlashcardTextSize.minimumStep)
-            / CGFloat(FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep)
-    }
-
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.standard) {
-            Text("A")
-                .font(.system(size: isDense ? 18 : 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-
-            GeometryReader { proxy in
-                let width = max(proxy.size.width, 1)
-                let usableWidth = max(width - thumbWidth, 1)
-                let thumbX = progress * usableWidth
-
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.28))
-                        .frame(height: trackHeight)
-                        .padding(.horizontal, thumbWidth / 2)
-
-                    Capsule()
-                        .fill(Color.white.opacity(0.68))
-                        .frame(width: thumbX + thumbWidth / 2, height: trackHeight)
-                        .padding(.leading, thumbWidth / 2)
-
-                    HStack {
-                        ForEach(FlashcardTextSize.minimumStep...FlashcardTextSize.maximumStep, id: \.self) { step in
-                            Circle()
-                                .fill(Color.black.opacity(step == textSize.step ? 0 : 0.28))
-                                .frame(width: isDense ? 4 : 5, height: isDense ? 4 : 5)
-
-                            if step != FlashcardTextSize.maximumStep {
-                                Spacer(minLength: 0)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, thumbWidth / 2)
-                    .offset(y: isDense ? 13 : 16)
-
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: thumbWidth, height: thumbHeight)
-                        .shadow(color: Color.black.opacity(0.22), radius: 8, y: 3)
-                        .offset(x: thumbX)
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            updateTextSize(locationX: value.location.x, width: width)
-                        }
-                )
-            }
-            .frame(height: isDense ? 38 : 48)
-
-            Text("A")
-                .font(.system(size: isDense ? 28 : 34, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, UIConstants.Spacing.medium)
-        .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.standard)
-        .background(Color.black.opacity(0.18), in: Capsule())
-    }
-
-    private func updateTextSize(locationX: CGFloat, width: CGFloat) {
-        let usableWidth = max(width - thumbWidth, 1)
-        let clampedX = min(max(locationX - thumbWidth / 2, 0), usableWidth)
-        let progress = clampedX / usableWidth
-        let stepSpan = FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep
-        let step = FlashcardTextSize.minimumStep + Int((progress * CGFloat(stepSpan)).rounded())
-
-        textSize = FlashcardTextSize(step: step)
     }
 }
 

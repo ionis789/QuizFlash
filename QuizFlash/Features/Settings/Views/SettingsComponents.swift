@@ -430,110 +430,6 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
     }
 }
 
-struct SettingsSliderRow: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let icon: String
-    let tint: Color
-    let title: SettingsTextContent
-    let detail: SettingsTextContent
-    let valueSuffix: String
-    let range: ClosedRange<Double>
-    let step: Double
-    @Binding var value: Double
-
-    init(
-        icon: String,
-        tint: Color,
-        title: SettingsTextContent,
-        detail: SettingsTextContent,
-        valueSuffix: String,
-        range: ClosedRange<Double>,
-        step: Double,
-        value: Binding<Double>
-    ) {
-        self.icon = icon
-        self.tint = tint
-        self.title = title
-        self.detail = detail
-        self.valueSuffix = valueSuffix
-        self.range = range
-        self.step = step
-        _value = value
-    }
-
-    init(
-        icon: String,
-        tint: Color,
-        title: String,
-        detail: String,
-        valueSuffix: String,
-        range: ClosedRange<Double>,
-        step: Double,
-        value: Binding<Double>
-    ) {
-        self.init(
-            icon: icon,
-            tint: tint,
-            title: .localizedLiteral(title),
-            detail: .localizedLiteral(detail),
-            valueSuffix: valueSuffix,
-            range: range,
-            step: step,
-            value: value
-        )
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                SettingsRowIcon(icon: icon, tint: tint)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    SettingsTextLabel(content: title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    SettingsTextLabel(content: detail)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: UIConstants.Spacing.standard)
-
-                Text(valueLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, UIConstants.Spacing.small)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .contentTransition(.numericText())
-            }
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                Text("\(Int(range.lowerBound))")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(themeManager.textSecondary)
-
-                Slider(value: $value, in: range, step: step)
-                    .tint(tint)
-
-                Text("\(Int(range.upperBound))")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(themeManager.textSecondary)
-            }
-            .padding(.leading, 54)
-        }
-    }
-
-    private var valueLabel: String {
-        let roundedValue = "\(Int(value.rounded()))"
-        guard !valueSuffix.isEmpty else { return roundedValue }
-        return "\(roundedValue) \(valueSuffix)"
-    }
-}
-
 struct SettingsInfoCard: View {
     @Environment(ThemeManager.self) private var themeManager
 
@@ -595,7 +491,7 @@ private struct SettingsBadge: View {
     }
 }
 
-private struct SettingsRowIcon: View {
+struct SettingsRowIcon: View {
     let icon: String
     let tint: Color
 
@@ -609,6 +505,91 @@ private struct SettingsRowIcon: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(tint)
         }
+    }
+}
+
+struct CompactTextSizeSliderControl: View {
+    @Binding var textSize: FlashcardTextSize
+    var isDense = false
+
+    private var trackHeight: CGFloat { isDense ? 6 : 8 }
+    private var thumbWidth: CGFloat { isDense ? 42 : 58 }
+    private var thumbHeight: CGFloat { isDense ? 24 : 34 }
+
+    private var progress: CGFloat {
+        CGFloat(textSize.step - FlashcardTextSize.minimumStep)
+            / CGFloat(FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep)
+    }
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.standard) {
+            Text("A")
+                .font(.system(size: isDense ? 16 : 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                let usableWidth = max(width - thumbWidth, 1)
+                let thumbX = progress * usableWidth
+
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(height: trackHeight)
+                        .padding(.horizontal, thumbWidth / 2)
+
+                    Capsule()
+                        .fill(Color.white.opacity(0.68))
+                        .frame(width: thumbX + thumbWidth / 2, height: trackHeight)
+                        .padding(.leading, thumbWidth / 2)
+
+                    HStack {
+                        ForEach(FlashcardTextSize.minimumStep...FlashcardTextSize.maximumStep, id: \.self) { step in
+                            Circle()
+                                .fill(Color.black.opacity(step == textSize.step ? 0 : 0.28))
+                                .frame(width: isDense ? 3 : 5, height: isDense ? 3 : 5)
+
+                            if step != FlashcardTextSize.maximumStep {
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, thumbWidth / 2)
+                    .offset(y: isDense ? 11 : 16)
+
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: thumbWidth, height: thumbHeight)
+                        .shadow(color: Color.black.opacity(0.22), radius: 8, y: 3)
+                        .offset(x: thumbX)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            updateTextSize(locationX: value.location.x, width: width)
+                        }
+                )
+            }
+            .frame(height: isDense ? 32 : 48)
+
+            Text("A")
+                .font(.system(size: isDense ? 24 : 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, isDense ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
+        .padding(.vertical, isDense ? UIConstants.Spacing.tiny : UIConstants.Spacing.standard)
+        .background(Color.black.opacity(0.18), in: Capsule())
+    }
+
+    private func updateTextSize(locationX: CGFloat, width: CGFloat) {
+        let usableWidth = max(width - thumbWidth, 1)
+        let clampedX = min(max(locationX - thumbWidth / 2, 0), usableWidth)
+        let progress = clampedX / usableWidth
+        let stepSpan = FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep
+        let step = FlashcardTextSize.minimumStep + Int((progress * CGFloat(stepSpan)).rounded())
+
+        textSize = FlashcardTextSize(step: step)
     }
 }
 

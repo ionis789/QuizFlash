@@ -40,6 +40,7 @@ struct SettingsView: View {
     @State private var cachedDeckCount = 0
     @State private var goalDraftEnabled = false
     @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
+    @State private var isCardsGoalExpanded = false
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -184,49 +185,54 @@ struct SettingsView: View {
     }
 
     private var cardsGoalSettings: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                settingsGoalIcon
+        VStack(alignment: .leading, spacing: isCardsGoalExpanded ? UIConstants.Spacing.medium : 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isCardsGoalExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                    settingsGoalIcon
 
-                VStack(alignment: .leading, spacing: 6) {
                     Text(AppLocalization.string("Cards Goal", locale: appPreferences.resolvedLocale))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(themeManager.textPrimary)
 
-                    Text(goalAppliedSummary)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: UIConstants.Spacing.standard)
+
+                    Text(goalDraftSummary)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .padding(.horizontal, UIConstants.Spacing.standard)
+                        .padding(.vertical, UIConstants.Spacing.small)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
-
-                Spacer(minLength: UIConstants.Spacing.standard)
-
-                Text(goalDraftSummary)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, UIConstants.Spacing.small)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-
-            goalDraftControls
-
-            Button(action: applyGoalDraft) {
-                Text(AppLocalization.string("Update Goal", locale: appPreferences.resolvedLocale))
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(goalDraftHasChanges ? themeManager.screenBackground : themeManager.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background {
-                        Capsule()
-                            .fill(goalDraftHasChanges ? themeManager.accentColor.color : themeManager.roleColor(.widgetSurfaceFill))
-                    }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!goalDraftHasChanges)
+
+            if isCardsGoalExpanded {
+                VStack(spacing: UIConstants.Spacing.medium) {
+                    goalDraftControls
+
+                    Button(action: applyGoalDraft) {
+                        Text(AppLocalization.string("Update Goal", locale: appPreferences.resolvedLocale))
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(goalDraftHasChanges ? themeManager.screenBackground : themeManager.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                            .background {
+                                Capsule()
+                                    .fill(goalDraftHasChanges ? themeManager.accentColor.color : themeManager.roleColor(.widgetSurfaceFill))
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!goalDraftHasChanges)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+            }
         }
-        .animation(.easeInOut(duration: 0.16), value: goalDraftEnabled)
-        .animation(.easeInOut(duration: 0.16), value: goalDraftValue)
+        .animation(.easeInOut(duration: 0.16), value: isCardsGoalExpanded)
     }
 
     private var goalDraftControls: some View {
@@ -265,43 +271,22 @@ struct SettingsView: View {
             }
         }
 
-        private var valueText: String {
-            guard safeSelection > 0 else {
-                return AppLocalization.string("No goal", locale: locale)
-            }
-
-            return "\(safeSelection * step)"
-        }
-
         private var pickerConfig: TickPickerConfig {
             TickPickerConfig(
                 tickWidth: 2,
-                tickHeight: 34,
-                tickHPadding: 4,
+                tickHeight: 18,
+                tickHPadding: 2.5,
                 inActiveHeightProgress: 0.48,
-                interactionHeight: 76,
-                tickAreaTopPadding: 8,
+                interactionHeight: 36,
+                tickAreaTopPadding: 2,
                 activeTint: themeManager.accentColor.color,
                 inActiveTint: .primary,
-                alignment: .bottom
+                alignment: .center
             )
         }
 
         var body: some View {
             VStack(spacing: UIConstants.Spacing.small) {
-                Text(valueText)
-                    .font(.system(size: safeSelection == 0 ? 28 : 34, weight: .heavy, design: .rounded).monospacedDigit())
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.74)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .contentTransition(.numericText())
-
-                Circle()
-                    .fill(themeManager.textPrimary.opacity(0.20))
-                    .frame(width: 7, height: 7)
-
                 TickPicker(
                     count: safeUpperBound,
                     config: pickerConfig,
@@ -314,7 +299,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("\(safeUpperBound * step)")
                 }
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(themeManager.textSecondary)
             }
             .padding(.horizontal, UIConstants.Spacing.tiny)
@@ -522,16 +507,7 @@ struct SettingsView: View {
             }
 
             settingsBlock {
-                SettingsSliderRow(
-                    icon: "textformat.size",
-                    tint: themeManager.accentColor.color,
-                    title: "Text Size",
-                    detail: "Default size for editors and play modes.",
-                    valueSuffix: "",
-                    range: Double(FlashcardTextSize.minimumStep)...Double(FlashcardTextSize.maximumStep),
-                    step: 1,
-                    value: defaultTextSizeBinding
-                )
+                textSizeSettings
             }
 
             settingsBlock {
@@ -1032,6 +1008,38 @@ struct SettingsView: View {
             .joined(separator: ", ")
     }
 
+    private var textSizeSettings: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                SettingsRowIcon(icon: "textformat.size", tint: themeManager.accentColor.color)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(AppLocalization.string("Text Size", locale: appPreferences.resolvedLocale))
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(themeManager.textPrimary)
+
+                    Text(AppLocalization.string("Default size for editors and play modes.", locale: appPreferences.resolvedLocale))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: UIConstants.Spacing.standard)
+
+                Text("\(appPreferences.defaultTextSize.step)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, UIConstants.Spacing.small)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .contentTransition(.numericText())
+            }
+
+            CompactTextSizeSliderControl(textSize: defaultTextSizeBinding, isDense: true)
+                .padding(.leading, 54)
+        }
+    }
+
     private func formattedMicroUSD(_ value: Int) -> String {
         let amount = Double(max(value, 0)) / 1_000_000
         return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
@@ -1054,15 +1062,6 @@ struct SettingsView: View {
             get: { appPreferences.weekStartDay },
             set: { appPreferences.weekStartDay = $0 }
         )
-    }
-
-    private var goalAppliedSummary: String {
-        guard let dailyGoal = appPreferences.dailyCardsGoal else {
-            return AppLocalization.string("No goal applied", locale: appPreferences.resolvedLocale)
-        }
-
-        let format = AppLocalization.string("Current goal: %d cards", locale: appPreferences.resolvedLocale)
-        return String(format: format, locale: appPreferences.resolvedLocale, dailyGoal)
     }
 
     private var goalDraftSummary: String {
@@ -1115,10 +1114,10 @@ struct SettingsView: View {
         goalDraftValue = min(selection, goalTickUpperBound) * AppPreferences.dailyCardsGoalStep
     }
 
-    private var defaultTextSizeBinding: Binding<Double> {
+    private var defaultTextSizeBinding: Binding<FlashcardTextSize> {
         Binding(
-            get: { Double(appPreferences.defaultTextSize.step) },
-            set: { appPreferences.defaultTextSize = FlashcardTextSize(step: Int($0.rounded())) }
+            get: { appPreferences.defaultTextSize },
+            set: { appPreferences.defaultTextSize = $0 }
         )
     }
 
