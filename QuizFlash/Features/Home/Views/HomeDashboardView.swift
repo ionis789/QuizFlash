@@ -158,8 +158,8 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
-            plainStatBlock {
+        VStack(alignment: .leading, spacing: usesRegularMetrics ? 12 : 10) {
+            duoStudyCard {
                 selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
             }
 
@@ -167,23 +167,24 @@ struct HomeDashboardView: View {
         }
     }
 
-    private func plainStatBlock<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func duoStudyCard<Content: View>(isInteractive: Bool = false, @ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
-            .padding(.vertical, usesRegularMetrics ? 8 : 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(HomeDashboardStudyCardModifier(
+                usesRegularMetrics: usesRegularMetrics,
+                isInteractive: isInteractive
+            ))
     }
 
     private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
         VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
             Text(selectedDayTitle(for: overview))
-                .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
                 .foregroundStyle(accentColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
 
             Text(selectedDayReviewedLine(for: overview))
-                .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.68)
@@ -248,12 +249,12 @@ struct HomeDashboardView: View {
             HStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
                 VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
                     Text(localized("This week"))
-                        .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
                         .foregroundStyle(accentColor)
                         .lineLimit(1)
 
                     Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
-                        .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black, design: .rounded))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
@@ -266,26 +267,19 @@ struct HomeDashboardView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black, design: .rounded))
                     .foregroundStyle(accentColor)
-                    .frame(width: usesRegularMetrics ? 34 : 32, height: usesRegularMetrics ? 34 : 32)
+                    .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
                     .background {
                         Circle()
                             .fill(accentColor.opacity(0.14))
                     }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
-            .padding(.vertical, usesRegularMetrics ? 18 : 16)
-            .background {
-                RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                            .strokeBorder(accentColor.opacity(0.14), lineWidth: 1)
-                    }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous))
         }
         .buttonStyle(.plain)
+        .modifier(HomeDashboardStudyCardModifier(
+            usesRegularMetrics: usesRegularMetrics,
+            isInteractive: true
+        ))
     }
 
     @ViewBuilder
@@ -307,6 +301,16 @@ struct HomeDashboardView: View {
             .lineLimit(2)
             .minimumScaleFactor(0.78)
             .multilineTextAlignment(.leading)
+            .padding(.horizontal, usesRegularMetrics ? 11 : 9)
+            .padding(.vertical, usesRegularMetrics ? 7 : 6)
+            .background {
+                RoundedRectangle(cornerRadius: usesRegularMetrics ? 14 : 12, style: .continuous)
+                    .fill(themeManager.surfacePrimary.opacity(0.52))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 14 : 12, style: .continuous)
+                            .strokeBorder(themeManager.textSecondary.opacity(0.18), lineWidth: 1)
+                    }
+            }
     }
 
     // MARK: - Library
@@ -424,6 +428,40 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
     let title: String
     let colorHex: String
     let deckCount: Int
+}
+
+private struct HomeDashboardStudyCardModifier: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let usesRegularMetrics: Bool
+    let isInteractive: Bool
+
+    private var accentColor: Color {
+        themeManager.roleColor(.buttonPrimaryFill)
+    }
+
+    private var cornerRadius: CGFloat {
+        usesRegularMetrics ? 24 : 22
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
+            .padding(.vertical, usesRegularMetrics ? 15 : 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(themeManager.roleColor(.widgetSurfaceFill).opacity(0.72))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(
+                                isInteractive ? accentColor.opacity(0.34) : themeManager.textSecondary.opacity(0.24),
+                                lineWidth: 2
+                            )
+                    }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
 }
 
 // MARK: - Section Header
