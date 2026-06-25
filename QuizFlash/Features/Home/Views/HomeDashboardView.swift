@@ -158,16 +158,31 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(spacing: usesRegularMetrics ? 22 : 20) {
-            studyHeroSurface
-            performanceSurface
+        VStack(alignment: .center, spacing: usesRegularMetrics ? 18 : 16) {
+            selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.07))
+                .frame(height: 1)
+                .padding(.horizontal, usesRegularMetrics ? 18 : 14)
+
+            weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+        }
+        .padding(.horizontal, usesRegularMetrics ? 22 : 20)
+        .padding(.vertical, usesRegularMetrics ? 24 : 22)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .background {
+            RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
+                .fill(themeManager.roleColor(.widgetSurfaceFill))
+                .overlay {
+                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.045), lineWidth: 1)
+                }
         }
     }
 
-    private var studyHeroSurface: some View {
-        let overview = dashboardSnapshot.selectedDayOverview
-
-        return VStack(alignment: .center, spacing: usesRegularMetrics ? 12 : 10) {
+    private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
+        VStack(alignment: .center, spacing: usesRegularMetrics ? 10 : 8) {
             Text(selectedDayTitle(for: overview))
                 .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
@@ -190,7 +205,7 @@ struct HomeDashboardView: View {
                 .minimumScaleFactor(0.82)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 118 : 104, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func selectedDayTitle(for overview: HomeSelectedDayOverviewSummary) -> String {
@@ -230,13 +245,11 @@ struct HomeDashboardView: View {
         return localizedFormat("%d goal days", summary.goalHitDays)
     }
 
-    private var performanceSurface: some View {
-        let summary = dashboardSnapshot.pastWeekPerformance
-
-        return Button {
+    private func weeklyStatsButton(for summary: HomePastWeekPerformanceSummary) -> some View {
+        Button {
             viewModel.presentPerformanceDetail()
         } label: {
-            VStack(alignment: .center, spacing: usesRegularMetrics ? 10 : 8) {
+            VStack(alignment: .center, spacing: usesRegularMetrics ? 8 : 7) {
                 Text(localized("This week"))
                     .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
                     .foregroundStyle(themeManager.textPrimary)
@@ -250,7 +263,7 @@ struct HomeDashboardView: View {
                     .minimumScaleFactor(0.82)
                     .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 82 : 74, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .buttonStyle(.plain)
     }
