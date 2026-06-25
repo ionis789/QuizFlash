@@ -158,34 +158,37 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(alignment: .center, spacing: usesRegularMetrics ? 18 : 16) {
-            selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
+        VStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
+            statsCard {
+                selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
+            }
 
-            Rectangle()
-                .fill(Color.white.opacity(0.07))
-                .frame(height: 1)
-                .padding(.horizontal, usesRegularMetrics ? 18 : 14)
+            statsCard {
+                weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+            }
+        }
+    }
 
-            weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
-        }
-        .padding(.horizontal, usesRegularMetrics ? 22 : 20)
-        .padding(.vertical, usesRegularMetrics ? 24 : 22)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .background {
-            RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
-                .fill(themeManager.roleColor(.widgetSurfaceFill))
-                .overlay {
-                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.045), lineWidth: 1)
-                }
-        }
+    private func statsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, usesRegularMetrics ? 22 : 20)
+            .padding(.vertical, usesRegularMetrics ? 24 : 22)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .background {
+                RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
+                    .fill(themeManager.roleColor(.widgetSurfaceFill))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 32 : 28, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.045), lineWidth: 1)
+                    }
+            }
     }
 
     private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
         VStack(alignment: .center, spacing: usesRegularMetrics ? 10 : 8) {
             Text(selectedDayTitle(for: overview))
                 .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
+                .foregroundStyle(accentColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .multilineTextAlignment(.center)
@@ -198,12 +201,7 @@ struct HomeDashboardView: View {
                 .multilineTextAlignment(.center)
                 .contentTransition(.numericText())
 
-            Text(selectedDayMetricsLine(for: overview))
-                .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.82)
-                .multilineTextAlignment(.center)
+            selectedDayMetricsRow(for: overview)
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
@@ -221,12 +219,13 @@ struct HomeDashboardView: View {
         return localizedFormat("%d cards reviewed", overview.cardsReviewed)
     }
 
-    private func selectedDayMetricsLine(for overview: HomeSelectedDayOverviewSummary) -> String {
-        [
-            localizedFormat("Good %d", overview.correctCardCount),
-            localizedFormat("Retry %d", overview.retryCardCount),
-            localizedFormat("Attempts %d", overview.rawReviewCount)
-        ].joined(separator: "   ")
+    private func selectedDayMetricsRow(for overview: HomeSelectedDayOverviewSummary) -> some View {
+        HStack(spacing: usesRegularMetrics ? 18 : 14) {
+            metricText(localizedFormat("Good %d", overview.correctCardCount), color: .green)
+            metricText(localizedFormat("Retry %d", overview.retryCardCount), color: .orange)
+            metricText(localizedFormat("Attempts %d", overview.rawReviewCount), color: accentColor)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
@@ -252,31 +251,38 @@ struct HomeDashboardView: View {
             VStack(alignment: .center, spacing: usesRegularMetrics ? 8 : 7) {
                 Text(localized("This week"))
                     .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
+                    .foregroundStyle(accentColor)
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
 
-                Text(weeklyMetricsLine(for: summary))
-                    .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.82)
-                    .multilineTextAlignment(.center)
+                weeklyMetricsRow(for: summary)
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .buttonStyle(.plain)
     }
 
-    private func weeklyMetricsLine(for summary: HomePastWeekPerformanceSummary) -> String {
-        var parts = [
-            activeDaysText(for: summary)
-        ]
-        if summary.hasGoal {
-            parts.append(goalDaysText(for: summary))
+    @ViewBuilder
+    private func weeklyMetricsRow(for summary: HomePastWeekPerformanceSummary) -> some View {
+        HStack(spacing: usesRegularMetrics ? 18 : 14) {
+            metricText(activeDaysText(for: summary), color: accentColor)
+
+            if summary.hasGoal {
+                metricText(goalDaysText(for: summary), color: .purple)
+            }
+
+            metricText(localizedFormat("%d%% good rate", summary.goodRatePercent), color: .green)
         }
-        parts.append(localizedFormat("%d%% good rate", summary.goodRatePercent))
-        return parts.joined(separator: "   ")
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func metricText(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
+            .foregroundStyle(color)
+            .lineLimit(2)
+            .minimumScaleFactor(0.78)
+            .multilineTextAlignment(.center)
     }
 
     // MARK: - Library
