@@ -343,6 +343,7 @@
 "Good morning" = "Доброе утро";
 "Good night" = "Доброй ночи";
 "Good rate" = "Доля хороших";
+"Good %d" = "Хорошо %d";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Вход через Google пока не готов. Попробуйте войти по email.";
 "Green" = "Зелёный";
@@ -522,7 +523,6 @@
 "PREVIEW" = "ПРЕДПРОСМОТР";
 "Preview Mode" = "Режим предварительного просмотра";
 "Pro" = "Pro";
-"Progress and pace." = "Прогресс и темп.";
 "PROMPT" = "ЗАДАНИЕ";
 "Prompt" = "Задание";
 "Prompt with Blank" = "Подсказка с пропуском";
@@ -562,6 +562,7 @@
 "RETRY" = "ПОВТОРИТЬ";
 "Retry" = "Повтор";
 "Retry cards" = "Повторить";
+"Retry %d" = "Повтор %d";
 "Reviewed" = "Пройдено";
 "Reviews" = "Повторы";
 "Right" = "Верно";
@@ -630,7 +631,6 @@
 "Split Zone" = "Разделить зону";
 "Stable this week" = "Стабильно на этой неделе";
 "Start" = "Старт";
-"Start a study session to unlock this view." = "Начните учебный сеанс, чтобы разблокировать этот вид.";
 "Start today's goal from this deck." = "Начните сегодняшнюю цель с этой колоды.";
 "Start with one focused block and let the ring fill with you." = "Начни с короткого блока и заполни кольцо.";
 "State" = "Состояние";
@@ -755,6 +755,7 @@
 "%d reviewed" = "%d пройдено";
 "%d%% good rate" = "%d%% хороших";
 "Attempts" = "Попытки";
+"Attempts %d" = "Попытки %d";
 "Cards Goal" = "Цель по карточкам";
 "Daily cards" = "Карточек в день";
 "No decks yet" = "Колод пока нет";

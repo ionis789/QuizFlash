@@ -343,6 +343,7 @@
 "Good morning" = "Good morning";
 "Good night" = "Good night";
 "Good rate" = "Good rate";
+"Good %d" = "Good %d";
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Google sign-in is not ready yet. Please try email sign-in.";
 "Green" = "Green";
@@ -522,7 +523,6 @@
 "PREVIEW" = "PREVIEW";
 "Preview Mode" = "Preview Mode";
 "Pro" = "Pro";
-"Progress and pace." = "Progress and pace.";
 "PROMPT" = "PROMPT";
 "Prompt" = "Prompt";
 "Prompt with Blank" = "Prompt with Blank";
@@ -562,6 +562,7 @@
 "RETRY" = "RETRY";
 "Retry" = "Retry";
 "Retry cards" = "Retry";
+"Retry %d" = "Retry %d";
 "Reviewed" = "Reviewed";
 "Reviews" = "Reviews";
 "Right" = "Right";
@@ -630,7 +631,6 @@
 "Split Zone" = "Split Zone";
 "Stable this week" = "Stable this week";
 "Start" = "Start";
-"Start a study session to unlock this view." = "Start a study session to unlock this view.";
 "Start today's goal from this deck." = "Start today's goal from this deck.";
 "Start with one focused block and let the ring fill with you." = "Start with one focused block and let the ring fill with you.";
 "State" = "State";
@@ -755,6 +755,7 @@
 "%d reviewed" = "%d reviewed";
 "%d%% good rate" = "%d%% good rate";
 "Attempts" = "Attempts";
+"Attempts %d" = "Attempts %d";
 "Cards Goal" = "Cards Goal";
 "Daily cards" = "Daily cards";
 "No decks yet" = "No decks yet";

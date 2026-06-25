@@ -51,7 +51,7 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     private var contentTopPadding: CGFloat {
-        max(topChromeClearance, UIConstants.Spacing.medium)
+        max(topChromeClearance + 84, UIConstants.Spacing.huge)
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -165,30 +165,27 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     private var emptyStateSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+        VStack(alignment: .center, spacing: UIConstants.Spacing.large) {
             Text(localized("Study detail"))
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 32, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
+                .multilineTextAlignment(.center)
 
             Text(windowEndingLine)
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HomePerformanceSheetSurface {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text(localized("No activity yet"))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    Text(localized("Start a study session to unlock this view."))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            Text(localized("No activity yet"))
+                .font(.system(size: 21, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, UIConstants.Spacing.medium)
         }
-            .padding(.trailing, headerTrailingReserve)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, UIConstants.Spacing.large)
     }
 
     private var pillarsSection: some View {

@@ -117,14 +117,6 @@ struct HomeDashboardView: View {
         usesRegularMetrics ? 282 : 256
     }
 
-    private var studyHeroHeadlineHeight: CGFloat {
-        usesRegularMetrics ? 128 : 112
-    }
-
-    private var performanceSurfaceMinHeight: CGFloat {
-        usesRegularMetrics ? 216 : 198
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -166,7 +158,7 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(spacing: usesRegularMetrics ? 18 : 16) {
+        VStack(spacing: usesRegularMetrics ? 22 : 20) {
             studyHeroSurface
             performanceSurface
         }
@@ -175,46 +167,30 @@ struct HomeDashboardView: View {
     private var studyHeroSurface: some View {
         let overview = dashboardSnapshot.selectedDayOverview
 
-        return HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
-            VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(selectedDayTitle(for: overview))
-                        .font(.system(size: usesRegularMetrics ? 25 : 23, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+        return VStack(alignment: .center, spacing: usesRegularMetrics ? 12 : 10) {
+            Text(selectedDayTitle(for: overview))
+                .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .multilineTextAlignment(.center)
 
-                    Text(selectedDayReviewedLine(for: overview))
-                        .font(.system(size: usesRegularMetrics ? 34 : 30, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .contentTransition(.numericText())
-                }
+            Text(selectedDayReviewedLine(for: overview))
+                .font(.system(size: usesRegularMetrics ? 34 : 30, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
+                .contentTransition(.numericText())
 
-                HStack(spacing: 10) {
-                    HomeDashboardStatMetric(
-                        title: localized("Good"),
-                        value: "\(overview.correctCardCount)",
-                        tint: .green,
-                        usesRegularMetrics: usesRegularMetrics
-                    )
-                    HomeDashboardStatMetric(
-                        title: localized("Retry"),
-                        value: "\(overview.retryCardCount)",
-                        tint: roseColor,
-                        usesRegularMetrics: usesRegularMetrics
-                    )
-                    HomeDashboardStatMetric(
-                        title: localized("Attempts"),
-                        value: "\(overview.rawReviewCount)",
-                        tint: accentColor,
-                        usesRegularMetrics: usesRegularMetrics
-                    )
-                }
-            }
-            .frame(minHeight: usesRegularMetrics ? 166 : 150, alignment: .topLeading)
+            Text(selectedDayMetricsLine(for: overview))
+                .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 118 : 104, alignment: .center)
     }
 
     private func selectedDayTitle(for overview: HomeSelectedDayOverviewSummary) -> String {
@@ -228,6 +204,14 @@ struct HomeDashboardView: View {
             return localizedFormat("%d / %d cards reviewed", overview.cardsReviewed, dailyGoal)
         }
         return localizedFormat("%d cards reviewed", overview.cardsReviewed)
+    }
+
+    private func selectedDayMetricsLine(for overview: HomeSelectedDayOverviewSummary) -> String {
+        [
+            localizedFormat("Good %d", overview.correctCardCount),
+            localizedFormat("Retry %d", overview.retryCardCount),
+            localizedFormat("Attempts %d", overview.rawReviewCount)
+        ].joined(separator: "   ")
     }
 
     private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
@@ -252,39 +236,34 @@ struct HomeDashboardView: View {
         return Button {
             viewModel.presentPerformanceDetail()
         } label: {
-            HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
-                VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
-                    Text(localized("This week"))
-                        .font(.system(size: usesRegularMetrics ? 25 : 23, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
+            VStack(alignment: .center, spacing: usesRegularMetrics ? 10 : 8) {
+                Text(localized("This week"))
+                    .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
 
-                    HStack(spacing: 10) {
-                        HomeDashboardStatMetric(
-                            title: localized("Active days"),
-                            value: activeDaysText(for: summary),
-                            tint: accentColor,
-                            usesRegularMetrics: usesRegularMetrics
-                        )
-                        if summary.hasGoal {
-                            HomeDashboardStatMetric(
-                                title: localized("Goal days"),
-                                value: goalDaysText(for: summary),
-                                tint: .orange,
-                                usesRegularMetrics: usesRegularMetrics
-                            )
-                        }
-                        HomeDashboardStatMetric(
-                            title: localized("Good rate"),
-                            value: localizedFormat("%d%% good rate", summary.goodRatePercent),
-                            tint: .green,
-                            usesRegularMetrics: usesRegularMetrics
-                        )
-                    }
-                }
-                .frame(minHeight: usesRegularMetrics ? 126 : 116, alignment: .topLeading)
+                Text(weeklyMetricsLine(for: summary))
+                    .font(.system(size: usesRegularMetrics ? 17 : 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(themeManager.textSecondary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.82)
+                    .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 82 : 74, alignment: .center)
         }
         .buttonStyle(.plain)
+    }
+
+    private func weeklyMetricsLine(for summary: HomePastWeekPerformanceSummary) -> String {
+        var parts = [
+            activeDaysText(for: summary)
+        ]
+        if summary.hasGoal {
+            parts.append(goalDaysText(for: summary))
+        }
+        parts.append(localizedFormat("%d%% good rate", summary.goodRatePercent))
+        return parts.joined(separator: "   ")
     }
 
     // MARK: - Library
@@ -378,46 +357,21 @@ struct HomeDashboardView: View {
     }
 
     private var createDeckSurface: some View {
-        HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
-            VStack(alignment: .leading, spacing: 12) {
-                HomeDashboardEmptyPlaceholderContent(
-                    title: localized("No decks yet"),
-                    usesRegularMetrics: usesRegularMetrics
-                )
+        VStack(alignment: .center, spacing: 12) {
+            HomeDashboardEmptyPlaceholderContent(
+                title: localized("No decks yet"),
+                usesRegularMetrics: usesRegularMetrics
+            )
 
-                Button(localized("Open Create")) {
-                    onCreateDeck()
-                }
-                .font(.subheadline.weight(.bold))
-                .quizFlashButtonStyle(.primary)
+            Button(localized("Open Create")) {
+                onCreateDeck()
             }
+            .font(.subheadline.weight(.bold))
+            .quizFlashButtonStyle(.primary)
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var workspaceWhatChangesSurface: some View {
-        HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(localized("Next"))
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    HomeDashboardNarrativeLine(
-                        label: localized("Today"),
-                        text: localized("Progress and pace.")
-                    )
-                    HomeDashboardNarrativeLine(
-                        label: localized("Recents"),
-                        text: localized("Jump back into active decks.")
-                    )
-                    HomeDashboardNarrativeLine(
-                        label: localized("Folders"),
-                        text: localized("Keep decks grouped and easy to scan.")
-                    )
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Folder Snapshot
@@ -493,49 +447,6 @@ private struct HomeDashboardSectionHeader: View {
     }
 }
 
-// MARK: - Dashboard Surface
-
-private struct HomeDashboardSurface<Content: View>: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let highlight: Color
-    let usesRegularMetrics: Bool
-    let content: Content
-
-    init(
-        highlight: Color,
-        usesRegularMetrics: Bool,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.highlight = highlight
-        self.usesRegularMetrics = usesRegularMetrics
-        self.content = content()
-    }
-
-    private var cornerRadius: CGFloat {
-        usesRegularMetrics ? 34 : 30
-    }
-
-    private var paddingValue: CGFloat {
-        usesRegularMetrics ? 22 : 20
-    }
-
-    var body: some View {
-        content
-            .padding(paddingValue)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
-                    }
-                    .shadow(color: Color.black.opacity(0.34), radius: 22, x: 0, y: 14)
-            }
-    }
-}
-
 private struct HomeDashboardEmptyPlaceholder: View {
     let title: String
     let usesRegularMetrics: Bool
@@ -560,51 +471,8 @@ private struct HomeDashboardEmptyPlaceholderContent: View {
             .foregroundStyle(themeManager.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.horizontal, usesRegularMetrics ? 16 : 14)
-            .padding(.vertical, usesRegularMetrics ? 12 : 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: usesRegularMetrics ? 18 : 16, style: .continuous)
-                    .fill(themeManager.surfacePrimary)
-            }
-    }
-}
-
-// MARK: - Supporting Views
-
-private struct HomeDashboardStatMetric: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let title: String
-    let value: String
-    let tint: Color
-    let usesRegularMetrics: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .lineLimit(1)
-
-            Text(value)
-                .font(.system(size: usesRegularMetrics ? 18 : 16, weight: .black, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.78)
-                .contentTransition(.numericText())
-        }
-        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 72 : 66, alignment: .leading)
-        .padding(.horizontal, usesRegularMetrics ? 14 : 12)
-        .padding(.vertical, 12)
-        .background {
-            RoundedRectangle(cornerRadius: usesRegularMetrics ? 20 : 18, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-                .overlay {
-                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 20 : 18, style: .continuous)
-                        .fill(tint.opacity(0.12))
-                }
-        }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 40 : 36, alignment: .center)
     }
 }
 
@@ -1256,24 +1124,6 @@ private struct HomeDashboardInlineBadge: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(tint.opacity(0.10))
                 }
-        }
-    }
-}
-
-private struct HomeDashboardNarrativeLine: View {
-    let label: String
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label.uppercased())
-                .font(.caption2.weight(.black))
-                .foregroundStyle(.secondary)
-
-            Text(text)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -343,6 +343,7 @@
 "Good morning" = "Bună dimineața";
 "Good night" = "Noapte bună";
 "Good rate" = "Rată bune";
+"Good %d" = "Bune %d";
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.";
 "Green" = "Verde";
@@ -522,7 +523,6 @@
 "PREVIEW" = "PREVIZUALIZARE";
 "Preview Mode" = "Modul de previzualizare";
 "Pro" = "Pro";
-"Progress and pace." = "Progres și ritm.";
 "PROMPT" = "ENUNȚ";
 "Prompt" = "Enunț";
 "Prompt with Blank" = "Enunț cu spațiu liber";
@@ -562,6 +562,7 @@
 "RETRY" = "ÎNCERCAȚI";
 "Retry" = "Reîncearcă";
 "Retry cards" = "De repetat";
+"Retry %d" = "Reîncearcă %d";
 "Reviewed" = "Revizuite";
 "Reviews" = "Repetări";
 "Right" = "Corect";
@@ -630,7 +631,6 @@
 "Split Zone" = "Împarte zona";
 "Stable this week" = "Stabil săptămâna asta";
 "Start" = "Începe";
-"Start a study session to unlock this view." = "Începeți o sesiune de studiu pentru a debloca această vizualizare.";
 "Start today's goal from this deck." = "Începe obiectivul de azi din acest deck.";
 "Start with one focused block and let the ring fill with you." = "Începe cu un bloc scurt și umple inelul.";
 "State" = "Stare";
@@ -755,6 +755,7 @@
 "%d reviewed" = "%d revizuite";
 "%d%% good rate" = "%d%% rată bune";
 "Attempts" = "Încercări";
+"Attempts %d" = "Încercări %d";
 "Cards Goal" = "Țintă carduri";
 "Daily cards" = "Carduri zilnice";
 "No decks yet" = "Nu există încă deckuri";
