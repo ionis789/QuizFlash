@@ -159,18 +159,17 @@ struct HomeDashboardView: View {
 
     private var studySection: some View {
         VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
-            statBlock {
+            plainStatBlock {
                 selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
             }
 
-            statBlock {
-                weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
-            }
+            weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
         }
     }
 
-    private func statBlock<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func plainStatBlock<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
+            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
             .padding(.vertical, usesRegularMetrics ? 8 : 6)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -246,22 +245,45 @@ struct HomeDashboardView: View {
         Button {
             viewModel.presentPerformanceDetail()
         } label: {
-            VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
-                Text(localized("This week"))
-                    .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+            HStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
+                VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
+                    Text(localized("This week"))
+                        .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .lineLimit(1)
+
+                    Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
+                        .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentTransition(.numericText())
+
+                    weeklyMetricsRow(for: summary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black, design: .rounded))
                     .foregroundStyle(accentColor)
-                    .lineLimit(1)
-
-                Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
-                    .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentTransition(.numericText())
-
-                weeklyMetricsRow(for: summary)
+                    .frame(width: usesRegularMetrics ? 34 : 32, height: usesRegularMetrics ? 34 : 32)
+                    .background {
+                        Circle()
+                            .fill(accentColor.opacity(0.14))
+                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
+            .padding(.vertical, usesRegularMetrics ? 18 : 16)
+            .background {
+                RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
+                    .fill(themeManager.roleColor(.widgetSurfaceFill))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
+                            .strokeBorder(accentColor.opacity(0.14), lineWidth: 1)
+                    }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous))
         }
         .buttonStyle(.plain)
     }
