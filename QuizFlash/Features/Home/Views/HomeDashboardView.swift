@@ -219,9 +219,8 @@ struct HomeDashboardView: View {
 
     private func selectedDayMetricsRow(for overview: HomeSelectedDayOverviewSummary) -> some View {
         HStack(spacing: usesRegularMetrics ? 16 : 12) {
-            metricText(localizedFormat("Good %d", overview.correctCardCount))
-            metricText(localizedFormat("Retry %d", overview.retryCardCount))
-            metricText(localizedFormat("Attempts %d", overview.rawReviewCount))
+            metricPill(localizedFormat("Good %d", overview.correctCardCount), tint: .green)
+            metricPill(localizedFormat("Retry %d", overview.retryCardCount), tint: themeManager.roleColor(.buttonDangerFill))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -274,30 +273,32 @@ struct HomeDashboardView: View {
                     }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(HomeDashboardStudyCardModifier(
+                usesRegularMetrics: usesRegularMetrics,
+                isInteractive: true
+            ))
         }
         .buttonStyle(.plain)
-        .modifier(HomeDashboardStudyCardModifier(
-            usesRegularMetrics: usesRegularMetrics,
-            isInteractive: true
-        ))
     }
 
     @ViewBuilder
     private func weeklyMetricsRow(for summary: HomePastWeekPerformanceSummary) -> some View {
         HStack(spacing: usesRegularMetrics ? 16 : 12) {
-            metricText(activeDaysText(for: summary))
+            metricPill(activeDaysText(for: summary))
 
             if summary.hasGoal {
-                metricText(goalDaysText(for: summary))
+                metricPill(goalDaysText(for: summary))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func metricText(_ text: String) -> some View {
-        Text(text)
+    private func metricPill(_ text: String, tint: Color? = nil) -> some View {
+        let resolvedTint = tint ?? themeManager.textSecondary
+
+        return Text(text)
             .font(.system(size: usesRegularMetrics ? 15 : 14, weight: .bold, design: .rounded))
-            .foregroundStyle(themeManager.textSecondary)
+            .foregroundStyle(tint == nil ? themeManager.textSecondary : themeManager.textPrimary.opacity(0.92))
             .lineLimit(2)
             .minimumScaleFactor(0.78)
             .multilineTextAlignment(.leading)
@@ -308,7 +309,7 @@ struct HomeDashboardView: View {
                     .fill(themeManager.surfacePrimary.opacity(0.52))
                     .overlay {
                         RoundedRectangle(cornerRadius: usesRegularMetrics ? 14 : 12, style: .continuous)
-                            .strokeBorder(themeManager.textSecondary.opacity(0.18), lineWidth: 1)
+                            .strokeBorder(resolvedTint.opacity(tint == nil ? 0.20 : 0.46), lineWidth: 1.4)
                     }
             }
     }
@@ -436,12 +437,12 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
     let usesRegularMetrics: Bool
     let isInteractive: Bool
 
-    private var accentColor: Color {
-        themeManager.roleColor(.buttonPrimaryFill)
-    }
-
     private var cornerRadius: CGFloat {
         usesRegularMetrics ? 24 : 22
+    }
+
+    private var borderOpacity: CGFloat {
+        isInteractive ? 0.34 : 0.28
     }
 
     func body(content: Content) -> some View {
@@ -455,7 +456,7 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(
-                                isInteractive ? accentColor.opacity(0.34) : themeManager.textSecondary.opacity(0.24),
+                                themeManager.textSecondary.opacity(borderOpacity),
                                 lineWidth: 2
                             )
                     }
