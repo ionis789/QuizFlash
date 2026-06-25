@@ -158,51 +158,38 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
-            statsCard {
+        VStack(alignment: .leading, spacing: usesRegularMetrics ? 18 : 16) {
+            statBlock {
                 selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
             }
 
-            statsCard {
+            statBlock {
                 weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
             }
         }
     }
 
-    private func statsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func statBlock<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(.horizontal, usesRegularMetrics ? 20 : 18)
-            .padding(.vertical, usesRegularMetrics ? 18 : 16)
+            .padding(.vertical, usesRegularMetrics ? 8 : 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.045), lineWidth: 1)
-                    }
-            }
     }
 
     private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
-        VStack(alignment: .leading, spacing: usesRegularMetrics ? 12 : 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(selectedDayTitle(for: overview))
-                    .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .black, design: .rounded))
-                    .foregroundStyle(accentColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+        VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
+            Text(selectedDayTitle(for: overview))
+                .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                .foregroundStyle(accentColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
-                Spacer(minLength: 12)
-
-                Text(selectedDayReviewedLine(for: overview))
-                    .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.68)
-                    .multilineTextAlignment(.trailing)
-                    .contentTransition(.numericText())
-            }
+            Text(selectedDayReviewedLine(for: overview))
+                .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+                .multilineTextAlignment(.leading)
+                .contentTransition(.numericText())
 
             selectedDayMetricsRow(for: overview)
         }
@@ -259,22 +246,18 @@ struct HomeDashboardView: View {
         Button {
             viewModel.presentPerformanceDetail()
         } label: {
-            VStack(alignment: .leading, spacing: usesRegularMetrics ? 12 : 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(localized("This week"))
-                        .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .black, design: .rounded))
-                        .foregroundStyle(accentColor)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
+                Text(localized("This week"))
+                    .font(.system(size: usesRegularMetrics ? 23 : 21, weight: .black, design: .rounded))
+                    .foregroundStyle(accentColor)
+                    .lineLimit(1)
 
-                    Spacer(minLength: 12)
-
-                    Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
-                        .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .contentTransition(.numericText())
-                }
+                Text(localizedFormat("%d%% good rate", summary.goodRatePercent))
+                    .font(.system(size: usesRegularMetrics ? 30 : 27, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .contentTransition(.numericText())
 
                 weeklyMetricsRow(for: summary)
             }
