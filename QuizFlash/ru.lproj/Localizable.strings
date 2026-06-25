@@ -336,6 +336,7 @@
 "Getting Started" = "Начиная";
 "Goal closed" = "Цель закрыта";
 "Goal days" = "Дни цели";
+"Goal: %d cards" = "Цель: %d карточек";
 "Good" = "Хорошо";
 "Good afternoon" = "Добрый день";
 "Good cards" = "Хорошие";
@@ -443,6 +444,7 @@
 "No" = "Нет";
 "No account was found for this email." = "Аккаунт с этим email не найден.";
 "No activity yet" = "Пока нет активности";
+"No reviews yet" = "Пока нет повторений";
 "No AI provider profile is available yet." = "Профиль поставщика ИИ пока недоступен.";
 "No answer added" = "Ответ не добавлен";
 "No answer selected" = "Ответ не выбран";
@@ -580,7 +582,6 @@
 "Save to" = "Сохранить в";
 "Saved" = "Сохранено";
 "Saved Configurations" = "Сохраненные конфигурации";
-"Score signals" = "Сигналы счёта";
 "Scroll" = "Прокрутка";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.";
 "Search" = "Поиск";
@@ -709,7 +710,6 @@
 "Type" = "Тип";
 "Unavailable" = "Недоступно";
 "Undo Changes" = "Отменить изменения";
-"Unique rate" = "Доля уникальных";
 "Universal OpenAI-Compatible Setup" = "Универсальная установка, совместимая с OpenAI";
 "Unlock full AI features" = "Откройте все AI-функции";
 "Upgrade to Premium to generate more cards." = "Перейдите на Premium, чтобы генерировать больше карточек.";
@@ -723,7 +723,6 @@
 "Vertical Position" = "Положение по вертикали";
 "Vision: %@" = "Видение: %@";
 "Visual surface only." = "Только визуальная поверхность.";
-"vs same days" = "к тем же дням";
 "We could not finish Google sign-in. Please try again." = "Не удалось завершить вход через Google. Попробуйте снова.";
 "We could not finish sign-in. Please try again." = "Не удалось завершить вход. Попробуйте снова.";
 "We'll send a reset link." = "Мы отправим ссылку для сброса.";

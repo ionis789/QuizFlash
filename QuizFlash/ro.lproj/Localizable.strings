@@ -336,6 +336,7 @@
 "Getting Started" = "Noțiuni de bază";
 "Goal closed" = "Obiectiv închis";
 "Goal days" = "Zile cu țintă";
+"Goal: %d cards" = "Țintă: %d carduri";
 "Good" = "Bine";
 "Good afternoon" = "Bună ziua";
 "Good cards" = "Bune";
@@ -443,6 +444,7 @@
 "No" = "Nicio";
 "No account was found for this email." = "Nu există niciun cont pentru acest email.";
 "No activity yet" = "Încă nu există activitate";
+"No reviews yet" = "Fără revizuiri încă";
 "No AI provider profile is available yet." = "Niciun profil de furnizor AI nu este disponibil încă.";
 "No answer added" = "Niciun răspuns adăugat";
 "No answer selected" = "Niciun răspuns selectat";
@@ -580,7 +582,6 @@
 "Save to" = "Salvează în";
 "Saved" = "Salvat";
 "Saved Configurations" = "Configurații salvate";
-"Score signals" = "Semnale scor";
 "Scroll" = "Scroll";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.";
 "Search" = "Căutare";
@@ -709,7 +710,6 @@
 "Type" = "Tip";
 "Unavailable" = "Indisponibil";
 "Undo Changes" = "Anulează modificările";
-"Unique rate" = "Rată unice";
 "Universal OpenAI-Compatible Setup" = "Configurare universală compatibilă cu OpenAI";
 "Unlock full AI features" = "Deblochează toate funcțiile AI";
 "Upgrade to Premium to generate more cards." = "Treci la Premium ca să generezi mai multe carduri.";
@@ -723,7 +723,6 @@
 "Vertical Position" = "Poziție verticală";
 "Vision: %@" = "Viziune: %@";
 "Visual surface only." = "Doar suprafața vizuală.";
-"vs same days" = "față de aceleași zile";
 "We could not finish Google sign-in. Please try again." = "Nu am putut finaliza conectarea cu Google. Încearcă din nou.";
 "We could not finish sign-in. Please try again." = "Nu am putut finaliza autentificarea. Încearcă din nou.";
 "We'll send a reset link." = "Îți trimitem un link de resetare.";

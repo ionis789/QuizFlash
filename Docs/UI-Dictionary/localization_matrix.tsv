@@ -53,10 +53,10 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
+%d deck	%d deck	%d pachet	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -138,8 +138,8 @@ All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -156,8 +156,8 @@ Auto keeps the full source covered, then balances density by text weight.	Auto k
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -306,8 +306,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -347,6 +347,7 @@ Get started	Get started	Începe	Начать
 Getting Started	Getting Started	Noțiuni de bază	Начиная
 Goal closed	Goal closed	Obiectiv închis	Цель закрыта
 Goal days	Goal days	Zile cu țintă	Дни цели
+Goal: %d cards	Goal: %d cards	Țintă: %d carduri	Цель: %d карточек
 Good	Good	Bine	Хорошо
 Good %d	Good %d	Bune %d	Хорошо %d
 Good afternoon	Good afternoon	Bună ziua	Добрый день
@@ -476,6 +477,7 @@ No goal	No goal	Fără țintă	Без цели
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
+No reviews yet	No reviews yet	Fără revizuiri încă	Пока нет повторений
 No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
 No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
 None	None	Fără	Нет
@@ -595,7 +597,6 @@ Save Error	Save Error	Eroare la salvare	Ошибка сохранения
 Save to	Save to	Salvează în	Сохранить в
 Saved	Saved	Salvat	Сохранено
 Saved Configurations	Saved Configurations	Configurații salvate	Сохраненные конфигурации
-Score signals	Score signals	Semnale scor	Сигналы счёта
 Scroll	Scroll	Scroll	Прокрутка
 Scroll this surface and watch the rows pass behind the sticky header blur.	Scroll this surface and watch the rows pass behind the sticky header blur.	Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.	Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.
 Search	Search	Căutare	Поиск
@@ -725,7 +726,6 @@ Tune Tab Blur	Tune Tab Blur	Ajustează blurul tabbarului	Настроить ра
 Type	Type	Tip	Тип
 Unavailable	Unavailable	Indisponibil	Недоступно
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
-Unique rate	Unique rate	Rată unice	Доля уникальных
 Universal OpenAI-Compatible Setup	Universal OpenAI-Compatible Setup	Configurare universală compatibilă cu OpenAI	Универсальная установка, совместимая с OpenAI
 Unlock full AI features	Unlock full AI features	Deblochează toate funcțiile AI	Откройте все AI-функции
 Unpin	Unpin	Anulează fixarea	Открепить
@@ -739,7 +739,6 @@ Verification link sent. Check Inbox and Spam.	Verification link sent. Check Inbo
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали
 Vision: %@	Vision: %@	Viziune: %@	Видение: %@
 Visual surface only.	Visual surface only.	Doar suprafața vizuală.	Только визуальная поверхность.
-vs same days	vs same days	față de aceleași zile	к тем же дням
 We could not finish Google sign-in. Please try again.	We could not finish Google sign-in. Please try again.	Nu am putut finaliza conectarea cu Google. Încearcă din nou.	Не удалось завершить вход через Google. Попробуйте снова.
 We could not finish sign-in. Please try again.	We could not finish sign-in. Please try again.	Nu am putut finaliza autentificarea. Încearcă din nou.	Не удалось завершить вход. Попробуйте снова.
 We'll send a reset link.	We'll send a reset link.	Îți trimitem un link de resetare.	Мы отправим ссылку для сброса.

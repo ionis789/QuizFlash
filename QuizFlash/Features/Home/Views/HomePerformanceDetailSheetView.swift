@@ -25,16 +25,6 @@ struct HomePerformanceDetailSheetView: View {
         appPreferences.resolvedLocale
     }
 
-    private var dangerColor: Color {
-        themeManager.roleColor(.buttonDangerFill)
-    }
-
-    private var deltaTint: Color {
-        if summary.deltaPercent > 0 { return .green }
-        if summary.deltaPercent < 0 { return dangerColor }
-        return accentColor
-    }
-
     private var gridColumns: [GridItem] {
         [
             GridItem(.flexible(), spacing: UIConstants.Spacing.medium),
@@ -85,17 +75,13 @@ struct HomePerformanceDetailSheetView: View {
         }
     }
 
-    private var deltaBadgeDetail: String {
-        localized("vs same days")
-    }
-
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 if summary.hasActivity {
                     headerSection
+                    overviewMetricsSection
                     comparisonSection
-                    pillarsSection
                 } else {
                     emptyStateSection
                 }
@@ -108,9 +94,9 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             Text(localized("Study detail"))
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 32, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
 
             Text(windowEndingLine)
@@ -118,28 +104,32 @@ struct HomePerformanceDetailSheetView: View {
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(alignment: .lastTextBaseline, spacing: UIConstants.Spacing.medium) {
-                Text("\(summary.scorePercent)%")
-                    .font(.system(size: 66, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentTransition(.numericText(value: Double(summary.scorePercent)))
-
-                HomePerformanceSheetDeltaBadge(
-                    deltaPercent: summary.deltaPercent,
-                    detail: deltaBadgeDetail,
-                    tint: deltaTint,
-                    backgroundTint: deltaTint.opacity(0.16)
-                )
-                    .padding(.bottom, UIConstants.Spacing.small)
-            }
-
             Text(localizedTrendLine)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(accentColor)
+                .padding(.top, UIConstants.Spacing.small)
         }
             .padding(.trailing, headerTrailingReserve)
+    }
+
+    private var overviewMetricsSection: some View {
+        LazyVGrid(columns: gridColumns, alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HomePerformancePlainMetric(
+                title: localized("Good rate"),
+                value: "\(summary.accuracyPercent)%"
+            )
+            HomePerformancePlainMetric(
+                title: localized("Active days"),
+                value: "\(summary.activeDays)/\(summary.scoredDayCount)"
+            )
+            if summary.hasGoal {
+                HomePerformancePlainMetric(
+                    title: localized("Goal days"),
+                    value: "\(summary.goalHitDays)"
+                )
+            }
+        }
+        .padding(.top, UIConstants.Spacing.small)
     }
 
     private var comparisonSection: some View {
@@ -161,7 +151,7 @@ struct HomePerformanceDetailSheetView: View {
                 )
             }
         }
-        .padding(.top, UIConstants.Spacing.extraLarge)
+        .padding(.top, UIConstants.Spacing.medium)
     }
 
     private var emptyStateSection: some View {
@@ -187,80 +177,21 @@ struct HomePerformanceDetailSheetView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, UIConstants.Spacing.large)
     }
-
-    private var pillarsSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text(localized("Score signals"))
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-
-            LazyVGrid(columns: gridColumns, spacing: UIConstants.Spacing.medium) {
-                HomePerformanceMetricCard(
-                    title: localized("Good rate"),
-                    value: "\(summary.accuracyPercent)%",
-                    tint: .green
-                )
-                HomePerformanceMetricCard(
-                    title: localized("Active days"),
-                    value: "\(summary.activeDays)/\(summary.scoredDayCount)",
-                    tint: accentColor
-                )
-                if summary.hasGoal {
-                    HomePerformanceMetricCard(
-                        title: localized("Goal days"),
-                        value: "\(summary.goalHitDays)",
-                        tint: .orange
-                    )
-                }
-                HomePerformanceMetricCard(
-                    title: localized("Unique rate"),
-                    value: "\(summary.efficiencyPercent)%",
-                    tint: dangerColor
-                )
-            }
-        }
-    }
 }
 
 // MARK: - Supporting Views
 
-private struct HomePerformanceSheetSurface<Content: View>: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .padding(UIConstants.Spacing.large)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(themeManager.roleColor(.widgetSurfaceFill))
-                .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
-            }
-        }
-    }
-}
-
-private struct HomePerformanceMetricCard: View {
+private struct HomePerformancePlainMetric: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let title: String
     let value: String
-    let tint: Color
 
     var body: some View {
-        VStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
-                .multilineTextAlignment(.center)
                 .lineLimit(2)
 
             Text(value)
@@ -269,16 +200,7 @@ private struct HomePerformanceMetricCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-            .padding(UIConstants.Spacing.standard)
-            .frame(maxWidth: .infinity, minHeight: 116, alignment: .center)
-            .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-                .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(tint.opacity(0.12))
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -490,39 +412,5 @@ private struct HomePerformanceBarSegment: View {
                 .minimumScaleFactor(0.72)
         }
         .frame(height: height)
-    }
-}
-
-private struct HomePerformanceSheetDeltaBadge: View {
-    let deltaPercent: Int
-    let detail: String
-    let tint: Color
-    let backgroundTint: Color
-
-    private var text: String {
-        if deltaPercent > 0 {
-            return "+\(deltaPercent)"
-        }
-        return "\(deltaPercent)"
-    }
-
-    var body: some View {
-        VStack(spacing: 1) {
-            Text(text)
-                .font(.system(size: 15, weight: .black, design: .rounded))
-                .foregroundStyle(tint)
-
-            Text(detail)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(tint.opacity(0.86))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background {
-            Capsule(style: .continuous)
-                .fill(backgroundTint)
-        }
     }
 }

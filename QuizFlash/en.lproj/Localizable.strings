@@ -336,6 +336,7 @@
 "Getting Started" = "Getting Started";
 "Goal closed" = "Goal closed";
 "Goal days" = "Goal days";
+"Goal: %d cards" = "Goal: %d cards";
 "Good" = "Good";
 "Good afternoon" = "Good afternoon";
 "Good cards" = "Good";
@@ -443,6 +444,7 @@
 "No" = "No";
 "No account was found for this email." = "No account was found for this email.";
 "No activity yet" = "No activity yet";
+"No reviews yet" = "No reviews yet";
 "No AI provider profile is available yet." = "No AI provider profile is available yet.";
 "No answer added" = "No answer added";
 "No answer selected" = "No answer selected";
@@ -580,7 +582,6 @@
 "Save to" = "Save to";
 "Saved" = "Saved";
 "Saved Configurations" = "Saved Configurations";
-"Score signals" = "Score signals";
 "Scroll" = "Scroll";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Scroll this surface and watch the rows pass behind the sticky header blur.";
 "Search" = "Search";
@@ -709,7 +710,6 @@
 "Type" = "Type";
 "Unavailable" = "Unavailable";
 "Undo Changes" = "Undo Changes";
-"Unique rate" = "Unique rate";
 "Universal OpenAI-Compatible Setup" = "Universal OpenAI-Compatible Setup";
 "Unlock full AI features" = "Unlock full AI features";
 "Upgrade to Premium to generate more cards." = "Upgrade to Premium to generate more cards.";
@@ -723,7 +723,6 @@
 "Vertical Position" = "Vertical Position";
 "Vision: %@" = "Vision: %@";
 "Visual surface only." = "Visual surface only.";
-"vs same days" = "vs same days";
 "We could not finish Google sign-in. Please try again." = "We could not finish Google sign-in. Please try again.";
 "We could not finish sign-in. Please try again." = "We could not finish sign-in. Please try again.";
 "We'll send a reset link." = "We'll send a reset link.";
