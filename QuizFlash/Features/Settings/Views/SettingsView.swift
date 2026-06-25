@@ -14,7 +14,6 @@ import UIKit
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(ThemeManager.self) private var themeManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
@@ -103,7 +102,6 @@ struct SettingsView: View {
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
             await subscriptionManager.refreshCloudAIUsageQuota()
-            await subscriptionManager.refreshCloudAIGenerationHistory()
         }
         .onDisappear {
             profileImageDecodeTask?.cancel()
@@ -349,13 +347,6 @@ struct SettingsView: View {
                     )
                 }
             }
-
-            if isPremiumUser {
-                aiUsageDebugBlock
-            }
-
-            flashcardDeveloperSettingsBlock
-            quizDeveloperSettingsBlock
 
             settingsBlock {
                 SettingsMenuPickerRow(
@@ -718,181 +709,6 @@ struct SettingsView: View {
         }
     }
 
-    private var aiUsageDebugBlock: some View {
-        settingsBlock {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Label("AI usage debug", systemImage: "wand.and.stars")
-                        .font(.body.weight(.bold))
-                        .foregroundStyle(.primary)
-
-                    Spacer(minLength: UIConstants.Spacing.small)
-
-                    Button {
-                        Task { @MainActor in
-                            await subscriptionManager.refreshCloudAIUsageQuota()
-                            await subscriptionManager.refreshCloudAIGenerationHistory()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(themeManager.accentColor.color)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
-                   let limitMicroUSD = quota.limitMicroUSD,
-                   limitMicroUSD > 0 {
-                    Text("\(formattedUsagePercent(quota.usageProgress)) · \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-
-                if subscriptionManager.cloudAIGenerationHistory.isEmpty {
-                    Text("No generations yet")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    VStack(spacing: UIConstants.Spacing.small) {
-                        ForEach(subscriptionManager.cloudAIGenerationHistory) { generation in
-                            aiGenerationDebugRow(generation)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func aiGenerationDebugRow(_ generation: CloudAIGenerationUsageRecord) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                Text(generation.status.uppercased())
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(.purple)
-                    .lineLimit(1)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-
-                Text(formattedMicroUSD(generation.costMicroUSD))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                debugMetric("tokens", generation.totalTokens)
-                debugMetric("in", generation.promptTokens)
-                debugMetric("out", generation.completionTokens)
-                debugMetric("cards", "\(generation.validatedCards)/\(generation.targetCards)")
-            }
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                debugMetric("hit", generation.cacheHitTokens)
-                debugMetric("miss", generation.cacheMissTokens)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-
-                Text(debugDate(generation.createdAtMs))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 8)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 1)
-        }
-    }
-
-    private func debugMetric(_ title: String, _ value: Int) -> some View {
-        debugMetric(title, "\(value)")
-    }
-
-    private func debugMetric(_ title: String, _ value: String) -> some View {
-        Text("\(title) \(value)")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-    }
-
-    private var flashcardDeveloperSettingsBlock: some View {
-        settingsBlock {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                settingsBlockTitle("Flashcards")
-
-                SettingsToggleRow(
-                    icon: "rectangle.dashed",
-                    tint: .orange,
-                    title: "Zone content guides",
-                    detail: nil,
-                    isOn: zoneContentLayoutDebugBinding
-                )
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    icon: "cursorarrow.motionlines",
-                    tint: .purple,
-                    title: "Editor debug HUD",
-                    detail: nil,
-                    isOn: zoneEditorDebugHUDBinding
-                )
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    icon: "rectangle.on.rectangle.square",
-                    tint: .yellow,
-                    title: "Deck grid guides",
-                    detail: nil,
-                    isOn: deckGridTextLayoutDebugBinding
-                )
-            }
-        }
-    }
-
-    private var quizDeveloperSettingsBlock: some View {
-        settingsBlock {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                settingsBlockTitle("Quiz")
-
-                SettingsToggleRow(
-                    icon: "list.bullet.rectangle",
-                    tint: .orange,
-                    title: "Editor debug HUD",
-                    detail: nil,
-                    isOn: quizEditorDebugBinding
-                )
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    icon: "slider.horizontal.3",
-                    tint: .mint,
-                    title: "Play mode controls",
-                    detail: nil,
-                    isOn: playModeDeveloperModeEnabledBinding
-                )
-            }
-        }
-    }
-
-    private func settingsBlockTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.caption.weight(.black))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .lineLimit(1)
-    }
-
     private func profileMetric(
         icon: String?,
         title: String,
@@ -1066,50 +882,10 @@ struct SettingsView: View {
         return boundedProgress.formatted(.percent.precision(.fractionLength(0)))
     }
 
-    private func debugDate(_ milliseconds: Int) -> String {
-        Date(timeIntervalSince1970: Double(milliseconds) / 1_000)
-            .formatted(date: .abbreviated, time: .shortened)
-    }
-
     private var appLanguageBinding: Binding<AppLanguagePreference> {
         Binding(
             get: { appPreferences.appLanguage },
             set: { appPreferences.appLanguage = $0 }
-        )
-    }
-
-    private var deckGridTextLayoutDebugBinding: Binding<Bool> {
-        Binding(
-            get: { developmentPreferences.deckGridTextLayoutDebugEnabled },
-            set: { developmentPreferences.deckGridTextLayoutDebugEnabled = $0 }
-        )
-    }
-
-    private var zoneContentLayoutDebugBinding: Binding<Bool> {
-        Binding(
-            get: { developmentPreferences.zoneContentLayoutDebugEnabled },
-            set: { developmentPreferences.zoneContentLayoutDebugEnabled = $0 }
-        )
-    }
-
-    private var zoneEditorDebugHUDBinding: Binding<Bool> {
-        Binding(
-            get: { developmentPreferences.zoneEditorDebugHUDEnabled },
-            set: { developmentPreferences.zoneEditorDebugHUDEnabled = $0 }
-        )
-    }
-
-    private var quizEditorDebugBinding: Binding<Bool> {
-        Binding(
-            get: { developmentPreferences.quizEditorDebugEnabled },
-            set: { developmentPreferences.quizEditorDebugEnabled = $0 }
-        )
-    }
-
-    private var playModeDeveloperModeEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { developmentPreferences.playModeDeveloperModeEnabled },
-            set: { developmentPreferences.playModeDeveloperModeEnabled = $0 }
         )
     }
 
@@ -1147,7 +923,6 @@ struct SettingsView: View {
         .environment(AuthManager.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)
-        .environment(DevelopmentPreferences.shared)
         .environment(SubscriptionManager.shared)
         .environment(CloudUserProfileService.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)

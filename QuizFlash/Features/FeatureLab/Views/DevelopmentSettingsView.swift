@@ -10,6 +10,7 @@ import SwiftUI
 struct DevelopmentSettingsView: View {
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(AIProviderStore.self) private var aiProviderStore
+    @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var didCopyPDFImportDebug = false
     @State private var pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
 
@@ -19,12 +20,14 @@ struct DevelopmentSettingsView: View {
                 buildModeSection
                 themeSection
                 if AppFeatures.current.showsInternalLabs {
-                    playModeSection
+                    flashcardDebugSection
+                    quizDebugSection
                 }
                 if AppFeatures.current.showsVisualDebugOverlays {
                     visualDebuggingSection
                 }
                 if AppFeatures.current.enablesAITraceTooling {
+                    aiUsageDebugSection
                     aiToolingSection
                 }
             }
@@ -37,6 +40,7 @@ struct DevelopmentSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
+            await refreshAIUsageDebug()
         }
     }
 
@@ -76,39 +80,9 @@ struct DevelopmentSettingsView: View {
 
     private var visualDebuggingSection: some View {
         SettingsSectionCard(
-            title: "Debug",
+            title: "Visual Labs",
             subtitle: nil
         ) {
-            SettingsToggleRow(
-                icon: "rectangle.on.rectangle.square",
-                tint: .yellow,
-                title: "Deck Grid Guides",
-                detail: nil,
-                isOn: deckGridTextLayoutDebugBinding
-            )
-
-            SettingsCardDivider()
-
-            SettingsToggleRow(
-                icon: "rectangle.dashed",
-                tint: .orange,
-                title: "Zone Content Guides",
-                detail: nil,
-                isOn: zoneContentLayoutDebugBinding
-            )
-
-            SettingsCardDivider()
-
-            SettingsToggleRow(
-                icon: "cursorarrow.motionlines",
-                tint: .purple,
-                title: "Zone Editor HUD",
-                detail: "Shows live focus, keyboard, selected-zone, and resize-corner touch diagnostics inside the flashcard editor.",
-                isOn: zoneEditorDebugHUDBinding
-            )
-
-            SettingsCardDivider()
-
             SettingsToggleRow(
                 icon: "sparkles.tv",
                 tint: .cyan,
@@ -125,6 +99,66 @@ struct DevelopmentSettingsView: View {
                 title: "Custom Sheet Tuner",
                 detail: "Shows one floating tuning panel that adjusts blur, top clearance, and scrim for every custom sheet at once.",
                 isOn: customSheetTuningEnabledBinding
+            )
+        }
+    }
+
+    private var flashcardDebugSection: some View {
+        SettingsSectionCard(
+            title: "Flashcards",
+            subtitle: nil
+        ) {
+            SettingsToggleRow(
+                icon: "rectangle.dashed",
+                tint: .orange,
+                title: "Zone content guides",
+                detail: nil,
+                isOn: zoneContentLayoutDebugBinding
+            )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
+                icon: "cursorarrow.motionlines",
+                tint: .purple,
+                title: "Editor debug HUD",
+                detail: nil,
+                isOn: zoneEditorDebugHUDBinding
+            )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
+                icon: "rectangle.on.rectangle.square",
+                tint: .yellow,
+                title: "Deck grid guides",
+                detail: nil,
+                isOn: deckGridTextLayoutDebugBinding
+            )
+        }
+    }
+
+    private var quizDebugSection: some View {
+        SettingsSectionCard(
+            title: "Quiz",
+            subtitle: nil
+        ) {
+            SettingsToggleRow(
+                icon: "list.bullet.rectangle",
+                tint: .orange,
+                title: "Editor debug HUD",
+                detail: nil,
+                isOn: quizEditorDebugBinding
+            )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
+                icon: "slider.horizontal.3",
+                tint: .mint,
+                title: "Play mode controls",
+                detail: nil,
+                isOn: playModeDeveloperModeEnabledBinding
             )
         }
     }
@@ -149,18 +183,60 @@ struct DevelopmentSettingsView: View {
         }
     }
 
-    private var playModeSection: some View {
+    private var aiUsageDebugSection: some View {
         SettingsSectionCard(
-            title: "Play Mode",
+            title: "AI Usage",
             subtitle: nil
         ) {
-            SettingsToggleRow(
-                icon: "slider.horizontal.3",
-                tint: .mint,
-                title: "Developer Controls",
-                detail: "Shows the in-game debug settings button used for swipe-progress inspection and temporary tuning.",
-                isOn: playModeDeveloperModeEnabledBinding
-            )
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Label("Usage debug", systemImage: "wand.and.stars")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    Button {
+                        Task { @MainActor in
+                            await refreshAIUsageDebug()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.purple)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
+                   let limitMicroUSD = quota.limitMicroUSD,
+                   limitMicroUSD > 0 {
+                    Text("\(formattedUsagePercent(quota.usageProgress)) · \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+
+                if subscriptionManager.cloudAIGenerationHistory.isEmpty {
+                    Text("No generations yet")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(spacing: UIConstants.Spacing.small) {
+                            ForEach(subscriptionManager.cloudAIGenerationHistory) { generation in
+                                aiGenerationDebugRow(generation)
+                            }
+                        }
+                        .padding(.trailing, UIConstants.Spacing.small)
+                    }
+                    .frame(height: 280)
+                    .scrollBounceBehavior(.basedOnSize)
+                }
+            }
         }
     }
 
@@ -266,6 +342,81 @@ struct DevelopmentSettingsView: View {
         }
     }
 
+    private func refreshAIUsageDebug() async {
+        await subscriptionManager.refreshCloudAIUsageQuota()
+        await subscriptionManager.refreshCloudAIGenerationHistory()
+    }
+
+    private func aiGenerationDebugRow(_ generation: CloudAIGenerationUsageRecord) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text(generation.status.uppercased())
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.purple)
+                    .lineLimit(1)
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text(formattedMicroUSD(generation.costMicroUSD))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                debugMetric("tokens", generation.totalTokens)
+                debugMetric("in", generation.promptTokens)
+                debugMetric("out", generation.completionTokens)
+                debugMetric("cards", "\(generation.validatedCards)/\(generation.targetCards)")
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                debugMetric("hit", generation.cacheHitTokens)
+                debugMetric("miss", generation.cacheMissTokens)
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text(debugDate(generation.createdAtMs))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private func debugMetric(_ title: String, _ value: Int) -> some View {
+        debugMetric(title, "\(value)")
+    }
+
+    private func debugMetric(_ title: String, _ value: String) -> some View {
+        Text("\(title) \(value)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+    }
+
+    private func formattedMicroUSD(_ value: Int) -> String {
+        let amount = Double(max(value, 0)) / 1_000_000
+        return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+
+    private func formattedUsagePercent(_ progress: Double) -> String {
+        let boundedProgress = max(0, min(progress, 1))
+        return boundedProgress.formatted(.percent.precision(.fractionLength(0)))
+    }
+
+    private func debugDate(_ milliseconds: Int) -> String {
+        Date(timeIntervalSince1970: Double(milliseconds) / 1_000)
+            .formatted(date: .abbreviated, time: .shortened)
+    }
+
     private func copyPDFImportDebugReport() {
         UIPasteboard.general.string = PDFImportDebugStore.report()
         pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
@@ -295,6 +446,13 @@ struct DevelopmentSettingsView: View {
         Binding(
             get: { developmentPreferences.zoneEditorDebugHUDEnabled },
             set: { developmentPreferences.zoneEditorDebugHUDEnabled = $0 }
+        )
+    }
+
+    private var quizEditorDebugBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.quizEditorDebugEnabled },
+            set: { developmentPreferences.quizEditorDebugEnabled = $0 }
         )
     }
 
