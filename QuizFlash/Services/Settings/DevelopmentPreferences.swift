@@ -20,6 +20,7 @@ final class DevelopmentPreferences {
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
         static let zoneContentLayoutDebugEnabled = "preferences.development.zoneContentLayoutDebugEnabled"
         static let zoneEditorDebugHUDEnabled = "preferences.development.zoneEditorDebugHUDEnabled"
+        static let quizEditorDebugEnabled = "preferences.development.quizEditorDebugEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
@@ -83,6 +84,16 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Shows quiz editor scroll and caret diagnostics.
+    var quizEditorDebugEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                quizEditorDebugEnabled,
+                forKey: Keys.quizEditorDebugEnabled
+            )
+        }
+    }
+
     /// Enables temporary play-mode developer controls and experiments.
     var playModeDeveloperModeEnabled: Bool {
         didSet {
@@ -142,6 +153,9 @@ final class DevelopmentPreferences {
         ) as? Bool ?? false
         self.zoneEditorDebugHUDEnabled = userDefaults.object(
             forKey: Keys.zoneEditorDebugHUDEnabled
+        ) as? Bool ?? false
+        self.quizEditorDebugEnabled = userDefaults.object(
+            forKey: Keys.quizEditorDebugEnabled
         ) as? Bool ?? false
         self.playModeDeveloperModeEnabled = userDefaults.object(
             forKey: Keys.playModeDeveloperModeEnabled

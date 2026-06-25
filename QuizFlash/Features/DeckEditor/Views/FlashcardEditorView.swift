@@ -55,7 +55,6 @@ struct FlashcardEditorView: View {
     @State private var keyboardDebugRevision = 0
     @State private var toolbarVisibilityDebugRevision = 0
     @State private var showsRenderedContent = false
-    @State private var showsEditorDebugOverlays = true
     @State private var scrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var scrollTransition = FlashcardEditorScrollTransitionState()
     @State private var suppressCanvasEmptyTapUntil: CFAbsoluteTime = 0
@@ -255,7 +254,6 @@ struct FlashcardEditorView: View {
                     .zIndex(20)
                 floatingFormatBar
                 floatingFormatBarDebugOverlay
-                editorDebugVisibilityButton(safeBottomInset: safeBottomInset)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -343,9 +341,6 @@ struct FlashcardEditorView: View {
             recordEditorLifecycle("editor-disappear", details: "destination=flashcard")
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
-        }
-        .onChange(of: showsEditorDebugOverlays) { _, _ in
-            configureZoneEditorDebugRecording()
         }
         .onChange(of: developmentPreferences.zoneEditorDebugHUDEnabled) { _, _ in
             configureZoneEditorDebugRecording()
@@ -492,46 +487,11 @@ struct FlashcardEditorView: View {
 
     private var showsEditorPerformanceDebug: Bool {
         AppFeatures.current.showsVisualDebugOverlays
-            && showsEditorDebugOverlays
             && developmentPreferences.zoneEditorDebugHUDEnabled
     }
 
     private func configureZoneEditorDebugRecording() {
         ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(showsEditorPerformanceDebug)
-    }
-
-    @ViewBuilder
-    private func editorDebugVisibilityButton(safeBottomInset: CGFloat) -> some View {
-        if AppFeatures.current.showsVisualDebugOverlays {
-            VStack {
-                Spacer(minLength: 0)
-                HStack {
-                    Spacer(minLength: 0)
-                    Button {
-                        showsEditorDebugOverlays.toggle()
-                    } label: {
-                        Image(systemName: showsEditorDebugOverlays ? "eye.fill" : "eye.slash.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(showsEditorDebugOverlays ? Color.orange : Color.secondary)
-                            .frame(width: 32, height: 32)
-                            .background(.black.opacity(0.78), in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 0.75)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        showsEditorDebugOverlays
-                            ? "Hide debug overlays"
-                            : "Show debug overlays"
-                    )
-                    .padding(.trailing, 12)
-                    .padding(.bottom, max(safeBottomInset, 8) + 4)
-                }
-            }
-            .zIndex(60)
-        }
     }
 
     private var toolbarPerformanceSnapshot: EditorToolbarPerformanceOverlay.Snapshot {
@@ -839,7 +799,7 @@ struct FlashcardEditorView: View {
             scrollRestorationRequest: activeSide == side ? scrollRestorationRequest : nil,
             rendersRichText: rendersRichText,
             showsZoneHeightGuides: true,
-            showsDebugOverlays: showsEditorDebugOverlays && activeSide == side,
+            showsDebugOverlays: activeSide == side,
             onScrollOffsetChange: { offsetY in
                 guard activeSide == side else { return }
                 handleEditorScrollOffsetChange(offsetY)

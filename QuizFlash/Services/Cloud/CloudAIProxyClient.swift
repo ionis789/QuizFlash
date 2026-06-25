@@ -107,7 +107,6 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
     }
 }
 
-#if DEBUG
 nonisolated struct CloudAIGenerationUsageRecord: Decodable, Identifiable, Sendable {
     let generationID: String
     let status: String
@@ -141,7 +140,6 @@ nonisolated struct CloudAIGenerationUsageRecord: Decodable, Identifiable, Sendab
         case completedAtMs
     }
 }
-#endif
 
 @MainActor
 final class CloudAIProxyClient {
@@ -179,7 +177,6 @@ final class CloudAIProxyClient {
         return try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
     }
 
-    #if DEBUG
     func currentUsageGenerations() async throws -> [CloudAIGenerationUsageRecord] {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
@@ -201,7 +198,6 @@ final class CloudAIProxyClient {
 
         return try JSONDecoder().decode(UsageGenerationsResponse.self, from: data).generations
     }
-    #endif
 
     func currentPromptBundle() async throws -> AIPromptBundle {
         guard let user = Auth.auth().currentUser,
@@ -289,9 +285,7 @@ final class CloudAIProxyClient {
             body: FinishRequest(generationID: generation.generationID, sessionToken: generation.sessionToken, validatedCards: validatedCards)
         )
         SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
-        #if DEBUG
         await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
-        #endif
         return response.usageQuota
     }
 
@@ -304,9 +298,7 @@ final class CloudAIProxyClient {
         )
         if let response {
             SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
-            #if DEBUG
             await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
-            #endif
         }
     }
 
@@ -457,11 +449,9 @@ private struct QuotaResponseEnvelope: Decodable {
     }
 }
 
-#if DEBUG
 private struct UsageGenerationsResponse: Decodable {
     let generations: [CloudAIGenerationUsageRecord]
 }
-#endif
 
 private struct PromptConfigResponse: Decodable {
     let promptVersion: String

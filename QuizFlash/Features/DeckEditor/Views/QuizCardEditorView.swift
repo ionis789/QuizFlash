@@ -16,6 +16,7 @@ struct QuizCardEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     @State private var highlightContext: HighlightContext?
@@ -52,7 +53,6 @@ struct QuizCardEditorView: View {
     @State private var quizScrollDriver = ZoneEditorScrollDriver()
     @State private var scheduledCaretScrollTask: Task<Void, Never>?
     @State private var keyboardDismissPadding: CGFloat = 0
-    @State private var isQuizDebugEnabled = false
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var activeQuizCaretSource: ZoneEditorCaretScrollSource?
@@ -84,7 +84,7 @@ struct QuizCardEditorView: View {
     }
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var isQuizDebugAvailable: Bool { AppFeatures.current.showsVisualDebugOverlays }
-    private var isQuizDebugRecordingActive: Bool { isQuizDebugAvailable && isQuizDebugEnabled }
+    private var isQuizDebugRecordingActive: Bool { isQuizDebugAvailable && developmentPreferences.quizEditorDebugEnabled }
     private var bottomContentPadding: CGFloat {
         let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
         return chromePadding + keyboardDismissPadding
@@ -352,7 +352,7 @@ struct QuizCardEditorView: View {
             updateFloatingFormatBarKeyboardHeight()
             scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
-        .onChange(of: isQuizDebugEnabled) { _, isEnabled in
+        .onChange(of: developmentPreferences.quizEditorDebugEnabled) { _, isEnabled in
             if isEnabled {
                 ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(true)
                 recordQuizScroll(
@@ -864,42 +864,30 @@ struct QuizCardEditorView: View {
 
     @ViewBuilder
     private func quizDebugControls(safeTopInset: CGFloat) -> some View {
-        if isQuizDebugAvailable {
+        if isQuizDebugRecordingActive {
             VStack {
                 HStack {
                     Spacer(minLength: 0)
+
+                    Text("DBG ON")
+                        .font(.caption2.monospaced().weight(.bold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Color.orange, in: Capsule(style: .continuous))
+
                     Button {
-                        withAnimation(.easeInOut(duration: 0.14)) {
-                            isQuizDebugEnabled.toggle()
-                        }
+                        UIPasteboard.general.string = quizDebugReport
                     } label: {
-                        Text(isQuizDebugEnabled ? "DBG ON" : "DBG")
+                        Text("COPY DEBUG")
                             .font(.caption2.monospaced().weight(.bold))
-                            .foregroundStyle(isQuizDebugEnabled ? .black : .orange)
+                            .foregroundStyle(.black)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 4)
-                            .background(
-                                isQuizDebugEnabled ? Color.orange : Color.black.opacity(0.62),
-                                in: Capsule(style: .continuous)
-                            )
+                            .background(Color.orange, in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isQuizDebugEnabled ? "Disable quiz editor debug" : "Enable quiz editor debug")
-
-                    if isQuizDebugEnabled {
-                        Button {
-                            UIPasteboard.general.string = quizDebugReport
-                        } label: {
-                            Text("COPY DEBUG")
-                                .font(.caption2.monospaced().weight(.bold))
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 4)
-                                .background(Color.orange, in: Capsule(style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Copy quiz editor debug")
-                    }
+                    .accessibilityLabel("Copy quiz editor debug")
                 }
 
                 Spacer(minLength: 0)

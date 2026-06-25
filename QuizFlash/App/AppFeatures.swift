@@ -25,11 +25,11 @@ nonisolated struct AppFeatures: Sendable {
     }
 
     var showsInternalLabs: Bool {
-        buildFlavor == .development
+        true
     }
 
     var showsVisualDebugOverlays: Bool {
-        buildFlavor == .development
+        true
     }
 
     var enablesAITraceTooling: Bool {

@@ -2251,24 +2251,16 @@ struct ZoneEditorCanvas: View {
 
     @ViewBuilder
     private var debugOverlay: some View {
-        if showsDebugTools {
+        if showsDebugTools && (developmentPreferences.zoneEditorDebugHUDEnabled || showsGridDebugOverlay) {
             VStack(alignment: .leading, spacing: 3) {
-                Button {
-                    developmentPreferences.zoneEditorDebugHUDEnabled.toggle()
-                } label: {
-                    Text(developmentPreferences.zoneEditorDebugHUDEnabled ? "DBG ON" : "DBG")
+                if developmentPreferences.zoneEditorDebugHUDEnabled {
+                    Text("DBG ON")
                         .font(.caption2.monospaced().weight(.bold))
-                        .foregroundStyle(developmentPreferences.zoneEditorDebugHUDEnabled ? .black : .orange)
+                        .foregroundStyle(.black)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(
-                            developmentPreferences.zoneEditorDebugHUDEnabled ? Color.orange : Color.black.opacity(0.62),
-                            in: Capsule(style: .continuous)
-                        )
-                }
-                .buttonStyle(.plain)
+                        .background(Color.orange, in: Capsule(style: .continuous))
 
-                if developmentPreferences.zoneEditorDebugHUDEnabled {
                     Button {
                         UIPasteboard.general.string = interactionTraceReport
                     } label: {
