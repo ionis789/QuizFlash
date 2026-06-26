@@ -161,7 +161,7 @@ struct TickValuePicker: View {
         TickPickerConfig(
             tickWidth: 2,
             tickHeight: isCompact ? 24 : 34,
-            tickHPadding: isCompact ? 3 : 4,
+            tickHPadding: isCompact ? 5 : 4,
             inActiveHeightProgress: 0.48,
             interactionHeight: isCompact ? 54 : 76,
             tickAreaTopPadding: isCompact ? 4 : 8,

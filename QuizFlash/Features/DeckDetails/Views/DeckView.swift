@@ -51,6 +51,7 @@ struct DeckContentView: View {
     @State var unavailablePlayMode: DeckPlayModeDestination? = nil
     @State var showAddCardTypeDialog = false
     @State var pendingDeleteCardID: PersistentIdentifier? = nil
+    @State var playModeSettingsMeasuredSheetHeight: CGFloat = 0
     @State var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
     @State var preparedFlashcardsPlayModeViewModel: FlashCardsPlayModeViewModel?
     @State var flashcardsPreparationTask: Task<Void, Never>?
@@ -195,6 +196,9 @@ struct DeckContentView: View {
                 }
             }
             .onChange(of: selectedPlayModeSettings) { old, new in
+                if old != new {
+                    playModeSettingsMeasuredSheetHeight = 0
+                }
                 guard old == .flashcards, new == nil else { return }
                 resetPreparedFlashcardsPlayMode()
                 guard !isSuspended else { return }

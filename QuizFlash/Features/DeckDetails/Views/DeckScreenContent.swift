@@ -95,7 +95,8 @@ extension DeckContentView {
             mode.settingsSheetView(
                 for: deck,
                 safeAreaInsets: safeArea,
-                availability: viewModel.playModeAvailability
+                availability: viewModel.playModeAvailability,
+                onContentHeightChange: updatePlayModeSettingsSheetHeight
             )
         } background: {
             if let mode = selectedPlayModeSettings {
@@ -185,13 +186,28 @@ extension DeckContentView {
     }
 
     var playModeSettingsSheetHeightMode: FullScreenSheetHeightMode {
+        let fallbackHeight: CGFloat
         switch selectedPlayModeSettings {
         case .quiz:
-            .absolute(540)
+            fallbackHeight = 540
         case .flashcards:
-            .absolute(700)
+            fallbackHeight = 700
         case nil:
-            .custom(0.6)
+            fallbackHeight = 540
+        }
+
+        return .absolute(playModeSettingsMeasuredSheetHeight > 0 ? playModeSettingsMeasuredSheetHeight : fallbackHeight)
+    }
+
+    func updatePlayModeSettingsSheetHeight(_ height: CGFloat) {
+        let roundedHeight = ceil(height)
+        guard roundedHeight > 0,
+              abs(playModeSettingsMeasuredSheetHeight - roundedHeight) > 0.5 else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            playModeSettingsMeasuredSheetHeight = roundedHeight
         }
     }
 

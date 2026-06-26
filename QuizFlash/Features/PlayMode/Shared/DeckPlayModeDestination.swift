@@ -240,13 +240,15 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     func settingsSheetView(
         for deck: DeckModel,
         safeAreaInsets: UIEdgeInsets,
-        availability: PlayModeCardAvailability
+        availability: PlayModeCardAvailability,
+        onContentHeightChange: @escaping (CGFloat) -> Void = { _ in }
     ) -> some View {
         PlayModeSettingsScreen(
             deck: deck,
             mode: self,
             availability: availability,
-            safeAreaInsets: safeAreaInsets
+            safeAreaInsets: safeAreaInsets,
+            onContentHeightChange: onContentHeightChange
         )
     }
 }

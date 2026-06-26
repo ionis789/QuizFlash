@@ -36,7 +36,13 @@ struct PlayModeSettingsScreen: View {
     /// Safe-area values passed by the custom full-screen sheet container.
     let safeAreaInsets: UIEdgeInsets
 
+    /// Reports the content height required by this sheet so the presenter can
+    /// size the custom sheet around the current settings rows.
+    let onContentHeightChange: (CGFloat) -> Void
+
     @State private var headerHeight: CGFloat = 0
+    @State private var settingsContentHeight: CGFloat = 0
+    @State private var lastReportedContentHeight: CGFloat = 0
     @State private var hasLoadedSettings = false
     @State private var settingsModel: DeckPlayModeSettingsModel?
     @State private var flashcardSettings = FlashcardModeSettings()
@@ -93,13 +99,7 @@ struct PlayModeSettingsScreen: View {
         GeometryReader { geo in
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
-            let resolvedHeaderClearance = max(
-                headerHeight + UIConstants.Spacing.standard,
-                resolvedSafeTopInset
-                    + UIConstants.Spacing.standard
-                    + UIConstants.Size.capsuleHeight
-                    + UIConstants.Spacing.medium
-            )
+            let resolvedBottomPadding = resolvedSafeBottomInset + UIConstants.Spacing.large
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
@@ -107,15 +107,25 @@ struct PlayModeSettingsScreen: View {
                         .ignoresSafeArea()
                 }
 
-                VStack(alignment: .leading, spacing: 0) {
-                    settingsCard
-                }
-                .padding(.horizontal, horizontalInset)
-                .padding(.top, resolvedHeaderClearance)
-                .padding(.bottom, resolvedSafeBottomInset + UIConstants.Spacing.large)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                VStack(spacing: 0) {
+                    header(safeTopInset: resolvedSafeTopInset)
 
-                header(safeTopInset: resolvedSafeTopInset)
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            settingsCard
+                        }
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, UIConstants.Spacing.standard)
+                        .padding(.bottom, resolvedBottomPadding)
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { newHeight in
+                            updateSettingsContentHeight(newHeight)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -137,6 +147,30 @@ struct PlayModeSettingsScreen: View {
                     : saveErrorMessage
             )
         }
+    }
+
+    private func updateSettingsContentHeight(_ height: CGFloat) {
+        let roundedHeight = ceil(height)
+        guard roundedHeight > 0,
+              abs(settingsContentHeight - roundedHeight) > 0.5 else {
+            return
+        }
+
+        settingsContentHeight = roundedHeight
+        reportContentHeight(headerHeight: headerHeight, settingsContentHeight: roundedHeight)
+    }
+
+    private func reportContentHeight(headerHeight: CGFloat, settingsContentHeight: CGFloat) {
+        let roundedHeight = ceil(headerHeight + settingsContentHeight)
+        guard headerHeight > 0,
+              settingsContentHeight > 0,
+              roundedHeight > 0,
+              abs(lastReportedContentHeight - roundedHeight) > 0.5 else {
+            return
+        }
+
+        lastReportedContentHeight = roundedHeight
+        onContentHeightChange(roundedHeight)
     }
 
     // MARK: - Navigation Bar
@@ -169,10 +203,19 @@ struct PlayModeSettingsScreen: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { newHeight in
-            if abs(headerHeight - newHeight) > 0.5 {
-                headerHeight = newHeight
-            }
+            updateHeaderHeight(newHeight)
         }
+    }
+
+    private func updateHeaderHeight(_ height: CGFloat) {
+        let roundedHeight = ceil(height)
+        guard roundedHeight > 0,
+              abs(headerHeight - roundedHeight) > 0.5 else {
+            return
+        }
+
+        headerHeight = roundedHeight
+        reportContentHeight(headerHeight: roundedHeight, settingsContentHeight: settingsContentHeight)
     }
 
     private var dismissButton: some View {

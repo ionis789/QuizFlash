@@ -21,7 +21,8 @@ struct FlashCardsModeSettingsView: View {
             deck: deck,
             mode: .flashcards,
             availability: availability,
-            safeAreaInsets: safeAreaInsets
+            safeAreaInsets: safeAreaInsets,
+            onContentHeightChange: { _ in }
         )
     }
 }
