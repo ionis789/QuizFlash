@@ -50,7 +50,6 @@ struct FolderCardView: View {
 
                 Text(folder.title)
                     .font(.headline.weight(.semibold))
-                    .fontDesign(.rounded)
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
                     .padding(.bottom, 4)
@@ -95,7 +94,6 @@ struct EmptyStatePlaceholderFolderCard: View {
 
             Text(message)
                 .font(.subheadline.weight(.medium))
-                .fontDesign(.rounded)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

@@ -211,7 +211,7 @@ extension DeckContentView {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(prompt.title)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
 
@@ -345,10 +345,10 @@ extension DeckContentView {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.standard) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(localized("Spaced Repetition Stats"))
-                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .font(.system(size: 20, weight: .black))
                             .foregroundStyle(.primary)
                         Text(localized("Live card memory and schedule snapshot"))
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
 
@@ -399,13 +399,13 @@ extension DeckContentView {
                     .foregroundStyle(color)
                     .frame(width: 24, height: 24)
                 Text(value)
-                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .font(.system(size: 22, weight: .black))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
                 Text(label.uppercased())
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }

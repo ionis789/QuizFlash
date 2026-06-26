@@ -34,11 +34,11 @@ struct PlayModeSettingsOverviewCard: View {
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     Text("DECK-SCOPED SETTINGS")
-                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
                         .foregroundStyle(.secondary)
 
                     Text(mode.localizedSettingsHeadline(locale: appPreferences.resolvedLocale))
-                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .font(.system(size: 30, weight: .black))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -192,7 +192,7 @@ private struct CompactTapAnimationRow: View {
             CompactSettingsIcon(systemName: icon, tint: tint)
 
             Text(title)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }
@@ -213,7 +213,7 @@ private struct CompactTapAnimationRow: View {
                     }
                 } label: {
                     Text(titleForOption(option, appPreferences.resolvedLocale))
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
@@ -300,14 +300,14 @@ private struct CompactTextSizeSliderRow: View {
                     CompactSettingsIcon(systemName: icon, tint: tint)
 
                     Text(title)
-                        .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                        .font(.system(size: isDense ? 17 : 18, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     Spacer(minLength: UIConstants.Spacing.small)
 
                     Text("\(textSize.step)")
-                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 14, weight: .bold).monospacedDigit())
                         .foregroundStyle(.primary)
                         .duoMetricPill(tint: tint)
                         .contentTransition(.numericText())
@@ -353,7 +353,7 @@ private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
             CompactSettingsIcon(systemName: icon, tint: tint)
 
             Text(title)
-                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .font(.system(size: isDense ? 17 : 18, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
 
@@ -371,7 +371,7 @@ private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
             } label: {
                 HStack(spacing: UIConstants.Spacing.tiny) {
                     Text(titleForOption(selection, appPreferences.resolvedLocale))
-                        .font(.system(size: isDense ? 14 : 15, weight: .bold, design: .rounded))
+                        .font(.system(size: isDense ? 14 : 15, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
 
@@ -404,7 +404,7 @@ private struct CompactSettingsToggleRow: View {
             CompactSettingsIcon(systemName: icon, tint: tint)
 
             Text(title)
-                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .font(.system(size: isDense ? 17 : 18, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
 
@@ -452,7 +452,7 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
             CompactSettingsIcon(systemName: icon, tint: tint)
 
             Text(title)
-                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .font(.system(size: isDense ? 17 : 18, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }
@@ -465,7 +465,7 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
             selection = option
         } label: {
             Text(titleForOption(option, appPreferences.resolvedLocale))
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -500,7 +500,7 @@ struct PlayModeSettingsReadinessCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             Text("Current Summary")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(.primary)
 
             Text(readinessCopy)
@@ -531,7 +531,7 @@ private struct PlayModeSettingsSectionCard<Content: View>: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Text(subtitle)
@@ -557,7 +557,7 @@ private struct PlayModeSettingsStatusChip: View {
         } icon: {
             Image(systemName: icon)
         }
-            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .font(.system(size: 14, weight: .bold))
             .foregroundStyle(.primary)
             .lineLimit(1)
             .duoMetricPill()

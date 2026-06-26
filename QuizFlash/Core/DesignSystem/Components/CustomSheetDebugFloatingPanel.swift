@@ -21,12 +21,12 @@ struct CustomSheetDebugFloatingPanel: View {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                         HStack {
                             Text("Sheet Tuner")
-                                .font(.system(.headline, design: .rounded, weight: .bold))
+                                .font(.system(.headline, weight: .bold))
                             Spacer()
                             Button("Reset") {
                                 onReset()
                             }
-                            .font(.system(.caption, design: .rounded, weight: .semibold))
+                            .font(.system(.caption, weight: .semibold))
                             .buttonStyle(.plain)
                         }
 
@@ -98,7 +98,7 @@ struct CustomSheetDebugFloatingPanel: View {
                 }
             } label: {
                 Label(isExpanded ? "Hide Sheet" : "Tune Sheet", systemImage: "slider.horizontal.3")
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .font(.system(.subheadline, weight: .semibold))
                     .padding(.horizontal, UIConstants.Spacing.medium)
                     .padding(.vertical, UIConstants.Spacing.small)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -125,7 +125,7 @@ struct CustomSheetDebugFloatingPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .font(.system(.caption, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)

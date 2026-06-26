@@ -679,7 +679,6 @@ private struct ZoneContentTreePreview: View {
                             }
                         }
                     }
-
                         .animation(
                             animatesLayoutChanges ? .easeInOut(duration: 0.22) : nil,
                             value: alignmentFeedback.highlightedTarget

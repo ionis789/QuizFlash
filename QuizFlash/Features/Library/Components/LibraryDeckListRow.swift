@@ -217,7 +217,7 @@ private struct LibraryContextMenuTitlePreview: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 22, weight: .bold, design: .rounded))
+            .font(.system(size: 22, weight: .bold))
             .foregroundStyle(themeManager.textPrimary)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
@@ -242,7 +242,7 @@ struct LibraryDeckMetaLabel: View {
             Text(text)
                 .lineLimit(1)
         }
-        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .font(.system(size: 13, weight: .medium))
         .foregroundStyle(themeManager.textSecondary)
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -255,7 +255,7 @@ private struct LibraryDeckTitleLabel: View {
 
     var body: some View {
         Text(verbatim: title)
-            .font(.system(size: 22, weight: .bold, design: .rounded))
+            .font(.system(size: 22, weight: .bold))
             .foregroundStyle(themeManager.textPrimary)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
@@ -284,7 +284,7 @@ private struct LibraryDeckCardMetaLine: View {
             Text(cardCountText)
                 .lineLimit(1)
         }
-        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .font(.system(size: 13, weight: .medium))
         .foregroundStyle(themeManager.textSecondary)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .combine)

@@ -187,7 +187,7 @@ extension LibraryLayout {
                             : localizedFormat("%d Decks", viewModel.cachedDeckCount)
                     )
             )
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

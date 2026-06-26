@@ -96,7 +96,7 @@ struct HomeCalendarSectionView: View {
     private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: state.titleFontSize, weight: .bold, design: .rounded))
+                .font(.system(size: state.titleFontSize, weight: .bold))
                 .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
@@ -252,7 +252,7 @@ struct HomeCalendarSectionView: View {
         HStack(spacing: 0) {
             ForEach(calendarVM.orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.system(size: state.weekdayFontSize, weight: .bold, design: .rounded))
+                    .font(.system(size: state.weekdayFontSize, weight: .bold))
                     .frame(width: state.dayColumnWidth)
                     .foregroundStyle(.secondary)
             }
@@ -352,7 +352,7 @@ struct HomeCalendarSectionView: View {
             action()
         } label: {
             Image(systemName: systemName)
-                .font(.system(size: size * 0.58, weight: .black, design: .rounded))
+                .font(.system(size: size * 0.58, weight: .black))
                 .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())
@@ -453,8 +453,7 @@ struct CalendarDayCellView: View {
         Text(day.shortSymbol)
             .font(.system(
             size: metrics.fontSize,
-            weight: (day.isSelected || isToday) ? .bold : .medium,
-            design: .rounded
+            weight: (day.isSelected || isToday) ? .bold : .medium
         ))
             .foregroundStyle(textColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -1225,7 +1225,7 @@ struct FlashcardEditorView: View {
 
     private func sideSwitchSegment(title: String, isSelected: Bool) -> some View {
         Text(title)
-            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .black, design: .rounded))
+            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .black))
             .foregroundStyle(Color.primary)
             .scaleEffect(isSelected ? 1.2 : 0.9)
             .animation(.tabItemSpring, value: isSelected)

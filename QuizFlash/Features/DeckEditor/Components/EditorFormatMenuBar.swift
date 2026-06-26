@@ -327,7 +327,7 @@ struct EditorFormatMenuBar: View {
             }
 
             Text("\(Int(mediaSizePercent))")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
                 .frame(width: 42)

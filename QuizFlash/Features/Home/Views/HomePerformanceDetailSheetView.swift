@@ -75,11 +75,11 @@ struct HomePerformanceDetailSheetView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(localized("Study detail"))
-                .font(.system(size: 32, weight: .black, design: .rounded))
+                .font(.system(size: 32, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
 
             Text(windowEndingLine)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -119,18 +119,18 @@ struct HomePerformanceDetailSheetView: View {
     private var emptyStateSection: some View {
         VStack(alignment: .center, spacing: UIConstants.Spacing.large) {
             Text(localized("Study detail"))
-                .font(.system(size: 32, weight: .black, design: .rounded))
+                .font(.system(size: 32, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .multilineTextAlignment(.center)
 
             Text(windowEndingLine)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(themeManager.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(localized("No activity yet"))
-                .font(.system(size: 21, weight: .bold, design: .rounded))
+                .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -152,12 +152,12 @@ private struct HomePerformancePlainMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(2)
 
             Text(value)
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 28, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
@@ -174,7 +174,7 @@ private struct HomePerformanceBarSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             Text(title)
-                .font(.system(size: 18, weight: .black, design: .rounded))
+                .font(.system(size: 18, weight: .black))
                 .foregroundStyle(labelTint)
 
             HomePerformanceBarRow(
@@ -244,7 +244,7 @@ private struct HomePerformanceBarColumn: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(day.shortWeekday)
-                .font(.system(size: 14, weight: .black, design: .rounded))
+                .font(.system(size: 14, weight: .black))
                 .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
 
@@ -345,7 +345,7 @@ private struct HomePerformanceStackedBar: View {
 
             if totalCount == 0 {
                 Text("0")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .font(.system(size: 13, weight: .black))
                     .monospacedDigit()
                     .foregroundStyle(themeManager.textSecondary.opacity(0.55))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -367,7 +367,7 @@ private struct HomePerformanceBarSegment: View {
             fill
 
             Text("\(value)")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+                .font(.system(size: 13, weight: .black))
                 .monospacedDigit()
                 .foregroundStyle(textColor)
                 .lineLimit(1)

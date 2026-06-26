@@ -14,7 +14,7 @@ extension DeckWorkspaceView {
     func heroHeader(topPadding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
             TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
-                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                .font(.system(size: 42, weight: .heavy))
                 .textFieldStyle(.plain)
                 .foregroundStyle(.primary)
                 .lineLimit(1...2)
@@ -234,23 +234,23 @@ extension DeckWorkspaceView {
         } label: {
             HStack(alignment: .center, spacing: UIConstants.Spacing.small + 2) {
                 Image(systemName: viewModel.selectedFolder == nil ? "tray.full" : "folder.fill")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(accent)
 
                 VStack(alignment: .leading, spacing: 1) {
 //                    Text(localized("Save to"))
-//                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+//                        .font(.system(size: 11, weight: .heavy))
 //                        .foregroundStyle(.secondary)
 //                        .textCase(.uppercase)
 
                     Text(destinationTitle)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
 
                 Image(systemName: "chevron.down.compact")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.tertiary)
             }
             .padding(.leading, UIConstants.Spacing.small)
@@ -336,10 +336,10 @@ extension DeckWorkspaceView {
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "wand.and.stars")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
 
                     Text(localized("Generate"))
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .font(.system(size: 15, weight: .heavy))
                         .lineLimit(1)
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
@@ -361,9 +361,9 @@ extension DeckWorkspaceView {
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "bolt.badge.clock")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                     Text(localized("Mock AI"))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .lineLimit(1)
                 }
                 .foregroundStyle(.blue)
@@ -389,7 +389,7 @@ extension DeckWorkspaceView {
                         }
                     } label: {
                         Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(aiToolbarTint)
                         .frame(width: 24, height: 24)
                     }
@@ -425,9 +425,9 @@ extension DeckWorkspaceView {
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "wand.and.stars")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                     Text(localized("Generate"))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .lineLimit(1)
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
@@ -474,7 +474,7 @@ extension DeckWorkspaceView {
     var generationHeaderStatusControl: some View {
         HStack(spacing: UIConstants.Spacing.small) {
             AIShimmeringStatusText(localized("Generating cards"))
-                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .font(.system(size: 20, weight: .heavy))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -483,7 +483,7 @@ extension DeckWorkspaceView {
 
             if viewModel.aiTargetCardCount > 0 {
                 Text("\(viewModel.aiGeneratedCardCount)/\(viewModel.aiTargetCardCount)")
-                    .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 15, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: UIConstants.Animation.standard), value: viewModel.aiGeneratedCardCount)
@@ -770,7 +770,7 @@ struct CreateDeckAIStatusIndicator: View {
         VStack(spacing: countText == nil ? 0 : 2) {
             if let countText {
                 Text(countText)
-                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 12, weight: .bold).monospacedDigit())
                     .foregroundStyle(.primary)
                     .statusTextMotion(trigger: countText)
                     .transition(
@@ -795,7 +795,6 @@ struct CreateDeckChromeButtonLabel: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-            .fontDesign(.rounded)
             .foregroundStyle(tint)
             .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
     }

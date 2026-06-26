@@ -706,7 +706,7 @@ private struct SharedUICatalogMetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(value)
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 28, weight: .black))
                 .foregroundStyle(tint)
 
             Text(label)
@@ -730,7 +730,7 @@ private struct SharedUICatalogSectionHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(.primary)
 
             Text(subtitle)
@@ -750,7 +750,7 @@ private struct SharedUICatalogShowcaseCard<Demo: View>: View {
             HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(entry.title)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.primary)
 
                     Text(entry.summary)
@@ -834,7 +834,7 @@ private struct SharedUICatalogRegistryCard: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(section.title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Text(section.subtitle)
@@ -914,7 +914,7 @@ private struct SharedUICatalogEmptyState: View {
                 .foregroundStyle(.tertiary)
 
             Text("No catalog matches")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(.primary)
 
             Text("Nothing in the shared UI registry matches “\(query)”.")
@@ -940,7 +940,7 @@ private struct SharedUICatalogMiniStat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(.primary)
             Text(title)
                 .font(.caption.weight(.medium))
@@ -1052,7 +1052,7 @@ private struct SharedUICatalogTopNavigationChromeDemo: View {
                 .frame(height: 1)
             HStack {
                 Text("Deck Title")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: 0)
@@ -1083,7 +1083,7 @@ private struct SharedUICatalogStatusTextMotionDemo: View {
                 .textCase(.uppercase)
 
             Text("\(dueCount)")
-                .font(.system(size: 40, weight: .black, design: .rounded))
+                .font(.system(size: 40, weight: .black))
                 .foregroundStyle(.primary)
                 .statusTextMotion(trigger: dueCount)
 
@@ -1369,7 +1369,7 @@ private struct SharedUICatalogSampleSheet: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                     Text("Shared Sheet Playground")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .font(.system(size: 28, weight: .black))
                         .foregroundStyle(.primary)
 
                     Text("Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.")

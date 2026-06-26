@@ -178,13 +178,13 @@ struct HomeDashboardView: View {
     private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
         VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
             Text(selectedDayTitle(for: overview))
-                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
                 .foregroundStyle(accentColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
 
             Text(selectedDayReviewedLine(for: overview))
-                .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.68)
@@ -248,12 +248,12 @@ struct HomeDashboardView: View {
             HStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
                 VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
                     Text(localized("This week"))
-                        .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
                         .foregroundStyle(accentColor)
                         .lineLimit(1)
 
                     Text(weeklyPerformanceHeadline(for: summary))
-                        .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
@@ -264,7 +264,7 @@ struct HomeDashboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black, design: .rounded))
+                    .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black))
                     .foregroundStyle(accentColor)
                     .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
                     .background {
@@ -305,7 +305,7 @@ struct HomeDashboardView: View {
         let resolvedTint = tint ?? themeManager.textSecondary
 
         return Text(text)
-            .font(.system(size: usesRegularMetrics ? 15 : 14, weight: .bold, design: .rounded))
+            .font(.system(size: usesRegularMetrics ? 15 : 14, weight: .bold))
             .foregroundStyle(tint == nil ? themeManager.textSecondary : themeManager.textPrimary.opacity(0.92))
             .lineLimit(2)
             .minimumScaleFactor(0.78)
@@ -514,7 +514,7 @@ private struct HomeDashboardSectionHeader: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .font(.system(size: 17, weight: .black))
                     .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                     .textCase(.uppercase)
                     .tracking(0.8)
@@ -531,7 +531,7 @@ private struct HomeDashboardSectionHeader: View {
 
             if let count {
                 Text("\(count)")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .font(.system(size: 15, weight: .black))
                     .foregroundStyle(themeManager.textSecondary)
                     .contentTransition(.numericText())
                     .fixedSize()
@@ -566,7 +566,7 @@ private struct HomeDashboardCreateFolderPlaceholder: View {
                 .frame(width: usesRegularMetrics ? 76 : 68, height: usesRegularMetrics ? 76 : 68)
 
                 Text(title)
-                    .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
+                    .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                     .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
@@ -600,7 +600,7 @@ private struct HomeDashboardEmptyPlaceholderContent: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
+            .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
             .foregroundStyle(themeManager.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -729,12 +729,12 @@ private struct HomeDashboardOutcomeMetric: View {
     var body: some View {
         VStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
 
             Text(value)
-                .font(.system(size: usesRegularMetrics ? 32 : 29, weight: .black, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 32 : 29, weight: .black))
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -808,7 +808,7 @@ private struct HomeWeeklyCoverageBar: View {
     var body: some View {
         VStack(spacing: 10) {
             Text("\(day.cardsReviewed)")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(day.isSelectedDay ? themeManager.textPrimary : themeManager.textSecondary)
                 .contentTransition(.numericText(value: Double(day.cardsReviewed)))
                 .frame(height: 16)
@@ -835,7 +835,7 @@ private struct HomeWeeklyCoverageBar: View {
             .animation(.circularSelectionSpring, value: day.cardsReviewed)
 
             Text(day.shortWeekday)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(day.isSelectedDay ? tint : themeManager.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .bottom)
@@ -853,17 +853,17 @@ private struct HomeWeeklyCoverageMetricChip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
 
             Text(value)
-                .font(.system(size: 24, weight: .black, design: .rounded))
+                .font(.system(size: 24, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
             Text(detail)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -901,12 +901,12 @@ private struct HomeSelectedDayDeckRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summary.title)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
 
                     Text("\(summary.uniqueCardCount) unique • \(summary.correctCardCount) landed • \(summary.retryCardCount) retry")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(1)
                 }
@@ -951,7 +951,7 @@ private struct HomeSelectedDayDeckViewport: View {
             if let summary {
                 HStack(spacing: 10) {
                     Text(summary.title)
-                        .font(.system(size: usesRegularMetrics ? 18 : 17, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 18 : 17, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
 
@@ -974,11 +974,11 @@ private struct HomeSelectedDayDeckViewport: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Choose a deck")
-                        .font(.system(size: usesRegularMetrics ? 18 : 17, weight: .black, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 18 : 17, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Text("Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1017,14 +1017,14 @@ private struct HomeWeeklyCoverageDeckBreakdownCard: View {
                     .frame(width: 10, height: 10)
 
                 Text(summary.title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
 
                 Text("\(summary.uniqueCardCount) unique")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(themeManager.textSecondary)
             }
 
@@ -1052,7 +1052,7 @@ private struct HomeWeeklyCoverageDeckBreakdownCard: View {
 
             if summary.cards.count > 3 {
                 Text("+\(summary.cards.count - 3) more card\(summary.cards.count - 3 == 1 ? "" : "s")")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(themeManager.textSecondary)
             }
         }
@@ -1077,7 +1077,7 @@ private struct HomeWeeklyCoverageReviewedCardRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(card.title)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
 
@@ -1085,12 +1085,12 @@ private struct HomeWeeklyCoverageReviewedCardRow: View {
 
             if card.reviewCount > 1 {
                 Text("\(card.reviewCount)x")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(themeManager.textSecondary)
             }
 
             Text(badgeText)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(themeManager.textPrimary)
                 .duoMetricPill(tint: badgeTint)
         }
@@ -1109,11 +1109,11 @@ private struct HomeWeeklyCoverageEmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nothing landed on \(label.lowercased())")
-                .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                 .foregroundStyle(themeManager.textPrimary)
 
             Text("Tap another day in the chart or start a short review block to build this week with meaningful history.")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1217,7 +1217,7 @@ private struct HomeDashboardInlineBadge: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(title)
-                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .font(.system(size: 20, weight: .heavy))
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -1292,14 +1292,14 @@ private struct HomeDashboardRecentDeckRow: View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(verbatim: snapshot.title)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(localizedCardCount)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(1)
                 }
@@ -1343,7 +1343,7 @@ private struct HomeDashboardFolderCard: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(snapshot.title)
-                        .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -1355,7 +1355,7 @@ private struct HomeDashboardFolderCard: View {
                             locale: appPreferences.resolvedLocale
                         )
                     )
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(themeManager.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

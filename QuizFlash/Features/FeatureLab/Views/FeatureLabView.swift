@@ -17,7 +17,7 @@ struct FeatureLabView: View {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                     Text("Experiments")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.primary)
 
                     ForEach(entries, id: \.self) { route in
@@ -55,7 +55,7 @@ private struct FeatureLabEntryCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(route.title)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Text(route.subtitle)

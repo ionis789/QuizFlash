@@ -352,7 +352,7 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text(profileName)
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .black))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
@@ -595,7 +595,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             Text(AppLocalization.string("Confirm Password", locale: appPreferences.resolvedLocale))
                 .font(.title3.weight(.bold))
-                .fontDesign(.rounded)
 
             AuthIconTextField(
                 title: AppLocalization.string("Password", locale: appPreferences.resolvedLocale),
@@ -838,7 +837,7 @@ struct SettingsView: View {
             }
 
             Text(title)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -909,7 +908,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
             Text(AppLocalization.string("Premium access", locale: appPreferences.resolvedLocale))
                 .font(.title2.weight(.bold))
-                .fontDesign(.rounded)
 
             Text(AppLocalization.string("Premium is managed manually until App Store Connect is ready.", locale: appPreferences.resolvedLocale))
                 .font(.body.weight(.medium))

@@ -49,11 +49,11 @@ struct ProgressiveBlurHeaderLabView: View {
 
             VStack(spacing: 2) {
                 Text("Blur Header Lab")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white.opacity(0.96))
 
                 Text("Radius \(settings.maxBlurRadius, specifier: "%.1f")")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.56))
             }
 
@@ -97,12 +97,12 @@ struct ProgressiveBlurHeaderLabView: View {
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             Text("Scroll this surface and watch the rows pass behind the sticky header blur.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .black))
                 .foregroundStyle(.white.opacity(0.96))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -126,11 +126,11 @@ struct ProgressiveBlurHeaderLabView: View {
     private func metricPill(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.54))
 
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(.white.opacity(0.94))
         }
         .padding(.horizontal, UIConstants.Spacing.medium)
@@ -175,12 +175,12 @@ private struct ProgressiveBlurHeaderDemoCard: View {
                 .frame(width: 120, height: 8)
 
             Text(title)
-                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .font(.system(size: 36, weight: .bold))
                 .foregroundStyle(.white.opacity(0.96))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(subtitle)
-                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -188,7 +188,7 @@ private struct ProgressiveBlurHeaderDemoCard: View {
                 .overlay(Color.white.opacity(0.08))
 
             Text("Row \(index)")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.46))
         }
         .padding(UIConstants.Spacing.large)
@@ -215,14 +215,14 @@ private struct ProgressiveBlurHeaderLabFloatingPanel: View {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     HStack {
                         Text("Header Blur")
-                            .font(.system(.headline, design: .rounded, weight: .bold))
+                            .font(.system(.headline, weight: .bold))
 
                         Spacer()
 
                         Button("Reset") {
                             onReset()
                         }
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .font(.system(.caption, weight: .semibold))
                         .buttonStyle(.plain)
                     }
 
@@ -264,7 +264,7 @@ private struct ProgressiveBlurHeaderLabFloatingPanel: View {
                 }
             } label: {
                 Label(isExpanded ? "Hide Blur" : "Tune Blur", systemImage: "slider.horizontal.3")
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .font(.system(.subheadline, weight: .semibold))
                     .padding(.horizontal, UIConstants.Spacing.medium)
                     .padding(.vertical, UIConstants.Spacing.small)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -282,7 +282,7 @@ private struct ProgressiveBlurHeaderLabFloatingPanel: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title)
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .font(.system(.caption, weight: .semibold))
                     .foregroundStyle(.secondary)
 
                 Spacer()

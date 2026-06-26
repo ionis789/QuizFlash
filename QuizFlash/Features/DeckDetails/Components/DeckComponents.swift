@@ -65,7 +65,7 @@ struct DeckHeaderView: View {
                 // Title and subtitle
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
-                        .font(.title.weight(.bold)).fontDesign(.rounded)
+                        .font(.title.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
 
@@ -230,7 +230,7 @@ private struct PlayModeCard: View {
                     }
 
                     Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
-                        .font(.system(size: 21, weight: .black, design: .rounded))
+                        .font(.system(size: 21, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)

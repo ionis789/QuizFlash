@@ -28,13 +28,13 @@ struct AIExtractingLoadingView: View {
                         .frame(width: 72, height: 72)
 
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .font(.system(size: 28, weight: .semibold))
                         .foregroundStyle(accent)
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     Text("Preparing your material")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(.primary)
 
                     Text("Reading the source and setting up the generation pipeline.")
@@ -75,7 +75,7 @@ struct AIStreamingTextStatusView: View {
 
     var body: some View {
         AIShimmeringStatusText(title)
-            .font(.system(size: 34, weight: .heavy, design: .rounded))
+            .font(.system(size: 34, weight: .heavy))
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -191,7 +191,7 @@ struct AIStreamingProgressCard: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: UIConstants.Spacing.small) {
                             Text(title)
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .font(.system(size: 20, weight: .bold))
                                 .foregroundStyle(.primary)
 
                             ProgressActivityDots(color: accent)
@@ -290,7 +290,7 @@ struct AIPausedResumeCard: View {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.primary)
 
                         Text(subtitle)
@@ -315,7 +315,7 @@ struct AIPausedResumeCard: View {
                     Button(action: onResume) {
                         HStack(spacing: 6) {
                             Image(systemName: "play.fill")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(.system(size: 11, weight: .bold))
 
                             Text("Continue")
                                 .font(.subheadline.weight(.bold))
@@ -366,7 +366,7 @@ private struct AIGenerationCountBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
+            .font(.system(size: 13, weight: .bold).monospacedDigit())
             .foregroundStyle(.primary)
             .frame(minWidth: 52)
             .duoMetricPill()
@@ -414,7 +414,7 @@ private struct AIGenerationRoundButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 32, height: 32)
                 .background(Color(uiColor: .tertiarySystemFill), in: Circle())

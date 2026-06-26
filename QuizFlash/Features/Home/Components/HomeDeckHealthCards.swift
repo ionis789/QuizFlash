@@ -19,7 +19,7 @@ struct HomeDeckHealthSection: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Deck Health")
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(.system(.title3, weight: .bold))
                         .foregroundStyle(.primary)
 
                     Text("See which decks need intervention before they slow down your progress.")
@@ -70,12 +70,12 @@ private struct HomeDeckHealthCard: View {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(summary.title)
-                            .font(.system(.headline, design: .rounded, weight: .bold))
+                            .font(.system(.headline, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
 
                         Text(summary.headline)
-                            .font(.system(.title3, design: .rounded, weight: .heavy))
+                            .font(.system(.title3, weight: .heavy))
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
 

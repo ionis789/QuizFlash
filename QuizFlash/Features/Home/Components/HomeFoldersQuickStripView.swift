@@ -27,7 +27,7 @@ struct HomeFoldersQuickStripView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Folders")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .font(.system(.title3, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Spacer()

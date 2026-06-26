@@ -103,7 +103,7 @@ struct SelectionActionToolbar: View {
 
                     if let title {
                         Text(title)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
@@ -119,7 +119,7 @@ struct SelectionActionToolbar: View {
         case let .text(title):
             Button(action: action.action) {
                 Text(title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                     .foregroundStyle(tintColor(for: action))

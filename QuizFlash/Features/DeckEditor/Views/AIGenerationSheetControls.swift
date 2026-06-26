@@ -101,7 +101,7 @@ struct SourceRangeTickPicker: View {
         VStack(spacing: UIConstants.Spacing.tiny) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
                 Text("\(safeStart)")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: 26, weight: .heavy).monospacedDigit())
                     .foregroundStyle(.primary)
                     .frame(width: 44, alignment: .leading)
 
@@ -113,7 +113,7 @@ struct SourceRangeTickPicker: View {
                 )
 
                 Text("\(safeUpperBound)")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: 26, weight: .heavy).monospacedDigit())
                     .foregroundStyle(safeUpperBound < sourceUpperBound ? .tertiary : .secondary)
                     .frame(width: 44, alignment: .trailing)
             }
@@ -169,7 +169,7 @@ struct TickValuePicker: View {
 
         VStack(spacing: isCompact ? UIConstants.Spacing.tiny : UIConstants.Spacing.small) {
             Text(valueText(boundedValue))
-                .font(.system(size: isCompact ? 26 : 34, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: isCompact ? 26 : 34, weight: .heavy).monospacedDigit())
                 .foregroundStyle(.primary)
                 .frame(height: isCompact ? 30 : 42)
                 .lineLimit(1)
@@ -222,7 +222,7 @@ struct CardCountControl: View {
                 }
 
                 Text("\(value)")
-                    .font(.system(size: 32, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: 32, weight: .heavy).monospacedDigit())
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)

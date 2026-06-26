@@ -246,13 +246,13 @@ struct CreateFolderSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
             Text(localized("New Folder"))
-                .font(.system(size: 32, weight: .black, design: .rounded))
+                .font(.system(size: 32, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .padding(.trailing, 72)
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
                     .tint(themeManager.roleColor(.buttonPrimaryFill))
                     .focused($isTitleFocused)
@@ -260,7 +260,7 @@ struct CreateFolderSheet: View {
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                     Text(localized("Label Color"))
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .font(.system(size: 14, weight: .black))
                         .foregroundStyle(themeManager.textSecondary)
                         .textCase(.uppercase)
                         .tracking(0.7)
@@ -300,7 +300,7 @@ struct CreateFolderSheet: View {
                 viewModel.createFolder(context: context)
             } label: {
                 Text(localized("Save"))
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .font(.system(size: 18, weight: .black))
                     .foregroundStyle(canSave ? themeManager.screenBackground : themeManager.textSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)

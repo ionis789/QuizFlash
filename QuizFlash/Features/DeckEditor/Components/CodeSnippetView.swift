@@ -155,7 +155,7 @@ private struct CodeOverflowIndicator: View {
 
     private func edgeCue(direction: OverflowEdgeDirection) -> some View {
         Image(systemName: direction == .leading ? "chevron.compact.left" : "chevron.compact.right")
-            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .font(.system(size: 18, weight: .bold))
             .foregroundStyle(Color.white.opacity(0.38))
     }
 }

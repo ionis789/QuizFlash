@@ -313,7 +313,7 @@ struct SwipeArrowAnimatedObjectView: View {
 
     private var fallbackGlyph: some View {
         Image(systemName: "chevron.forward.2")
-            .font(.system(size: tuning.baseWidth * 0.30, weight: .black, design: .rounded))
+            .font(.system(size: tuning.baseWidth * 0.30, weight: .black))
             .foregroundStyle(shadowColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

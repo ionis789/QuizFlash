@@ -86,18 +86,18 @@ import SwiftUI
                         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                             HStack {
                                 Text(panelTitle)
-                                    .font(.system(.headline, design: .rounded, weight: .bold))
+                                    .font(.system(.headline, weight: .bold))
                                 Spacer()
                                 Button(localized("Reset")) {
                                     onReset()
                                 }
-                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                                .font(.system(.caption, weight: .semibold))
                                 .buttonStyle(.plain)
                             }
 
                             edgeSelector
                             Toggle(localized("Enabled"), isOn: selectedEnabledBinding)
-                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                                .font(.system(.caption, weight: .semibold))
                                 .tint(.purple)
 
                             if selectedEdgeEnabled {
@@ -126,7 +126,7 @@ import SwiftUI
                         }
                     } label: {
                         Label(isExpanded ? hideButtonTitle : showButtonTitle, systemImage: "slider.horizontal.3")
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .font(.system(.subheadline, weight: .semibold))
                             .padding(.horizontal, UIConstants.Spacing.medium)
                             .padding(.vertical, UIConstants.Spacing.small)
                             .background(.ultraThinMaterial, in: Capsule())
@@ -386,7 +386,7 @@ import SwiftUI
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(title)
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .font(.system(.caption, weight: .semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(String(format: format, Double(value)))

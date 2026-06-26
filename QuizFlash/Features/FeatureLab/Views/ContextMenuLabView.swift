@@ -205,7 +205,7 @@ private struct ContextMenuLabSection: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(surface.title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Text(surface.subtitle)

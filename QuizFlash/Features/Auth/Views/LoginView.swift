@@ -114,11 +114,11 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     Image(systemName: "bolt.fill")
-                        .font(.system(size: 46, weight: .heavy, design: .rounded))
+                        .font(.system(size: 46, weight: .heavy))
                         .foregroundStyle(themeManager.accentColor.color)
 
                     Text("QuizFlash")
-                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .font(.system(size: 40, weight: .heavy))
                         .foregroundStyle(.primary)
 
                     Text(AppLocalization.string("Welcome back", locale: locale))
@@ -289,7 +289,6 @@ private struct CreateAccountView: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 Text(AppLocalization.string("Create Account", locale: locale))
                     .font(.title.weight(.bold))
-                    .fontDesign(.rounded)
 
                 VStack(spacing: UIConstants.Spacing.medium) {
                     AuthIconTextField(
@@ -374,7 +373,6 @@ private struct ForgotPasswordView: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 Text(AppLocalization.string("Forgot Password?", locale: locale))
                     .font(.title.weight(.bold))
-                    .fontDesign(.rounded)
 
                 Text(AppLocalization.string("We'll send a reset link.", locale: locale))
                     .font(.subheadline)
@@ -432,7 +430,7 @@ private struct EmailVerificationSuccessView: View {
 
             VStack(spacing: UIConstants.Spacing.small) {
                 Text(AppLocalization.string("Email verified", locale: locale))
-                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                    .font(.system(size: 38, weight: .heavy))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
 
@@ -483,7 +481,6 @@ private struct EmailVerificationRequiredView: View {
             VStack(spacing: UIConstants.Spacing.small) {
                 Text(AppLocalization.string("Check your email", locale: locale))
                     .font(.title.weight(.bold))
-                    .fontDesign(.rounded)
 
                 if let email = user.email {
                     Text(email)

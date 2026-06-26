@@ -35,7 +35,7 @@ struct CustomTabBar: View {
             onReselect: onTabSelection
         ) { tab, isSelected in
             Image(systemName: tab.symbol)
-                .font(.system(size: 25, weight: .bold, design: .rounded))
+                .font(.system(size: 25, weight: .bold))
                 .symbolVariant(.fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transaction { transaction in

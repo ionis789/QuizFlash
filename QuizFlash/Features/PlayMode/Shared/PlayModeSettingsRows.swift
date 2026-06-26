@@ -38,7 +38,7 @@ struct PlayModeSettingsToggleRow: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             Toggle(isOn: $isOn) {
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.primary)
             }
             .tint(tint)
@@ -64,7 +64,7 @@ struct PlayModeSettingsSegmentedRow<Option: Identifiable & Hashable>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             Text(title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.primary)
 
             Text(detail)
@@ -99,7 +99,7 @@ struct PlayModeSettingsMenuRow<Option: Identifiable & Hashable>: View {
             HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.primary)
 
                     Text(detail)

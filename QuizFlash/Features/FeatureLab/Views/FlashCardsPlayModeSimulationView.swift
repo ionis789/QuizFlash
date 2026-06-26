@@ -194,7 +194,7 @@ struct FlashCardsPlayModeSimulationView: View {
         HStack(spacing: UIConstants.Spacing.small) {
             VStack(spacing: 8) {
                 Text(runtime.flashCardsPlayModeSimulationDeckTitle)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
@@ -210,7 +210,6 @@ struct FlashCardsPlayModeSimulationView: View {
             Button(action: toggleDeveloperPanel) {
                 Image(systemName: showsDeveloperPanel ? "slider.horizontal.3.circle.fill" : "slider.horizontal.3")
                     .font(.system(size: 18, weight: .bold))
-                    .fontDesign(.rounded)
                     .foregroundStyle(showsDeveloperPanel ? accentColor : .primary)
                     .frame(width: chromeButtonSize, height: chromeButtonSize)
             }
@@ -959,7 +958,7 @@ private struct FlashCardsSwipeArrowFeedbackView: View {
 
     private var fallbackGlyph: some View {
         Image(systemName: "chevron.forward.2")
-            .font(.system(size: baseWidth * 0.34, weight: .black, design: .rounded))
+            .font(.system(size: baseWidth * 0.34, weight: .black))
             .foregroundStyle(Color(red: 0.35, green: 0.62, blue: 0.95))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1132,7 +1131,7 @@ private struct FlashCardsPlayModeSimulationControlPanel: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack {
                 Text("Play Simulation")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: 0)

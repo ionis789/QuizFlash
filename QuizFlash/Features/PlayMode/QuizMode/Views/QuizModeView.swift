@@ -561,7 +561,7 @@ private struct QuizModeSessionView: View {
     private var quizMissedCorrectFloatingButton: some View {
         Button(action: viewModel.revealMissedCorrectChoices) {
             Image(systemName: "lightbulb.max.fill")
-                .font(.system(size: 19, weight: .black, design: .rounded))
+                .font(.system(size: 19, weight: .black))
                 .foregroundStyle(viewModel.canRevealMissedCorrectChoices ? Color.orange : Color.orange.opacity(0.62))
                 .frame(width: 54, height: 54)
                 .background {
@@ -577,7 +577,7 @@ private struct QuizModeSessionView: View {
     private var quizExplanationFloatingButton: some View {
         Button(action: openExplanationSheet) {
             Image(systemName: "book.closed.fill")
-                .font(.system(size: 19, weight: .black, design: .rounded))
+                .font(.system(size: 19, weight: .black))
                 .foregroundStyle(.orange)
                 .frame(width: 54, height: 54)
                 .background {
@@ -597,7 +597,7 @@ private struct QuizModeSessionView: View {
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 16, weight: .black, design: .rounded))
+                .font(.system(size: 16, weight: .black))
                 .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
                 .lineLimit(1)
                 .padding(.horizontal, 26)
@@ -629,7 +629,7 @@ private struct QuizModeSessionView: View {
             if showsQuizLayoutDebug {
                 Button(action: copyQuizLayoutDebugReport) {
                     Label(didCopyQuizLayoutDebug ? "Copied" : "Copy Layout", systemImage: "doc.on.doc")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -642,7 +642,7 @@ private struct QuizModeSessionView: View {
                 showsQuizLayoutDebug.toggle()
             } label: {
                 Label(showsQuizLayoutDebug ? "Hide Quiz Debug" : "Quiz Debug", systemImage: "ruler")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(showsQuizLayoutDebug ? Color.purple.opacity(0.95) : .white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -778,11 +778,11 @@ private struct QuizModeSessionView: View {
     private func headerMetric(value: Int, symbol: String, tint: Color) -> some View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(tint)
 
             Text("\(value)")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary.opacity(0.94))
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(value)))

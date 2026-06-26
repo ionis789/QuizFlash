@@ -360,7 +360,7 @@ extension DeckContentView {
                         HStack(alignment: .top, spacing: 16) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(deck.title)
-                                    .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                    .font(.system(size: 42, weight: .heavy))
                                     .foregroundStyle(.primary)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.7)

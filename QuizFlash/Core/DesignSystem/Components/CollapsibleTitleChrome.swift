@@ -70,7 +70,7 @@ struct CollapsibleTitlePill: View {
 
     var body: some View {
         AppTextLabel(value: titleForRendering)
-            .font(.system(size: 18, weight: .black, design: .rounded))
+            .font(.system(size: 18, weight: .black))
             .foregroundStyle(.white)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -236,7 +236,6 @@ struct ChromeCircleIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: UIConstants.Size.circularChromeSymbol, weight: .bold))
-                .fontDesign(.rounded)
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
         }
@@ -287,7 +286,6 @@ struct ChromeSoftCircleSymbol: View {
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: UIConstants.Size.circularChromeSymbol, weight: .bold))
-            .fontDesign(.rounded)
             .foregroundStyle(resolvedTint)
             .frame(width: size, height: size)
             .background {
@@ -317,7 +315,7 @@ struct LargeScreenTitle: View {
     }
     var body: some View {
         AppTextLabel(value: title)
-            .font(.system(size: 40, weight: .black, design: .rounded))
+            .font(.system(size: 40, weight: .black))
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
     }

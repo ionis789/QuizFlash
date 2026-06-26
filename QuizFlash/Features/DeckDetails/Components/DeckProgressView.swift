@@ -66,11 +66,11 @@ struct DeckProgressView: View {
         HStack(alignment: .center, spacing: 24) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(summaryValueText)
-                    .font(.system(size: 56, weight: .black, design: .rounded))
+                    .font(.system(size: 56, weight: .black))
                     .foregroundStyle(themeManager.textPrimary)
 
                 Text(summaryLabelText)
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(themeManager.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -165,7 +165,7 @@ private struct DeckMetricTile: View {
                     .foregroundStyle(.secondary)
 
                 Text(value)
-                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .font(.system(size: 26, weight: .black))
                     .foregroundStyle(tint)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)

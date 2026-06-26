@@ -67,7 +67,7 @@ struct DeckHeroView: View {
     private var collapsedPill: some View {
         ZStack {
             Text(resolvedTitle)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .hidden()
@@ -80,7 +80,7 @@ struct DeckHeroView: View {
                 }
 
             Text(resolvedTitle)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)

@@ -135,7 +135,7 @@ struct HomeGreetingCardView: View {
     private func headingBlock(titleSize: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(summary.title)
-                .font(.system(size: titleSize, weight: .heavy, design: .rounded))
+                .font(.system(size: titleSize, weight: .heavy))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -151,14 +151,14 @@ struct HomeGreetingCardView: View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.contextTitle)
-                    .font(.system(size: layout.contextTitleSize, weight: .bold, design: .rounded))
+                    .font(.system(size: layout.contextTitleSize, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(titleLineLimit)
                     .minimumScaleFactor(0.9)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(summary.contextLine)
-                    .font(.system(size: layout.contextBodySize, weight: .medium, design: .rounded))
+                    .font(.system(size: layout.contextBodySize, weight: .medium))
                     .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(layout.kind == .pad ? 3 : nil)
                     .fixedSize(horizontal: false, vertical: true)
@@ -197,7 +197,7 @@ struct HomeGreetingCardView: View {
         ) { _ in
             VStack(spacing: 2) {
                 Text(summary.progressValueText)
-                    .font(.system(size: size * 0.24, weight: .heavy, design: .rounded))
+                    .font(.system(size: size * 0.24, weight: .heavy))
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

@@ -261,13 +261,13 @@ struct DeckCardGridView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text(section.title)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: UIConstants.Spacing.small)
 
                 Text("\(section.cards.count)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
@@ -518,7 +518,7 @@ private struct DeckGridGamePreview: View {
             ForEach(Array(content.choices.prefix(4).enumerated()), id: \.element.id) { index, choice in
                 HStack(alignment: .top, spacing: 8) {
                     Text("\(index + 1)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(choice.isCorrect ? themeManager.accentColor.color : .secondary)
                         .frame(width: 18, height: 18)
                         .background(
@@ -734,7 +734,7 @@ private struct MiniCardPreview: View, Equatable {
 
     private var titleTextContent: some View {
         Text(titleText)
-            .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
+            .font(.system(size: titleFontSize, weight: .bold))
             .foregroundStyle(.primary)
             .lineLimit(6)
             .truncationMode(.tail)

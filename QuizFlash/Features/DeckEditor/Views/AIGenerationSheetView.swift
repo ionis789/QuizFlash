@@ -386,7 +386,7 @@ struct AIGenerationSheetView: View {
         Button(action: requestPrimaryAction) {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold))
 
                 if isSubmittingGeneration {
                     ProgressActivityDots(color: .white)
@@ -477,7 +477,7 @@ private struct PlainGenerationSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 22, weight: .black, design: .rounded))
+                .font(.system(size: 22, weight: .black))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)

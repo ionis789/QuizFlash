@@ -59,7 +59,7 @@ struct FloatingAIWorkspaceStatusMenu: View {
                 if let onPauseResume {
                     Button(action: onPauseResume) {
                         Image(systemName: pauseResumeSymbol)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(tint)
                             .frame(width: 24, height: 24)
                             .background(Color(uiColor: .tertiarySystemFill), in: Circle())
@@ -93,7 +93,7 @@ struct FloatingAIWorkspaceStatusMenu: View {
 
             if compactCountText == nil {
                 Text(compactTitle)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
@@ -144,7 +144,7 @@ private struct FloatingAIWorkspaceStatusIndicator: View {
         if let countText {
             VStack(spacing: 2) {
                 Text(countText)
-                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 12, weight: .bold).monospacedDigit())
                     .foregroundStyle(.primary)
                     .statusTextMotion(trigger: countText)
 
@@ -155,7 +155,7 @@ private struct FloatingAIWorkspaceStatusIndicator: View {
             .animation(.spring(response: 0.35, dampingFraction: 0.82), value: countText)
         } else {
             Image(systemName: fallbackSystemImage)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 20, height: 20)
         }
@@ -173,11 +173,11 @@ struct AIWorkspaceFailureCard: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(spacing: UIConstants.Spacing.small) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(tint)
 
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.primary)
             }
 
@@ -203,7 +203,7 @@ struct AIWorkspaceFailureCard: View {
                     .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
                     .foregroundStyle(.primary)
             }
-            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .font(.system(size: 14, weight: .bold))
         }
         .padding(UIConstants.Spacing.large)
         .frame(maxWidth: .infinity, alignment: .leading)

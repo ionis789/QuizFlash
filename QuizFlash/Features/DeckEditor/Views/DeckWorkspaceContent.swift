@@ -173,11 +173,11 @@ extension DeckWorkspaceView {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(.primary)
 
             Text(subtitle)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
         }
@@ -205,7 +205,7 @@ extension DeckWorkspaceView {
             } label: {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Text(title)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.primary)
 
                     Text(
@@ -213,17 +213,17 @@ extension DeckWorkspaceView {
                             ? localizedFormat("%d hidden", hiddenCount)
                             : localized("Showing all")
                     )
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
 
                     Spacer(minLength: 0)
 
                     Text(isHistoricalCardsCollapsed ? localized("Show") : localized("Hide"))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.secondary)
 
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isHistoricalCardsCollapsed ? 0 : 180))
                 }
@@ -305,7 +305,7 @@ extension DeckWorkspaceView {
                 presentAIGenerationSourcePicker()
             } label: {
                 Text(localized("Generate with AI"))
-                    .font(.system(size: 25, weight: .heavy, design: .rounded))
+                    .font(.system(size: 25, weight: .heavy))
                     .lineLimit(1)
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 .padding(.horizontal, UIConstants.Spacing.standard)
@@ -321,7 +321,7 @@ extension DeckWorkspaceView {
                 Color.secondary.opacity(0.24)
                     .frame(width: 28, height: 1)
                 Text(localized("or"))
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.secondary.opacity(0.72))
                 Color.secondary.opacity(0.24)
                     .frame(width: 28, height: 1)
@@ -334,11 +334,11 @@ extension DeckWorkspaceView {
             } label: {
                 HStack(spacing: 9) {
                     Text(localized("Add manually"))
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.primary.opacity(0.86))
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .font(.system(size: 10, weight: .heavy))
                         .foregroundStyle(.secondary.opacity(0.62))
                 }
                 .padding(.horizontal, UIConstants.Spacing.small)
@@ -444,7 +444,7 @@ extension DeckWorkspaceView {
                         .foregroundStyle(accent)
 
                     Text(localized("Saved"))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.primary)
 
                     Rectangle()
@@ -452,7 +452,7 @@ extension DeckWorkspaceView {
                         .frame(width: 1, height: 12)
 
                     Text(savedDeckTitle)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .frame(maxWidth: 170, alignment: .leading)

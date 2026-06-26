@@ -70,7 +70,7 @@ struct DeckRowView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(deck.title)
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: 24, weight: .heavy))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 

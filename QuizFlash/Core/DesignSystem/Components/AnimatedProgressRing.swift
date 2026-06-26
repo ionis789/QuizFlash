@@ -178,7 +178,7 @@ struct MasteryProgressRing: View {
             strokeWidth: strokeWidth
         ) { animatedProgress in
             Text("\(Int(animatedProgress * 100))%")
-                .font(.system(size: 15, weight: .black, design: .rounded))
+                .font(.system(size: 15, weight: .black))
                 .foregroundStyle(.primary)
                 .contentTransition(.numericText(value: animatedProgress * 100))
         }

@@ -63,19 +63,19 @@ struct AISourcePreparationOverlay: View {
                         .frame(width: 46, height: 46)
 
                     Image(systemName: symbolName)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(accent)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.secondary)
                         .tracking(0.4)
                         .lineLimit(1)
 
                     Text(title)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
@@ -86,7 +86,7 @@ struct AISourcePreparationOverlay: View {
             }
 
             Text(subtitle)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

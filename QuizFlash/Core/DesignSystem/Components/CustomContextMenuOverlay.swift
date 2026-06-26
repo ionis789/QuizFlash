@@ -440,7 +440,7 @@ struct CustomContextMenuMenuCard: View {
                     .frame(width: 18, alignment: .center)
 
                 Text(action.title)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(.system(size: 16, weight: .medium))
                     .lineLimit(1)
             }
             .foregroundStyle(action.role == .destructive ? Color.red : Color.white)

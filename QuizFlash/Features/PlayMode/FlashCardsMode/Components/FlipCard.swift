@@ -811,7 +811,7 @@ struct FlipCard: View {
 
     private func faceMarkerBadge(_ marker: FaceMarker) -> some View {
         Text(marker.title)
-            .font(.system(size: isCompact ? 16 : 18, weight: .black, design: .rounded))
+            .font(.system(size: isCompact ? 16 : 18, weight: .black))
             .foregroundStyle(marker.tint)
             .frame(width: faceMarkerFrameSize, height: faceMarkerFrameSize)
             .opacity(0.24)

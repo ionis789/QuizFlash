@@ -86,13 +86,13 @@ struct SearchResultsView: View {
     private var emptyState: some View {
         VStack(alignment: .center, spacing: 18) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 58, weight: .semibold, design: .rounded))
+                .font(.system(size: 58, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.secondary)
                 .opacity(0.55)
 
             Text(localized("No matching decks or cards"))
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
         }
@@ -223,7 +223,7 @@ private struct SearchDeckResultRow: View {
                         HighlightedText(
                             text: result.deckTitle,
                             query: query,
-                            font: .system(size: 22, weight: .bold, design: .rounded),
+                            font: .system(size: 22, weight: .bold),
                             baseColor: .primary
                         )
                         .lineLimit(2)
@@ -272,7 +272,7 @@ private struct SearchDeckResultRow: View {
             if hiddenMatchCount > 0 && !isExpanded {
                 Button(action: onToggleExpansion) {
                     Text(localizedMoreMatchesCount)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(accentColor)
                         .padding(.top, 2)
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -284,7 +284,7 @@ private struct SearchDeckResultRow: View {
             if isExpanded && hasExpandableMatches {
                 Button(action: onToggleExpansion) {
                     Text(localized("Hide"))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(accentColor)
                         .padding(.top, 2)
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -312,7 +312,7 @@ private struct SearchSnippetRow: View {
             HighlightedText(
                 text: card.snippet,
                 query: query,
-                font: .system(size: 15, weight: .medium, design: .rounded),
+                font: .system(size: 15, weight: .medium),
                 baseColor: .secondary
             )
             .lineLimit(3)

@@ -394,7 +394,7 @@ struct CardPreviewModeView: View {
             ZStack {
                 VStack(spacing: 2) {
                     Text(localized("Preview Mode"))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
@@ -428,7 +428,7 @@ struct CardPreviewModeView: View {
 
     private var faceLabel: some View {
         Text(statusLabel)
-            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
             .foregroundStyle(.secondary)
             .lineLimit(1)
     }

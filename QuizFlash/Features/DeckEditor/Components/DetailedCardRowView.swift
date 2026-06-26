@@ -121,8 +121,8 @@ struct DetailedCardRowView: View, Equatable {
         Text(text)
             .font(
                 isCompactPreview
-                    ? .system(size: 15, weight: .medium, design: .rounded)
-                    : .system(size: 17, weight: .medium, design: .rounded)
+                    ? .system(size: 15, weight: .medium)
+                    : .system(size: 17, weight: .medium)
             )
             .foregroundStyle(hasContent ? .primary : .secondary)
             .lineLimit(lineLimit)
@@ -142,7 +142,7 @@ struct DetailedCardRowView: View, Equatable {
 
     private var cardNumberBadge: some View {
         Text("\(displayCardNumber)")
-            .font(.system(size: isCompactPreview ? 13 : 14, weight: .heavy, design: .rounded).monospacedDigit())
+            .font(.system(size: isCompactPreview ? 13 : 14, weight: .heavy).monospacedDigit())
             .foregroundStyle(isSelected ? accent : .secondary)
             .minimumScaleFactor(0.75)
             .padding(.horizontal, isCompactPreview ? 8 : 10)

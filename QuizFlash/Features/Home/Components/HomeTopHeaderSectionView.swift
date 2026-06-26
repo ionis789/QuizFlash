@@ -110,7 +110,7 @@ struct HomeWeeklyMomentumHeaderView: View {
 
         return VStack(alignment: .center, spacing: 0) {
             Text("Weekly Momentum")
-                .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
+                .font(.system(size: titleFontSize, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.9)
@@ -123,7 +123,7 @@ struct HomeWeeklyMomentumHeaderView: View {
                 .padding(.bottom, max(titleBottomSpacing - 6, 6))
 
             Text(compactHeadline)
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.9)
@@ -174,13 +174,13 @@ struct HomeWeeklyMomentumHeaderView: View {
 
         return VStack(alignment: .center, spacing: 12) {
             Text("Momentum")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text(compactHeadline)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -287,7 +287,7 @@ private struct HomeTopHeaderStatLine: View {
                 .textCase(.uppercase)
 
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -328,7 +328,7 @@ private struct HomePadCalendarColumnView: View {
 
         return HStack(alignment: .center, spacing: headerState.calendarState.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: headerState.calendarState.titleFontSize, weight: .bold, design: .rounded))
+                .font(.system(size: headerState.calendarState.titleFontSize, weight: .bold))
                 .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
@@ -398,7 +398,7 @@ private struct HomePadCalendarColumnView: View {
         HStack(spacing: 0) {
             ForEach(calendarVM.orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.system(size: headerState.calendarState.weekdayFontSize, weight: .bold, design: .rounded))
+                    .font(.system(size: headerState.calendarState.weekdayFontSize, weight: .bold))
                     .frame(width: headerState.calendarState.dayColumnWidth)
                     .foregroundStyle(.secondary)
             }

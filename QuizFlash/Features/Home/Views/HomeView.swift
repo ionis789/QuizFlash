@@ -134,7 +134,6 @@ struct HomeView: View {
                 }
 
                 // MARK: Lifecycle
-
                 .onAppear {
                     calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
                     calendarVM.setupIfNeeded()

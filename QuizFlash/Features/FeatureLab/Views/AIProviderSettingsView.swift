@@ -116,7 +116,6 @@ struct AIProviderSettingsView: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                    .fontDesign(.rounded)
                     .foregroundStyle(.primary)
                     .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
             }

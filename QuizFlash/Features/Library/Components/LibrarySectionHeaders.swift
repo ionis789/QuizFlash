@@ -92,7 +92,7 @@ struct LibrarySectionHeaderLabel: View {
         }
 
         Text(title)
-            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .font(.system(size: 12, weight: .bold))
             .foregroundStyle(themeManager.textSecondary.opacity(0.76))
             .lineLimit(1)
             .minimumScaleFactor(0.88)

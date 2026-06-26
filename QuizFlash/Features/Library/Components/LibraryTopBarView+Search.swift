@@ -76,7 +76,7 @@ extension LibraryTopBarView {
             ZStack(alignment: .leading) {
                 if viewModel.searchText.isEmpty {
                     Text(localizedSearchPrompt)
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -89,7 +89,7 @@ extension LibraryTopBarView {
                     .submitLabel(.search)
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.primary)
                     .tint(accent)
                     .lineLimit(1)
@@ -99,7 +99,7 @@ extension LibraryTopBarView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
             Text(localizedSearchPrompt)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)

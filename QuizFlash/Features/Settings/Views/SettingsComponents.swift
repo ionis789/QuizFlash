@@ -109,7 +109,7 @@ struct SettingsHeaderCard: View {
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     SettingsTextLabel(content: title)
-                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .font(.system(size: 30, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -174,7 +174,7 @@ struct SettingsSectionCard<Content: View>: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 SettingsTextLabel(content: title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
 
                 if let subtitle {

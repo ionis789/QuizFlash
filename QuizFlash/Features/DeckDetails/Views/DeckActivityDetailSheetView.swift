@@ -51,12 +51,12 @@ struct DeckActivityDetailSheetView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             Text(localized("Activity"))
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 28, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
 
             if summary.hasActivity {
                 Text(activitySummaryLine)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(themeManager.textSecondary)
             }
         }
@@ -82,7 +82,7 @@ struct DeckActivityDetailSheetView: View {
     private var emptySection: some View {
         DeckActivitySheetSurface {
             Text(localized("No activity yet"))
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(themeManager.textSecondary)
         }
     }
@@ -110,11 +110,11 @@ private struct DeckActivityDaySection: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     Text(day.activityLabel)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .font(.system(size: 22, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Text(summaryLine)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
                 }
 
@@ -211,7 +211,7 @@ private struct DeckActivityCardRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(card.title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
 

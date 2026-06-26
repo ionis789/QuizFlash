@@ -381,7 +381,7 @@ struct FlashCardsPlayModeView: View {
 
     private var playSessionPositionPill: some View {
         Text(playSessionPositionText)
-            .font(.system(size: isCompact ? 18 : 20, weight: .black, design: .rounded))
+            .font(.system(size: isCompact ? 18 : 20, weight: .black))
             .foregroundStyle(themeManager.textPrimary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -407,19 +407,19 @@ struct FlashCardsPlayModeView: View {
         HStack(spacing: 8) {
             if edge == .trailing {
                 Image(systemName: systemName)
-                    .font(.system(size: isCompact ? 13 : 14, weight: .black, design: .rounded))
+                    .font(.system(size: isCompact ? 13 : 14, weight: .black))
                     .foregroundStyle(tint)
             }
 
             Text("\(count)")
-                .font(.system(size: isCompact ? 18 : 20, weight: .black, design: .rounded))
+                .font(.system(size: isCompact ? 18 : 20, weight: .black))
                 .monospacedDigit()
                 .foregroundStyle(tint)
                 .contentTransition(.numericText())
 
             if edge == .leading {
                 Image(systemName: systemName)
-                    .font(.system(size: isCompact ? 13 : 14, weight: .black, design: .rounded))
+                    .font(.system(size: isCompact ? 13 : 14, weight: .black))
                     .foregroundStyle(tint)
             }
         }
@@ -600,7 +600,7 @@ struct FlashCardsPlayModeView: View {
 
     private var flashcardsTitleBlock: some View {
         Text(resolvedDeckTitle)
-            .font(.system(size: isCompact ? 19 : 22, weight: .bold, design: .rounded))
+            .font(.system(size: isCompact ? 19 : 22, weight: .bold))
             .foregroundStyle(themeManager.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.62)
@@ -805,7 +805,7 @@ struct FlashCardsPlayModeView: View {
                             Image(systemName: debugCardCaptureIconName)
                                 .font(.system(size: 15, weight: .black))
                             Text(debugCardCaptureTitle)
-                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .font(.system(size: 15, weight: .black))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
@@ -824,7 +824,7 @@ struct FlashCardsPlayModeView: View {
                             Image(systemName: didCopyFloatingLayoutDebug ? "checkmark" : "doc.on.doc")
                                 .font(.system(size: 15, weight: .black))
                             Text(didCopyFloatingLayoutDebug ? "Copied" : "Copy")
-                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .font(.system(size: 15, weight: .black))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
@@ -1742,7 +1742,7 @@ private struct PlayModeDeveloperSwipePanel: View {
         HStack(spacing: UIConstants.Spacing.medium) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Play Debug")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.primary)
 
                 Text("Swipe state and tuning")

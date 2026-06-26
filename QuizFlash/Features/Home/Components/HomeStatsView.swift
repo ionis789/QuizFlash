@@ -62,13 +62,13 @@ struct HomeCalendarOverviewCard: View {
                         }
 
                     Text(utilityHeadline)
-                        .font(.system(size: usesRegularMetrics ? 22 : 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 22 : 24, weight: .heavy))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(2)
                         .minimumScaleFactor(0.82)
 
                     Text(utilityDetail)
-                        .font(.system(size: usesRegularMetrics ? 15 : 16, weight: .semibold, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 15 : 16, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +85,7 @@ struct HomeCalendarOverviewCard: View {
                     ) { _ in
                         VStack(spacing: 2) {
                             Text(overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
-                                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                                .font(.system(size: 22, weight: .heavy))
                                 .foregroundStyle(themeManager.textPrimary)
 
                             Text(overview.didReachGoal ? "Today" : "To goal")
@@ -157,12 +157,12 @@ struct HomeCalendarSetupCard: View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Create your first deck")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .font(.system(size: 22, weight: .heavy))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(2)
 
                     Text("Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -230,7 +230,7 @@ struct HomeWorkspacePromptCard: View {
                         .foregroundStyle(.secondary)
 
                     Text(title)
-                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                        .font(.system(.title3, weight: .heavy))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -309,7 +309,7 @@ struct HomeAnalyticsHeroCard: View {
                         }
 
                     Text(overview.headline)
-                        .font(.system(size: usesRegularMetrics ? 32 : 28, weight: .heavy, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 32 : 28, weight: .heavy))
                         .foregroundStyle(.primary)
                         .lineSpacing(-2)
                         .lineLimit(3)
@@ -336,7 +336,7 @@ struct HomeAnalyticsHeroCard: View {
                     ) { _ in
                         VStack(spacing: 2) {
                             Text("\(overview.cardsReviewed)")
-                                .font(.system(size: usesRegularMetrics ? 26 : 22, weight: .heavy, design: .rounded))
+                                .font(.system(size: usesRegularMetrics ? 26 : 22, weight: .heavy))
                                 .foregroundStyle(.primary)
                                 .statusTextMotion(trigger: overview.cardsReviewed)
 
@@ -410,18 +410,18 @@ struct HomeWeeklyMomentumCard: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Weekly Momentum")
-                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .font(.system(.headline, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Text(summary.headline)
-                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                        .font(.system(.title3, weight: .heavy))
                         .foregroundStyle(themeManager.textPrimary)
                 }
 
                 Spacer()
 
                 Text(summary.consistencyFraction, format: .percent.precision(.fractionLength(0)))
-                    .font(.system(.headline, design: .rounded, weight: .heavy))
+                    .font(.system(.headline, weight: .heavy))
                     .foregroundStyle(accentColor)
                     .statusTextMotion(trigger: summary.goalHitDays)
             }
@@ -484,11 +484,11 @@ struct HomeSelectedDayInsightsCard: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Selected Day Insights")
-                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .font(.system(.headline, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Text(summary.headline)
-                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                        .font(.system(.title3, weight: .heavy))
                         .foregroundStyle(themeManager.textPrimary)
                 }
 
@@ -543,7 +543,7 @@ private struct HomeHeroMetricTile: View {
                 .textCase(.uppercase)
 
             Text(value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                .font(.system(size: 22, weight: .heavy))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -585,7 +585,7 @@ private struct HomeOverviewMiniTile: View {
                 .textCase(.uppercase)
 
             Text(value)
-                .font(.system(size: 21, weight: .heavy, design: .rounded))
+                .font(.system(size: 21, weight: .heavy))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
@@ -622,7 +622,7 @@ private struct HomeCalendarCompactMetricTile: View {
                 .textCase(.uppercase)
 
             Text(value)
-                .font(.system(size: usesRegularMetrics ? 18 : 19, weight: .heavy, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 18 : 19, weight: .heavy))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)

@@ -41,7 +41,7 @@ struct PlayModeSessionHeader<Leading: View, Trailing: View>: View {
                 ZStack {
                     VStack(spacing: 2) {
                         Text(deckTitle)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
@@ -49,7 +49,7 @@ struct PlayModeSessionHeader<Leading: View, Trailing: View>: View {
                             .frame(maxWidth: titleWidth)
 
                         Text(subtitle)
-                            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+                            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -205,7 +205,7 @@ struct PlayModeMessageCard: View {
                 .foregroundStyle(.secondary)
 
             Text(title)
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 28, weight: .black))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -293,7 +293,7 @@ struct PlayModeCompletionOverlay: View {
     private var completionHeader: some View {
         VStack(spacing: UIConstants.Spacing.small) {
             Text(headline)
-                .font(.system(size: 31, weight: .black, design: .rounded))
+                .font(.system(size: 31, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
@@ -386,7 +386,7 @@ struct PlayModeCompletionOverlay: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 19, weight: .black, design: .rounded))
+                .font(.system(size: 19, weight: .black))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity)
@@ -412,19 +412,19 @@ private struct PlayModeCompletionStatBox: View {
     var body: some View {
         VStack(spacing: UIConstants.Spacing.small) {
             Image(systemName: stat.icon)
-                .font(.system(size: 18, weight: .black, design: .rounded))
+                .font(.system(size: 18, weight: .black))
                 .foregroundStyle(stat.color)
 
             VStack(spacing: 3) {
                 Text(stat.value)
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .black))
                     .foregroundStyle(themeManager.textPrimary)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
 
                 Text(stat.title)
-                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .font(.system(size: 12, weight: .black))
                     .foregroundStyle(themeManager.textSecondary)
                     .textCase(.uppercase)
                     .lineLimit(1)

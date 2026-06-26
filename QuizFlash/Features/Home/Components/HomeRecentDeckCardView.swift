@@ -35,7 +35,6 @@ struct HomeRecentDeckCardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(deck.title)
                     .font(.headline.weight(.semibold))
-                    .fontDesign(.rounded)
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
 

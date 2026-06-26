@@ -68,12 +68,12 @@ struct AIGenerationSourcePickerSheetView: View {
         Button(action: action) {
             HStack(spacing: UIConstants.Spacing.medium) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.system(size: 28, weight: .heavy))
                     .foregroundStyle(tint)
                     .frame(width: 40, height: 40)
 
                 Text(title)
-                    .font(.system(size: 23, weight: .heavy, design: .rounded))
+                    .font(.system(size: 23, weight: .heavy))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
