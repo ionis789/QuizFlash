@@ -151,16 +151,15 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     private var rowMainLine: some View {
-        HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             LibraryDeckTitleLabel(title: deck.title)
                 .layoutPriority(1)
 
-            LibraryDeckTypeSummary(
+            LibraryDeckCardMetaLine(
                 cardCountText: localizedCardCount,
                 showsFlashcards: deck.hasFlashcards,
                 showsQuizCards: deck.hasQuizCards
             )
-            .padding(.top, 3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .transaction { transaction in
@@ -265,7 +264,7 @@ private struct LibraryDeckTitleLabel: View {
     }
 }
 
-private struct LibraryDeckTypeSummary: View {
+private struct LibraryDeckCardMetaLine: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let cardCountText: String
@@ -273,30 +272,20 @@ private struct LibraryDeckTypeSummary: View {
     let showsQuizCards: Bool
 
     var body: some View {
-        HStack(spacing: 7) {
-            HStack(spacing: 4) {
-                if showsFlashcards {
-                    Image(systemName: "rectangle.stack.fill")
-                }
-
-                if showsQuizCards {
-                    Image(systemName: "questionmark.square.dashed")
-                }
+        HStack(spacing: 6) {
+            if showsFlashcards {
+                Image(systemName: "rectangle.stack.fill")
             }
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
+
+            if showsQuizCards {
+                Image(systemName: "questionmark.square.dashed")
+            }
 
             Text(cardCountText)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background {
-            Capsule(style: .continuous)
-                .fill(themeManager.surfaceSecondary.opacity(0.72))
-        }
+        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .foregroundStyle(themeManager.textSecondary)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .combine)
     }
