@@ -196,7 +196,10 @@ extension DeckContentView {
             fallbackHeight = 540
         }
 
-        return .absolute(playModeSettingsMeasuredSheetHeight > 0 ? playModeSettingsMeasuredSheetHeight : fallbackHeight)
+        return .adaptiveAbsolute(
+            playModeSettingsMeasuredSheetHeight > 0 ? playModeSettingsMeasuredSheetHeight : fallbackHeight,
+            maxFraction: 0.96
+        )
     }
 
     func updatePlayModeSettingsSheetHeight(_ height: CGFloat) {
