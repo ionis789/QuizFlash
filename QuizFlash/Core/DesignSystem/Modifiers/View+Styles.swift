@@ -318,18 +318,18 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     private var basePrimaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.14 : 0.40)
+            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.09 : 0.28)
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.28 : 0.24)
+            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.17 : 0.16)
         }
     }
 
     private var baseSecondaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.06 : 0.18)
+            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.035 : 0.12)
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.12 : 0.10)
+            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.055 : 0.055)
         }
     }
 
@@ -363,7 +363,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var cardBorderColor: Color {
-        themeManager.textPrimary.opacity(colorScheme == .dark ? 0.18 : 0.42)
+        themeManager.textPrimary.opacity(colorScheme == .dark ? 0.11 : 0.30)
     }
 
     private var resolvedCardBorderLineWidth: CGFloat {
@@ -439,12 +439,12 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        let baseOpacity: CGFloat = role == .panel ? 0.28 : 0.18
+        let baseOpacity: CGFloat = role == .panel ? 0.17 : 0.105
         return themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 0.86)
     }
 
     private var borderLineWidth: CGFloat {
-        role == .panel ? 1.25 : 1
+        role == .panel ? 1 : 0.8
     }
 }
 
@@ -478,7 +478,7 @@ private struct DuoMetricPillModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.42 : 0.34)
+        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.26 : 0.22)
     }
 }
 

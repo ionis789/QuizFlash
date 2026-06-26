@@ -234,9 +234,9 @@ struct SettingsView: View {
                                 Capsule()
                                     .strokeBorder(
                                         goalDraftHasChanges
-                                            ? themeManager.accentColor.color.opacity(0.42)
-                                            : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.24),
-                                        lineWidth: 1
+                                            ? themeManager.accentColor.color.opacity(0.24)
+                                            : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.14),
+                                        lineWidth: 0.8
                                     )
                             }
                     }

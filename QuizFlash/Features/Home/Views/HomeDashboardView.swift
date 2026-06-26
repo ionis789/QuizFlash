@@ -450,7 +450,7 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
     }
 
     private var borderOpacity: CGFloat {
-        isInteractive ? 0.34 : 0.28
+        isInteractive ? 0.22 : 0.18
     }
 
     func body(content: Content) -> some View {
@@ -465,7 +465,7 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(
                                 themeManager.textSecondary.opacity(borderOpacity),
-                                lineWidth: 2
+                                lineWidth: 1.15
                             )
                     }
             }
