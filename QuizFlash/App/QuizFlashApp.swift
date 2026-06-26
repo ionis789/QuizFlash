@@ -49,6 +49,7 @@ struct QuizFlashApp: App {
         WindowGroup {
             CloudSessionBootstrapper()
                 .id(appPreferences.languageRefreshKey)
+                .fontDesign(.rounded)
                 .environment(authManager)
                 .environment(themeManager)
                 .environment(aiProviderStore)
