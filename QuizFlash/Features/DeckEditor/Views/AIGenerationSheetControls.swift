@@ -134,6 +134,19 @@ struct TickCardCountPicker: View {
     let range: ClosedRange<Int>
     let onChange: (Int) -> Void
 
+    var body: some View {
+        TickValuePicker(value: value, range: range, onChange: onChange) { value in
+            "\(value)"
+        }
+    }
+}
+
+struct TickValuePicker: View {
+    let value: Int
+    let range: ClosedRange<Int>
+    let onChange: (Int) -> Void
+    let valueText: (Int) -> String
+
     private var selectionBinding: Binding<Int> {
         Binding {
             max(min(value, range.upperBound), range.lowerBound) - range.lowerBound
@@ -158,12 +171,16 @@ struct TickCardCountPicker: View {
     }
 
     var body: some View {
+        let boundedValue = max(min(value, range.upperBound), range.lowerBound)
+
         VStack(spacing: UIConstants.Spacing.small) {
-            Text("\(max(min(value, range.upperBound), range.lowerBound))")
+            Text(valueText(boundedValue))
                 .font(.system(size: 34, weight: .heavy, design: .rounded).monospacedDigit())
                 .foregroundStyle(.primary)
                 .frame(height: 42)
-                .statusTextMotion(trigger: value)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .statusTextMotion(trigger: boundedValue)
 
             Circle()
                 .fill(Color.primary.opacity(0.20))

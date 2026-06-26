@@ -311,10 +311,17 @@ private struct CompactTextSizeSliderRow: View {
                     .lineLimit(1)
             }
 
-            CompactTextSizeSliderControl(textSize: $textSize, isDense: isDense)
+            TickValuePicker(
+                value: textSize.step,
+                range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep
+            ) { newValue in
+                textSize = FlashcardTextSize(step: newValue)
+            } valueText: { value in
+                "\(value)"
+            }
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
-        .frame(minHeight: isDense ? 86 : 124)
+        .frame(minHeight: isDense ? 142 : 156)
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
     }
 }

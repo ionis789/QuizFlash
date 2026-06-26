@@ -236,74 +236,18 @@ struct SettingsView: View {
     }
 
     private var goalDraftControls: some View {
-        SettingsGoalTickPicker(
-            selection: goalDraftTickSelection,
-            upperBound: goalTickUpperBound,
-            step: AppPreferences.dailyCardsGoalStep,
-            locale: appPreferences.resolvedLocale,
+        TickValuePicker(
+            value: goalDraftTickSelection,
+            range: 0 ... goalTickUpperBound,
             onChange: setGoalDraftTickSelection
-        )
+        ) { value in
+            guard value > 0 else {
+                return AppLocalization.string("No goal", locale: appPreferences.resolvedLocale)
+            }
+
+            return "\(value * AppPreferences.dailyCardsGoalStep)"
+        }
         .padding(.top, UIConstants.Spacing.tiny)
-    }
-
-    private struct SettingsGoalTickPicker: View {
-        @Environment(ThemeManager.self) private var themeManager
-
-        let selection: Int
-        let upperBound: Int
-        let step: Int
-        let locale: Locale
-        let onChange: (Int) -> Void
-
-        private var safeUpperBound: Int {
-            max(upperBound, 1)
-        }
-
-        private var safeSelection: Int {
-            min(max(selection, 0), safeUpperBound)
-        }
-
-        private var selectionBinding: Binding<Int> {
-            Binding {
-                safeSelection
-            } set: { newSelection in
-                onChange(min(max(newSelection, 0), safeUpperBound))
-            }
-        }
-
-        private var pickerConfig: TickPickerConfig {
-            TickPickerConfig(
-                tickWidth: 2,
-                tickHeight: 18,
-                tickHPadding: 2.5,
-                inActiveHeightProgress: 0.48,
-                interactionHeight: 36,
-                tickAreaTopPadding: 2,
-                activeTint: themeManager.accentColor.color,
-                inActiveTint: .primary,
-                alignment: .center
-            )
-        }
-
-        var body: some View {
-            VStack(spacing: UIConstants.Spacing.small) {
-                TickPicker(
-                    count: safeUpperBound,
-                    config: pickerConfig,
-                    selection: selectionBinding,
-                    highlightedRange: nil
-                )
-
-                HStack {
-                    Text(AppLocalization.string("No goal", locale: locale))
-                    Spacer()
-                    Text("\(safeUpperBound * step)")
-                }
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(themeManager.textSecondary)
-            }
-            .padding(.horizontal, UIConstants.Spacing.tiny)
-        }
     }
 
     private var settingsGoalIcon: some View {
@@ -1035,8 +979,14 @@ struct SettingsView: View {
                     .contentTransition(.numericText())
             }
 
-            CompactTextSizeSliderControl(textSize: defaultTextSizeBinding, isDense: true)
-                .padding(.leading, 54)
+            TickValuePicker(
+                value: appPreferences.defaultTextSize.step,
+                range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep
+            ) { newValue in
+                appPreferences.defaultTextSize = FlashcardTextSize(step: newValue)
+            } valueText: { value in
+                "\(value)"
+            }
         }
     }
 
@@ -1112,13 +1062,6 @@ struct SettingsView: View {
 
         goalDraftEnabled = true
         goalDraftValue = min(selection, goalTickUpperBound) * AppPreferences.dailyCardsGoalStep
-    }
-
-    private var defaultTextSizeBinding: Binding<FlashcardTextSize> {
-        Binding(
-            get: { appPreferences.defaultTextSize },
-            set: { appPreferences.defaultTextSize = $0 }
-        )
     }
 
     private var zoneSurfaceStyleBinding: Binding<AppZoneSurfaceStyle> {
