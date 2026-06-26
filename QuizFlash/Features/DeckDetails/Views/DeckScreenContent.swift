@@ -189,12 +189,12 @@ extension DeckContentView {
         let fallbackHeight: CGFloat
         switch selectedPlayModeSettings {
         case .quiz:
-            fallbackHeight = 540
+            fallbackHeight = 510
         case .flashcards:
             let settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
-            fallbackHeight = settings.tapAnimationStyle == .staticSwap ? 680 : 630
+            fallbackHeight = settings.tapAnimationStyle == .staticSwap ? 650 : 600
         case nil:
-            fallbackHeight = 540
+            fallbackHeight = 510
         }
 
         return .adaptiveAbsolute(

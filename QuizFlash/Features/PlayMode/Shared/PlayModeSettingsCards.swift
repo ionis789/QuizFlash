@@ -147,8 +147,7 @@ private struct CompactFlashcardSettingsCard: View {
                 isDense: true
             )
         }
-        .padding(UIConstants.Spacing.medium)
-        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
+        .padding(.horizontal, UIConstants.Spacing.medium)
     }
 }
 
@@ -184,6 +183,7 @@ private struct CompactTapAnimationRow: View {
         .padding(.top, UIConstants.Spacing.medium)
         .padding(.bottom, tapAnimationStyle == .staticSwap ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
         .frame(minHeight: tapAnimationStyle == .staticSwap ? 158 : 110, alignment: .top)
+        .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: tapAnimationStyle)
     }
 
@@ -277,8 +277,7 @@ private struct CompactQuizSettingsCard: View {
                 isDense: true
             )
         }
-        .padding(UIConstants.Spacing.medium)
-        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
+        .padding(.horizontal, UIConstants.Spacing.medium)
     }
 }
 
@@ -333,6 +332,7 @@ private struct CompactTextSizeSliderRow: View {
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
         .frame(minHeight: isExpanded ? (isDense ? 132 : 148) : (isDense ? 70 : 78))
+        .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: isExpanded)
     }
 }
@@ -388,6 +388,7 @@ private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
         .frame(minHeight: isDense ? 58 : 68)
+        .duoControlSurface(tint: tint)
     }
 }
 
@@ -417,6 +418,7 @@ private struct CompactSettingsToggleRow: View {
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
         .frame(minHeight: isDense ? 58 : 68)
+        .duoControlSurface(tint: tint)
     }
 }
 
@@ -442,6 +444,7 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
         .frame(minHeight: isDense ? 106 : 124)
+        .duoControlSurface(tint: tint)
     }
 
     private var label: some View {
