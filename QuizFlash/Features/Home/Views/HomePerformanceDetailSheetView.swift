@@ -36,12 +36,8 @@ struct HomePerformanceDetailSheetView: View {
         76
     }
 
-    private var hasPreviousWeekActivity: Bool {
-        summary.previousDaySummaries.contains(where: \.didStudy)
-    }
-
     private var contentTopPadding: CGFloat {
-        max(topChromeClearance + 84, UIConstants.Spacing.huge)
+        max(topChromeClearance + 44, UIConstants.Spacing.extraLarge)
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -60,41 +56,24 @@ struct HomePerformanceDetailSheetView: View {
         )
     }
 
-    private var localizedTrendLine: String {
-        guard summary.activeDays > 0 else {
-            return localized("Needs attention")
-        }
-
-        switch summary.trend {
-        case .improving:
-            return localized("Improving day by day")
-        case .steady:
-            return localized("Stable this week")
-        case .slipping:
-            return localized("Needs attention")
-        }
-    }
-
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                if summary.hasActivity {
-                    headerSection
-                    overviewMetricsSection
-                    comparisonSection
-                } else {
-                    emptyStateSection
-                }
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            if summary.hasActivity {
+                headerSection
+                overviewMetricsSection
+                comparisonSection
+            } else {
+                emptyStateSection
             }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, contentTopPadding)
-            .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.top, contentTopPadding)
+        .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(localized("Study detail"))
                 .font(.system(size: 32, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
@@ -103,11 +82,6 @@ struct HomePerformanceDetailSheetView: View {
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Text(localizedTrendLine)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(accentColor)
-                .padding(.top, UIConstants.Spacing.small)
         }
             .padding(.trailing, headerTrailingReserve)
     }
@@ -129,29 +103,17 @@ struct HomePerformanceDetailSheetView: View {
                 )
             }
         }
-        .padding(.top, UIConstants.Spacing.small)
     }
 
     private var comparisonSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             HomePerformanceBarSection(
                 title: localized("Current week"),
                 daySummaries: summary.currentDaySummaries,
                 labelTint: accentColor
             )
-
-            if hasPreviousWeekActivity {
-                AppSectionSeparator()
-                    .padding(.vertical, UIConstants.Spacing.small)
-
-                HomePerformanceBarSection(
-                    title: localized("Last week"),
-                    daySummaries: summary.previousDaySummaries,
-                    labelTint: themeManager.textSecondary
-                )
-            }
         }
-        .padding(.top, UIConstants.Spacing.medium)
+        .padding(.top, UIConstants.Spacing.small)
     }
 
     private var emptyStateSection: some View {
@@ -257,7 +219,7 @@ private struct HomePerformanceBarRow: View {
 private struct HomePerformanceBarColumn: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    static let totalHeight: CGFloat = 166
+    static let totalHeight: CGFloat = 150
 
     let day: HomePastWeekPerformanceDaySummary
     let maxOutcomeTotal: Int
@@ -280,7 +242,7 @@ private struct HomePerformanceBarColumn: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             Text(day.shortWeekday)
                 .font(.system(size: 14, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
@@ -307,9 +269,9 @@ private struct HomePerformanceStackedBar: View {
     let goodTint: Color
     let retryTint: Color
 
-    private let barHeight: CGFloat = 128
-    private let minActiveHeight: CGFloat = 36
-    private let minReadableSegmentHeight: CGFloat = 30
+    private let barHeight: CGFloat = 114
+    private let minActiveHeight: CGFloat = 32
+    private let minReadableSegmentHeight: CGFloat = 27
 
     private var totalCount: Int {
         landedCount + retryCount
