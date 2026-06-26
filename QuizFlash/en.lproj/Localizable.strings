@@ -246,7 +246,6 @@
 "DeepSeek endpoint with deepseek-v4-flash defaults." = "DeepSeek endpoint with deepseek-v4-flash defaults.";
 "Default" = "Default";
 "Default %@" = "Default %@";
-"Default size for editors and play modes." = "Default size for editors and play modes.";
 "Delete" = "Delete";
 "Delete \"%@\"?" = "Delete \"%@\"?";
 "Delete %d card?" = "Delete %d card?";

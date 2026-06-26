@@ -246,7 +246,6 @@
 "DeepSeek endpoint with deepseek-v4-flash defaults." = "Endpoint DeepSeek cu setările implicite deepseek-v4-flash.";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
-"Default size for editors and play modes." = "Dimensiune implicită pentru editor și modurile de joc.";
 "Delete" = "Șterge";
 "Delete \"%@\"?" = "Ștergi „%@”?";
 "Delete %d card?" = "Ștergi %d card?";

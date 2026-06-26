@@ -41,6 +41,7 @@ struct SettingsView: View {
     @State private var goalDraftEnabled = false
     @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
     @State private var isCardsGoalExpanded = false
+    @State private var isTextSizeExpanded = false
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -200,7 +201,7 @@ struct SettingsView: View {
 
                     Spacer(minLength: UIConstants.Spacing.standard)
 
-                    Text(goalDraftSummary)
+                    Text(appliedGoalSummary)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .padding(.horizontal, UIConstants.Spacing.standard)
@@ -239,7 +240,8 @@ struct SettingsView: View {
         TickValuePicker(
             value: goalDraftTickSelection,
             range: 0 ... goalTickUpperBound,
-            onChange: setGoalDraftTickSelection
+            onChange: setGoalDraftTickSelection,
+            isCompact: true
         ) { value in
             guard value > 0 else {
                 return AppLocalization.string("No goal", locale: appPreferences.resolvedLocale)
@@ -953,41 +955,48 @@ struct SettingsView: View {
     }
 
     private var textSizeSettings: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                SettingsRowIcon(icon: "textformat.size", tint: themeManager.accentColor.color)
+        VStack(alignment: .leading, spacing: isTextSizeExpanded ? UIConstants.Spacing.medium : 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isTextSizeExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                    SettingsRowIcon(icon: "textformat.size", tint: themeManager.accentColor.color)
 
-                VStack(alignment: .leading, spacing: 4) {
                     Text(AppLocalization.string("Text Size", locale: appPreferences.resolvedLocale))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(themeManager.textPrimary)
 
-                    Text(AppLocalization.string("Default size for editors and play modes.", locale: appPreferences.resolvedLocale))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: UIConstants.Spacing.standard)
+
+                    Text("\(appPreferences.defaultTextSize.step)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .padding(.horizontal, UIConstants.Spacing.standard)
+                        .padding(.vertical, UIConstants.Spacing.small)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .contentTransition(.numericText())
                 }
-
-                Spacer(minLength: UIConstants.Spacing.standard)
-
-                Text("\(appPreferences.defaultTextSize.step)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, UIConstants.Spacing.small)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .contentTransition(.numericText())
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            TickValuePicker(
-                value: appPreferences.defaultTextSize.step,
-                range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep
-            ) { newValue in
-                appPreferences.defaultTextSize = FlashcardTextSize(step: newValue)
-            } valueText: { value in
-                "\(value)"
+            if isTextSizeExpanded {
+                TickValuePicker(
+                    value: appPreferences.defaultTextSize.step,
+                    range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep,
+                    onChange: { newValue in
+                        appPreferences.defaultTextSize = FlashcardTextSize(step: newValue)
+                    },
+                    isCompact: true
+                ) { value in
+                    "\(value)"
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
+        .animation(.easeInOut(duration: 0.16), value: isTextSizeExpanded)
     }
 
     private func formattedMicroUSD(_ value: Int) -> String {
@@ -1014,13 +1023,13 @@ struct SettingsView: View {
         )
     }
 
-    private var goalDraftSummary: String {
-        guard goalDraftEnabled else {
+    private var appliedGoalSummary: String {
+        guard let dailyGoal = appPreferences.dailyCardsGoal else {
             return AppLocalization.string("No goal", locale: appPreferences.resolvedLocale)
         }
 
         let format = AppLocalization.string("%d cards", locale: appPreferences.resolvedLocale)
-        return String(format: format, locale: appPreferences.resolvedLocale, goalDraftValue)
+        return String(format: format, locale: appPreferences.resolvedLocale, dailyGoal)
     }
 
     private var goalDraftHasChanges: Bool {

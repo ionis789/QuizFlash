@@ -256,7 +256,6 @@ Deeper cards with structure, context, and key nuance.	Deeper cards with structur
 DeepSeek endpoint with deepseek-v4-flash defaults.	DeepSeek endpoint with deepseek-v4-flash defaults.	Endpoint DeepSeek cu setările implicite deepseek-v4-flash.	Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
-Default size for editors and play modes.	Default size for editors and play modes.	Dimensiune implicită pentru editor și modurile de joc.	Размер по умолчанию для редактора и игровых режимов.
 Delete	Delete	Șterge	Удалить
 "Delete ""%@""?"	"Delete ""%@""?"	Ștergi „%@”?	"Удалить ""%@""?"
 Delete %d card?	Delete %d card?	Ștergi %d card?	Удалить %d карточку?

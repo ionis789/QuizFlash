@@ -145,6 +145,7 @@ struct TickValuePicker: View {
     let value: Int
     let range: ClosedRange<Int>
     let onChange: (Int) -> Void
+    var isCompact = false
     let valueText: (Int) -> String
 
     private var selectionBinding: Binding<Int> {
@@ -159,11 +160,11 @@ struct TickValuePicker: View {
     private var pickerConfig: TickPickerConfig {
         TickPickerConfig(
             tickWidth: 2,
-            tickHeight: 34,
-            tickHPadding: 4,
+            tickHeight: isCompact ? 24 : 34,
+            tickHPadding: isCompact ? 3 : 4,
             inActiveHeightProgress: 0.48,
-            interactionHeight: 76,
-            tickAreaTopPadding: 8,
+            interactionHeight: isCompact ? 54 : 76,
+            tickAreaTopPadding: isCompact ? 4 : 8,
             activeTint: ThemeManager.shared.accentColor.color,
             inActiveTint: .primary,
             alignment: .bottom
@@ -173,18 +174,18 @@ struct TickValuePicker: View {
     var body: some View {
         let boundedValue = max(min(value, range.upperBound), range.lowerBound)
 
-        VStack(spacing: UIConstants.Spacing.small) {
+        VStack(spacing: isCompact ? UIConstants.Spacing.tiny : UIConstants.Spacing.small) {
             Text(valueText(boundedValue))
-                .font(.system(size: 34, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: isCompact ? 26 : 34, weight: .heavy, design: .rounded).monospacedDigit())
                 .foregroundStyle(.primary)
-                .frame(height: 42)
+                .frame(height: isCompact ? 30 : 42)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .statusTextMotion(trigger: boundedValue)
 
             Circle()
                 .fill(Color.primary.opacity(0.20))
-                .frame(width: 7, height: 7)
+                .frame(width: isCompact ? 6 : 7, height: isCompact ? 6 : 7)
 
             TickPicker(
                 count: range.upperBound - range.lowerBound,

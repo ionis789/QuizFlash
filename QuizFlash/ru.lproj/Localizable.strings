@@ -246,7 +246,6 @@
 "DeepSeek endpoint with deepseek-v4-flash defaults." = "Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.";
 "Default" = "По умолчанию";
 "Default %@" = "По умолчанию %@";
-"Default size for editors and play modes." = "Размер по умолчанию для редактора и игровых режимов.";
 "Delete" = "Удалить";
 "Delete \"%@\"?" = "Удалить \"%@\"?";
 "Delete %d card?" = "Удалить %d карточку?";

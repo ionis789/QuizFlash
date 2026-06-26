@@ -298,31 +298,56 @@ private struct CompactTextSizeSliderRow: View {
     let icon: String
     let tint: Color
     @Binding var textSize: FlashcardTextSize
+    @State private var isExpanded = false
     var isDense = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                CompactSettingsIcon(systemName: icon, tint: tint)
+        VStack(alignment: .leading, spacing: isExpanded ? UIConstants.Spacing.medium : 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: UIConstants.Spacing.medium) {
+                    CompactSettingsIcon(systemName: icon, tint: tint)
 
-                Text(title)
-                    .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    Text(title)
+                        .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    Text("\(textSize.step)")
+                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, UIConstants.Spacing.standard)
+                        .padding(.vertical, UIConstants.Spacing.small)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .contentTransition(.numericText())
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            TickValuePicker(
-                value: textSize.step,
-                range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep
-            ) { newValue in
-                textSize = FlashcardTextSize(step: newValue)
-            } valueText: { value in
-                "\(value)"
+            if isExpanded {
+                TickValuePicker(
+                    value: textSize.step,
+                    range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep,
+                    onChange: { newValue in
+                        textSize = FlashcardTextSize(step: newValue)
+                    },
+                    isCompact: true
+                ) { value in
+                    "\(value)"
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
-        .frame(minHeight: isDense ? 142 : 156)
+        .frame(minHeight: isExpanded ? (isDense ? 132 : 148) : (isDense ? 70 : 78))
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .animation(.easeInOut(duration: 0.16), value: isExpanded)
     }
 }
 
