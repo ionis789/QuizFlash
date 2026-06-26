@@ -274,7 +274,7 @@ private struct LibraryDeckCardMetaLine: View {
     var body: some View {
         HStack(spacing: 6) {
             if showsFlashcards {
-                Image(systemName: "rectangle.stack.fill")
+                Image(systemName: "rectangle.on.rectangle.angled")
             }
 
             if showsQuizCards {
