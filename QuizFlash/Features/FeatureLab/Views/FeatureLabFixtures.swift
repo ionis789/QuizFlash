@@ -154,6 +154,8 @@ enum FeatureLabFixtures {
             editedAt: libraryDeck.editedAt,
             lastOpenedAt: libraryDeck.lastOpenedAt,
             cardCount: libraryDeck.cardCount,
+            hasFlashcards: true,
+            hasQuizCards: true,
             folderTitle: nil
         )
 

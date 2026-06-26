@@ -30,6 +30,10 @@ struct LibraryDeckRowSnapshot: Identifiable, Equatable, Sendable {
     let lastOpenedAt: Date?
     /// Denormalized card count, projected once on the main context.
     let cardCount: Int
+    /// Whether the deck currently contains at least one flashcard.
+    let hasFlashcards: Bool
+    /// Whether the deck currently contains at least one quiz card.
+    let hasQuizCards: Bool
     /// Optional parent folder title rendered as secondary metadata.
     let folderTitle: String?
 }
@@ -65,7 +69,8 @@ nonisolated enum LibraryGrouping {
     /// Projects SwiftData decks into value snapshots safe for long scroll surfaces.
     static func makeDeckSnapshots(from decks: [DeckModel]) -> [LibraryDeckRowSnapshot] {
         decks.map { deck in
-            LibraryDeckRowSnapshot(
+            let cardKinds = Self.cardKindPresence(for: deck)
+            return LibraryDeckRowSnapshot(
                 id: deck.persistentModelID,
                 title: deck.title,
                 colorHex: deck.colorHex,
@@ -73,9 +78,36 @@ nonisolated enum LibraryGrouping {
                 editedAt: deck.editedAt,
                 lastOpenedAt: deck.lastOpenedAt,
                 cardCount: deck.cardCount,
+                hasFlashcards: cardKinds.hasFlashcards,
+                hasQuizCards: cardKinds.hasQuizCards,
                 folderTitle: deck.folder?.title
             )
         }
+    }
+
+    /// Reads card kinds once while building immutable row snapshots.
+    private static func cardKindPresence(for deck: DeckModel) -> (hasFlashcards: Bool, hasQuizCards: Bool) {
+        guard deck.cardCount > 0 else {
+            return (false, false)
+        }
+
+        var hasFlashcards = false
+        var hasQuizCards = false
+
+        for card in deck.cards {
+            switch card.kind {
+            case .flashcard:
+                hasFlashcards = true
+            case .quiz:
+                hasQuizCards = true
+            }
+
+            if hasFlashcards && hasQuizCards {
+                break
+            }
+        }
+
+        return (hasFlashcards, hasQuizCards)
     }
 
     /// Builds and sorts sections from a flat array of decks based on the active `SortOrder`.

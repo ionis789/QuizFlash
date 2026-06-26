@@ -151,14 +151,16 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     private var rowMainLine: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 12) {
             LibraryDeckTitleLabel(title: deck.title)
                 .layoutPriority(1)
 
-            Text(localizedCardCount)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .lineLimit(1)
+            LibraryDeckTypeSummary(
+                cardCountText: localizedCardCount,
+                showsFlashcards: deck.hasFlashcards,
+                showsQuizCards: deck.hasQuizCards
+            )
+            .padding(.top, 3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .transaction { transaction in
@@ -260,5 +262,42 @@ private struct LibraryDeckTitleLabel: View {
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibraryDeckTypeSummary: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let cardCountText: String
+    let showsFlashcards: Bool
+    let showsQuizCards: Bool
+
+    var body: some View {
+        HStack(spacing: 7) {
+            HStack(spacing: 4) {
+                if showsFlashcards {
+                    Image(systemName: "rectangle.stack.fill")
+                }
+
+                if showsQuizCards {
+                    Image(systemName: "questionmark.square.dashed")
+                }
+            }
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
+
+            Text(cardCountText)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background {
+            Capsule(style: .continuous)
+                .fill(themeManager.surfaceSecondary.opacity(0.72))
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
     }
 }
