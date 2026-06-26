@@ -221,6 +221,7 @@
 "Copied!" = "Скопировано!";
 "Copy and share with Codex" = "Скопируйте и поделитесь с Кодексом";
 "Correct" = "Верно";
+"Custom Color" = "Свой цвет";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
 "Covers %@ %@" = "Обложки %1$@ %2$@";
 "Create" = "Создать";

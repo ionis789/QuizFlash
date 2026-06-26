@@ -357,14 +357,17 @@ struct HomeDashboardView: View {
     private var recentDecksSurface: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
-                HomeDashboardLibraryDeckRow(
+                HomeDashboardRecentDeckRow(
                     snapshot: deck,
-                    isFirst: index == 0
+                    showsSeparator: index < recentDeckSnapshots.count - 1
                 ) {
                     onOpenDeck(deck.id)
                 }
             }
         }
+        .padding(.horizontal, usesRegularMetrics ? 18 : 16)
+        .padding(.vertical, usesRegularMetrics ? 8 : 6)
+        .duoSurface(cornerRadius: usesRegularMetrics ? 26 : 24)
     }
 
     private var foldersSection: some View {
@@ -1263,24 +1266,54 @@ private struct HomeDashboardPill: View {
     }
 }
 
-private struct HomeDashboardLibraryDeckRow: View {
+private struct HomeDashboardRecentDeckRow: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
     let snapshot: LibraryDeckRowSnapshot
-    let isFirst: Bool
+    let showsSeparator: Bool
     let action: @MainActor @Sendable () -> Void
 
-    var body: some View {
-        LibraryDeckListRow(
-            deck: snapshot,
-            isFirstInSection: isFirst,
-            isSelecting: false,
-            isSelected: false,
-            showsContextMenu: false,
-            onNavigate: action,
-            onToggleSelection: {},
-            onExport: {},
-            onMoveToFolder: {},
-            onDelete: {}
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private var localizedCardCount: String {
+        AppLocalization.numbered(
+            snapshot.cardCount,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: locale
         )
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(verbatim: snapshot.title)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(localizedCardCount)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 14)
+
+                if showsSeparator {
+                    AppSectionSeparator()
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

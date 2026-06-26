@@ -222,6 +222,21 @@ struct CreateFolderSheet: View {
         "#32ADE6"
     ]
 
+    private var customColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(hex: viewModel.newFolderColorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
+            },
+            set: { newValue in
+                viewModel.newFolderColorHex = newValue.toHex() ?? viewModel.newFolderColorHex
+            }
+        )
+    }
+
+    private var isUsingCustomColor: Bool {
+        !colorOptions.contains(viewModel.newFolderColorHex)
+    }
+
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
     }
@@ -273,6 +288,8 @@ struct CreateFolderSheet: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel(localized("Label Color"))
                         }
+
+                        customColorPicker
                     }
                 }
             }
@@ -301,9 +318,6 @@ struct CreateFolderSheet: View {
         .padding(.top, max(topChromeClearance + 34, UIConstants.Spacing.extraLarge))
         .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear {
-            isTitleFocused = true
-        }
         .onDisappear {
             if !viewModel.showCreateFolder {
                 viewModel.newFolderTitle = ""
@@ -314,5 +328,52 @@ struct CreateFolderSheet: View {
         } message: {
             Text(viewModel.createFolderErrorMessage)
         }
+    }
+
+    private var customColorPicker: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    isUsingCustomColor
+                        ? (Color(hex: viewModel.newFolderColorHex) ?? themeManager.roleColor(.buttonPrimaryFill))
+                        : themeManager.roleColor(.buttonPrimaryFill).opacity(0.16)
+                )
+                .overlay {
+                    if !isUsingCustomColor {
+                        Circle()
+                            .strokeBorder(
+                                AngularGradient(
+                                    colors: [.green, .cyan, .blue, .purple, .pink, .orange, .green],
+                                    center: .center
+                                ),
+                                lineWidth: 3
+                            )
+                    }
+                }
+                .overlay {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .opacity(isUsingCustomColor ? 0 : 1)
+                }
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            isUsingCustomColor ? themeManager.textPrimary : Color.clear,
+                            lineWidth: 3
+                        )
+                }
+
+            ColorPicker(
+                "",
+                selection: customColorBinding,
+                supportsOpacity: false
+            )
+            .labelsHidden()
+            .opacity(0.02)
+            .frame(width: 44, height: 44)
+        }
+        .frame(width: 34, height: 34)
+        .accessibilityLabel(localized("Custom Color"))
     }
 }
