@@ -142,12 +142,11 @@ struct DetailedCardRowView: View, Equatable {
 
     private var cardNumberBadge: some View {
         Text("\(displayCardNumber)")
-            .font(.system(size: isCompactPreview ? 12 : 13, weight: .heavy, design: .rounded).monospacedDigit())
+            .font(.system(size: isCompactPreview ? 13 : 14, weight: .heavy, design: .rounded).monospacedDigit())
             .foregroundStyle(isSelected ? accent : .secondary)
             .minimumScaleFactor(0.75)
-            .padding(.horizontal, isCompactPreview ? 8 : 9)
-            .frame(minWidth: isCompactPreview ? 28 : 30, minHeight: isCompactPreview ? 24 : 26)
-            .duoMetricPill(tint: isSelected ? accent : nil)
+            .padding(.horizontal, isCompactPreview ? 8 : 10)
+            .frame(minWidth: isCompactPreview ? 24 : 26, minHeight: isCompactPreview ? 22 : 24)
             .accessibilityLabel(localizedFormat("Card %d", displayCardNumber))
     }
 

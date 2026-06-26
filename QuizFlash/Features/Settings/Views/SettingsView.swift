@@ -272,7 +272,7 @@ struct SettingsView: View {
     }
 
     private var profileCard: some View {
-        VStack(spacing: UIConstants.Spacing.small) {
+        VStack(spacing: UIConstants.Spacing.standard) {
             PhotosPicker(
                 selection: $selectedProfilePhoto,
                 matching: .images,
@@ -283,13 +283,8 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity)
 
-            Text(profileName)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, UIConstants.Spacing.extraLarge)
+            profileNameButton
+                .padding(.bottom, UIConstants.Spacing.standard)
 
             VStack(spacing: UIConstants.Spacing.standard) {
                 ViewThatFits(in: .horizontal) {
@@ -332,6 +327,31 @@ struct SettingsView: View {
             .padding(UIConstants.Spacing.large)
             .settingsCardBackground(cornerRadius: UIConstants.Radius.maximum)
         }
+    }
+
+    private var profileNameButton: some View {
+        Button {
+            displayNameDraft = authManager.currentUser?.displayName ?? ""
+            isEditingDisplayName = true
+        } label: {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text(profileName)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Image(systemName: "pencil")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(themeManager.accentColor.color)
+                    .padding(8)
+                    .background(themeManager.accentColor.color.opacity(0.14), in: Circle())
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale))
     }
 
     @ViewBuilder
@@ -410,34 +430,6 @@ struct SettingsView: View {
                         tint: .blue,
                         title: AppLocalization.string("Email", locale: appPreferences.resolvedLocale),
                         value: authManager.currentUser?.email ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale)
-                    )
-
-                    Button {
-                        displayNameDraft = authManager.currentUser?.displayName ?? ""
-                        isEditingDisplayName = true
-                    } label: {
-                        accountInfoRow(
-                            icon: "person.text.rectangle.fill",
-                            tint: themeManager.accentColor.color,
-                            title: AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
-                            value: authManager.currentUser?.displayName?.nilIfEmpty ?? AppLocalization.string("Unavailable", locale: appPreferences.resolvedLocale),
-                            showsDisclosure: true
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    accountInfoRow(
-                        icon: "person.badge.key.fill",
-                        tint: .green,
-                        title: AppLocalization.string("Provider", locale: appPreferences.resolvedLocale),
-                        value: providerSummary
-                    )
-
-                    accountInfoRow(
-                        icon: isPremiumUser ? "crown.fill" : "sparkles",
-                        tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
-                        title: AppLocalization.string("Plan", locale: appPreferences.resolvedLocale),
-                        value: subscriptionManager.planSource.localizedTitle(locale: appPreferences.resolvedLocale)
                     )
                 }
             }
@@ -782,17 +774,32 @@ struct SettingsView: View {
         if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
            let limitMicroUSD = quota.limitMicroUSD,
            limitMicroUSD > 0 {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.12))
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
 
-                    Capsule()
-                        .fill(.purple)
-                        .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    Text(formattedUsagePercent(quota.usageProgress))
+                        .font(.caption.weight(.black).monospacedDigit())
+                        .foregroundStyle(themeManager.accentColor.color)
                 }
+
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+
+                        Capsule()
+                            .fill(themeManager.accentColor.color.gradient)
+                            .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
+                    }
+                }
+                .frame(height: 8)
             }
-            .frame(height: 6)
+            .padding(.top, UIConstants.Spacing.tiny)
             .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
             .accessibilityValue("\(formattedUsagePercent(quota.usageProgress)), \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
         }

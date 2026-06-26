@@ -53,7 +53,6 @@ struct DeckProgressView: View {
             summarySeparator
             primarySummaryBlock
             metricsBlock
-            progressBlock
         }
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
@@ -118,46 +117,6 @@ struct DeckProgressView: View {
         }
     }
 
-    private var progressBlock: some View {
-        DeckProgressSurface(
-            highlight: deckTint,
-            cornerRadius: 26
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                DeckSegmentedProgressBar(
-                    progress: progress,
-                    learningTint: deckTint
-                )
-                legend
-            }
-        }
-        .transaction { transaction in
-            transaction.animation = nil
-        }
-    }
-
-    private var legend: some View {
-        HStack(spacing: 0) {
-            DeckProgressLegendItem(
-                color: .teal,
-                count: progress.masteredCards,
-                label: localized("Mastered")
-            )
-            Spacer()
-            DeckProgressLegendItem(
-                color: deckTint,
-                count: progress.learningCards,
-                label: localized("Learning")
-            )
-            Spacer()
-            DeckProgressLegendItem(
-                color: themeManager.textSecondary.opacity(0.42),
-                count: progress.newCards,
-                label: localized("New")
-            )
-        }
-    }
-
 }
 
 // MARK: - Supporting Views
@@ -185,58 +144,6 @@ private struct DeckProgressSurface<Content: View>: View {
             .padding(contentPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .duoSurface(cornerRadius: cornerRadius, tint: highlight)
-    }
-}
-
-private struct DeckSegmentedProgressBar: View {
-    let progress: DeckProgressStats
-    let learningTint: Color
-
-    var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 6) {
-                if progress.masteredCards > 0 {
-                    Capsule()
-                        .fill(Color.teal.gradient)
-                        .frame(width: max(0, geo.size.width * progress.masteredRatio - 6))
-                }
-                if progress.learningCards > 0 {
-                    Capsule()
-                        .fill(learningTint.gradient)
-                        .frame(width: max(0, geo.size.width * progress.learningRatio - 6))
-                }
-                if progress.newCards > 0 {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.18))
-                        .frame(width: max(0, geo.size.width * progress.newRatio - 6))
-                }
-            }
-        }
-        .frame(height: 16)
-    }
-}
-
-private struct DeckProgressLegendItem: View {
-    let color: Color
-    let count: Int
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-
-            HStack(spacing: 4) {
-                Text("\(count)")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.primary)
-
-                Text(label)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 }
 

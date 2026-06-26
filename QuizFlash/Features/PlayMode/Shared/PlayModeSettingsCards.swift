@@ -183,7 +183,6 @@ private struct CompactTapAnimationRow: View {
         .padding(.top, UIConstants.Spacing.medium)
         .padding(.bottom, tapAnimationStyle == .staticSwap ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
         .frame(minHeight: tapAnimationStyle == .staticSwap ? 158 : 110, alignment: .top)
-        .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: tapAnimationStyle)
     }
 
@@ -444,7 +443,6 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
         .frame(minHeight: isDense ? 106 : 124)
-        .duoControlSurface(tint: tint)
     }
 
     private var label: some View {
