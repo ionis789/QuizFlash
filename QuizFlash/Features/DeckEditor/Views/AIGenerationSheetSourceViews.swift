@@ -170,8 +170,12 @@ struct SourcePreviewCard: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.05))
+                        .fill(ThemeManager.shared.roleColor(.widgetSurfaceFill))
                         .frame(width: 138, height: 98)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(ThemeManager.shared.roleColor(.widgetSurfaceBorder).opacity(0.22), lineWidth: 1)
+                        }
 
                     if let thumbnail = item.thumbnail {
                         Image(uiImage: thumbnail)
@@ -198,7 +202,7 @@ struct SourcePreviewCard: View {
             }
             .frame(width: 138, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }
 

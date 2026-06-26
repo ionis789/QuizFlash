@@ -84,14 +84,7 @@ struct AIGenerationSourcePickerSheetView: View {
             .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .background {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color.white.opacity(0.075))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .stroke(Color.white.opacity(0.035), lineWidth: 1)
-        }
+        .duoPressableSurfaceStyle()
+        .duoSurface(cornerRadius: 32, tint: tint)
     }
 }

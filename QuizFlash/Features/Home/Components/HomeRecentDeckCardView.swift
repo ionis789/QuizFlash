@@ -68,6 +68,6 @@ struct HomeRecentDeckCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }

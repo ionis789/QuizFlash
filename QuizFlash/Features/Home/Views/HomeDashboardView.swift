@@ -1016,14 +1016,7 @@ private struct HomeWeeklyCoverageDeckBreakdownCard: View {
             }
         }
         .padding(usesRegularMetrics ? 18 : 16)
-        .background {
-            RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-                .overlay {
-                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.03), lineWidth: 1)
-                }
-        }
+        .duoSurface(cornerRadius: usesRegularMetrics ? 26 : 24)
     }
 }
 
@@ -1058,19 +1051,11 @@ private struct HomeWeeklyCoverageReviewedCardRow: View {
             Text(badgeText)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(badgeTint.opacity(card.wasCorrectAtEndOfDay ? 0.18 : 0.22))
-                )
+                .duoMetricPill(tint: badgeTint)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.035))
-        )
+        .duoControlSurface(cornerRadius: 18, tint: badgeTint)
     }
 }
 
@@ -1093,10 +1078,7 @@ private struct HomeWeeklyCoverageEmptyState: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: usesRegularMetrics ? 26 : 24, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-        }
+        .duoSurface(cornerRadius: usesRegularMetrics ? 26 : 24)
     }
 }
 
@@ -1162,10 +1144,6 @@ private struct HomeDashboardTrendPlaceholder: View {
         themeManager.roleColor(.buttonDangerFill)
     }
 
-    private var surfaceColor: Color {
-        themeManager.roleColor(.widgetSurfaceFill)
-    }
-
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
             let values: [Double] = [0.28, 0.54, 0.4, 0.76, 0.48, 0.64, 0.34]
@@ -1180,7 +1158,7 @@ private struct HomeDashboardTrendPlaceholder: View {
         .frame(height: 110, alignment: .bottom)
         .padding(.horizontal, 6)
         .padding(.vertical, 10)
-        .background(surfaceColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .duoControlSurface(cornerRadius: 18)
     }
 }
 
@@ -1209,14 +1187,7 @@ private struct HomeDashboardInlineBadge: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(surfaceColor)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(tint.opacity(0.10))
-                }
-        }
+        .duoControlSurface(cornerRadius: 18, tint: tint)
     }
 }
 

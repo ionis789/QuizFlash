@@ -375,7 +375,6 @@ extension DeckContentView {
             }
             .padding(20)
             .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
-            .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
         }
 
         private func dateString(_ date: Date) -> String {
@@ -413,7 +412,7 @@ extension DeckContentView {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 10)
             .padding(.vertical, 12)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .duoControlSurface(cornerRadius: 22, tint: color)
         }
     }
 }

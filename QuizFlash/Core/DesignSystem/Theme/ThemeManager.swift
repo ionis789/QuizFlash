@@ -179,6 +179,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
 
     case cardSurfaceFill = "CardSurfaceFill"
     case widgetSurfaceFill = "WidgetSurfaceFill"
+    case widgetSurfaceBorder = "WidgetSurfaceBorder"
     case settingsCardFill = "SettingsCardFill"
     case settingsCardBorder = "SettingsCardBorder"
     case selectionToolbarFill = "SelectionToolbarFill"
@@ -227,6 +228,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
         case .labelSurfaceForeground: "Surface Label Text"
         case .cardSurfaceFill: "Card Surface Fill"
         case .widgetSurfaceFill: "Widget Surface Fill"
+        case .widgetSurfaceBorder: "Widget Surface Border"
         case .settingsCardFill: "Settings Card Fill"
         case .settingsCardBorder: "Settings Card Border"
         case .selectionToolbarFill: "Selection Toolbar Fill"
@@ -285,6 +287,8 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             "Elevated card-style surfaces."
         case .widgetSurfaceFill:
             "Widget blocks and content modules."
+        case .widgetSurfaceBorder:
+            "Visible border for Duolingo-style widget panels."
         case .settingsCardFill:
             "Grouped settings card background."
         case .settingsCardBorder:
@@ -372,7 +376,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
                 ThemeStudioUsageReference(title: "Flashcard faces", detail: "Full card surfaces used in study and preview modes."),
                 ThemeStudioUsageReference(title: "Large card treatments", detail: "Surfaces that need stronger border and depth than widgets.")
             ]
-        case .widgetSurfaceFill:
+        case .widgetSurfaceFill, .widgetSurfaceBorder:
             [
                 ThemeStudioUsageReference(title: "Dashboard cards", detail: "Home stats, recent decks, folders, and overview widgets."),
                 ThemeStudioUsageReference(title: "Shared modules", detail: "Rows and panels that use flashcardStyle(.widget).")
@@ -439,7 +443,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             .surfaceLabel
         case .cardSurfaceFill:
             .cardSurface
-        case .widgetSurfaceFill:
+        case .widgetSurfaceFill, .widgetSurfaceBorder:
             .widgetSurface
         case .settingsCardFill, .settingsCardBorder, .selectionToolbarFill, .selectionToolbarBorder:
             .widgetSurface
@@ -488,7 +492,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
              .labelSurfaceFill,
              .labelSurfaceForeground:
             .labels
-        case .cardSurfaceFill, .widgetSurfaceFill:
+        case .cardSurfaceFill, .widgetSurfaceFill, .widgetSurfaceBorder:
             .surfaces
         case .settingsCardFill, .settingsCardBorder, .selectionToolbarFill, .selectionToolbarBorder:
             .surfaces
@@ -526,6 +530,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
         case .labelSurfaceForeground: .textPrimary
         case .cardSurfaceFill: .surfaceSecondary
         case .widgetSurfaceFill: .surfacePrimary
+        case .widgetSurfaceBorder: .textPrimary
         case .settingsCardFill: .surfacePrimary
         case .settingsCardBorder: .textPrimary
         case .selectionToolbarFill: .surfaceSecondary

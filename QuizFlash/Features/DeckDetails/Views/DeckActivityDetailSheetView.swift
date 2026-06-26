@@ -164,8 +164,6 @@ private struct DeckActivityDaySection: View {
 }
 
 private struct DeckActivitySheetSurface<Content: View>: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -176,20 +174,11 @@ private struct DeckActivitySheetSurface<Content: View>: View {
         content
             .padding(UIConstants.Spacing.large)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
-                    }
-            }
+            .duoSurface(cornerRadius: 28)
     }
 }
 
 private struct DeckActivityPill: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let text: String
     let tint: Color
     let backgroundTint: Color
@@ -200,14 +189,8 @@ private struct DeckActivityPill: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(themeManager.surfacePrimary)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .fill(backgroundTint)
-                    }
-            }
+            .duoMetricPill(tint: tint)
+            .background(backgroundTint, in: Capsule(style: .continuous))
     }
 }
 
@@ -247,14 +230,7 @@ private struct DeckActivityCardRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(outcomeTint.opacity(0.08))
-                }
-        }
+        .duoControlSurface(cornerRadius: 22, tint: outcomeTint)
     }
 
     private var reviewCountLine: String {

@@ -459,9 +459,7 @@ private struct DeckGridGamePreview: View {
     }
 
     private var surfaceFill: Color {
-        colorScheme == .dark
-            ? Color(red: 0.068, green: 0.068, blue: 0.068)
-            : Color(red: 0.92, green: 0.92, blue: 0.91)
+        themeManager.roleColor(.widgetSurfaceFill)
     }
 
     var body: some View {
@@ -548,7 +546,7 @@ private struct DeckGridGamePreview: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.05 : 0.08), lineWidth: 1)
+                .strokeBorder(themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.22 : 0.18), lineWidth: 1)
         }
     }
 
@@ -621,19 +619,19 @@ private struct MiniCardPreview: View, Equatable {
     }
 
     private var surfaceFill: Color {
-        Color(uiColor: colorScheme == .dark ? .secondarySystemGroupedBackground : .secondarySystemBackground)
+        themeManager.roleColor(.widgetSurfaceFill)
     }
 
     private var borderColor: Color {
         isSelected
             ? themeManager.accentColor.color.opacity(0.95)
-            : .clear
+            : themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.22 : 0.18)
     }
 
     private var borderWidth: CGFloat {
         isSelected
             ? DeckGridCardMetrics.selectedStrokeWidth
-            : 0
+            : 1
     }
 
     var body: some View {

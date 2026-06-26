@@ -204,9 +204,7 @@ struct SettingsView: View {
                     Text(appliedGoalSummary)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
-                        .padding(.horizontal, UIConstants.Spacing.standard)
-                        .padding(.vertical, UIConstants.Spacing.small)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .duoMetricPill(tint: appPreferences.dailyCardsGoal == nil ? nil : themeManager.accentColor.color)
                 }
                 .contentShape(Rectangle())
             }
@@ -225,6 +223,15 @@ struct SettingsView: View {
                             .background {
                                 Capsule()
                                     .fill(goalDraftHasChanges ? themeManager.accentColor.color : themeManager.roleColor(.widgetSurfaceFill))
+                            }
+                            .overlay {
+                                Capsule()
+                                    .strokeBorder(
+                                        goalDraftHasChanges
+                                            ? themeManager.accentColor.color.opacity(0.42)
+                                            : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.24),
+                                        lineWidth: 1
+                                    )
                             }
                     }
                     .buttonStyle(.plain)
@@ -973,9 +980,7 @@ struct SettingsView: View {
                     Text("\(appPreferences.defaultTextSize.step)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(themeManager.textPrimary)
-                        .padding(.horizontal, UIConstants.Spacing.standard)
-                        .padding(.vertical, UIConstants.Spacing.small)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .duoMetricPill(tint: themeManager.accentColor.color)
                         .contentTransition(.numericText())
                 }
                 .contentShape(Rectangle())

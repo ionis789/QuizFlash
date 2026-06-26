@@ -163,8 +163,6 @@ struct DeckProgressView: View {
 // MARK: - Supporting Views
 
 private struct DeckProgressSurface<Content: View>: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let highlight: Color
     let cornerRadius: CGFloat
     let contentPadding: CGFloat
@@ -186,19 +184,7 @@ private struct DeckProgressSurface<Content: View>: View {
         content
             .padding(contentPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(highlight.opacity(0.035))
-                    }
-                    .shadow(color: Color.black.opacity(0.34), radius: 22, x: 0, y: 14)
-            }
+            .duoSurface(cornerRadius: cornerRadius, tint: highlight)
     }
 }
 

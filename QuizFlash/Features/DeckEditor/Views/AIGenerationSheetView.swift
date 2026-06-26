@@ -296,11 +296,7 @@ struct AIGenerationSheetView: View {
                     }
                     .padding(.horizontal, UIConstants.Spacing.standard)
                     .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    }
+                    .duoControlSurface(cornerRadius: 16)
                 }
                 .buttonStyle(.plain)
             }
@@ -336,13 +332,10 @@ struct AIGenerationSheetView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, UIConstants.Spacing.small)
                 .padding(.vertical, 11)
-                .background(
-                    isSelected ? accent.opacity(0.16) : Color.white.opacity(0.05),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
+                .background(isSelected ? accent.opacity(0.16) : Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(isSelected ? accent.opacity(0.42) : Color.white.opacity(0.07), lineWidth: 1)
+                        .stroke(isSelected ? accent.opacity(0.42) : Color.primary.opacity(0.09), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
@@ -374,7 +367,7 @@ struct AIGenerationSheetView: View {
                         .foregroundStyle(.blue)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .duoControlSurface(cornerRadius: 16, tint: .blue)
                 }
                 .buttonStyle(.plain)
             }

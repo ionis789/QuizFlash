@@ -240,7 +240,7 @@ private struct PlayModeCard: View {
                 .padding(.vertical, 14)
                 .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .duoPressableSurfaceStyle()
 
             Button {
                 onOpenSettings(mode)

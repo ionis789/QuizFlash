@@ -82,6 +82,7 @@ enum ThemeStudioCatalog {
                 component("HomeGreetingCardView", note: "Greeting summary widget", kind: "widget.card.standard", slots: widgetCardTextSlots),
                 component("HomeRecentDeckCardView", note: "Recently opened deck card", kind: "widget.card.standard", slots: [
                     slot("backgroundFill", .role(.widgetSurfaceFill), true, widgetSurfaceNote),
+                    slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote),
                     slot("titleForeground", .token(.textPrimary), true, "Used by the deck title."),
                     slot("metaForeground", .token(.textSecondary), true, "Used by card count and secondary metadata.")
                 ]),
@@ -89,6 +90,7 @@ enum ThemeStudioCatalog {
                 component("HomeSelectedDayInsightsCard", note: "Selected day insights widget", kind: "widget.card.emphasis", slots: widgetEmphasisSlots),
                 component("FolderCardView", note: "Folder grid card", kind: "widget.card.standard", slots: [
                     slot("backgroundFill", .role(.widgetSurfaceFill), true, widgetSurfaceNote),
+                    slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote),
                     slot("titleForeground", .token(.textPrimary), true, "Used by the folder title."),
                     slot("metaForeground", .token(.textSecondary), true, "Used by the deck count."),
                     slot("accentFallback", .token(.brandPrimary), false, "Used when the folder has no custom colorHex.")
@@ -170,6 +172,7 @@ enum ThemeStudioCatalog {
                 ]),
                 component("DetailedCardRowView", note: "Editor row card", kind: "editor.row.detailed", slots: [
                     slot("backgroundFill", .role(.widgetSurfaceFill), true, widgetSurfaceNote),
+                    slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote),
                     slot("accentFallback", .token(.brandPrimary), false, "Used by deck accent fallback treatments.")
                 ]),
                 component("CardPreviewModeView", note: "Preview panel surface", kind: "preview.panel.card", slots: [
@@ -177,7 +180,8 @@ enum ThemeStudioCatalog {
                 ]),
                 component("AIGenerationSheetView", note: "AI generation surface", kind: "sheet.ai.generation", slots: [
                     slot("accentFallback", .token(.brandPrimary), false, "Used by the generation CTA and helper accents."),
-                    slot("backgroundFill", .role(.widgetSurfaceFill), true, "Used by the larger AI summary cards.")
+                    slot("backgroundFill", .role(.widgetSurfaceFill), true, "Used by the larger AI summary cards."),
+                    slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote)
                 ]),
                 component("FloatingAIWorkspaceStatusMenu", note: "AI floating status panel", kind: "floating.ai.status", slots: [
                     slot("accentFallback", .token(.brandPrimary), false, "Used by status emphasis and runtime pills.")
@@ -213,6 +217,7 @@ enum ThemeStudioCatalog {
     }
 
     private static let widgetSurfaceNote = "Inherited from flashcardStyle(surfaceRole: .widget)."
+    private static let widgetBorderNote = "Shared visible border for Duo-style panels and widgets."
 
     private static let screenPrimarySlots: [ThemeStudioColorSlotDescriptor] = [
         slot("backgroundFill", .role(.screenBackgroundPrimary), true, "Main canvas for full-screen primary surfaces.")
@@ -234,12 +239,14 @@ enum ThemeStudioCatalog {
 
     private static let widgetCardTextSlots: [ThemeStudioColorSlotDescriptor] = [
         slot("backgroundFill", .role(.widgetSurfaceFill), true, widgetSurfaceNote),
+        slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote),
         slot("titleForeground", .token(.textPrimary), true, "Used by the main content title."),
         slot("detailForeground", .token(.textSecondary), true, "Used by supporting copy and labels.")
     ]
 
     private static let widgetEmphasisSlots: [ThemeStudioColorSlotDescriptor] = [
         slot("backgroundFill", .role(.widgetSurfaceFill), true, widgetSurfaceNote),
+        slot("borderColor", .role(.widgetSurfaceBorder), true, widgetBorderNote),
         slot("accentFallback", .token(.brandPrimary), false, "Used by global accent-driven highlights when the content has no custom tint.")
     ]
 

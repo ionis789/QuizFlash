@@ -39,16 +39,15 @@ struct DistributionModeButton: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(UIConstants.Spacing.standard)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelected ? accent.opacity(0.12) : Color.white.opacity(0.04))
-            )
+            .duoControlSurface(cornerRadius: 18, tint: isSelected ? accent : nil)
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? accent.opacity(0.34) : Color.white.opacity(0.06), lineWidth: 1)
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(accent.opacity(0.42), lineWidth: 1.2)
+                }
             }
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }
 
@@ -87,16 +86,15 @@ struct GenerationChoiceCard: View {
             }
             .frame(maxWidth: .infinity, minHeight: 122, alignment: .topLeading)
             .padding(UIConstants.Spacing.medium)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelected ? accent.opacity(0.12) : Color.white.opacity(0.04))
-            )
+            .duoControlSurface(cornerRadius: 18, tint: isSelected ? accent : nil)
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? accent.opacity(0.34) : Color.white.opacity(0.06), lineWidth: 1)
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(accent.opacity(0.42), lineWidth: 1.2)
+                }
             }
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }
 
@@ -126,16 +124,15 @@ struct GenerationRowButton: View {
                     .foregroundStyle(isSelected ? Color.accentColor : .secondary)
             }
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.03))
-            )
+            .duoControlSurface(cornerRadius: 16, tint: isSelected ? Color.accentColor : nil)
             .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.32) : Color.white.opacity(0.05), lineWidth: 1)
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.accentColor.opacity(0.42), lineWidth: 1.2)
+                }
             }
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }
 
@@ -172,15 +169,14 @@ struct ModeButton: View {
                     .font(.title3)
             }
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.08))
-            )
+            .duoControlSurface(cornerRadius: 14, tint: isSelected ? Color.accentColor : nil)
             .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.accentColor.opacity(0.48), lineWidth: 1.2)
+                }
             }
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }

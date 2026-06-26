@@ -422,9 +422,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
                         .font(.caption2.weight(.bold))
                 }
                 .foregroundStyle(themeManager.textPrimary)
-                .padding(.horizontal, UIConstants.Spacing.standard)
-                .padding(.vertical, UIConstants.Spacing.small)
-                .background(.ultraThinMaterial, in: Capsule())
+                .duoMetricPill()
             }
         }
     }
@@ -485,9 +483,7 @@ private struct SettingsBadge: View {
         SettingsTextLabel(content: title)
             .font(.caption.weight(.semibold))
             .foregroundStyle(themeManager.textPrimary)
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .padding(.vertical, UIConstants.Spacing.small)
-            .background(.ultraThinMaterial, in: Capsule())
+            .duoMetricPill()
     }
 }
 
@@ -509,20 +505,11 @@ struct SettingsRowIcon: View {
 }
 
 private struct SettingsCardBackgroundModifier: ViewModifier {
-    @Environment(ThemeManager.self) private var themeManager
-
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(themeManager.roleColor(.settingsCardFill))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(themeManager.roleColor(.settingsCardBorder).opacity(0.18), lineWidth: 0.75)
-            }
+            .duoSurface(cornerRadius: cornerRadius)
     }
 }
 

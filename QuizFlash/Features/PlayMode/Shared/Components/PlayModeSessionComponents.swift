@@ -270,14 +270,7 @@ struct PlayModeCompletionOverlay: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 28)
                 .frame(width: panelWidth)
-                .background(
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .fill(themeManager.surfacePrimary.opacity(0.86))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .stroke(themeManager.textPrimary.opacity(0.06), lineWidth: 1)
-                }
+                .duoSurface(cornerRadius: panelCornerRadius, tint: themeManager.roleColor(.buttonPrimaryFill))
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }

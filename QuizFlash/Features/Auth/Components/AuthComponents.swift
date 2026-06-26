@@ -61,11 +61,7 @@ struct AuthIconTextField: View {
         }
         .padding(.horizontal, UIConstants.Spacing.standard)
         .frame(height: UIConstants.Size.buttonHeight)
-        .background(Color.primary.opacity(0.06), in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        }
+        .duoControlSurface(cornerRadius: UIConstants.Size.buttonHeight / 2)
     }
 
     private var revealablePasswordField: some View {

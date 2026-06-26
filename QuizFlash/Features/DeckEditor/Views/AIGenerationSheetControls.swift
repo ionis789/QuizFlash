@@ -51,14 +51,7 @@ struct ManualAllocationCard: View {
             }
         }
         .padding(UIConstants.Spacing.standard)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-        }
+        .duoControlSurface(cornerRadius: UIConstants.Radius.large)
     }
 }
 
@@ -241,11 +234,7 @@ struct CardCountControl: View {
             }
             .padding(.horizontal, UIConstants.Spacing.small)
             .padding(.vertical, UIConstants.Spacing.tiny)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
+            .duoControlSurface(cornerRadius: UIConstants.Radius.large)
 
             if !filteredPresets.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -762,7 +751,11 @@ private struct StepperButton: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.primary)
                 .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.06), in: Circle())
+                .background(Color.primary.opacity(0.055), in: Circle())
+                .overlay {
+                    Circle()
+                        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

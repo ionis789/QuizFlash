@@ -70,11 +70,6 @@ struct PlayModeSettingsOverviewCard: View {
         }
         .padding(UIConstants.Spacing.large)
         .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
-        .shadow(
-            color: tintColor.opacity(0.12),
-            radius: UIConstants.Shadow.heavyRadius,
-            y: UIConstants.Shadow.yOffset
-        )
     }
 }
 
@@ -189,7 +184,7 @@ private struct CompactTapAnimationRow: View {
         .padding(.top, UIConstants.Spacing.medium)
         .padding(.bottom, tapAnimationStyle == .staticSwap ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
         .frame(minHeight: tapAnimationStyle == .staticSwap ? 158 : 110, alignment: .top)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: tapAnimationStyle)
     }
 
@@ -226,10 +221,13 @@ private struct CompactTapAnimationRow: View {
                         .contentTransition(.identity)
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)
-                        .background(
-                            isSelected ? tint : Color.primary.opacity(0.075),
-                            in: Capsule()
-                        )
+                        .background(isSelected ? tint : Color.primary.opacity(0.075), in: Capsule())
+                        .overlay {
+                            if !isSelected {
+                                Capsule()
+                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
             }
@@ -313,9 +311,7 @@ private struct CompactTextSizeSliderRow: View {
                     Text("\(textSize.step)")
                         .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.primary)
-                        .padding(.horizontal, UIConstants.Spacing.standard)
-                        .padding(.vertical, UIConstants.Spacing.small)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .duoMetricPill(tint: tint)
                         .contentTransition(.numericText())
                 }
                 .contentShape(Rectangle())
@@ -338,7 +334,7 @@ private struct CompactTextSizeSliderRow: View {
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
         .frame(minHeight: isExpanded ? (isDense ? 132 : 148) : (isDense ? 70 : 78))
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: isExpanded)
     }
 }
@@ -394,7 +390,7 @@ private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
         .frame(minHeight: isDense ? 58 : 68)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .duoControlSurface(tint: tint)
     }
 }
 
@@ -424,7 +420,7 @@ private struct CompactSettingsToggleRow: View {
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
         .frame(minHeight: isDense ? 58 : 68)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .duoControlSurface(tint: tint)
     }
 }
 
@@ -450,7 +446,7 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
         .frame(minHeight: isDense ? 106 : 124)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .duoControlSurface(tint: tint)
     }
 
     private var label: some View {
@@ -566,8 +562,6 @@ private struct PlayModeSettingsStatusChip: View {
             .font(.system(size: 14, weight: .bold, design: .rounded))
             .foregroundStyle(.primary)
             .lineLimit(1)
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .padding(.vertical, UIConstants.Spacing.small)
-            .background(.ultraThinMaterial, in: Capsule())
+            .duoMetricPill()
     }
 }

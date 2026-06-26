@@ -246,6 +246,14 @@ enum FlashcardSurfaceRole {
     case widget
 }
 
+// MARK: - Duo Surface Role
+
+/// Shared Duolingo-inspired surface density used by widgets, panels, and controls.
+enum DuoSurfaceRole {
+    case panel
+    case control
+}
+
 // MARK: - FlashcardSurfaceModifier
 
 /// Applies the shared surface chrome used by flashcards and widget-like cards.
@@ -312,7 +320,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
         case .card:
             themeManager.textPrimary.opacity(colorScheme == .dark ? 0.14 : 0.40)
         case .widget:
-            .clear
+            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.28 : 0.24)
         }
     }
 
@@ -321,7 +329,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
         case .card:
             themeManager.textPrimary.opacity(colorScheme == .dark ? 0.06 : 0.18)
         case .widget:
-            .clear
+            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.12 : 0.10)
         }
     }
 
@@ -334,7 +342,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
         case .card:
             2
         case .widget:
-            1
+            0
         }
     }
 
@@ -387,6 +395,102 @@ private struct FlashcardSurfaceModifier: ViewModifier {
             )
             .blur(radius: resolvedCardBorderBlurRadius)
             .clipShape(shape)
+    }
+}
+
+// MARK: - DuoSurfaceModifier
+
+/// Applies the shared Duolingo-inspired panel/control surface chrome.
+private struct DuoSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+
+    let cornerRadius: CGFloat
+    let role: DuoSurfaceRole
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        content
+            .background {
+                shape
+                    .fill(fillColor)
+                    .overlay {
+                        if let tint {
+                            shape.fill(tint.opacity(role == .panel ? 0.025 : 0.018))
+                        }
+                    }
+            }
+            .overlay {
+                shape
+                    .strokeBorder(borderColor, lineWidth: borderLineWidth)
+            }
+            .clipShape(shape)
+    }
+
+    private var fillColor: Color {
+        switch role {
+        case .panel:
+            themeManager.roleColor(.widgetSurfaceFill)
+        case .control:
+            themeManager.roleColor(.settingsCardFill).opacity(colorScheme == .dark ? 0.92 : 1)
+        }
+    }
+
+    private var borderColor: Color {
+        let baseOpacity: CGFloat = role == .panel ? 0.28 : 0.18
+        return themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 0.86)
+    }
+
+    private var borderLineWidth: CGFloat {
+        role == .panel ? 1.25 : 1
+    }
+}
+
+// MARK: - DuoMetricPillModifier
+
+/// Applies the shared outlined metric-chip treatment used by Home-style stats.
+private struct DuoMetricPillModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        content
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .padding(.horizontal, UIConstants.Spacing.standard)
+            .padding(.vertical, UIConstants.Spacing.small)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(fillColor)
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: 1.05)
+            }
+    }
+
+    private var fillColor: Color {
+        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.035 : 0.055)
+    }
+
+    private var borderColor: Color {
+        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.42 : 0.34)
+    }
+}
+
+// MARK: - DuoPressableSurfaceStyle
+
+/// Subtle full-surface press treatment for interactive Duolingo-style panels.
+private struct DuoPressableSurfaceStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1, anchor: .center)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(.easeInOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 
@@ -489,6 +593,32 @@ extension View {
                 baseBorderBlurRadius: baseBorderBlurRadius
             )
         )
+    }
+
+    /// Applies the shared Duolingo-inspired panel chrome.
+    func duoSurface(
+        cornerRadius: CGFloat = UIConstants.Radius.maximum,
+        tint: Color? = nil
+    ) -> some View {
+        modifier(DuoSurfaceModifier(cornerRadius: cornerRadius, role: .panel, tint: tint))
+    }
+
+    /// Applies the denser shared chrome for rows and grouped controls.
+    func duoControlSurface(
+        cornerRadius: CGFloat = UIConstants.Radius.large,
+        tint: Color? = nil
+    ) -> some View {
+        modifier(DuoSurfaceModifier(cornerRadius: cornerRadius, role: .control, tint: tint))
+    }
+
+    /// Applies the shared outlined metric-chip treatment.
+    func duoMetricPill(tint: Color? = nil) -> some View {
+        modifier(DuoMetricPillModifier(tint: tint))
+    }
+
+    /// Applies the shared full-panel press response.
+    func duoPressableSurfaceStyle() -> some View {
+        buttonStyle(DuoPressableSurfaceStyle())
     }
 
     /// Applies the standard top chrome positioning shared by navigation surfaces.

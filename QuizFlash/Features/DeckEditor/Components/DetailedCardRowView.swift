@@ -98,10 +98,12 @@ struct DetailedCardRowView: View, Equatable {
                 )
             }
         }
-        .background(Color.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .duoSurface(cornerRadius: 26)
         .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(isSelected ? accent.opacity(0.65) : Color.white.opacity(0.11), lineWidth: isSelected ? 1.4 : 1)
+            if isSelected {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .strokeBorder(accent.opacity(0.70), lineWidth: 1.4)
+            }
         }
         .overlay(alignment: .topTrailing) {
             cardNumberBadge
@@ -145,11 +147,7 @@ struct DetailedCardRowView: View, Equatable {
             .minimumScaleFactor(0.75)
             .padding(.horizontal, isCompactPreview ? 8 : 9)
             .frame(minWidth: isCompactPreview ? 28 : 30, minHeight: isCompactPreview ? 24 : 26)
-            .background(Color.black.opacity(0.20), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(isSelected ? accent.opacity(0.70) : Color.white.opacity(0.09), lineWidth: 1)
-            }
+            .duoMetricPill(tint: isSelected ? accent : nil)
             .accessibilityLabel(localizedFormat("Card %d", displayCardNumber))
     }
 

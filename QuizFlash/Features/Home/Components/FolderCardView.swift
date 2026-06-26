@@ -67,7 +67,7 @@ struct FolderCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .flashcardStyle(surfaceRole: .widget)
         }
-        .buttonStyle(.plain)
+        .duoPressableSurfaceStyle()
     }
 }
 

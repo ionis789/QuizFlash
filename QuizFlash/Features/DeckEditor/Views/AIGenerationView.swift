@@ -357,15 +357,7 @@ private struct AIGenerationSurface<Content: View>: View {
         content()
             .padding(UIConstants.Spacing.large)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
-            }
+            .duoSurface(cornerRadius: 28)
     }
 }
 
@@ -377,13 +369,7 @@ private struct AIGenerationCountBadge: View {
             .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
             .foregroundStyle(.primary)
             .frame(minWidth: 52)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
+            .duoMetricPill()
             .fixedSize(horizontal: true, vertical: false)
     }
 }
