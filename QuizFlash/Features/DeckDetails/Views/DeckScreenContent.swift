@@ -191,7 +191,8 @@ extension DeckContentView {
         case .quiz:
             fallbackHeight = 540
         case .flashcards:
-            fallbackHeight = 700
+            let settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+            fallbackHeight = settings.tapAnimationStyle == .staticSwap ? 680 : 630
         case nil:
             fallbackHeight = 540
         }

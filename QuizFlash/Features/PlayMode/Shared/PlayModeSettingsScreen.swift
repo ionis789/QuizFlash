@@ -50,6 +50,25 @@ struct PlayModeSettingsScreen: View {
     @State private var showSaveErrorAlert = false
     @State private var saveErrorMessage = ""
 
+    init(
+        deck: DeckModel,
+        mode: DeckPlayModeDestination,
+        availability: PlayModeCardAvailability,
+        safeAreaInsets: UIEdgeInsets,
+        onContentHeightChange: @escaping (CGFloat) -> Void
+    ) {
+        self.deck = deck
+        self.mode = mode
+        self.availability = availability
+        self.safeAreaInsets = safeAreaInsets
+        self.onContentHeightChange = onContentHeightChange
+
+        let persistedSettings = deck.playModeSettings
+        _settingsModel = State(initialValue: persistedSettings)
+        _flashcardSettings = State(initialValue: persistedSettings?.flashcardSettings ?? FlashcardModeSettings())
+        _quizSettings = State(initialValue: persistedSettings?.quizSettings ?? QuizModeSettings())
+    }
+
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
 
     private var deckColor: Color {
