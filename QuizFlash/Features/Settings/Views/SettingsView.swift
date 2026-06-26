@@ -196,7 +196,7 @@ struct SettingsView: View {
                     settingsGoalIcon
 
                     Text(AppLocalization.string("Cards Goal", locale: appPreferences.resolvedLocale))
-                        .font(.body.weight(.semibold))
+                        .font(.body.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Spacer(minLength: UIConstants.Spacing.standard)
@@ -204,7 +204,13 @@ struct SettingsView: View {
                     Text(appliedGoalSummary)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
-                        .duoMetricPill(tint: appPreferences.dailyCardsGoal == nil ? nil : themeManager.accentColor.color)
+                        .padding(.horizontal, UIConstants.Spacing.medium)
+                        .frame(height: 34)
+                        .background(
+                            (appPreferences.dailyCardsGoal == nil ? Color.primary : themeManager.accentColor.color)
+                                .opacity(0.10),
+                            in: Capsule()
+                        )
                 }
                 .contentShape(Rectangle())
             }
@@ -289,18 +295,28 @@ struct SettingsView: View {
             VStack(spacing: UIConstants.Spacing.standard) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: UIConstants.Spacing.small) {
-                        profileMetric(icon: "flame.fill", title: streakSummary)
-                        profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
-                        profileMetric(icon: isPremiumUser ? "crown.fill" : nil, title: accountPlanSummary, alignment: .center)
+                        profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
+                        profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
+                        profileMetric(
+                            icon: isPremiumUser ? "crown.fill" : "sparkles",
+                            title: accountPlanSummary,
+                            tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
+                            alignment: .center
+                        )
                     }
 
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                         HStack(spacing: UIConstants.Spacing.small) {
-                            profileMetric(icon: "flame.fill", title: streakSummary)
-                            profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
+                            profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
+                            profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
                         }
 
-                        profileMetric(icon: isPremiumUser ? "crown.fill" : nil, title: accountPlanSummary, alignment: .center)
+                        profileMetric(
+                            icon: isPremiumUser ? "crown.fill" : "sparkles",
+                            title: accountPlanSummary,
+                            tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
+                            alignment: .center
+                        )
                     }
                 }
 
@@ -336,16 +352,14 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text(profileName)
-                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
 
                 Image(systemName: "pencil")
-                    .font(.system(size: 14, weight: .black))
+                    .font(.system(size: 18, weight: .black))
                     .foregroundStyle(themeManager.accentColor.color)
-                    .padding(8)
-                    .background(themeManager.accentColor.color.opacity(0.14), in: Circle())
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -376,8 +390,13 @@ struct SettingsView: View {
                 placeholderAvatar
             }
         }
-        .frame(width: 104, height: 104)
+        .frame(width: 114, height: 114)
         .clipShape(Circle())
+        .overlay {
+            Circle()
+                .strokeBorder(themeManager.accentColor.color.opacity(0.32), lineWidth: 2)
+        }
+        .shadow(color: themeManager.accentColor.color.opacity(0.20), radius: 24, x: 0, y: 10)
     }
 
     private var placeholderAvatar: some View {
@@ -777,13 +796,13 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Text(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
-                        .font(.caption.weight(.bold))
+                        .font(.subheadline.weight(.heavy))
                         .foregroundStyle(.secondary)
 
                     Spacer(minLength: UIConstants.Spacing.small)
 
                     Text(formattedUsagePercent(quota.usageProgress))
-                        .font(.caption.weight(.black).monospacedDigit())
+                        .font(.subheadline.weight(.black).monospacedDigit())
                         .foregroundStyle(themeManager.accentColor.color)
                 }
 
@@ -799,7 +818,7 @@ struct SettingsView: View {
                 }
                 .frame(height: 8)
             }
-            .padding(.top, UIConstants.Spacing.tiny)
+            .padding(.top, UIConstants.Spacing.small)
             .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
             .accessibilityValue("\(formattedUsagePercent(quota.usageProgress)), \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
         }
@@ -808,25 +827,26 @@ struct SettingsView: View {
     private func profileMetric(
         icon: String?,
         title: String,
+        tint: Color,
         alignment: Alignment = .leading
     ) -> some View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.accentColor.color.opacity(0.92))
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(tint)
             }
 
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
         }
         .frame(maxWidth: .infinity, alignment: alignment)
         .padding(.horizontal, UIConstants.Spacing.standard)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.05), in: Capsule())
+        .padding(.vertical, 10)
+        .background(tint.opacity(0.10), in: Capsule())
     }
 
     private func accountInfoRow(
@@ -979,15 +999,17 @@ struct SettingsView: View {
                     SettingsRowIcon(icon: "textformat.size", tint: themeManager.accentColor.color)
 
                     Text(AppLocalization.string("Text Size", locale: appPreferences.resolvedLocale))
-                        .font(.body.weight(.semibold))
+                        .font(.body.weight(.bold))
                         .foregroundStyle(themeManager.textPrimary)
 
                     Spacer(minLength: UIConstants.Spacing.standard)
 
                     Text("\(appPreferences.defaultTextSize.step)")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.bold).monospacedDigit())
                         .foregroundStyle(themeManager.textPrimary)
-                        .duoMetricPill(tint: themeManager.accentColor.color)
+                        .padding(.horizontal, UIConstants.Spacing.medium)
+                        .frame(height: 34)
+                        .background(themeManager.accentColor.color.opacity(0.10), in: Capsule())
                         .contentTransition(.numericText())
                 }
                 .contentShape(Rectangle())

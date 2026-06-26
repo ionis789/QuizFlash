@@ -417,12 +417,14 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(titleForOption(selection, appPreferences.resolvedLocale))
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.bold))
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2.weight(.bold))
                 }
                 .foregroundStyle(themeManager.textPrimary)
-                .duoMetricPill()
+                .padding(.horizontal, UIConstants.Spacing.medium)
+                .frame(height: 34)
+                .background(Color.primary.opacity(0.075), in: Capsule())
             }
         }
     }
