@@ -182,6 +182,7 @@ private struct CompactTapAnimationRow: View {
                 ) { option, locale in
                     option.localizedTitle(locale: locale)
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
         .padding(.horizontal, UIConstants.Spacing.medium)
@@ -189,9 +190,7 @@ private struct CompactTapAnimationRow: View {
         .padding(.bottom, tapAnimationStyle == .staticSwap ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
         .frame(minHeight: tapAnimationStyle == .staticSwap ? 158 : 110, alignment: .top)
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-        .transaction { transaction in
-            transaction.animation = nil
-        }
+        .animation(.easeInOut(duration: 0.16), value: tapAnimationStyle)
     }
 
     private func label(title: LocalizedStringResource, icon: String) -> some View {
@@ -215,7 +214,9 @@ private struct CompactTapAnimationRow: View {
                 let isSelected = option == selection.wrappedValue
 
                 Button {
-                    selection.wrappedValue = option
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        selection.wrappedValue = option
+                    }
                 } label: {
                     Text(titleForOption(option, appPreferences.resolvedLocale))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -229,20 +230,11 @@ private struct CompactTapAnimationRow: View {
                             isSelected ? tint : Color.primary.opacity(0.075),
                             in: Capsule()
                         )
-                        .transaction { transaction in
-                            transaction.animation = nil
-                        }
                 }
                 .buttonStyle(.plain)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
             }
         }
         .frame(height: 40)
-        .transaction { transaction in
-            transaction.animation = nil
-        }
     }
 }
 
