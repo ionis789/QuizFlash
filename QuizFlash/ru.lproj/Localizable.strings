@@ -315,6 +315,7 @@
 "Focus deck" = "Главная колода";
 "Focus Streak" = "Полоса фокуса";
 "Folder" = "Папка";
+"Folder Name" = "Название папки";
 "Folders" = "Папки";
 "Follow the text size selected in iOS Settings." = "Следовать размеру текста, выбранному в настройках iOS.";
 "Font" = "Шрифт";
@@ -390,6 +391,7 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.";
 "Layout" = "Разметка";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
+"Label Color" = "Цвет метки";
 "Learning" = "В изучении";
 "LEARNING PROGRESS" = "ПРОГРЕСС ОБУЧЕНИЯ";
 "Left" = "Левый";
@@ -438,6 +440,7 @@
 "Navigation" = "Навигация";
 "Needs attention" = "Требует внимания";
 "New" = "Новый";
+"New Folder" = "Новая папка";
 "Newest" = "Сначала новые";
 "Next" = "Следующий";
 "No" = "Нет";
@@ -546,6 +549,7 @@
 "Ready" = "Готовность";
 "Recent decks and folders." = "Недавние колоды и папки.";
 "Recents" = "Недавние";
+"Recent decks" = "Недавние колоды";
 "Red" = "Красный";
 "Refresh Plan" = "Обновить план";
 "Relearning" = "Переобучение";

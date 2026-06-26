@@ -325,6 +325,7 @@ FLICK	FLICK	SCUTURA	щелкнуть
 Focus deck	Focus deck	Deck principal	Главная колода
 Focus Streak	Focus Streak	Seria de focalizare	Полоса фокуса
 Folder	Folder	Folder	Папка
+Folder Name	Folder Name	Nume folder	Название папки
 Folders	Folders	Foldere	Папки
 Follow the text size selected in iOS Settings.	Follow the text size selected in iOS Settings.	Urmează dimensiunea textului aleasă în Setările iOS.	Следовать размеру текста, выбранному в настройках iOS.
 Font	Font	Font	Шрифт
@@ -400,6 +401,7 @@ Last week	Last week	Săptămâna trecută	Прошлая неделя
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
+Label Color	Label Color	Culoare etichetă	Цвет метки
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
@@ -448,6 +450,7 @@ Multiple correct answers enabled	Multiple correct answers enabled	Răspunsuri co
 Navigation	Navigation	Navigare	Навигация
 Needs attention	Needs attention	Cere atenție	Требует внимания
 New	New	Nou	Новый
+New Folder	New Folder	Folder nou	Новая папка
 Newest	Newest	Cele mai noi	Сначала новые
 Next	Next	Următorul	Следующий
 No	No	Nicio	Нет
@@ -560,6 +563,7 @@ Ready	Ready	Pregătit	Готовность
 Ready when you are.	Ready when you are.	Gata când ești tu.	Готово, когда вы готовы.
 Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
 Recents	Recents	Recente	Недавние
+Recent decks	Recent decks	Deckuri recente	Недавние колоды
 Red	Red	Roșu	Красный
 Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d sau mai puține.	Уменьшите число карточек до %d или меньше.
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план

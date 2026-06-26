@@ -156,8 +156,19 @@ struct HomeView: View {
                 } background: {
                     themeManager.screenBackground
                 }
-                .sheet(isPresented: $viewModel.showCreateFolder) {
-                    CreateFolderSheet(viewModel: viewModel)
+                .fullScreenSheet(
+                    isPresented: $viewModel.showCreateFolder,
+                    configuration: .sheet(
+                        heightMode: .custom(0.52),
+                        showsCloseButton: true
+                    )
+                ) { safeAreaInsets in
+                    CreateFolderSheet(
+                        viewModel: viewModel,
+                        safeAreaInsets: safeAreaInsets
+                    )
+                } background: {
+                    themeManager.screenBackground
                 }
 
                 HomeDataCoordinator(

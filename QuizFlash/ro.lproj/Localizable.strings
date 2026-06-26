@@ -315,6 +315,7 @@
 "Focus deck" = "Deck principal";
 "Focus Streak" = "Seria de focalizare";
 "Folder" = "Folder";
+"Folder Name" = "Nume folder";
 "Folders" = "Foldere";
 "Follow the text size selected in iOS Settings." = "Urmează dimensiunea textului aleasă în Setările iOS.";
 "Font" = "Font";
@@ -390,6 +391,7 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.";
 "Layout" = "Aranjare";
 "Learn fast and effectively." = "Învață rapid și eficient.";
+"Label Color" = "Culoare etichetă";
 "Learning" = "În învățare";
 "LEARNING PROGRESS" = "PROGRESUL DE ÎNVĂȚARE";
 "Left" = "Stânga";
@@ -438,6 +440,7 @@
 "Navigation" = "Navigare";
 "Needs attention" = "Cere atenție";
 "New" = "Nou";
+"New Folder" = "Folder nou";
 "Newest" = "Cele mai noi";
 "Next" = "Următorul";
 "No" = "Nicio";
@@ -546,6 +549,7 @@
 "Ready" = "Pregătit";
 "Recent decks and folders." = "Pachete și foldere recente.";
 "Recents" = "Recente";
+"Recent decks" = "Deckuri recente";
 "Red" = "Roșu";
 "Refresh Plan" = "Actualizează planul";
 "Relearning" = "Reînvățare";

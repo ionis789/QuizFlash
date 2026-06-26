@@ -347,7 +347,7 @@ struct HomeDashboardView: View {
     private var recentDecksSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HomeDashboardSectionHeader(
-                title: localized("Recents"),
+                title: localized("Recent decks"),
                 count: recentDeckSnapshots.count
             )
             recentDecksSurface
@@ -388,9 +388,10 @@ struct HomeDashboardView: View {
     private var foldersSurface: some View {
         VStack(alignment: .leading, spacing: 12) {
             if folderSnapshots.isEmpty {
-                HomeDashboardEmptyPlaceholder(
+                HomeDashboardCreateFolderPlaceholder(
                     title: localized("No folders yet"),
-                    usesRegularMetrics: usesRegularMetrics
+                    usesRegularMetrics: usesRegularMetrics,
+                    action: onCreateFolder
                 )
             } else {
                 ForEach(folderSnapshots) { folder in
@@ -507,21 +508,14 @@ private struct HomeDashboardSectionHeader: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(title)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let count {
-                        Text("(\(count))")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill).opacity(0.72))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                Text(title)
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
@@ -532,10 +526,54 @@ private struct HomeDashboardSectionHeader: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            if let count {
+                Text("\(count)")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textSecondary)
+                    .contentTransition(.numericText())
+                    .fixedSize()
+            }
+
             if let trailingAccessory {
                 trailingAccessory
             }
         }
+    }
+}
+
+private struct HomeDashboardCreateFolderPlaceholder: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let title: String
+    let usesRegularMetrics: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(themeManager.roleColor(.buttonPrimaryFill).opacity(0.10))
+
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: usesRegularMetrics ? 34 : 30, weight: .bold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
+                }
+                .frame(width: usesRegularMetrics ? 76 : 68, height: usesRegularMetrics ? 76 : 68)
+
+                Text(title)
+                    .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(themeManager.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: usesRegularMetrics ? 150 : 134)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 

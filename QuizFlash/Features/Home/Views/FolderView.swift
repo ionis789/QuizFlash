@@ -196,44 +196,121 @@ struct CreateFolderSheet: View {
     // MARK: - Environment
 
     @Environment(\.modelContext) private var context
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+    @FocusState private var isTitleFocused: Bool
 
     // MARK: - Input
 
     @Bindable var viewModel: HomeViewModel
+    let safeAreaInsets: UIEdgeInsets
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private var canSave: Bool {
+        !viewModel.newFolderTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private let colorOptions: [String] = [
+        "#34C759",
+        "#AF9FFF",
+        "#FF9F0A",
+        "#FF5C7A",
+        "#32ADE6"
+    ]
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
 
     // MARK: - Body
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Folder Details") {
-                    TextField("Folder Name", text: $viewModel.newFolderTitle)
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(localized("New Folder"))
+                .font(.system(size: 32, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .padding(.trailing, 72)
 
-                    ColorPicker("Label Color", selection: Binding(
-                        get: { Color(hex: viewModel.newFolderColorHex) ?? .green },
-                        set: { viewModel.newFolderColorHex = $0.toHex() ?? "#34C759" }
-                    ))
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .tint(themeManager.roleColor(.buttonPrimaryFill))
+                    .focused($isTitleFocused)
+                    .submitLabel(.done)
+
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                    Text(localized("Label Color"))
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.7)
+
+                    HStack(spacing: UIConstants.Spacing.standard) {
+                        ForEach(colorOptions, id: \.self) { hex in
+                            Button {
+                                viewModel.newFolderColorHex = hex
+                            } label: {
+                                let color = Color(hex: hex) ?? themeManager.roleColor(.buttonPrimaryFill)
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 34, height: 34)
+                                    .overlay {
+                                        Circle()
+                                            .strokeBorder(
+                                                viewModel.newFolderColorHex == hex
+                                                    ? themeManager.textPrimary
+                                                    : Color.clear,
+                                                lineWidth: 3
+                                            )
+                                    }
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(localized("Label Color"))
+                        }
+                    }
                 }
             }
-            .navigationTitle("New Folder")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.showCreateFolder = false
+            .padding(UIConstants.Spacing.large)
+            .duoSurface(cornerRadius: 28)
+
+            Button {
+                viewModel.createFolder(context: context)
+            } label: {
+                Text(localized("Save"))
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(canSave ? themeManager.screenBackground : themeManager.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(canSave ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.roleColor(.widgetSurfaceFill))
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        viewModel.createFolder(context: context)
-                    }
-                    .disabled(viewModel.newFolderTitle.isEmpty)
-                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.top, max(topChromeClearance + 34, UIConstants.Spacing.extraLarge))
+        .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            isTitleFocused = true
+        }
+        .onDisappear {
+            if !viewModel.showCreateFolder {
+                viewModel.newFolderTitle = ""
             }
         }
-        .presentationDetents([.medium])
-        .alert("Save Error", isPresented: $viewModel.showCreateFolderError) {
-            Button("OK", role: .cancel) { }
+        .alert(localized("Save Error"), isPresented: $viewModel.showCreateFolderError) {
+            Button(localized("OK"), role: .cancel) { }
         } message: {
             Text(viewModel.createFolderErrorMessage)
         }

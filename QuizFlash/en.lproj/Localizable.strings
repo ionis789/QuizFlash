@@ -315,6 +315,7 @@
 "Focus deck" = "Focus deck";
 "Focus Streak" = "Focus Streak";
 "Folder" = "Folder";
+"Folder Name" = "Folder Name";
 "Folders" = "Folders";
 "Follow the text size selected in iOS Settings." = "Follow the text size selected in iOS Settings.";
 "Font" = "Font";
@@ -390,6 +391,7 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.";
 "Layout" = "Layout";
 "Learn fast and effectively." = "Learn fast and effectively.";
+"Label Color" = "Label Color";
 "Learning" = "Learning";
 "LEARNING PROGRESS" = "LEARNING PROGRESS";
 "Left" = "Left";
@@ -438,6 +440,7 @@
 "Navigation" = "Navigation";
 "Needs attention" = "Needs attention";
 "New" = "New";
+"New Folder" = "New Folder";
 "Newest" = "Newest";
 "Next" = "Next";
 "No" = "No";
@@ -546,6 +549,7 @@
 "Ready" = "Ready";
 "Recent decks and folders." = "Recent decks and folders.";
 "Recents" = "Recents";
+"Recent decks" = "Recent decks";
 "Red" = "Red";
 "Refresh Plan" = "Refresh Plan";
 "Relearning" = "Relearning";
