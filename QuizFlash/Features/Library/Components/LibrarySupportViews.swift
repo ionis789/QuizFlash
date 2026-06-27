@@ -17,6 +17,8 @@ struct LibraryEmptyStateView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
+    let onCreate: () -> Void
+
     private var accent: Color { themeManager.accentColor.color }
 
     private var locale: Locale {
@@ -28,29 +30,33 @@ struct LibraryEmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(accent.opacity(0.1))
-                    .frame(width: 80, height: 80)
-                Image(systemName: "rectangle.stack")
-                    .font(.system(size: 34, weight: .light))
-                    .foregroundStyle(accent.opacity(0.8))
-            }
+        Button(action: onCreate) {
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.1))
+                        .frame(width: 80, height: 80)
+                    Image(systemName: "rectangle.stack.badge.plus")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(accent.opacity(0.9))
+                }
 
-            VStack(spacing: 8) {
-                Text(localized("No Decks Yet"))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(themeManager.textPrimary)
-                Text(localized("Tap Create to make your first deck\nand start learning."))
-                    .font(.subheadline)
-                    .foregroundStyle(themeManager.textSecondary)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: 8) {
+                    Text(localized("No Decks Yet"))
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(themeManager.textPrimary)
+                    Text(localized("Create your first deck and start learning."))
+                        .font(.subheadline)
+                        .foregroundStyle(themeManager.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 90)
+            .padding(.horizontal, 40)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 90)
-        .padding(.horizontal, 40)
+        .buttonStyle(.plain)
     }
 }
 

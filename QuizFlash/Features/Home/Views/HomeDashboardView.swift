@@ -395,27 +395,34 @@ struct HomeDashboardView: View {
     // MARK: - Workspace
 
     private var workspaceSetupSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HomeDashboardSectionHeader(title: localized("Get started"))
-
-            createDeckSurface
-        }
+        createDeckSurface
     }
 
     private var createDeckSurface: some View {
-        VStack(alignment: .center, spacing: 12) {
-            HomeDashboardEmptyPlaceholderContent(
-                title: localized("No decks yet"),
-                usesRegularMetrics: usesRegularMetrics
-            )
+        Button(action: onCreateDeck) {
+            VStack(alignment: .center, spacing: usesRegularMetrics ? 14 : 12) {
+                Image(systemName: "rectangle.stack.badge.plus")
+                    .font(.system(size: usesRegularMetrics ? 38 : 34, weight: .bold))
+                    .foregroundStyle(accentColor)
+                    .frame(
+                        width: usesRegularMetrics ? 84 : 76,
+                        height: usesRegularMetrics ? 84 : 76
+                    )
+                    .background {
+                        Circle()
+                            .fill(accentColor.opacity(0.12))
+                    }
 
-            Button(localized("Open Create")) {
-                onCreateDeck()
+                Text(localized("Create your first deck"))
+                    .font(.system(size: usesRegularMetrics ? 19 : 17, weight: .black))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .multilineTextAlignment(.center)
             }
-            .font(.subheadline.weight(.bold))
-            .quizFlashButtonStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, usesRegularMetrics ? 22 : 18)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .buttonStyle(.plain)
     }
 
 }

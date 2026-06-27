@@ -117,27 +117,11 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     private var emptyStateSection: some View {
-        VStack(alignment: .center, spacing: UIConstants.Spacing.large) {
-            Text(localized("Study detail"))
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text(windowEndingLine)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(themeManager.textSecondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(localized("No activity yet"))
-                .font(.system(size: 21, weight: .bold))
-                .foregroundStyle(themeManager.textSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, UIConstants.Spacing.medium)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.top, UIConstants.Spacing.large)
+        Text(localized("No activity yet"))
+            .font(.system(size: 24, weight: .black))
+            .foregroundStyle(themeManager.textPrimary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
 

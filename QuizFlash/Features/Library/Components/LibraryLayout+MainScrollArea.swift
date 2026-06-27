@@ -215,7 +215,9 @@ extension LibraryLayout {
     @ViewBuilder
     var searchDeckListContent: some View {
         if flatSearchDecks.isEmpty {
-            LibraryEmptyStateView()
+            LibraryEmptyStateView {
+                router.showEmptyCreateWorkspace()
+            }
                 .transition(.opacity)
         } else {
             LibraryFlatListView(
@@ -257,7 +259,10 @@ extension LibraryLayout {
     @ViewBuilder
     var browseListContent: some View {
         if viewModel.cachedGroupedDecks.isEmpty {
-            LibraryEmptyStateView().transition(.opacity)
+            LibraryEmptyStateView {
+                router.showEmptyCreateWorkspace()
+            }
+                .transition(.opacity)
         } else {
             LibraryListView(
                 groupedDecks: viewModel.cachedGroupedDecks,
