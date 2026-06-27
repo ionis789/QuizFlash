@@ -260,7 +260,7 @@ struct SettingsNavigationRow: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.compact.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(themeManager.textSecondary.opacity(0.72))
         }

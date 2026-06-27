@@ -66,7 +66,7 @@ private struct FeatureLabEntryCard: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.compact.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 6)

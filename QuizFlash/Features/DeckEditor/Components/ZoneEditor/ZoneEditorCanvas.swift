@@ -938,10 +938,10 @@ struct ZoneEditorCanvas: View {
     private func refreshAlignmentMenu(contentWidth: CGFloat, frames: [ZoneEditorResolvedZoneFrame]) {
         guard let currentState = alignmentMenuState,
               let refreshedState = resolvedAlignmentMenuState(
-                for: currentState.tappedPath,
-                contentWidth: contentWidth,
-                frames: frames,
-                preferredAnchor: currentState.anchor
+                  for: currentState.tappedPath,
+                  contentWidth: contentWidth,
+                  frames: frames,
+                  preferredAnchor: currentState.anchor
               ) else {
             if alignmentMenuState != nil {
                 dismissAlignmentMenu()
@@ -1095,7 +1095,7 @@ struct ZoneEditorCanvas: View {
         )
 
         return HStack(spacing: 4) {
-            alignmentMenuButton(systemName: "chevron.left") {
+            alignmentMenuButton(systemName: "chevron.compact.left") {
                 performAlignmentAction(.left)
             }
 
@@ -1104,7 +1104,7 @@ struct ZoneEditorCanvas: View {
                 .frame(width: 1, height: 18)
                 .allowsHitTesting(false)
 
-            alignmentMenuButton(systemName: "chevron.right") {
+            alignmentMenuButton(systemName: "chevron.compact.right") {
                 performAlignmentAction(.right)
             }
         }
@@ -1477,7 +1477,7 @@ struct ZoneEditorCanvas: View {
         under parentPath: ZonePath,
         directChildCount: Int
     ) -> [ZoneEditorResolvedZoneFrame] {
-        let directChildPaths = (0..<directChildCount).map { parentPath.appending($0) }
+        let directChildPaths = (0 ..< directChildCount).map { parentPath.appending($0) }
 
         return directChildPaths.compactMap { childPath in
             guard let childFrame = frame(forSubtree: childPath, in: frames) else { return nil }
@@ -2129,7 +2129,7 @@ struct ZoneEditorCanvas: View {
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
             "HIT \(snapshot.hitViewDescription)",
             "CHAIN \(snapshot.hitViewChain)",
-            "CANVAS render=\(rendersRichText ? 1 : 0) root=\(rootID) selected=\(selected) frames=\(zoneFrames.count) scroll=\(Int(scrollDriver.currentNormalizedOffsetY))"
+            "CANVAS render=\(rendersRichText ? 1 : 0) root=\(rootID) selected=\(selected) frames=\(zoneFrames.count) scroll=\(Int(scrollDriver.currentNormalizedOffsetY))",
         ] + snapshot.gestureLines
         ZoneEditorDebugStore.shared.recordTap(
             "window \(snapshot.phase) hit=\(snapshot.hitViewName) gestures=\(snapshot.gestureCount)"
@@ -2248,7 +2248,6 @@ struct ZoneEditorCanvas: View {
         )
     }
 
-
     @ViewBuilder
     private var debugOverlay: some View {
         if showsDebugTools && (developmentPreferences.zoneEditorDebugHUDEnabled || showsGridDebugOverlay) {
@@ -2329,7 +2328,7 @@ struct ZoneEditorCanvas: View {
             .joined(separator: "\n")
     }
 
-    nonisolated private static func renderLeafLines(for leaf: ZoneContentLeafLayoutDebugSnapshot) -> [String] {
+    private nonisolated static func renderLeafLines(for leaf: ZoneContentLeafLayoutDebugSnapshot) -> [String] {
         let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
         let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
         let remainingTextWidth = max(textWidthLimit - maxEstimatedLine, 0)
@@ -2359,11 +2358,11 @@ struct ZoneEditorCanvas: View {
             renderedLines.isEmpty ? "    <none>" : renderedLines,
             "  preview=\"\(leaf.textPreview)\"",
             "  fullText:",
-            leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | ")
+            leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | "),
         ]
     }
 
-    nonisolated private static func singleLinePreview(_ value: String, limit: Int) -> String {
+    private nonisolated static func singleLinePreview(_ value: String, limit: Int) -> String {
         let collapsed = value
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2371,18 +2370,18 @@ struct ZoneEditorCanvas: View {
         return String(collapsed.prefix(limit)) + "..."
     }
 
-    nonisolated private static func indentMultiline(_ value: String, prefix: String) -> String {
+    private nonisolated static func indentMultiline(_ value: String, prefix: String) -> String {
         value.components(separatedBy: .newlines)
             .map { prefix + $0 }
             .joined(separator: "\n")
     }
 
-    nonisolated private static func size(_ size: CGSize) -> String {
+    private nonisolated static func size(_ size: CGSize) -> String {
         "\(metric(size.width)) x \(metric(size.height))"
     }
 
-    nonisolated private static func metric(_ value: CGFloat) -> String {
-        Double(value).formatted(.number.precision(.fractionLength(0...1)))
+    private nonisolated static func metric(_ value: CGFloat) -> String {
+        Double(value).formatted(.number.precision(.fractionLength(0 ... 1)))
     }
 
     private func attemptPendingScrollRestoration(
@@ -2555,5 +2554,4 @@ struct ZoneEditorCanvas: View {
             && showsDebugOverlays
             && developmentPreferences.zoneContentLayoutDebugEnabled
     }
-
 }

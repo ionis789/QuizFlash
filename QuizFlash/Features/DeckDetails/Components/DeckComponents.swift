@@ -61,7 +61,6 @@ struct DeckHeaderView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
-
                 // Title and subtitle
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
@@ -70,12 +69,12 @@ struct DeckHeaderView: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        Label(localizedFormat("%d cards", deck.cardCount), systemImage: "rectangle.stack")
+                        Label(localizedFormat("%d cards", deck.cardCount), systemImage: "square.stack.fill")
                         Text("•")
                         Text(formattedCreationDate)
                     }
-                        .font(.caption)
-                        .foregroundStyle(themeManager.textSecondary)
+                    .font(.caption)
+                    .foregroundStyle(themeManager.textSecondary)
                 }
 
                 Spacer()
@@ -85,19 +84,19 @@ struct DeckHeaderView: View {
                     Image(systemName: "pencil.line")
                         .font(
                             .system(
-                            size: 11,
-                            weight: .bold
+                                size: 11,
+                                weight: .bold
+                            )
                         )
-                    )
                         .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 }
-                    .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
+                .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
             }
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
         }
-            .background(themeManager.screenBackground)
+        .background(themeManager.screenBackground)
     }
 }
 
@@ -227,6 +226,7 @@ private struct PlayModeCard: View {
                         Image(systemName: mode.systemImage)
                             .font(.system(size: 20, weight: .black))
                             .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
+                            .rotationEffect(mode.systemImageRotation)
                     }
 
                     Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
@@ -252,7 +252,6 @@ private struct PlayModeCard: View {
                     .frame(width: 30, height: 30)
             }
             .padding(5)
-
         }
         .opacity(canPlay ? 1 : 0.56)
         .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
@@ -326,15 +325,15 @@ struct DeckSectionToolbar: View {
                     deck.cardCount
                 )
             )
-                .font(.caption.weight(.bold))
-                .foregroundStyle(themeManager.textSecondary)
-                .opacity(pillVisible ? 0 : 1)
-                .offset(x: pillVisible ? -8 : 0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(themeManager.textSecondary)
+            .opacity(pillVisible ? 0 : 1)
+            .offset(x: pillVisible ? -8 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
             Spacer()
         }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.vertical, 8)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .padding(.vertical, 8)
     }
 }
 
@@ -345,7 +344,6 @@ struct DeckSectionToolbar: View {
 /// Keeps the semantic add CTA on accent chrome while utility controls use the
 /// softer filled-circle treatment shared by detail sheets and editor dismiss actions.
 struct DeckActionOverlay: View {
-
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
@@ -429,7 +427,7 @@ struct DeckActionOverlay: View {
                     finishMenuInteraction()
                     groupingMode = groupingMode == .byCardType ? .chronological : .byCardType
                 },
-                deckSortMenu(finishMenuInteraction: finishMenuInteraction)
+                deckSortMenu(finishMenuInteraction: finishMenuInteraction),
             ])
         }
     }
@@ -450,7 +448,6 @@ struct DeckActionOverlay: View {
             }
         )
     }
-
 }
 
 // MARK: - DeckSelectionBottomBar
@@ -496,7 +493,7 @@ struct DeckSelectionBottomBar: View {
                     isEnabled: selectedCount > 0,
                     tint: .destructive,
                     action: onDelete
-                )
+                ),
             ]
         )
     }

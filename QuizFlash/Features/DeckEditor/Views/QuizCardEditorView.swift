@@ -435,7 +435,7 @@ struct QuizCardEditorView: View {
             Button(localized("Discard Changes"), role: .destructive) {
                 closeEditorDiscardingChanges()
             }
-            Button(localized("Cancel"), role: .cancel) { }
+            Button(localized("Cancel"), role: .cancel) {}
         }
         .onAppear {
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(isQuizDebugRecordingActive)
@@ -855,11 +855,11 @@ struct QuizCardEditorView: View {
                     backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
                 )
             }
-                .buttonStyle(.plain)
-                .disabled(!canSave)
-                .accessibilityLabel(localized("Save"))
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+            .accessibilityLabel(localized("Save"))
         }
-            .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
+        .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
     }
 
     @ViewBuilder
@@ -968,8 +968,8 @@ struct QuizCardEditorView: View {
                 backgroundTint: topChromeUtilityFill
             )
         }
-            .buttonStyle(.plain)
-            .accessibilityLabel(localized("Preview"))
+        .buttonStyle(.plain)
+        .accessibilityLabel(localized("Preview"))
     }
 
     private var renderTopButton: some View {
@@ -1188,9 +1188,9 @@ struct QuizCardEditorView: View {
             Image(systemName: isPending ? "arrow.up.trash.fill" : "trash.fill")
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.red)
-            .frame(width: 26, height: 26)
-            .contentShape(Circle())
-            .scaleEffect(isPending ? 1.7 : 1)
+                .frame(width: 26, height: 26)
+                .contentShape(Circle())
+                .scaleEffect(isPending ? 1.7 : 1)
         }
         .buttonStyle(QuizEditorControlButtonStyle(isActive: isPending))
         .disabled(isDisabled)
@@ -1239,7 +1239,7 @@ struct QuizCardEditorView: View {
                     isCorrect: false,
                     isDeletePending: isExplanationDeletePending,
                     isInteractionDisabled: showsRenderedContent,
-                    onToggleCorrect: { },
+                    onToggleCorrect: {},
                     onDelete: {
                         handleExplanationDeleteTap()
                     }
@@ -1646,7 +1646,6 @@ struct QuizCardEditorView: View {
         }
 
         guard shouldScrollQuizCaret(for: scrollSource) else {
-
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
             recordQuizScroll(
@@ -3007,7 +3006,7 @@ struct QuizCardEditorView: View {
     }
 
     private var editorBackground: Color {
-            .black
+        .black
     }
 
     private func editorTopBlurHeight(safeTopInset: CGFloat) -> CGFloat {
@@ -3158,7 +3157,7 @@ private struct QuizRenderedZoneCard: View {
             )
 
             HStack(spacing: 4) {
-                renderedAlignmentButton(systemName: "chevron.left", label: alignLeftLabel) {
+                renderedAlignmentButton(systemName: "chevron.compact.left", label: alignLeftLabel) {
                     onAlign(.left)
                 }
 
@@ -3167,7 +3166,7 @@ private struct QuizRenderedZoneCard: View {
                     .frame(width: 1, height: 18)
                     .allowsHitTesting(false)
 
-                renderedAlignmentButton(systemName: "chevron.right", label: alignRightLabel) {
+                renderedAlignmentButton(systemName: "chevron.compact.right", label: alignRightLabel) {
                     onAlign(.right)
                 }
             }
@@ -3272,7 +3271,7 @@ private final class QuizEditorSession: ObservableObject {
         }
         if seededChoices.count < 2 {
             let missingCount = 2 - seededChoices.count
-            seededChoices.append(contentsOf: (0..<missingCount).map { _ in QuizChoiceEditorItem() })
+            seededChoices.append(contentsOf: (0 ..< missingCount).map { _ in QuizChoiceEditorItem() })
         }
         choices = seededChoices
 
@@ -3354,20 +3353,19 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
                 measurementWidth: availableWidth,
                 previewDirection: $previewDirection
             )
-                .frame(width: availableWidth, alignment: .topLeading)
-                .frame(minHeight: 88, alignment: .top)
+            .frame(width: availableWidth, alignment: .topLeading)
+            .frame(minHeight: 88, alignment: .top)
 
             trailingContent()
         }
-            .onTapGesture {
-                onActivate()
-            }
-            .onChange(of: selectedPath) { _, newPath in
-                guard newPath != nil else { return }
-                onSelectionChange()
-            }
+        .onTapGesture {
+            onActivate()
+        }
+        .onChange(of: selectedPath) { _, newPath in
+            guard newPath != nil else { return }
+            onSelectionChange()
+        }
     }
-
 }
 
 /// One answer row with correctness controls and a mini zone editor.
@@ -3392,16 +3390,15 @@ private struct QuizChoiceCard: View {
                 measurementWidth: availableWidth,
                 previewDirection: $previewDirection
             )
-                .frame(width: availableWidth, alignment: .topLeading)
+            .frame(width: availableWidth, alignment: .topLeading)
         }
-            .onTapGesture {
+        .onTapGesture {
             onActivate()
         }
-            .onChange(of: choice.selectedPath) { _, _ in
+        .onChange(of: choice.selectedPath) { _, _ in
             onSelectionChange()
         }
     }
-
 }
 
 /// Explanation row using the same zone editor behavior as an answer row.
@@ -3427,16 +3424,15 @@ private struct QuizExplanationCard: View {
                 measurementWidth: availableWidth,
                 previewDirection: $previewDirection
             )
-                .frame(width: availableWidth, alignment: .topLeading)
+            .frame(width: availableWidth, alignment: .topLeading)
         }
-            .onTapGesture {
-                onActivate()
-            }
-            .onChange(of: selectedPath) { _, _ in
-                onSelectionChange()
-            }
+        .onTapGesture {
+            onActivate()
+        }
+        .onChange(of: selectedPath) { _, _ in
+            onSelectionChange()
+        }
     }
-
 }
 
 @MainActor

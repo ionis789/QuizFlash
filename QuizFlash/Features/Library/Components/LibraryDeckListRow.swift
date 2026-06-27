@@ -49,10 +49,10 @@ struct LibraryDeckListRow: View, Equatable {
 
     static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
         lhs.deck == rhs.deck &&
-        lhs.isFirstInSection == rhs.isFirstInSection &&
-        lhs.isSelecting == rhs.isSelecting &&
-        lhs.isSelected == rhs.isSelected &&
-        lhs.showsContextMenu == rhs.showsContextMenu
+            lhs.isFirstInSection == rhs.isFirstInSection &&
+            lhs.isSelecting == rhs.isSelecting &&
+            lhs.isSelected == rhs.isSelected &&
+            lhs.showsContextMenu == rhs.showsContextMenu
     }
 
     private var topContentPadding: CGFloat {
@@ -120,7 +120,7 @@ struct LibraryDeckListRow: View, Equatable {
                 systemImage: "trash",
                 role: .destructive,
                 action: { onDelete() }
-            )
+            ),
         ]
     }
 
@@ -192,7 +192,7 @@ private struct LibraryRowSelectionFill: View {
                 .init(color: tint.opacity(activeBottomOpacity), location: 0.08),
                 .init(color: tint.opacity(activeMidOpacity), location: 0.34),
                 .init(color: tint.opacity(activeTopOpacity), location: 0.72),
-                .init(color: tint.opacity(0), location: 1)
+                .init(color: tint.opacity(0), location: 1),
             ],
             startPoint: .bottom,
             endPoint: .top
@@ -275,6 +275,7 @@ private struct LibraryDeckCardMetaLine: View {
         HStack(spacing: 6) {
             if showsFlashcards {
                 Image(systemName: "rectangle.on.rectangle.angled")
+                    .rotationEffect(Angle(degrees: 90))
             }
 
             if showsQuizCards {

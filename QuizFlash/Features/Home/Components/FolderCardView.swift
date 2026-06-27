@@ -30,7 +30,6 @@ struct FolderCardView: View {
         let folderColor = Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
-
                 // MARK: Header
 
                 HStack {
@@ -40,7 +39,7 @@ struct FolderCardView: View {
 
                     Spacer()
 
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.compact.right")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.tertiary)
                 }
@@ -78,7 +77,6 @@ struct FolderCardView: View {
 ///   - icon: An SF Symbols identifier shown above the message.
 ///   - message: A short guidance string (e.g. "No folders yet. Create one to organize your decks.").
 struct EmptyStatePlaceholderFolderCard: View {
-
     // MARK: - Input
 
     let icon: String

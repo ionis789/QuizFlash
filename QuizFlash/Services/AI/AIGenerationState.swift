@@ -59,7 +59,7 @@ nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
         switch quality {
         case 0.8...: return "Text extracted successfully"
         case 0.5...: return "Text partially detected"
-        default:     return "This PDF cannot be used – try another one"
+        default: return "This PDF cannot be used – try another one"
         }
     }
 
@@ -78,7 +78,7 @@ nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
     var qualityIcon: String {
         switch quality {
         case 0.5...: return "checkmark.circle.fill"
-        default:     return "exclamationmark.triangle.fill"
+        default: return "exclamationmark.triangle.fill"
         }
     }
 
@@ -127,7 +127,7 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
 
     nonisolated var systemImage: String {
         switch self {
-        case .flashcards: return "rectangle.stack.fill"
+        case .flashcards: return "rectangle.on.rectangle.angled"
         case .quiz: return "questionmark.square.dashed"
         }
     }
@@ -316,7 +316,7 @@ public enum AIGenerationOutputLanguageMode: String, CaseIterable, Identifiable, 
 }
 
 extension AIGenerationLanguageHint {
-    nonisolated public func localizedDisplayName(locale: Locale) -> String {
+    public nonisolated func localizedDisplayName(locale: Locale) -> String {
         switch languageCode {
         case "en":
             return AppLocalization.string("English", locale: locale)
@@ -368,7 +368,7 @@ extension AIGenerationLanguageHint {
         .init(languageCode: "hu", displayName: "Hungarian"),
         .init(languageCode: "tr", displayName: "Turkish"),
         .init(languageCode: "uk", displayName: "Ukrainian"),
-        .init(languageCode: "ru", displayName: "Russian")
+        .init(languageCode: "ru", displayName: "Russian"),
     ]
 }
 
@@ -459,19 +459,19 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
 
         let adaptiveBatchSize: Int
         switch safeTarget {
-        case 1...4:
+        case 1 ... 4:
             adaptiveBatchSize = safeTarget
-        case 5...12:
+        case 5 ... 12:
             adaptiveBatchSize = 4
-        case 13...24:
+        case 13 ... 24:
             adaptiveBatchSize = 6
-        case 25...50:
+        case 25 ... 50:
             adaptiveBatchSize = 8
-        case 51...90:
+        case 51 ... 90:
             adaptiveBatchSize = 10
-        case 91...180:
+        case 91 ... 180:
             adaptiveBatchSize = 10
-        case 181...320:
+        case 181 ... 320:
             adaptiveBatchSize = 14
         default:
             adaptiveBatchSize = 16

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+
 struct ContextMenuLabView: View {
     private let runtime = FeatureLabFixtures.shared
 
@@ -120,9 +121,9 @@ private struct ContextMenuLabSurface: Identifiable {
                 subtitle: "Compact ticket surface from Home for top-area menu anchoring.",
                 payload: .recentDeck(runtime.recentDeck),
                 actions: [
-                    .init(title: "Open Deck", systemImage: "arrow.up.right", role: .normal),
+                    .init(title: "Open Deck", systemImage: "chevron.compact.right", role: .normal),
                     .init(title: "Move to Folder", systemImage: "folder", role: .normal),
-                    .init(title: "Delete", systemImage: "trash", role: .destructive)
+                    .init(title: "Delete", systemImage: "trash", role: .destructive),
                 ]
             ),
             .init(
@@ -139,7 +140,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 actions: [
                     .init(title: "Open Settings", systemImage: "gearshape", role: .normal),
                     .init(title: "Pin Section", systemImage: "pin", role: .normal),
-                    .init(title: "Reset", systemImage: "arrow.counterclockwise", role: .destructive)
+                    .init(title: "Reset", systemImage: "arrow.counterclockwise", role: .destructive),
                 ]
             ),
             .init(
@@ -150,7 +151,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 actions: [
                     .init(title: "Open Folder", systemImage: "folder", role: .normal),
                     .init(title: "Rename", systemImage: "pencil", role: .normal),
-                    .init(title: "Delete Folder", systemImage: "trash", role: .destructive)
+                    .init(title: "Delete Folder", systemImage: "trash", role: .destructive),
                 ]
             ),
             .init(
@@ -161,7 +162,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 actions: [
                     .init(title: "Edit", systemImage: "pencil", role: .normal),
                     .init(title: "Duplicate", systemImage: "plus.square.on.square", role: .normal),
-                    .init(title: "Delete", systemImage: "trash", role: .destructive)
+                    .init(title: "Delete", systemImage: "trash", role: .destructive),
                 ]
             ),
             .init(
@@ -176,11 +177,11 @@ private struct ContextMenuLabSurface: Identifiable {
                     value: "Sunset"
                 ),
                 actions: [
-                    .init(title: "Open", systemImage: "chevron.right", role: .normal),
+                    .init(title: "Open", systemImage: "chevron.compact.right", role: .normal),
                     .init(title: "Apply Default", systemImage: "wand.and.stars", role: .normal),
-                    .init(title: "Reset Preference", systemImage: "arrow.counterclockwise", role: .destructive)
+                    .init(title: "Reset Preference", systemImage: "arrow.counterclockwise", role: .destructive),
                 ]
-            )
+            ),
         ]
     }
 }

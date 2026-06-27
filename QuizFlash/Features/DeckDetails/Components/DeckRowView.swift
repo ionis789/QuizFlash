@@ -11,7 +11,6 @@ import SwiftData
 /// The result is seeded from a process-scoped static cache so the badge is correct on
 /// the very first layout pass after view recreation (e.g. after a tab-switch).
 struct DeckRowView: View {
-
     // MARK: - Inputs
 
     let deck: DeckModel
@@ -65,7 +64,6 @@ struct DeckRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-
             // MARK: Top Row: Title, Folder Badge, Chevron
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -91,7 +89,7 @@ struct DeckRowView: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.compact.right")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(Color(white: 0.6))
                     .padding(.top, 4)
@@ -99,7 +97,6 @@ struct DeckRowView: View {
 
             // MARK: Bottom Row: Stats and New-Card Badge
             HStack(alignment: .center, spacing: 16) {
-
                 // Card count — reads the denormalised stored property; no relationship faulting.
                 HStack(spacing: 6) {
                     Image(systemName: "sidebar.left")
@@ -144,7 +141,7 @@ struct DeckRowView: View {
             try? await Task.sleep(for: .milliseconds(1))
             guard !Task.isCancelled else { return }
             let container = context.container
-            let deckID    = deck.persistentModelID
+            let deckID = deck.persistentModelID
             let count = await Self.fetchNewCardCount(deckID: deckID, container: container)
             guard !Task.isCancelled else { return }
             // Persist the result so the next recreation of this view can seed @State
@@ -195,7 +192,6 @@ struct DeckRowView: View {
 /// the first actor-isolated call, guaranteeing instantiation and use share the
 /// same executor.
 final actor DeckRowActor {
-
     // MARK: - Private Properties
 
     private let modelContainer: ModelContainer
@@ -226,8 +222,8 @@ final actor DeckRowActor {
     func countNewCards(for deckID: PersistentIdentifier) -> Int {
         var desc = FetchDescriptor<CardModel>(predicate: #Predicate {
             $0.deck?.persistentModelID == deckID &&
-            $0.interval == 0 &&
-            $0.consecutiveCorrectAnswers == 0
+                $0.interval == 0 &&
+                $0.consecutiveCorrectAnswers == 0
         })
         // Count only — no need to materialise full model objects.
         desc.propertiesToFetch = [\.persistentModelID]

@@ -26,7 +26,6 @@ enum HeroAnimation {
 /// by a geometry anchor in `DeckView`'s scroll content. This view is fully dumb:
 /// it reads the shared scroll state from the environment and renders accordingly.
 struct DeckHeroView: View {
-
     // MARK: - Inputs
 
     /// The deck whose title and mastery percentage are displayed.
@@ -108,7 +107,6 @@ struct DeckHeroView: View {
 /// - Layer 2 (active progress): A colour-tinted fill trimmed to `mastery`, starting from the
 ///   9 o'clock position (achieved via a 180° Y-axis flip of the default 3 o'clock origin).
 private struct AnimatedPillBackground: View {
-
     private static let progressLineWidth: CGFloat = 4
 
     // MARK: - Inputs
@@ -174,7 +172,7 @@ private struct AnimatedPillBackground: View {
 
 /// A circular icon badge showing the deck's SF Symbol on a translucent coloured background.
 struct DeckIconBadge: View {
-    /// The SF Symbol name. Falls back to `"sparkles.rectangle.stack.fill"` when empty.
+    /// The SF Symbol name. Falls back to the shared deck icon when empty.
     let icon: String
     /// The badge background tint.
     let color: Color
@@ -185,7 +183,7 @@ struct DeckIconBadge: View {
         ZStack {
             Circle().fill(color.opacity(0.20)).frame(width: size, height: size)
             Circle().stroke(color.opacity(0.30), lineWidth: 0.5).frame(width: size, height: size)
-            Image(systemName: icon.isEmpty ? "sparkles.rectangle.stack.fill" : icon)
+            Image(systemName: icon.isEmpty ? "square.stack.fill" : icon)
                 .font(.system(size: size * 0.38, weight: .bold)).foregroundStyle(.white)
         }
     }

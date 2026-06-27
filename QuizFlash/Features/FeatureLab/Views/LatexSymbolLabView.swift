@@ -119,7 +119,7 @@ struct LatexSymbolLabView: View {
             onHeightChange: { navigationBarHeight = $0 },
             onBottomChange: { navigationBarBottomY = $0 }
         ) {
-            ChromeCircleIconButton(systemName: "chevron.left") {
+            ChromeCircleIconButton(systemName: "chevron.compact.left") {
                 dismiss()
             }
         } center: { maxWidth in
@@ -227,31 +227,31 @@ private enum LatexSymbolCategory: String, CaseIterable, Identifiable {
             return [
                 LatexSymbolSample(title: "Not Equal", command: #"\\neq / \\ne"#, preview: #"$x_1 \neq x_2$"#),
                 LatexSymbolSample(title: "Less / Greater or Equal", command: #"\\leq / \\geq"#, preview: #"$a \leq b \leq c$ și $x \geq 0$"#),
-                LatexSymbolSample(title: "Approx / Similar", command: #"\\approx / \\sim / \\simeq"#, preview: #"$f(x) \approx g(x)$, $A \sim B$, $u \simeq v$"#)
+                LatexSymbolSample(title: "Approx / Similar", command: #"\\approx / \\sim / \\simeq"#, preview: #"$f(x) \approx g(x)$, $A \sim B$, $u \simeq v$"#),
             ]
         case .membership:
             return [
                 LatexSymbolSample(title: "Membership", command: #"\\in / \\notin"#, preview: #"$x \in A$ și $y \notin B$"#),
                 LatexSymbolSample(title: "Subset", command: #"\\subset / \\subseteq"#, preview: #"$A \subset B$ și $C \subseteq D$"#),
-                LatexSymbolSample(title: "Union / Intersection", command: #"\\cup / \\cap"#, preview: #"$A \cup B$ și $A \cap B$"#)
+                LatexSymbolSample(title: "Union / Intersection", command: #"\\cup / \\cap"#, preview: #"$A \cup B$ și $A \cap B$"#),
             ]
         case .greek:
             return [
                 LatexSymbolSample(title: "Epsilon Pair", command: #"\\epsilon / \\varepsilon"#, preview: #"$\epsilon \neq \varepsilon$"#),
                 LatexSymbolSample(title: "Phi Pair", command: #"\\phi / \\varphi"#, preview: #"$\phi \neq \varphi$"#),
-                LatexSymbolSample(title: "Theta / Lambda / Tau", command: #"\\theta / \\lambda / \\tau"#, preview: #"$\theta, \lambda, \tau$"#)
+                LatexSymbolSample(title: "Theta / Lambda / Tau", command: #"\\theta / \\lambda / \\tau"#, preview: #"$\theta, \lambda, \tau$"#),
             ]
         case .arrows:
             return [
                 LatexSymbolSample(title: "Functions", command: #"\\to / \\mapsto"#, preview: #"$f: X \to Y,\; x \mapsto f(x)$"#),
                 LatexSymbolSample(title: "Implication", command: #"\\Rightarrow / \\implies"#, preview: #"$P \Rightarrow Q$ și $P \implies Q$"#),
-                LatexSymbolSample(title: "Equivalence", command: #"\\leftrightarrow / \\Leftrightarrow / \\iff"#, preview: #"$P \leftrightarrow Q$, $P \Leftrightarrow Q$, $P \iff Q$"#)
+                LatexSymbolSample(title: "Equivalence", command: #"\\leftrightarrow / \\Leftrightarrow / \\iff"#, preview: #"$P \leftrightarrow Q$, $P \Leftrightarrow Q$, $P \iff Q$"#),
             ]
         case .operators:
             return [
                 LatexSymbolSample(title: "Quantifiers", command: #"\\forall / \\exists"#, preview: #"$\forall x \in X,\; \exists y \in Y$"#),
                 LatexSymbolSample(title: "Product and Dot", command: #"\\times / \\cdot"#, preview: #"$u \cdot v$ și $A \times B$"#),
-                LatexSymbolSample(title: "Structured Formula", command: #"\\mathbb / \\frac / \\sum / \\int"#, preview: #"$f: \mathbb{R}^n \to \mathbb{R},\; \frac{1}{n}\sum_{i=1}^{n} x_i,\; \int_a^b f(x)\,dx$"#)
+                LatexSymbolSample(title: "Structured Formula", command: #"\\mathbb / \\frac / \\sum / \\int"#, preview: #"$f: \mathbb{R}^n \to \mathbb{R},\; \frac{1}{n}\sum_{i=1}^{n} x_i,\; \int_a^b f(x)\,dx$"#),
             ]
         }
     }

@@ -61,18 +61,18 @@ extension DeckWorkspaceView {
         LazyVStack(spacing: UIConstants.Spacing.medium) {
             mainCardsListContent(using: scrollProxy)
         }
-            .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
-            .animation(
-                hasUnifiedAISession
-                    ? nil
-                    : .spring(response: 0.36, dampingFraction: 0.84),
-                value: hasUnifiedAISession ? [] : viewModel.draftCards.map(\.id)
-            )
-            .animation(
-                .spring(response: 0.56, dampingFraction: 0.8, blendDuration: 0.1),
-                value: hasUnifiedAISession
-            )
-            .animation(.easeInOut(duration: 0.35), value: viewModel.draftCards.isEmpty)
+        .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
+        .animation(
+            hasUnifiedAISession
+                ? nil
+                : .spring(response: 0.36, dampingFraction: 0.84),
+            value: hasUnifiedAISession ? [] : viewModel.draftCards.map(\.id)
+        )
+        .animation(
+            .spring(response: 0.56, dampingFraction: 0.8, blendDuration: 0.1),
+            value: hasUnifiedAISession
+        )
+        .animation(.easeInOut(duration: 0.35), value: viewModel.draftCards.isEmpty)
     }
 
     func mainCardsListContent(using scrollProxy: ScrollViewProxy) -> AnyView {
@@ -114,7 +114,7 @@ extension DeckWorkspaceView {
                 elapsedStartDate: viewModel.aiGenerationStartedAt,
                 elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration
             )
-                .transition(runtimeCardTransition)
+            .transition(runtimeCardTransition)
         } else if viewModel.hasPausedAIGeneration {
             let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
             AIPausedResumeCard(
@@ -266,19 +266,19 @@ extension DeckWorkspaceView {
             }
         )
         .equatable()
-            .transition(
-                !viewModel.isSelectingCards
-                    ? .asymmetric(
-                        insertion: .offset(y: 18)
-                            .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.96, anchor: .bottom)),
-                        removal: .offset(y: 12)
-                            .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.98, anchor: .bottom))
-                    )
-                    : .identity
-            )
-            .id(card.id)
+        .transition(
+            !viewModel.isSelectingCards
+                ? .asymmetric(
+                    insertion: .offset(y: 18)
+                        .combined(with: .opacity)
+                        .combined(with: .scale(scale: 0.96, anchor: .bottom)),
+                    removal: .offset(y: 12)
+                        .combined(with: .opacity)
+                        .combined(with: .scale(scale: 0.98, anchor: .bottom))
+                )
+                : .identity
+        )
+        .id(card.id)
 
         row
     }
@@ -307,10 +307,10 @@ extension DeckWorkspaceView {
                 Text(localized("Generate with AI"))
                     .font(.system(size: 25, weight: .heavy))
                     .lineLimit(1)
-                .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-                .padding(.horizontal, UIConstants.Spacing.standard)
-                .padding(.vertical, 6)
-                .contentShape(Capsule(style: .continuous))
+                    .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, 6)
+                    .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!canStartLocalGeneration)
@@ -337,7 +337,7 @@ extension DeckWorkspaceView {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.primary.opacity(0.86))
 
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.compact.right")
                         .font(.system(size: 10, weight: .heavy))
                         .foregroundStyle(.secondary.opacity(0.62))
                 }
@@ -348,10 +348,10 @@ extension DeckWorkspaceView {
             .buttonStyle(.plain)
             .accessibilityLabel(localized("Add manually"))
         }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 64)
-            .background(Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 64)
+        .background(Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     func presentAIGenerationSourcePicker() {
@@ -423,7 +423,7 @@ extension DeckWorkspaceView {
             "chooseAIPDFSourceFromPicker flags set",
             details: [
                 "showAIPickerOptions": String(viewModel.showAIPickerOptions),
-                "showAIPDFPicker": String(viewModel.showAIPDFPicker)
+                "showAIPDFPicker": String(viewModel.showAIPDFPicker),
             ]
         )
     }
@@ -552,8 +552,8 @@ extension DeckWorkspaceView {
     func dismissPresentation() {
         let shouldResetCreateWorkspace =
             router.activeTab == .create
-            && router.createPath.isEmpty
-            && viewModel.isEditingExistingDeck
+                && router.createPath.isEmpty
+                && viewModel.isEditingExistingDeck
 
         if shouldResetCreateWorkspace {
             withAnimation(.circularProgressSpring) {
@@ -737,7 +737,7 @@ private struct EmptyDeckPromptIllustration: View {
                         LinearGradient(
                             colors: [
                                 actionColor,
-                                accent
+                                accent,
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -782,7 +782,7 @@ private extension CreateDeckSortOrder {
     }
 }
 
- struct DeckWorkspaceDerivedState: Equatable {
+struct DeckWorkspaceDerivedState: Equatable {
     let contentSummary: DraftDeckContentSummary
 
     static let empty = DeckWorkspaceDerivedState(cards: [])

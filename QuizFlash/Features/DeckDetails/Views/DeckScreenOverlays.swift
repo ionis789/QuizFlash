@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+
 extension DeckContentView {
     func handleEditCard(_ gridCard: GridCardInfo) {
         guard !viewModel.isSelecting else { return }
@@ -207,6 +208,7 @@ extension DeckContentView {
                             Image(systemName: mode.systemImage)
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(tintColor)
+                                .rotationEffect(mode.systemImageRotation)
                         }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -229,7 +231,6 @@ extension DeckContentView {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .quizFlashButtonStyle(.surface)
-
                 }
             }
             .padding(UIConstants.Spacing.large)

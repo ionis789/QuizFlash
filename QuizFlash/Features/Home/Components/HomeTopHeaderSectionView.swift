@@ -449,7 +449,7 @@ private struct HomePadCalendarColumnView: View {
         Button {
             calendarVM.monthUpdate(increment: increment)
         } label: {
-            Image(systemName: increment ? "chevron.right" : "chevron.left")
+            Image(systemName: increment ? "chevron.compact.right" : "chevron.compact.left")
                 .font(.system(size: size * 0.48, weight: .black))
                 .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .frame(width: size, height: size)

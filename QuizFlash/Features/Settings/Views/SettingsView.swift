@@ -296,7 +296,7 @@ struct SettingsView: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: UIConstants.Spacing.small) {
                         profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                        profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
+                        profileMetric(icon: "square.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
                         profileMetric(
                             icon: isPremiumUser ? "crown.fill" : "sparkles",
                             title: accountPlanSummary,
@@ -308,7 +308,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                         HStack(spacing: UIConstants.Spacing.small) {
                             profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                            profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
+                            profileMetric(icon: "square.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
                         }
 
                         profileMetric(
@@ -897,7 +897,7 @@ struct SettingsView: View {
             trailing()
 
             if showsDisclosure {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.compact.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
             }

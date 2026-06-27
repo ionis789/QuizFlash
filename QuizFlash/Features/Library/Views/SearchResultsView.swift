@@ -231,7 +231,7 @@ private struct SearchDeckResultRow: View {
 
                         HStack(spacing: 12) {
                             LibraryDeckMetaLabel(
-                                systemImage: "rectangle.stack.fill",
+                                systemImage: "square.stack.fill",
                                 text: localizedCardCount
                             )
                             LibraryDeckMetaLabel(
@@ -244,7 +244,7 @@ private struct SearchDeckResultRow: View {
 
                     Spacer(minLength: 12)
 
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.compact.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
                         .padding(.top, 4)

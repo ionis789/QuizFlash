@@ -93,15 +93,15 @@ struct LoginView: View {
                     },
                     onError: presentError
                 )
-                    .presentationDetents([.height(300), .medium])
-                    .presentationBackground(.background)
+                .presentationDetents([.height(300), .medium])
+                .presentationBackground(.background)
             }
         }
         .alert(
             alertTitle,
             isPresented: $showAlert
         ) {
-            Button(AppLocalization.string("Done", locale: locale), role: .cancel) { }
+            Button(AppLocalization.string("Done", locale: locale), role: .cancel) {}
         } message: {
             Text(alertMessage)
         }
@@ -156,7 +156,7 @@ struct LoginView: View {
 
                 AuthAsyncButton(
                     title: AppLocalization.string("Sign In", locale: locale),
-                    icon: "arrow.right",
+                    icon: "chevron.compact.right",
                     tint: themeManager.accentColor.color,
                     isEnabled: canSignIn
                 ) {
@@ -314,7 +314,6 @@ private struct CreateAccountView: View {
                         passwordTextContentType: .password,
                         text: $passwordConfirmation
                     )
-
                 }
 
                 AuthAsyncButton(
@@ -348,7 +347,6 @@ private struct CreateAccountView: View {
             && !password.isEmpty
             && password == passwordConfirmation
     }
-
 }
 
 // MARK: - Forgot Password View

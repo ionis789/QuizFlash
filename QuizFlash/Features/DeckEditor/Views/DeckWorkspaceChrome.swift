@@ -9,7 +9,6 @@ import UIKit
 
 // MARK: - Subviews
 extension DeckWorkspaceView {
-
     // MARK: 1. Header Chrome
     func heroHeader(topPadding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
@@ -17,7 +16,7 @@ extension DeckWorkspaceView {
                 .font(.system(size: 42, weight: .heavy))
                 .textFieldStyle(.plain)
                 .foregroundStyle(.primary)
-                .lineLimit(1...2)
+                .lineLimit(1 ... 2)
                 .layoutPriority(1)
                 .focused($isTitleFocused)
                 .submitLabel(.done)
@@ -274,13 +273,13 @@ extension DeckWorkspaceView {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
                 if summary.cardCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: localizedFormat("%d cards", summary.cardCount))
+                    CreateDeckHeaderStatChip(symbol: "square.stack.fill", text: localizedFormat("%d cards", summary.cardCount))
                 }
                 if summary.flashcardCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: localizedFormat("%d flashcards", summary.flashcardCount))
+                    CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle.angled", text: localizedFormat("%d flashcards", summary.flashcardCount), rotation: Angle(degrees: 90))
                 }
                 if summary.quizCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "checklist", text: localizedFormat("%d quiz", summary.quizCount))
+                    CreateDeckHeaderStatChip(symbol: "questionmark.square.dashed", text: localizedFormat("%d quiz", summary.quizCount))
                 }
                 if summary.photoCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "photo", text: localizedFormat("%d photos", summary.photoCount))
@@ -389,9 +388,9 @@ extension DeckWorkspaceView {
                         }
                     } label: {
                         Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(aiToolbarTint)
-                        .frame(width: 24, height: 24)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(aiToolbarTint)
+                            .frame(width: 24, height: 24)
                     }
                     .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
                     .accessibilityLabel(
@@ -405,7 +404,7 @@ extension DeckWorkspaceView {
                     } label: {
                         ChromeSoftCircleSymbol(
                             systemName: "xmark",
-                            size: 22,
+                            size: 22
                         )
                     }
                     .buttonStyle(.plain)
@@ -548,7 +547,7 @@ extension DeckWorkspaceView {
                         viewModel.enterCardSelectionMode()
                     }
                 }
-            }
+            },
         ]
 
         if viewModel.isEditingExistingDeck {
@@ -596,7 +595,7 @@ extension DeckWorkspaceView {
                 isTitleFocused = false
                 exitDraftSelectionModeForExternalAction()
                 viewModel.selectedFolder = nil
-            }
+            },
         ]
 
         if !folders.isEmpty {
@@ -647,15 +646,14 @@ extension DeckWorkspaceView {
             Button {
                 openCardEditor(for: .flashcard)
             } label: {
-                Label(localized("Flashcard"), systemImage: "rectangle.on.rectangle")
+                Label(localized("Flashcard"), systemImage: "rectangle.on.rectangle.angled")
             }
 
             Button {
                 openCardEditor(for: .quiz)
             } label: {
-                Label(localized("Quiz"), systemImage: "checklist")
+                Label(localized("Quiz"), systemImage: "questionmark.square.dashed")
             }
-
         }
     }
 
@@ -683,11 +681,13 @@ struct CreateDeckHeaderStatChip: View {
     let symbol: String
     let text: String
     var tint: Color = .secondary
+    var rotation: Angle = .zero
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .bold))
+                .rotationEffect(rotation)
 
             Text(text)
                 .lineLimit(1)
@@ -717,10 +717,10 @@ struct CreateDeckChromeButton<Label: View>: View {
         Button(action: action) {
             CreateDeckChromeCircleSurface(content: label)
         }
-            .quizFlashButtonStyle(chrome, shape: .circle, size: UIConstants.Size.actionButton)
-            .disabled(!isEnabled)
-            .opacity(isEnabled ? 1 : 0.55)
-            .accessibilityLabel(accessibilityLabel)
+        .quizFlashButtonStyle(chrome, shape: .circle, size: UIConstants.Size.actionButton)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

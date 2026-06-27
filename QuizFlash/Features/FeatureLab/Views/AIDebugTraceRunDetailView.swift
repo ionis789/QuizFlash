@@ -100,7 +100,7 @@ struct AIDebugTraceRunDetailView: View {
             onHeightChange: { navigationBarHeight = $0 },
             onBottomChange: { navigationBarBottomY = $0 }
         ) {
-            ChromeCircleIconButton(systemName: "chevron.left") {
+            ChromeCircleIconButton(systemName: "chevron.compact.left") {
                 dismiss()
             }
         } center: { maxWidth in
@@ -171,10 +171,10 @@ struct AIDebugTraceRunDetailView: View {
 
             TraceJSONTextView(text: jsonString)
                 .frame(minHeight: 420)
-            .background(
-                RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
+                .background(
+                    RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                )
         }
         .padding(UIConstants.Spacing.large)
         .settingsCardBackground(cornerRadius: UIConstants.Radius.large)
@@ -247,7 +247,7 @@ private struct TraceJSONTextView: UIViewRepresentable {
             attributes: [
                 .font: UIFont.monospacedSystemFont(ofSize: 12, weight: .medium),
                 .foregroundColor: UIColor.label,
-                .paragraphStyle: paragraphStyle
+                .paragraphStyle: paragraphStyle,
             ]
         )
     }

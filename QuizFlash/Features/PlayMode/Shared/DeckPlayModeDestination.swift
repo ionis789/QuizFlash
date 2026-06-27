@@ -57,8 +57,15 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .flashcards: return "rectangle.stack.fill"
+        case .flashcards: return "rectangle.on.rectangle.angled"
         case .quiz: return "questionmark.square.dashed"
+        }
+    }
+
+    var systemImageRotation: Angle {
+        switch self {
+        case .flashcards: return Angle(degrees: 90)
+        case .quiz: return .zero
         }
     }
 
@@ -201,13 +208,13 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return [
                 .init(icon: "shuffle", title: "Card Order", detail: "Random, deck order, or focused retry runs."),
                 .init(icon: "repeat", title: "Wrong Card Retry", detail: "Decide if mistakes should loop back automatically."),
-                .init(icon: "arrow.triangle.2.circlepath", title: "Reveal Flow", detail: "Control flip defaults and card progression.")
+                .init(icon: "arrow.triangle.2.circlepath", title: "Reveal Flow", detail: "Control flip defaults and card progression."),
             ]
         case .quiz:
             return [
                 .init(icon: "list.bullet.rectangle", title: "Choice Layout", detail: "Tune answer order and shuffling."),
                 .init(icon: "timer", title: "Round Pace", detail: "Add timed pressure or keep the flow relaxed."),
-                .init(icon: "checkmark.seal", title: "Scoring Rules", detail: "Define how quiz answers are graded.")
+                .init(icon: "checkmark.seal", title: "Scoring Rules", detail: "Define how quiz answers are graded."),
             ]
         }
     }

@@ -171,7 +171,7 @@ struct HomeCalendarSetupCard: View {
                     .fill(accentColor.opacity(0.14))
                     .frame(width: 72, height: 72)
                     .overlay {
-                        Image(systemName: "rectangle.stack.badge.plus")
+                        Image(systemName: "square.stack.fill")
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundStyle(accentColor)
                     }

@@ -104,7 +104,7 @@ private struct HomeFoldersQuickChip: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Image(systemName: "arrow.up.right")
+                Image(systemName: "chevron.compact.right")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(folderColor)
             }

@@ -126,7 +126,7 @@ struct AIDebugTraceHistoryView: View {
             onHeightChange: { navigationBarHeight = $0 },
             onBottomChange: { navigationBarBottomY = $0 }
         ) {
-            ChromeCircleIconButton(systemName: "chevron.left") {
+            ChromeCircleIconButton(systemName: "chevron.compact.left") {
                 dismiss()
             }
         } center: { maxWidth in
@@ -177,7 +177,7 @@ struct AIDebugTraceHistoryView: View {
             run.providerName,
             run.sourceKind.capitalized,
             "\(run.eventCount) events",
-            Self.dateFormatter.string(from: run.createdAt)
+            Self.dateFormatter.string(from: run.createdAt),
         ]
 
         if let targetCount = run.targetCount {

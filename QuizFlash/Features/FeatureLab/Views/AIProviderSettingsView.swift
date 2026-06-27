@@ -101,7 +101,7 @@ struct AIProviderSettingsView: View {
             onHeightChange: { navigationBarHeight = $0 },
             onBottomChange: { navigationBarBottomY = $0 }
         ) {
-            ChromeCircleIconButton(systemName: "chevron.left") {
+            ChromeCircleIconButton(systemName: "chevron.compact.left") {
                 dismiss()
             }
         } center: { maxWidth in

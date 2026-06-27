@@ -66,11 +66,11 @@ struct HomeDashboardView: View {
         let hour = appPreferences.resolvedCalendar.component(.hour, from: Date())
 
         switch hour {
-        case 5..<12:
+        case 5 ..< 12:
             return localized("Good morning")
-        case 12..<17:
+        case 12 ..< 17:
             return localized("Good afternoon")
-        case 17..<22:
+        case 17 ..< 22:
             return localized("Good evening")
         default:
             return localized("Good night")
@@ -255,7 +255,7 @@ struct HomeDashboardView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.compact.right")
                     .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black))
                     .foregroundStyle(accentColor)
                     .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
@@ -401,7 +401,7 @@ struct HomeDashboardView: View {
     private var createDeckSurface: some View {
         Button(action: onCreateDeck) {
             VStack(alignment: .center, spacing: usesRegularMetrics ? 14 : 12) {
-                Image(systemName: "rectangle.stack.badge.plus")
+                Image(systemName: "square.stack.fill")
                     .font(.system(size: usesRegularMetrics ? 38 : 34, weight: .bold))
                     .foregroundStyle(accentColor)
                     .frame(
@@ -424,7 +424,6 @@ struct HomeDashboardView: View {
         }
         .buttonStyle(.plain)
     }
-
 }
 
 // MARK: - Folder Snapshot
@@ -907,7 +906,7 @@ private struct HomeSelectedDayDeckRow: View {
                 Spacer(minLength: 0)
 
                 if isSelected {
-                    Image(systemName: "arrow.right.circle.fill")
+                    Image(systemName: "chevron.compact.right")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(deckColor)
                 }
@@ -1321,7 +1320,8 @@ private struct HomeDashboardDeckMetaLine: View {
     var body: some View {
         HStack(spacing: 6) {
             if showsFlashcards {
-                Image(systemName: "rectangle.stack.fill")
+                Image(systemName: "rectangle.on.rectangle.angled")
+                    .rotationEffect(Angle(degrees: 90))
             }
 
             if showsQuizCards {
@@ -1381,7 +1381,7 @@ private struct HomeDashboardFolderCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Image(systemName: "arrow.up.right")
+                Image(systemName: "chevron.compact.right")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(folderColor)
                     .padding(10)

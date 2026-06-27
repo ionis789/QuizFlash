@@ -30,6 +30,7 @@ struct PlayModeSettingsOverviewCard: View {
                     Image(systemName: mode.systemImage)
                         .font(.system(size: UIConstants.Size.iconLarge, weight: .black))
                         .foregroundStyle(tintColor)
+                        .rotationEffect(mode.systemImageRotation)
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
@@ -57,14 +58,14 @@ struct PlayModeSettingsOverviewCard: View {
 
                 Spacer(minLength: 0)
 
-            PlayModeSettingsStatusChip(
-                title: compatibleCardCount > 0
+                PlayModeSettingsStatusChip(
+                    title: compatibleCardCount > 0
                         ? String.localizedStringWithFormat(
                             AppLocalization.string("%d Compatible", locale: appPreferences.resolvedLocale),
                             compatibleCardCount
                         )
                         : AppLocalization.string("No Compatible Cards", locale: appPreferences.resolvedLocale),
-                icon: compatibleCardCount > 0 ? "bolt.fill" : "exclamationmark.circle"
+                    icon: compatibleCardCount > 0 ? "bolt.fill" : "exclamationmark.circle"
                 )
             }
         }
@@ -557,9 +558,9 @@ private struct PlayModeSettingsStatusChip: View {
         } icon: {
             Image(systemName: icon)
         }
-            .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .duoMetricPill()
+        .font(.system(size: 14, weight: .bold))
+        .foregroundStyle(.primary)
+        .lineLimit(1)
+        .duoMetricPill()
     }
 }

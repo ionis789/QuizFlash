@@ -41,7 +41,6 @@ public extension View {
 
 /// The internal modifier that handles the state, geometry, and rendering of the swipe gesture.
 private struct SwipeBackModifier: ViewModifier {
-
     // MARK: - Properties
     @State private var keyboardMonitor = KeyboardMonitor.shared
     let enabled: Bool
@@ -49,7 +48,7 @@ private struct SwipeBackModifier: ViewModifier {
     let action: () -> Void
 
     // MARK: - State
-    
+
     @State private var dragOffset: CGFloat = 0
     @State private var startY: CGFloat = 0
     @State private var isActive: Bool = false
@@ -68,13 +67,13 @@ private struct SwipeBackModifier: ViewModifier {
     private let trailingActivationFraction: CGFloat = 0.3
 
     // MARK: - Computed Properties
-    
+
     private var progress: CGFloat { min(abs(dragOffset) / commitThreshold, 1.0) }
     private var committed: Bool { progress >= 1.0 }
     private var effectiveEnabled: Bool { enabled && !keyboardMonitor.isVisible }
 
     // MARK: - Body
-    
+
     func body(content: Content) -> some View {
         content
             .background(
@@ -121,7 +120,7 @@ private struct SwipeBackModifier: ViewModifier {
     }
 
     // MARK: - Handlers
-    
+
     private func handleCommit() {
         guard !isFinishingGesture else { return }
         finishingResetTask?.cancel()
@@ -140,7 +139,7 @@ private struct SwipeBackModifier: ViewModifier {
             finishingResetTask = nil
         }
     }
-    
+
     private func handleCancel() {
         guard !isFinishingGesture else { return }
         finishingResetTask?.cancel()
@@ -183,7 +182,6 @@ private struct SwipeBackModifier: ViewModifier {
 
 /// A bridge to `UIPanGestureRecognizer` to circumvent SwiftUI gesture conflicts.
 private struct NativeSwipeBackController: UIViewRepresentable {
-    
     @Binding var dragOffset: CGFloat
     @Binding var isActive: Bool
     @Binding var startY: CGFloat
@@ -261,6 +259,7 @@ private struct NativeSwipeBackController: UIViewRepresentable {
                     }
                 }
                 pendingEdge = nil
+
             default: break
             }
         }
@@ -447,7 +446,7 @@ private struct JellyIndicator: View {
                 .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.3), radius: 6, x: edge == .leading ? 2 : -2, y: 0)
 
-            Image(systemName: edge == .leading ? "chevron.left" : "chevron.right")
+            Image(systemName: edge == .leading ? "chevron.compact.left" : "chevron.compact.right")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white)
                 .scaleEffect(smoothScale)

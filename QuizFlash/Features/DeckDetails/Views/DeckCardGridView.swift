@@ -40,8 +40,8 @@ final class CardPreviewCache {
     private let cache = NSCache<NSString, CardPreviewPayload>()
 
     private init() {
-        cache.countLimit      = 300
-        cache.totalCostLimit  = 20 * 1024 * 1024
+        cache.countLimit = 300
+        cache.totalCostLimit = 20 * 1024 * 1024
     }
 
     // MARK: - NSCache Access (thread-safe, no actor isolation required)
@@ -70,8 +70,8 @@ final class CardPreviewCache {
     @MainActor
     private func getOrCreateActor(container: ModelContainer) -> CardFetchActor {
         if let actor = sharedActor { return actor }
-        let actor    = CardFetchActor(container: container)
-        sharedActor  = actor
+        let actor = CardFetchActor(container: container)
+        sharedActor = actor
         return actor
     }
 
@@ -123,7 +123,7 @@ final class CardPreviewCache {
     /// of the OLD actor doesn't race with initialization of the new one.
     @MainActor
     func flush() {
-        let dying   = sharedActor
+        let dying = sharedActor
         sharedActor = nil
         cache.removeAllObjects()
 
@@ -155,8 +155,8 @@ final class CardPreviewPayload: @unchecked Sendable {
         hasFrontSketch: Bool,
         previewContent: DraftCardContent? = nil
     ) {
-        self.thumbnailData  = thumbnailData
-        self.hasFrontImage  = hasFrontImage
+        self.thumbnailData = thumbnailData
+        self.hasFrontImage = hasFrontImage
         self.hasFrontSketch = hasFrontSketch
         self.previewContent = previewContent
     }
@@ -277,7 +277,7 @@ struct DeckCardGridView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "rectangle.stack.badge.plus")
+            Image(systemName: "square.stack.fill")
                 .font(.system(size: 36))
                 .foregroundStyle(.tertiary)
             Text(localized("No cards yet"))
@@ -295,7 +295,6 @@ struct DeckCardGridView: View {
         )
         .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
     }
-
 }
 
 enum DeckGridCardMetrics {
@@ -357,7 +356,7 @@ private struct DeckGridCardCell: View {
             .init(label: localized("Type"), value: card.kindContextMenuTitle),
             .init(label: localized("Source"), value: card.creationSourceContextMenuTitle),
             .init(label: localized("State"), value: card.reviewStateContextMenuTitle),
-            .init(label: localized("Interval"), value: card.intervalContextMenuTitle)
+            .init(label: localized("Interval"), value: card.intervalContextMenuTitle),
         ]
 
         if card.isPinned {
@@ -393,7 +392,7 @@ private struct DeckGridCardCell: View {
                 role: .destructive
             ) {
                 onDeleteCard(card)
-            }
+            },
         ]
     }
 
@@ -434,7 +433,6 @@ private struct DeckGridCardCell: View {
         .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
         .animation(.spring(response: 0.24, dampingFraction: 0.88), value: isSelected)
     }
-
 }
 
 private struct DeckGridGamePreviewLoadID: Hashable {
@@ -869,7 +867,6 @@ extension GridCardInfo {
         if reviewHistoryIsEmpty { return localized("None") }
         return "\(interval)d"
     }
-
 }
 
 // =============================================================================
@@ -895,13 +892,13 @@ nonisolated func containsMedia(_ zone: ZoneModel, contentType: ZoneContentType) 
 
 nonisolated func downsample(data: Data, maxDimension: CGFloat) -> UIImage? {
     let options: [CFString: Any] = [
-        kCGImageSourceShouldCache:                  false,
+        kCGImageSourceShouldCache: false,
         kCGImageSourceCreateThumbnailFromImageAlways: true,
-        kCGImageSourceThumbnailMaxPixelSize:         maxDimension,
-        kCGImageSourceCreateThumbnailWithTransform:  true
+        kCGImageSourceThumbnailMaxPixelSize: maxDimension,
+        kCGImageSourceCreateThumbnailWithTransform: true,
     ]
     guard
-        let source  = CGImageSourceCreateWithData(data as CFData, nil),
+        let source = CGImageSourceCreateWithData(data as CFData, nil),
         let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     else { return UIImage(data: data) }
     return UIImage(cgImage: cgImage)

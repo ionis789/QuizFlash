@@ -267,7 +267,7 @@ private struct QuizModeSessionView: View {
                             colors: [
                                 ThemeManager.shared.accentColor.color.opacity(0.82),
                                 ThemeManager.shared.accentColor.color,
-                                Color.white.opacity(0.92)
+                                Color.white.opacity(0.92),
                             ],
                             startPoint: .leading,
                             endPoint: .trailing
@@ -771,7 +771,7 @@ private struct QuizModeSessionView: View {
             systemName: "xmark",
             accessibilityLabel: "Close",
             action: dismissSheet,
-            size: UIConstants.Size.actionButton,
+            size: UIConstants.Size.actionButton
         )
     }
 
@@ -818,7 +818,7 @@ private struct QuizModeSessionView: View {
             PlayModeCompletionStat(title: "Accuracy", value: "\(sessionAccuracy)%", icon: "target", color: .green),
             PlayModeCompletionStat(title: "Time", value: viewModel.formattedSessionDuration, icon: "timer", color: .blue),
             PlayModeCompletionStat(title: "Correct", value: "\(viewModel.correctCount)", icon: "checkmark.circle.fill", color: .green),
-            PlayModeCompletionStat(title: "Wrong", value: "\(viewModel.wrongCount)", icon: "xmark.circle.fill", color: .red)
+            PlayModeCompletionStat(title: "Wrong", value: "\(viewModel.wrongCount)", icon: "xmark.circle.fill", color: .red),
         ]
     }
 
@@ -894,7 +894,7 @@ private struct QuizModeSessionView: View {
 
     private var primaryFloatingSymbol: String {
         if viewModel.isShowingRetryPrompt { return "arrow.counterclockwise" }
-        if viewModel.isEvaluated { return "arrow.right" }
+        if viewModel.isEvaluated { return "chevron.compact.right" }
         return "checkmark"
     }
 
@@ -938,7 +938,7 @@ private struct QuizModeSessionView: View {
             "Question required.",
             "At least 2 non-empty choices required.",
             "At least 1 correct choice required.",
-            "Single-answer cards must have exactly 1 correct choice."
+            "Single-answer cards must have exactly 1 correct choice.",
         ]
 
         let reasonSummaries = viewModel.diagnostics.nonZeroReasonCounts.compactMap { reason, count -> String? in
@@ -1061,7 +1061,7 @@ private struct QuizModeSessionView: View {
 
         let children = zone.children ?? []
         var lines = [
-            "\(indent)- \(path) container direction=\(zone.direction.rawValue) children=\(children.count) filledChildren=\(children.filter(\.hasContent).count)"
+            "\(indent)- \(path) container direction=\(zone.direction.rawValue) children=\(children.count) filledChildren=\(children.filter(\.hasContent).count)",
         ]
         for (index, child) in children.enumerated() {
             lines.append(contentsOf: zoneTreeLines(for: child, path: "\(path).\(index)", depth: depth + 1))
@@ -1116,7 +1116,7 @@ private struct QuizModeSessionView: View {
             renderStatusDebug,
             "  mathGestureDebug:",
             mathGestureDebug,
-            "  preview=\"\(leaf.textPreview)\""
+            "  preview=\"\(leaf.textPreview)\"",
         ]
     }
 
@@ -1744,18 +1744,18 @@ struct QuizPlaybackZoneContent: View {
             onBlockBoundsChange: onBlockBoundsChange,
             onRootBlockWidthChange: onMeasuredWidthChange
         )
-            .frame(width: width, alignment: .topLeading)
-            .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
-            .transaction { transaction in
-                transaction.animation = nil
-            }
-            .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
-                guard showsLayoutDebug else { return }
-                onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })
-            }
-            .background(alignment: .topLeading) {
-                if showsLayoutDebug {
-                    QuizGridDebugFrame(width: width)
+        .frame(width: width, alignment: .topLeading)
+        .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+        .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
+            guard showsLayoutDebug else { return }
+            onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })
+        }
+        .background(alignment: .topLeading) {
+            if showsLayoutDebug {
+                QuizGridDebugFrame(width: width)
             }
         }
     }

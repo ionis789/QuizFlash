@@ -20,7 +20,6 @@ import SwiftData
 /// and re-create deep navigation stacks, preventing the iOS 17 `ModelContext` row-cache trap.
 @Observable
 final class NavigationManager {
-
     // MARK: - Navigation Paths
 
     /// The navigation stack for the **Home** tab.
@@ -60,10 +59,10 @@ final class NavigationManager {
     /// Pops the active tab's navigation stack back to its root view.
     func popToRoot() {
         switch activeTab {
-        case .home:    homePath    = NavigationPath()
+        case .home: homePath = NavigationPath()
         case .library: libraryPath = NavigationPath()
-        case .labs:    labsPath    = NavigationPath()
-        case .create:  createPath  = NavigationPath()
+        case .labs: labsPath = NavigationPath()
+        case .create: createPath = NavigationPath()
         case .settings: settingsPath = NavigationPath()
         }
     }
@@ -74,10 +73,10 @@ final class NavigationManager {
     ///   `.navigationDestination(for:)` modifier.
     func append<V: Hashable>(_ route: V) {
         switch activeTab {
-        case .home:    homePath.append(route)
+        case .home: homePath.append(route)
         case .library: libraryPath.append(route)
-        case .labs:    labsPath.append(route)
-        case .create:  createPath.append(route)
+        case .labs: labsPath.append(route)
+        case .create: createPath.append(route)
         case .settings: settingsPath.append(route)
         }
     }
@@ -143,7 +142,7 @@ extension AppRoute: Equatable {
         switch (lhs, rhs) {
         case (.createDeck, .createDeck): return true
         case (.generateDeck, .generateDeck): return true
-        case (.settings, .settings):     return true
+        case (.settings, .settings): return true
         // `backLabel` is intentionally excluded — two pushes to the same folder
         // are the same route regardless of which tab initiated them.
         case (.folder(let a, _), .folder(let b, _)):
@@ -156,11 +155,12 @@ extension AppRoute: Equatable {
 extension AppRoute: Hashable {
     func hash(into hasher: inout Hasher) {
         switch self {
-        case .createDeck:       hasher.combine(0)
-        case .generateDeck:     hasher.combine(1)
-        case .settings:         hasher.combine(2)
+        case .createDeck: hasher.combine(0)
+        case .generateDeck: hasher.combine(1)
+        case .settings: hasher.combine(2)
         // `backLabel` excluded — consistent with `Equatable` above.
-        case .folder(let f, _): hasher.combine(3); hasher.combine(f.persistentModelID)
+        case .folder(let f, _): hasher.combine(3)
+            hasher.combine(f.persistentModelID)
         }
     }
 }
@@ -232,9 +232,9 @@ extension FeatureLabRoute {
         case .developmentSettings:
             return "slider.horizontal.3"
         case .flashCardsPlayModeSimulation:
-            return "rectangle.stack.badge.play"
+            return "square.stack.fill"
         case .animatedObjectsLab:
-            return "sparkles.rectangle.stack"
+            return "sparkles"
         case .sharedUICatalog:
             return "square.grid.2x2"
         case .contextMenu:

@@ -124,7 +124,7 @@ struct AIShimmeringStatusText: View {
                             .init(color: .white.opacity(0.12), location: 0.28),
                             .init(color: .white, location: 0.5),
                             .init(color: .white.opacity(0.12), location: 0.72),
-                            .init(color: .clear, location: 1)
+                            .init(color: .clear, location: 1),
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
@@ -238,7 +238,7 @@ struct AIStreamingProgressCard: View {
                     Spacer(minLength: UIConstants.Spacing.small)
 
                     HStack(spacing: UIConstants.Spacing.small) {
-                        Image(systemName: "sparkles.rectangle.stack")
+                        Image(systemName: "sparkles")
                             .font(.caption)
                         Text(footnote)
                             .font(.caption)
@@ -448,7 +448,7 @@ private struct AISimpleProgressBar: View {
                                 colors: [
                                     Color.white.opacity(0.26),
                                     color.opacity(0.78),
-                                    Color.white.opacity(0.10)
+                                    Color.white.opacity(0.10),
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
@@ -466,7 +466,7 @@ private struct AISimpleProgressBar: View {
                             LinearGradient(
                                 colors: [
                                     color.opacity(0.72),
-                                    color.opacity(0.92)
+                                    color.opacity(0.92),
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing

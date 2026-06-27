@@ -49,8 +49,8 @@ enum AppTabBar: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .home: return "house"
-        case .library: return "rectangle.stack"
+        case .home: return "bolt.house.fill"
+        case .library: return "square.stack.fill"
         case .labs: return "testtube.2"
         case .create: return "book.and.wrench"
         case .settings: return "gearshape"

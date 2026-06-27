@@ -37,7 +37,7 @@ struct ProgressiveBlurHeaderLabView: View {
             Button {
                 dismiss()
             } label: {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.compact.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.94))
                     .frame(width: 42, height: 42)
@@ -229,23 +229,23 @@ private struct ProgressiveBlurHeaderLabFloatingPanel: View {
                     sliderRow(
                         title: "Radius",
                         value: $settings.maxBlurRadius,
-                        range: 0...24
+                        range: 0 ... 24
                     )
                     sliderRow(
                         title: "Fade",
                         value: $settings.fadeExtension,
-                        range: 0...180,
+                        range: 0 ... 180,
                         format: "%.0f"
                     )
                     sliderRow(
                         title: "Top Tint",
                         value: $settings.tintOpacityTop,
-                        range: 0...1
+                        range: 0 ... 1
                     )
                     sliderRow(
                         title: "Mid Tint",
                         value: $settings.tintOpacityMiddle,
-                        range: 0...1
+                        range: 0 ... 1
                     )
                 }
                 .padding(UIConstants.Spacing.medium)

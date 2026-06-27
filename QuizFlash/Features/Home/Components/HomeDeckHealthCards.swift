@@ -121,7 +121,7 @@ private struct HomeDeckHealthCard: View {
 
                     if summary.isRecentlyOpened {
                         HomeDeckHealthFooterPill(
-                            icon: "sparkles.rectangle.stack",
+                            icon: "sparkles",
                             text: "Recent deck",
                             tint: accentColor
                         )
@@ -129,7 +129,7 @@ private struct HomeDeckHealthCard: View {
 
                     Spacer(minLength: 0)
 
-                    Image(systemName: "arrow.up.right")
+                    Image(systemName: "chevron.compact.right")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(accentColor)
                         .padding(10)
