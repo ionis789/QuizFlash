@@ -57,8 +57,8 @@ struct MainAppView: View {
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
     /// Active custom-sheet requests that temporarily hide the floating tab bar.
     @State private var sheetHiddenTabBarRequestIDs: Set<UUID> = []
-    /// User-driven auto-hide state sourced from the active scroll surface.
-    @State private var isTabBarAutoHiddenByScroll = false
+    /// User-driven compact state sourced from the active scroll surface.
+    @State private var isTabBarCompactedByScroll = false
 
     private static let tabBarBlurDebugScreenID = EdgeShadowDebugScreenID.tabBarBlur
 
@@ -101,9 +101,9 @@ struct MainAppView: View {
         guard !keyboardMonitor.isVisible else { return false }
         guard sheetHiddenTabBarRequestIDs.isEmpty else { return false }
         switch tabBarRule {
-        case .visible: return !isTabBarAutoHiddenByScroll
+        case .visible: return true
         case .hidden: return false
-        case .implicit: return !isTabBarAutoHiddenByScroll
+        case .implicit: return true
         }
     }
 
@@ -152,19 +152,19 @@ struct MainAppView: View {
     private func handleTabBarAutoHideAction(_ action: TabBarAutoHideAction) {
         switch action {
         case .show:
-            guard isTabBarAutoHiddenByScroll else { return }
+            guard isTabBarCompactedByScroll else { return }
             Task { @MainActor in
                 withAnimation(.bottomChromeSpring) {
-                    isTabBarAutoHiddenByScroll = false
+                    isTabBarCompactedByScroll = false
                 }
             }
         case .hide:
-            guard !isTabBarAutoHiddenByScroll else { return }
+            guard !isTabBarCompactedByScroll else { return }
             guard !keyboardMonitor.isVisible else { return }
             guard tabBarRule != .hidden else { return }
             Task { @MainActor in
                 withAnimation(.bottomChromeSpring) {
-                    isTabBarAutoHiddenByScroll = true
+                    isTabBarCompactedByScroll = true
                 }
             }
         }
@@ -183,11 +183,11 @@ struct MainAppView: View {
         }
     }
 
-    private func resetTabBarAutoHideIfNeeded() {
-        guard isTabBarAutoHiddenByScroll else { return }
+    private func resetTabBarCompactIfNeeded() {
+        guard isTabBarCompactedByScroll else { return }
         Task { @MainActor in
             withAnimation(.bottomChromeSpring) {
-                isTabBarAutoHiddenByScroll = false
+                isTabBarCompactedByScroll = false
             }
         }
     }
@@ -234,16 +234,16 @@ struct MainAppView: View {
                     // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
                     .configureNativeTabBar(visible: isTabBarLayoutVisible)
                     .onChange(of: router.activeTab) { _, _ in
-                        resetTabBarAutoHideIfNeeded()
+                        resetTabBarCompactIfNeeded()
                     }
                     .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
                         if isVisible {
-                            resetTabBarAutoHideIfNeeded()
+                            resetTabBarCompactIfNeeded()
                         }
                     }
                     .onChange(of: tabBarRule) { _, rule in
                         if rule == .hidden {
-                            resetTabBarAutoHideIfNeeded()
+                            resetTabBarCompactIfNeeded()
                         }
                     }
 
@@ -463,6 +463,11 @@ struct MainAppView: View {
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
+            .scaleEffect(
+                isTabBarCompactedByScroll ? UIConstants.Layout.bottomChromeCompactScale : 1,
+                anchor: .bottom
+            )
+            .animation(.bottomChromeSpring, value: isTabBarCompactedByScroll)
             .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
 
