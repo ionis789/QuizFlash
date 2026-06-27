@@ -171,16 +171,19 @@ enum UIConstants {
             UIConstants.isPad ? 0 : 6
         }
 
+        /// Minimum cumulative downward drag before the floating tab bar yields.
+        static let bottomChromeAutoHideDownwardThreshold: CGFloat = 30
+
+        /// Minimum upward drag needed to immediately reveal the floating tab bar again.
+        static let bottomChromeAutoRevealUpwardThreshold: CGFloat = 1
+
         /// Uniform scale used by the floating tab bar while scrolling downward.
         static let bottomChromeCompactScale: CGFloat = 0.84
 
-        /// Bottom overscroll distance needed to reach full tab-bar compact scale.
-        static let bottomChromeCompactOverscrollDistance: CGFloat = 54
+        /// Tolerance used to keep the floating tab bar visible when the scroll view is effectively at the top.
+        static let bottomChromeAutoRevealTopTolerance: CGFloat = 1
 
-        /// Minimum progress delta emitted from scroll probes to avoid noisy transforms.
-        static let bottomChromeCompactProgressEpsilon: CGFloat = 0.006
-
-        /// Bottom-edge tolerance used to suppress compacting when the scroll view has no useful vertical range.
+        /// Bottom-edge tolerance used to suppress auto-hide when the scroll view no longer has useful downward range.
         static let bottomChromeAutoHideBottomTolerance: CGFloat = 2
 
         /// Shared corner radius for floating bottom chrome containers.

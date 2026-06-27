@@ -2,113 +2,118 @@
 //  TabBarScrollAutoHideResolverTests.swift
 //  QuizFlashTests
 //
-//  Guards the floating tab bar's scroll-driven compacting behavior.
+//  Guards the custom tab bar auto-hide resolver against scroll-direction regressions.
 //
 
 import XCTest
 @testable import QuizFlash
 
 final class TabBarScrollAutoHideResolverTests: XCTestCase {
-    func testBottomOverscrollDrivesContinuousProgress() {
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
-
-        assertProgress(
-            resolver.handle(
-                offset: 610,
-                minOffset: 0,
-                maxOffset: 600,
-                isUserDriven: true,
-                isDragging: true
-            ),
-            equals: 0.25,
-            animated: false
+    func testScrollingDownHidesAfterCumulativeThreshold() {
+        var resolver = TabBarScrollAutoHideResolver(
+            downwardHideThreshold: 10,
+            upwardRevealThreshold: 1,
+            topRevealTolerance: 1
         )
-
-        assertProgress(
-            resolver.handle(
-                offset: 640,
-                minOffset: 0,
-                maxOffset: 600,
-                isUserDriven: true,
-                isDragging: true
-            ),
-            equals: 1,
-            animated: false
-        )
-    }
-
-    func testTopOverscrollDoesNotCompact() {
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
 
         XCTAssertNil(
             resolver.handle(
-                offset: -20,
+                offset: 0,
                 minOffset: 0,
-                maxOffset: 600,
-                isUserDriven: true,
-                isDragging: true
+                canHide: false,
+                canShow: false
             )
         )
-        XCTAssertEqual(resolver.progress, 0)
+        XCTAssertNil(
+            resolver.handle(
+                offset: 4,
+                minOffset: 0,
+                canHide: true,
+                canShow: true
+            )
+        )
+
+        XCTAssertEqual(
+            resolver.handle(
+                offset: 12,
+                minOffset: 0,
+                canHide: true,
+                canShow: true
+            ),
+            .hide
+        )
+        XCTAssertTrue(resolver.isHidden)
     }
 
-    func testInBoundsScrollDoesNotCompactBeforeBottom() {
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
+    func testSmallestUpwardDragRevealsImmediatelyWhenHidden() {
+        var resolver = TabBarScrollAutoHideResolver(
+            downwardHideThreshold: 10,
+            upwardRevealThreshold: 1,
+            topRevealTolerance: 1
+        )
+
+        _ = resolver.handle(offset: 0, minOffset: 0, canHide: false, canShow: false)
+        _ = resolver.handle(offset: 12, minOffset: 0, canHide: true, canShow: true)
+
+        XCTAssertEqual(
+            resolver.handle(
+                offset: 11,
+                minOffset: 0,
+                canHide: true,
+                canShow: true
+            ),
+            .show
+        )
+        XCTAssertFalse(resolver.isHidden)
+    }
+
+    func testUpwardDecelerationDoesNotRevealUntilUserTouchesAgain() {
+        var resolver = TabBarScrollAutoHideResolver(
+            downwardHideThreshold: 10,
+            upwardRevealThreshold: 1,
+            topRevealTolerance: 1
+        )
+
+        _ = resolver.handle(offset: 0, minOffset: 0, canHide: false, canShow: false)
+        _ = resolver.handle(offset: 16, minOffset: 0, canHide: true, canShow: true)
 
         XCTAssertNil(
             resolver.handle(
-                offset: 420,
+                offset: 14,
                 minOffset: 0,
-                maxOffset: 600,
-                isUserDriven: true,
-                isDragging: true
+                canHide: true,
+                canShow: false
             )
         )
-        XCTAssertEqual(resolver.progress, 0)
-    }
+        XCTAssertTrue(resolver.isHidden)
 
-    func testReleaseResetsProgressWithAnimation() {
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
-
-        _ = resolver.handle(
-            offset: 620,
-            minOffset: 0,
-            maxOffset: 600,
-            isUserDriven: true,
-            isDragging: true
-        )
-        XCTAssertEqual(resolver.progress, 0.5)
-
-        assertProgress(
+        XCTAssertEqual(
             resolver.handle(
-                offset: 620,
+                offset: 13,
                 minOffset: 0,
-                maxOffset: 600,
-                isUserDriven: true,
-                isDragging: false
+                canHide: true,
+                canShow: true
             ),
-            equals: 0,
-            animated: true
+            .show
         )
+        XCTAssertFalse(resolver.isHidden)
     }
 
-    func testResetEmitsOnlyWhenProgressWasActive() {
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
-
-        XCTAssertNil(resolver.reset())
-
-        _ = resolver.handle(
-            offset: 620,
-            minOffset: 0,
-            maxOffset: 600,
-            isUserDriven: true,
-            isDragging: true
+    func testResetRevealsBarWhenAutoHideWasActive() {
+        var resolver = TabBarScrollAutoHideResolver(
+            downwardHideThreshold: 10,
+            upwardRevealThreshold: 1,
+            topRevealTolerance: 1
         )
 
-        assertProgress(resolver.reset(), equals: 0, animated: true)
+        _ = resolver.handle(offset: 0, minOffset: 0, canHide: false, canShow: false)
+        _ = resolver.handle(offset: 16, minOffset: 0, canHide: true, canShow: true)
+
+        XCTAssertEqual(resolver.reset(), .show)
+        XCTAssertFalse(resolver.isHidden)
     }
 
-    func testCompactEligibilityDisablesProgressWhenContentHasNoVerticalRange() {
+    func testAutoHideEligibilityDisablesHideWhenContentHasNoDownwardRange() {
         let minOffset: CGFloat = 0
         let maxOffset = TabBarScrollAutoHideEligibility.maximumOffset(
             contentHeight: 420,
@@ -116,45 +121,69 @@ final class TabBarScrollAutoHideResolverTests: XCTestCase {
             adjustedInsets: .zero,
             minOffset: minOffset
         )
-        var resolver = TabBarScrollCompactProgressResolver(compactDistance: 40, changeEpsilon: 0)
 
         XCTAssertEqual(maxOffset, 0)
-        XCTAssertNil(
-            resolver.handle(
-                offset: 20,
+        XCTAssertFalse(
+            TabBarScrollAutoHideEligibility.canHide(
+                offset: 12,
                 minOffset: minOffset,
                 maxOffset: maxOffset,
-                isUserDriven: true,
-                isDragging: true
+                isUserDriven: true
             )
         )
-        XCTAssertEqual(resolver.progress, 0)
     }
 
-    func testMaximumOffsetIncludesBottomInset() {
+    func testAutoHideEligibilityDisablesHideDuringBottomBounce() {
+        let minOffset: CGFloat = 0
         let maxOffset = TabBarScrollAutoHideEligibility.maximumOffset(
             contentHeight: 1200,
             viewportHeight: 600,
-            adjustedInsets: UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0),
-            minOffset: 0
+            adjustedInsets: .zero,
+            minOffset: minOffset
         )
 
-        XCTAssertEqual(maxOffset, 640)
+        XCTAssertEqual(maxOffset, 600)
+        XCTAssertFalse(
+            TabBarScrollAutoHideEligibility.canHide(
+                offset: 601,
+                minOffset: minOffset,
+                maxOffset: maxOffset,
+                isUserDriven: true
+            )
+        )
+        XCTAssertFalse(
+            TabBarScrollAutoHideEligibility.canHide(
+                offset: 598.5,
+                minOffset: minOffset,
+                maxOffset: maxOffset,
+                isUserDriven: true
+            )
+        )
     }
 
-    private func assertProgress(
-        _ action: TabBarAutoHideAction?,
-        equals expectedProgress: CGFloat,
-        animated expectedAnimated: Bool,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard case let .setCompactProgress(progress, animated) = action else {
-            XCTFail("Expected compact progress action", file: file, line: line)
-            return
-        }
+    func testAutoShowEligibilityWaitsUntilUserScrollsAwayFromBottomEdge() {
+        let maxOffset: CGFloat = 600
 
-        XCTAssertEqual(progress, expectedProgress, accuracy: 0.0001, file: file, line: line)
-        XCTAssertEqual(animated, expectedAnimated, file: file, line: line)
+        XCTAssertFalse(
+            TabBarScrollAutoHideEligibility.canShow(
+                offset: 600,
+                maxOffset: maxOffset,
+                isUserDriven: true
+            )
+        )
+        XCTAssertFalse(
+            TabBarScrollAutoHideEligibility.canShow(
+                offset: 598.5,
+                maxOffset: maxOffset,
+                isUserDriven: true
+            )
+        )
+        XCTAssertTrue(
+            TabBarScrollAutoHideEligibility.canShow(
+                offset: 590,
+                maxOffset: maxOffset,
+                isUserDriven: true
+            )
+        )
     }
 }

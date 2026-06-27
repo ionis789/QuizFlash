@@ -57,8 +57,8 @@ struct MainAppView: View {
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
     /// Active custom-sheet requests that temporarily hide the floating tab bar.
     @State private var sheetHiddenTabBarRequestIDs: Set<UUID> = []
-    /// UIKit-backed transform controller for scroll-driven tab-bar scale.
-    @State private var tabBarScrollScaleController = TabBarScrollScaleController()
+    /// User-driven compact state sourced from the active scroll surface.
+    @State private var isTabBarCompactedByScroll = false
 
     private static let tabBarBlurDebugScreenID = EdgeShadowDebugScreenID.tabBarBlur
 
@@ -151,12 +151,22 @@ struct MainAppView: View {
 
     private func handleTabBarAutoHideAction(_ action: TabBarAutoHideAction) {
         switch action {
-        case .setCompactProgress(let progress, let animated):
-            guard isTabBarLayoutVisible else {
-                tabBarScrollScaleController.reset(animated: false)
-                return
+        case .show:
+            guard isTabBarCompactedByScroll else { return }
+            Task { @MainActor in
+                withAnimation(.bottomChromeSpring) {
+                    isTabBarCompactedByScroll = false
+                }
             }
-            tabBarScrollScaleController.setProgress(progress, animated: animated)
+        case .hide:
+            guard !isTabBarCompactedByScroll else { return }
+            guard !keyboardMonitor.isVisible else { return }
+            guard tabBarRule != .hidden else { return }
+            Task { @MainActor in
+                withAnimation(.bottomChromeSpring) {
+                    isTabBarCompactedByScroll = true
+                }
+            }
         }
     }
 
@@ -174,7 +184,12 @@ struct MainAppView: View {
     }
 
     private func resetTabBarCompactIfNeeded() {
-        tabBarScrollScaleController.reset(animated: true)
+        guard isTabBarCompactedByScroll else { return }
+        Task { @MainActor in
+            withAnimation(.bottomChromeSpring) {
+                isTabBarCompactedByScroll = false
+            }
+        }
     }
 
     // MARK: - Body
@@ -446,13 +461,15 @@ struct MainAppView: View {
             : availableWidth
         let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
 
-        let bar = TabBarScrollScaleHost(scaleController: tabBarScrollScaleController) {
-            CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
-                .frame(width: barWidth)
-                .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
-                .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
-        }
-        .frame(width: barWidth, height: UIConstants.Size.bottomChromeBarHeight)
+        let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
+            .frame(width: barWidth)
+            .scaleEffect(
+                isTabBarCompactedByScroll ? UIConstants.Layout.bottomChromeCompactScale : 1,
+                anchor: .bottom
+            )
+            .animation(.bottomChromeSpring, value: isTabBarCompactedByScroll)
+            .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
+            .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
 
         if usesDetachedPadTabBar {
             HStack(spacing: 0) {
