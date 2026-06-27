@@ -733,6 +733,9 @@ extension View {
     func aiGenerationBorderBeam(
         accent: Color,
         cornerRadius: CGFloat,
+        beamBlur: CGFloat = 12,
+        lineWidth: CGFloat = 1,
+        duration: TimeInterval = 2.7,
         isEnabled: Bool = true
     ) -> some View {
         borderBeam(
@@ -744,10 +747,10 @@ extension View {
                 Color(red: 0.88, green: 0.58, blue: 1.0).opacity(0.96),
                 Color(red: 0.52, green: 0.24, blue: 1.0).opacity(0.90)
             ],
-            beamBlur: 12,
+            beamBlur: beamBlur,
             cornerRadius: cornerRadius,
-            lineWidth: 1,
-            duration: 2.7,
+            lineWidth: lineWidth,
+            duration: duration,
             isEnabled: isEnabled
         )
     }

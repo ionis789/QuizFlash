@@ -670,34 +670,41 @@ private struct EmptyDeckPromptIllustration: View {
     var body: some View {
         ZStack {
             backCard
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 30,
+                    beamBlur: 8,
+                    lineWidth: 1.35,
+                    isEnabled: animatesWhileWaiting
+                )
                 .offset(x: isFloating ? -14 : -30, y: 12)
                 .rotationEffect(.degrees(isFloating ? -4 : -11))
                 .scaleEffect(isFloating ? 0.98 : 1)
+
+            middleCard
                 .aiGenerationBorderBeam(
                     accent: accent,
                     cornerRadius: 30,
+                    beamBlur: 8,
+                    lineWidth: 1.35,
                     isEnabled: animatesWhileWaiting
                 )
-
-            middleCard
                 .offset(x: isFloating ? -2 : 24, y: 8)
                 .rotationEffect(.degrees(isFloating ? 13 : 11))
                 .scaleEffect(isFloating ? 1 : 0.98)
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 30,
-                    isEnabled: animatesWhileWaiting
-                )
 
             frontCard
-                .offset(x: isFloating ? 12 : -3)
-                .rotationEffect(.degrees(isFloating ? -2 : 2))
-                .scaleEffect(isFloating ? 0.99 : 1)
                 .aiGenerationBorderBeam(
                     accent: accent,
                     cornerRadius: 32,
+                    beamBlur: 8,
+                    lineWidth: 1.45,
+                    duration: 2.2,
                     isEnabled: animatesWhileWaiting
                 )
+                .offset(x: isFloating ? 12 : -3)
+                .rotationEffect(.degrees(isFloating ? -2 : 2))
+                .scaleEffect(isFloating ? 0.99 : 1)
         }
         .frame(width: 180, height: 168)
         .accessibilityHidden(true)

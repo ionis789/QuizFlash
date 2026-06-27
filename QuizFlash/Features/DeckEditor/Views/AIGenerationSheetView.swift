@@ -395,12 +395,14 @@ struct AIGenerationSheetView: View {
             .frame(height: UIConstants.Size.actionButton)
             .background {
                 Capsule(style: .continuous)
-                    .fill(accent)
-                    .shadow(color: Color.purple.opacity(0.30), radius: 12, y: 2)
+                    .fill(Color.white.opacity(0.08))
+                    .shadow(color: Color.purple.opacity(0.24), radius: 14, y: 2)
             }
             .aiGenerationBorderBeam(
                 accent: accent,
                 cornerRadius: UIConstants.Size.actionButton / 2,
+                beamBlur: 10,
+                lineWidth: 1.35,
                 isEnabled: viewModel.canConfirmAIGeneration
             )
             .contentShape(Capsule(style: .continuous))

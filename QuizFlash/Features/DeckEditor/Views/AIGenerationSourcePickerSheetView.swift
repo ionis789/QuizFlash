@@ -86,9 +86,5 @@ struct AIGenerationSourcePickerSheetView: View {
         }
         .duoPressableSurfaceStyle()
         .duoSurface(cornerRadius: 32, tint: tint)
-        .aiGenerationBorderBeam(
-            accent: accent,
-            cornerRadius: 32
-        )
     }
 }

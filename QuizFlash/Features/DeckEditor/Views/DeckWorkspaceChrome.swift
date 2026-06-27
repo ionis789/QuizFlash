@@ -454,7 +454,10 @@ extension DeckWorkspaceView {
             .aiGenerationBorderBeam(
                 accent: themeManager.accentColor.color,
                 cornerRadius: UIConstants.Size.actionButton / 2,
-                isEnabled: viewModel.hasPausedAIGeneration
+                beamBlur: 8,
+                lineWidth: 1.45,
+                duration: 2.2,
+                isEnabled: viewModel.isGenerating || viewModel.hasPausedAIGeneration
             )
             .accessibilityLabel(
                 viewModel.hasPausedAIGeneration
