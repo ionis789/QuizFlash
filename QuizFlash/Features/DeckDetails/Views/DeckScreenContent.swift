@@ -427,7 +427,6 @@ extension DeckContentView {
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
                     isSuspended: isSuspended,
-                    modelContainer: context.container,
                     onToggleSelection: { gridCard in
                         withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
                             viewModel.toggleSelection(for: gridCard.id)

@@ -317,7 +317,6 @@ actor CardFetchActor {
 
         let frontData = card.frontZoneData
         let backData  = card.backZoneData
-        let previewContent = card.cardContent
 
         // Flush the database from RAM before the CPU-intensive image decode step.
         flushContext()
@@ -337,8 +336,7 @@ actor CardFetchActor {
         return CardPreviewPayload(
             thumbnailData:  thumbData,
             hasFrontImage:  frontZone.map { containsMedia($0, contentType: .image)  } ?? false,
-            hasFrontSketch: frontZone.map { containsMedia($0, contentType: .sketch) } ?? false,
-            previewContent: previewContent
+            hasFrontSketch: frontZone.map { containsMedia($0, contentType: .sketch) } ?? false
         )
     }
 
