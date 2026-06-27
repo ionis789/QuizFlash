@@ -738,7 +738,23 @@ extension View {
         duration: TimeInterval = 2.7,
         isEnabled: Bool = true
     ) -> some View {
-        borderBeam(
+        overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(isEnabled ? 0.42 : 0.20),
+                            Color.white.opacity(isEnabled ? 0.18 : 0.08),
+                            accent.opacity(isEnabled ? 0.30 : 0.14),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: max(1, lineWidth * 0.72)
+                )
+                .allowsHitTesting(false)
+        }
+        .borderBeam(
             border: accent.opacity(0.92),
             hideFadeBorder: false,
             beam: [

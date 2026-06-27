@@ -136,7 +136,7 @@ extension DeckWorkspaceView {
                         mockAIActionControl
                     }
 
-                    if !viewModel.draftCards.isEmpty || aiVisualStatusText != nil {
+                    if !viewModel.draftCards.isEmpty {
                         headerGenerateActionControl
                             .transition(
                                 .asymmetric(
@@ -315,11 +315,7 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var headerGenerateActionControl: some View {
-        if aiVisualStatusText != nil {
-            generateActionControl
-        } else {
-            primaryGenerateActionControl
-        }
+        primaryGenerateActionControl
     }
 
     @ViewBuilder
@@ -372,65 +368,22 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var generateActionControl: some View {
-        if let statusText = aiVisualStatusText {
-            CreateDeckCapsuleContainer {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    CreateDeckAIStatusIndicator(
-                        countText: aiToolbarCountText,
-                        tint: aiToolbarTint
-                    )
-
-                    Button {
-                        if viewModel.hasPausedAIGeneration {
-                            viewModel.resumePausedAIGeneration()
-                        } else {
-                            viewModel.pauseAIGeneration()
-                        }
-                    } label: {
-                        Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(aiToolbarTint)
-                            .frame(width: 24, height: 24)
-                    }
-                    .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
-                    .accessibilityLabel(
-                        viewModel.hasPausedAIGeneration
-                            ? localized("Resume AI generation")
-                            : localized("Pause AI generation")
-                    )
-
-                    Button {
-                        viewModel.requestAIGenerationCancel()
-                    } label: {
-                        ChromeSoftCircleSymbol(
-                            systemName: "xmark",
-                            size: 22
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(localized("Cancel AI generation"))
-                }
-                .fixedSize(horizontal: true, vertical: false)
+        CreateDeckCapsuleButton(
+            action: {
+                presentAIGenerationSourcePicker()
+            },
+            isEnabled: canStartLocalGeneration,
+            chrome: .surface,
+            accessibilityLabel: localized("Generate cards with AI")
+        ) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 14, weight: .bold))
+                Text(localized("Generate"))
+                    .font(.system(size: 14, weight: .bold))
+                    .lineLimit(1)
             }
-            .accessibilityLabel(aiToolbarStatusText ?? statusText)
-        } else {
-            CreateDeckCapsuleButton(
-                action: {
-                    presentAIGenerationSourcePicker()
-                },
-                isEnabled: canStartLocalGeneration,
-                chrome: .surface,
-                accessibilityLabel: localized("Generate cards with AI")
-            ) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 14, weight: .bold))
-                    Text(localized("Generate"))
-                        .font(.system(size: 14, weight: .bold))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-            }
+            .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
         }
     }
 
@@ -767,32 +720,6 @@ struct CreateDeckCapsuleContainer<Content: View>: View {
             .padding(.horizontal, UIConstants.Spacing.standard)
             .frame(minWidth: UIConstants.Size.capsuleHeight)
             .frame(height: UIConstants.Size.capsuleHeight)
-    }
-}
-
-struct CreateDeckAIStatusIndicator: View {
-    let countText: String?
-    let tint: Color
-
-    var body: some View {
-        VStack(spacing: countText == nil ? 0 : 2) {
-            if let countText {
-                Text(countText)
-                    .font(.system(size: 12, weight: .bold).monospacedDigit())
-                    .foregroundStyle(.primary)
-                    .statusTextMotion(trigger: countText)
-                    .transition(
-                        .move(edge: .bottom)
-                            .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.9, anchor: .bottom))
-                    )
-            }
-
-            ProgressActivityDots(color: tint)
-                .frame(minWidth: 22)
-        }
-        .fixedSize(horizontal: true, vertical: false)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: countText)
     }
 }
 
