@@ -281,7 +281,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     }
     await this.env.AI_DB.batch(statements);
     await this.clearActive(generationId);
-    return this.entitlementResponse(generation.uid, generation.premium === 1);
+    const usageQuota = await this.entitlementResponse(generation.uid, generation.premium === 1);
+    if (generation.premium === 0 && validatedCards > 0) {
+      await syncFirestoreFreeQuotaBestEffort(generation.uid, usageQuota, this.env);
+    }
+    return usageQuota;
   }
 
   async fail(generationId: string, sessionToken: string): Promise<QuotaResponse> {
@@ -514,8 +518,10 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
       promptHash: promptConfig.hash
     });
     if (startResult.kind === "rejection") {
+      await syncFirestoreFreeQuotaIfChanged(uid, startResult.usageQuota, profile, env);
       throw new WorkerError(startResult.status, startResult.code, startResult.message, startResult.usageQuota);
     }
+    await syncFirestoreFreeQuotaIfChanged(uid, startResult.session.usageQuota, profile, env);
     return promptStartResponse({...startResult.session}, promptConfig, knownPromptVersion);
   } catch (error) {
     if (!(error instanceof WorkerError)) {
@@ -600,12 +606,14 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
 async function readEntitlement(request: Request, env: Env): Promise<Record<string, unknown>> {
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
   const profile = await readFirestoreProfile(uid, env);
-  return {...await env.USER_GENERATION.getByName(uid).entitlement({
+  const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement({
     uid,
     premium: profile.premium,
     freeGenerationsUsed: profile.freeGenerationsUsed,
     freeGenerationsLimit: profile.freeGenerationsLimit
-  })};
+  });
+  await syncFirestoreFreeQuotaIfChanged(uid, usageQuota, profile, env);
+  return {...usageQuota};
 }
 
 async function readUsageGenerations(request: Request, env: Env): Promise<Record<string, unknown>> {
@@ -646,6 +654,72 @@ async function readUsageGenerations(request: Request, env: Env): Promise<Record<
       createdAtMs: Math.max(0, row.createdAtMs ?? 0),
       completedAtMs: row.completedAtMs ?? null
     }))
+  };
+}
+
+async function syncFirestoreFreeQuotaIfChanged(
+  uid: string,
+  usageQuota: QuotaResponse | undefined,
+  profile: Omit<Entitlement, "uid">,
+  env: Env
+): Promise<void> {
+  if (!usageQuota || usageQuota.premium) return;
+  if (usageQuota.freeGenerationsUsed === null || usageQuota.freeGenerationsLimit === null) return;
+  if (
+    usageQuota.freeGenerationsUsed === profile.freeGenerationsUsed &&
+    usageQuota.freeGenerationsLimit === profile.freeGenerationsLimit
+  ) {
+    return;
+  }
+  await syncFirestoreFreeQuotaBestEffort(uid, usageQuota, env);
+}
+
+async function syncFirestoreFreeQuotaBestEffort(uid: string, usageQuota: QuotaResponse, env: Env): Promise<void> {
+  if (usageQuota.premium) return;
+  if (usageQuota.freeGenerationsUsed === null || usageQuota.freeGenerationsLimit === null) return;
+
+  try {
+    const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const documentPath = `projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
+    const url = new URL(`https://firestore.googleapis.com/v1/${documentPath}`);
+    url.searchParams.append("updateMask.fieldPaths", "freeGenerationsUsed");
+    url.searchParams.append("updateMask.fieldPaths", "freeGenerationsLimit");
+    url.searchParams.append("updateMask.fieldPaths", "updatedAt");
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(firestoreFreeQuotaPatchBody(
+        usageQuota.freeGenerationsUsed,
+        usageQuota.freeGenerationsLimit
+      ))
+    });
+    if (!response.ok) {
+      console.error(JSON.stringify({
+        event: "firestore_free_quota_sync_failed",
+        status: response.status,
+        uid
+      }));
+    }
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "firestore_free_quota_sync_failed",
+      error_name: errorName(error),
+      uid
+    }));
+  }
+}
+
+export function firestoreFreeQuotaPatchBody(used: number, limit: number, updatedAtMs = Date.now()): Record<string, unknown> {
+  return {
+    fields: {
+      freeGenerationsUsed: {integerValue: String(Math.max(0, Math.trunc(used)))},
+      freeGenerationsLimit: {integerValue: String(Math.max(1, Math.trunc(limit)))},
+      updatedAt: {timestampValue: new Date(updatedAtMs).toISOString()}
+    }
   };
 }
 

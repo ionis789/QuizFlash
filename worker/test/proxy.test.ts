@@ -1,6 +1,6 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse} from "../src";
+import {estimateCostMicroUSD, extractProviderMetadata, firestoreFreeQuotaPatchBody, promptStartResponse} from "../src";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
@@ -60,6 +60,16 @@ describe("QuizFlash AI proxy", () => {
     const response = promptStartResponse({generationId: "generation", usageQuota}, promptConfig, promptConfig.version);
 
     expect(response.usageQuota).toEqual(usageQuota);
+  });
+
+  it("builds a narrow Firestore free quota patch body", () => {
+    expect(firestoreFreeQuotaPatchBody(5, 5, 0)).toEqual({
+      fields: {
+        freeGenerationsUsed: {integerValue: "5"},
+        freeGenerationsLimit: {integerValue: "5"},
+        updatedAt: {timestampValue: "1970-01-01T00:00:00.000Z"}
+      }
+    });
   });
 
   it("calculates exact DeepSeek cost from returned usage and response model", () => {
