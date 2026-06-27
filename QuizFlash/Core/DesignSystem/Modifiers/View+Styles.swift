@@ -739,13 +739,13 @@ extension View {
         isEnabled: Bool = true
     ) -> some View {
         borderBeam(
-            border: Color.purple.opacity(0.95),
+            border: accent.opacity(0.92),
             hideFadeBorder: false,
             beam: [
-                Color.purple.opacity(0.96),
-                accent.opacity(0.98),
-                Color(red: 0.88, green: 0.58, blue: 1.0).opacity(0.96),
-                Color(red: 0.52, green: 0.24, blue: 1.0).opacity(0.90)
+                accent.opacity(0.96),
+                accent.opacity(0.42),
+                Color.white.opacity(0.72),
+                accent.opacity(0.92)
             ],
             beamBlur: beamBlur,
             cornerRadius: cornerRadius,

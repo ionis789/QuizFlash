@@ -61,14 +61,14 @@ struct AIGenerationSheetView: View {
                 }
 
                 TopProgressiveBlurOverlay(
-                    topHeight: resolvedSafeTopInset + UIConstants.Size.actionButton + UIConstants.Spacing.huge,
+                    topHeight: resolvedSafeTopInset + UIConstants.Size.actionButton + UIConstants.Spacing.small,
                     revealProgress: 1,
                     tintColor: .black,
                     configuration: ScreenTopProgressiveBlurConfiguration(
                         maxBlurRadius: 5,
-                        fadeExtension: 56,
+                        fadeExtension: 24,
                         tintOpacityTop: 0.78,
-                        tintOpacityMiddle: 0.42
+                        tintOpacityMiddle: 0.18
                     ),
                     revealAnimation: nil
                 )
@@ -328,13 +328,12 @@ struct AIGenerationSheetView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, UIConstants.Spacing.small)
-                .padding(.vertical, 11)
-                .background(isSelected ? accent.opacity(0.16) : Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(isSelected ? accent.opacity(0.42) : Color.primary.opacity(0.09), lineWidth: 1)
-                }
+                .quizFlashLabelChrome(
+                    isSelected ? .secondary : .surface,
+                    shape: .capsule,
+                    size: UIConstants.Size.actionButton,
+                    horizontalPadding: UIConstants.Spacing.small
+                )
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

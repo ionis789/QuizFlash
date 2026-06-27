@@ -7,8 +7,6 @@ import SwiftUI
 import SwiftData
 
 extension DeckWorkspaceView {
-    var runtimeCardTransition: AnyTransition { .opacity }
-
     func updateViewSafeBottom(using viewInset: CGFloat) {
         guard abs(viewSafeBottom - viewInset) > 0.5 else { return }
         viewSafeBottom = viewInset
@@ -85,8 +83,6 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var activeCardsListContent: some View {
-        unifiedRuntimeCard
-
         if hasUnifiedAISession {
             if !displayedDraftRowsBeforeAISlots.isEmpty {
                 draftCardRows(displayedDraftRowsBeforeAISlots)
@@ -104,17 +100,6 @@ extension DeckWorkspaceView {
             }
         } else if !viewModel.draftCards.isEmpty {
             draftCardRows(displayedDraftRowsBeforeAISlots)
-        }
-    }
-
-    @ViewBuilder
-    var unifiedRuntimeCard: some View {
-        if case .extractingText = viewModel.aiState {
-            AIExtractingLoadingView(
-                elapsedStartDate: viewModel.aiGenerationStartedAt,
-                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration
-            )
-            .transition(runtimeCardTransition)
         }
     }
 

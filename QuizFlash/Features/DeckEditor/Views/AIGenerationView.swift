@@ -9,64 +9,6 @@ import SwiftUI
 
 private let kAIGenerationStatusCardHeight: CGFloat = 212
 
-// MARK: - AI Extracting Loading View
-
-/// Minimal loading card shown while the source is read before cards start streaming.
-struct AIExtractingLoadingView: View {
-    var elapsedStartDate: Date? = nil
-    var elapsedAccumulatedDuration: TimeInterval = 0
-    @State private var isActive = false
-
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-
-    var body: some View {
-        AIGenerationSurface {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                        .fill(Color(uiColor: .tertiarySystemFill))
-                        .frame(width: 72, height: 72)
-
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(accent)
-                }
-
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text("Preparing your material")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.primary)
-
-                    Text("Reading the source and setting up the generation pipeline.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                AISimpleProgressBar(
-                    fraction: 0,
-                    color: accent,
-                    isIndeterminate: true
-                )
-
-                Text("This usually takes a moment before the first cards start to stream in.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if elapsedStartDate != nil || elapsedAccumulatedDuration > 0 {
-                    AIGenerationElapsedTimeLabel(
-                        startDate: elapsedStartDate,
-                        accumulatedDuration: elapsedAccumulatedDuration
-                    )
-                }
-            }
-        }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.top, UIConstants.Spacing.huge)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear { isActive = true }
-    }
-}
-
 // MARK: - AI Streaming Text Status
 
 /// Text-only generation state shown while AI batches are still pending.

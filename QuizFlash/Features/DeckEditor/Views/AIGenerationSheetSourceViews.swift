@@ -23,19 +23,6 @@ struct SourcePreparationCenterStage: View {
         }
     }
 
-    private var subtitle: String {
-        switch state {
-        case .photos(let itemCount):
-            return itemCount == 1
-                ? "OCR is analyzing 1 image."
-                : "OCR is analyzing \(itemCount) images."
-        case .pdf:
-            return "Pages, previews and text quality are being prepared."
-        case .none:
-            return "Preparing the selected source."
-        }
-    }
-
     var body: some View {
         VStack(spacing: UIConstants.Spacing.large) {
             PreparingSourceAnimation(state: state)
@@ -48,12 +35,6 @@ struct SourcePreparationCenterStage: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
-
-                Text(subtitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity)
@@ -65,10 +46,14 @@ private struct PreparingSourceAnimation: View {
     @State private var isPrimaryAnimated = false
     @State private var isSecondaryAnimated = false
 
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
     var body: some View {
         ZStack {
             Circle()
-                .fill(ThemeManager.shared.accentColor.color.opacity(0.10))
+                .fill(accent.opacity(0.10))
                 .frame(width: 164, height: 164)
                 .blur(radius: 14)
                 .scaleEffect(isPrimaryAnimated ? 1.06 : 0.92)
@@ -104,6 +89,13 @@ private struct PreparingSourceAnimation: View {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(Color.white.opacity(0.05))
                 .frame(width: 88, height: 108)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 26,
+                    beamBlur: 8,
+                    lineWidth: 1.15,
+                    duration: 2.25
+                )
                 .overlay {
                     Image(systemName: "photo")
                         .font(.system(size: 22, weight: .semibold))
@@ -116,15 +108,22 @@ private struct PreparingSourceAnimation: View {
                 .rotationEffect(.degrees(isSecondaryAnimated ? -9 : -3))
 
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(ThemeManager.shared.accentColor.color.opacity(0.24))
+                .fill(accent.opacity(0.24))
                 .frame(width: 98, height: 118)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 28,
+                    beamBlur: 9,
+                    lineWidth: 1.35,
+                    duration: 2.15
+                )
                 .overlay {
                     Image(systemName: "text.viewfinder")
                         .font(.system(size: 26, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 .offset(x: isPrimaryAnimated ? 10 : 4, y: isPrimaryAnimated ? 10 : -2)
-                .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.18), radius: 18, y: 8)
+                .shadow(color: accent.opacity(0.18), radius: 18, y: 8)
         }
     }
 
@@ -133,14 +132,28 @@ private struct PreparingSourceAnimation: View {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color.white.opacity(0.04))
                 .frame(width: 94, height: 118)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 28,
+                    beamBlur: 8,
+                    lineWidth: 1.1,
+                    duration: 2.35
+                )
                 .offset(
                     x: isSecondaryAnimated ? -10 : -4,
                     y: isSecondaryAnimated ? -6 : 2
                 )
 
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(ThemeManager.shared.accentColor.color.opacity(0.22))
+                .fill(accent.opacity(0.22))
                 .frame(width: 102, height: 126)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 28,
+                    beamBlur: 9,
+                    lineWidth: 1.35,
+                    duration: 2.15
+                )
                 .overlay(alignment: .top) {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.white.opacity(0.88))
@@ -154,7 +167,7 @@ private struct PreparingSourceAnimation: View {
                         .foregroundStyle(.white)
                 }
                 .offset(y: isPrimaryAnimated ? 8 : -4)
-                .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.18), radius: 18, y: 8)
+                .shadow(color: accent.opacity(0.18), radius: 18, y: 8)
         }
     }
 }
