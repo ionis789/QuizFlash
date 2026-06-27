@@ -256,6 +256,10 @@ struct AIStreamingProgressCard: View {
             }
         }
         .frame(height: kAIGenerationStatusCardHeight)
+        .aiGenerationBorderBeam(
+            accent: accent,
+            cornerRadius: 28
+        )
     }
 }
 
@@ -347,6 +351,10 @@ struct AIPausedResumeCard: View {
             }
         }
         .frame(height: kAIGenerationStatusCardHeight)
+        .aiGenerationBorderBeam(
+            accent: accent,
+            cornerRadius: 28
+        )
     }
 }
 

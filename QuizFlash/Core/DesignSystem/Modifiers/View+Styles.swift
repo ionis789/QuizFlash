@@ -729,6 +729,29 @@ extension View {
         )
     }
 
+    /// Applies the purple AI-generation beam used on primary generation surfaces.
+    func aiGenerationBorderBeam(
+        accent: Color,
+        cornerRadius: CGFloat,
+        isEnabled: Bool = true
+    ) -> some View {
+        borderBeam(
+            border: Color.purple.opacity(0.95),
+            hideFadeBorder: false,
+            beam: [
+                Color.purple.opacity(0.96),
+                accent.opacity(0.98),
+                Color(red: 0.88, green: 0.58, blue: 1.0).opacity(0.96),
+                Color(red: 0.52, green: 0.24, blue: 1.0).opacity(0.90)
+            ],
+            beamBlur: 12,
+            cornerRadius: cornerRadius,
+            lineWidth: 1,
+            duration: 2.7,
+            isEnabled: isEnabled
+        )
+    }
+
     /// Applies the shared full-panel press response.
     func duoPressableSurfaceStyle() -> some View {
         buttonStyle(DuoPressableSurfaceStyle())

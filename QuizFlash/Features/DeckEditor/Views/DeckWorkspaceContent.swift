@@ -309,7 +309,13 @@ extension DeckWorkspaceView {
                     .lineLimit(1)
                     .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                     .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 9)
+                    .background(accent.opacity(0.12), in: Capsule(style: .continuous))
+                    .aiGenerationBorderBeam(
+                        accent: accent,
+                        cornerRadius: 22,
+                        isEnabled: canStartLocalGeneration
+                    )
                     .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)

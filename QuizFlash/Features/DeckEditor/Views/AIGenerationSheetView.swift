@@ -398,19 +398,9 @@ struct AIGenerationSheetView: View {
                     .fill(accent)
                     .shadow(color: Color.purple.opacity(0.30), radius: 12, y: 2)
             }
-            .borderBeam(
-                border: Color.purple.opacity(0.95),
-                hideFadeBorder: false,
-                beam: [
-                    Color.purple.opacity(0.96),
-                    accent.opacity(0.98),
-                    Color(red: 0.88, green: 0.58, blue: 1.0).opacity(0.96),
-                    Color(red: 0.52, green: 0.24, blue: 1.0).opacity(0.90)
-                ],
-                beamBlur: 12,
+            .aiGenerationBorderBeam(
+                accent: accent,
                 cornerRadius: UIConstants.Size.actionButton / 2,
-                lineWidth: 1,
-                duration: 2.7,
                 isEnabled: viewModel.canConfirmAIGeneration
             )
             .contentShape(Capsule(style: .continuous))
