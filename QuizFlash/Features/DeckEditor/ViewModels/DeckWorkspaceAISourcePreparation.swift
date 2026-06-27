@@ -215,7 +215,7 @@ extension DeckWorkspaceViewModel {
                         fromSegments: source.textSegments,
                         targetCards: targetCardCount,
                         allocations: allocations,
-                        needsOCRCorrection: true,
+                        needsOCRCorrection: source.needsOCRCorrection,
                         options: options
                     )
                 )
@@ -308,7 +308,7 @@ extension DeckWorkspaceViewModel {
 
             guard !images.isEmpty else { return }
 
-            let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            let texts = await DocumentTextExtractor.extractFastVisionTexts(from: images)
             await Task.yield()
 
             guard DocumentTextExtractor.isUsableExtractedText(texts) else {
@@ -323,7 +323,7 @@ extension DeckWorkspaceViewModel {
                 textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
                 images: images,
                 pdfURL: nil,
-                needsOCRCorrection: true
+                needsOCRCorrection: DocumentTextExtractor.needsAICorrectionForExtractedText(texts)
             )
 
             prepareSheetState(for: source, pdfAnalysis: nil)

@@ -168,7 +168,10 @@ actor DocumentTextExtractor {
     /// - Returns: An `ExtractionResult` describing the outcome.
     static func extract(from images: [UIImage]) async -> ExtractionResult {
         
-        let ocrText = await extractWithVision(from: images)
+        let pages = await extractFastVisionTexts(from: images)
+        let ocrText = pages
+            .filter { !$0.isEmpty }
+            .joined(separator: pageSeparator)
         let averageChars = ocrText.count / max(images.count, 1)
         
         if averageChars >= minimumOCRCharsPerPage {
@@ -177,7 +180,7 @@ actor DocumentTextExtractor {
                 images: nil,
                 method: .visionOCR,
                 pageCount: images.count,
-                needsAICorrection: true
+                needsAICorrection: needsAICorrectionForExtractedText(pages)
             )
         }
         
@@ -259,12 +262,38 @@ actor DocumentTextExtractor {
 
     /// Performs OCR on each image independently and preserves source order.
     static func extractVisionTexts(from images: [UIImage]) async -> [String] {
+        await extractVisionTexts(
+            from: images,
+            recognitionLevel: .accurate,
+            usesLanguageCorrection: true
+        )
+    }
+
+    /// Performs faster OCR for user-picked photos where source preparation is
+    /// the visible bottleneck before the shared backend generation route.
+    static func extractFastVisionTexts(from images: [UIImage]) async -> [String] {
+        await extractVisionTexts(
+            from: images,
+            recognitionLevel: .fast,
+            usesLanguageCorrection: false
+        )
+    }
+
+    private static func extractVisionTexts(
+        from images: [UIImage],
+        recognitionLevel: VNRequestTextRecognitionLevel,
+        usesLanguageCorrection: Bool
+    ) async -> [String] {
         await withTaskGroup(of: (Int, String).self) { group in
             for (index, image) in images.enumerated() {
                 guard let cgImage = image.cgImage else { continue }
 
                 group.addTask {
-                    let text = await ocrPage(cgImage: cgImage)
+                    let text = await ocrPage(
+                        cgImage: cgImage,
+                        recognitionLevel: recognitionLevel,
+                        usesLanguageCorrection: usesLanguageCorrection
+                    )
                     return (index, text)
                 }
             }
@@ -318,7 +347,11 @@ actor DocumentTextExtractor {
         return artifactScore >= 12 || Double(artifactScore) / Double(totalCharacters) >= 0.003
     }
     
-    private static func ocrPage(cgImage: CGImage) async -> String {
+    private static func ocrPage(
+        cgImage: CGImage,
+        recognitionLevel: VNRequestTextRecognitionLevel = .accurate,
+        usesLanguageCorrection: Bool = true
+    ) async -> String {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let request = VNRecognizeTextRequest { request, error in
@@ -340,8 +373,8 @@ actor DocumentTextExtractor {
                     continuation.resume(returning: text)
                 }
 
-                request.recognitionLevel = .accurate
-                request.usesLanguageCorrection = true
+                request.recognitionLevel = recognitionLevel
+                request.usesLanguageCorrection = usesLanguageCorrection
                 request.recognitionLanguages = ["ro-RO", "en-US", "fr-FR", "de-DE"]
                 request.automaticallyDetectsLanguage = true
 

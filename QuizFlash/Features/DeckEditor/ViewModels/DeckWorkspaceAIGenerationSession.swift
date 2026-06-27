@@ -531,7 +531,7 @@ extension DeckWorkspaceViewModel {
                 return
             }
             
-            let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            let texts = await DocumentTextExtractor.extractFastVisionTexts(from: images)
             guard DocumentTextExtractor.isUsableExtractedText(texts) else {
                 try? await AIGenerationSessionStore.shared.clearSession()
                 aiState = .error(localizedTextExtractionFailureMessage)
@@ -544,7 +544,7 @@ extension DeckWorkspaceViewModel {
                 textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
                 images: images,
                 pdfURL: nil,
-                needsOCRCorrection: true
+                needsOCRCorrection: DocumentTextExtractor.needsAICorrectionForExtractedText(texts)
             )
             prepareSheetState(for: source, pdfAnalysis: nil)
         }
