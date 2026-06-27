@@ -122,17 +122,21 @@ extension AIFlashcardService {
                 totalCards: allocation.cardCount,
                 batchSize: min(deliveryBatchSize, allocation.cardCount)
             )
-            let groupedSegments = groupedSourceSegments(
-                selectedSegments,
+            let selectedUnits = selectedSegments.map {
+                TextSourceUnit(content: $0.text, label: $0.label)
+            }
+            let expandedUnits = expandTextUnits(selectedUnits, toReach: batchSizes.count)
+            let groupedUnits = groupedTextUnits(
+                expandedUnits,
                 batchCount: batchSizes.count
             )
-            guard !groupedSegments.isEmpty else { continue }
+            guard !groupedUnits.isEmpty else { continue }
 
             for (index, batchSize) in batchSizes.enumerated() {
-                let groupIndex = index % groupedSegments.count
-                let segmentGroup = groupedSegments[groupIndex]
-                let text = segmentGroup
-                    .map(\.text)
+                let groupIndex = index % groupedUnits.count
+                let unitGroup = groupedUnits[groupIndex]
+                let text = unitGroup
+                    .map(\.content)
                     .joined(separator: DocumentTextExtractor.pageSeparator)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
@@ -140,12 +144,12 @@ extension AIFlashcardService {
                 plans.append(
                     TextBatchPlan(
                         text: text,
-                        sourceLabel: sourceLabel(for: segmentGroup.map(\.label)),
+                        sourceLabel: sourceLabel(for: unitGroup.map(\.label)),
                         allocationID: allocation.id,
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
-                        passIndex: (index / groupedSegments.count) + 1
+                        passIndex: passIndex(for: unitGroup, fallback: (index / groupedUnits.count) + 1)
                     )
                 )
             }
@@ -408,6 +412,25 @@ extension AIFlashcardService {
         guard !segments.isEmpty, batchCount > 0 else { return [] }
         let groupCount = min(segments.count, batchCount)
         return distributeElementsEvenly(segments, into: groupCount)
+    }
+
+    func groupedTextUnits(
+        _ units: [TextSourceUnit],
+        batchCount: Int
+    ) -> [[TextSourceUnit]] {
+        guard !units.isEmpty, batchCount > 0 else { return [] }
+        let groupCount = min(units.count, batchCount)
+        return distributeElementsEvenly(units, into: groupCount)
+    }
+
+    func passIndex(for units: [TextSourceUnit], fallback: Int) -> Int {
+        units.compactMap { unit -> Int? in
+            if let start = unit.label.range(of: "(focus pass "),
+               let end = unit.label.range(of: ")", range: start.upperBound..<unit.label.endIndex) {
+                return Int(unit.label[start.upperBound..<end.lowerBound])
+            }
+            return nil
+        }.max() ?? fallback
     }
 
     func groupedSourceIndexes(

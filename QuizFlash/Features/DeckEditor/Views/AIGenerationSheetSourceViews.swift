@@ -65,9 +65,9 @@ private struct PreparingSourceAnimation: View {
 
             switch state {
             case .pdf:
-                documentCardAnimation(systemImage: "doc.text.viewfinder")
+                pdfAnimation
             default:
-                documentCardAnimation(systemImage: "text.viewfinder")
+                photosAnimation
             }
         }
         .frame(height: 190)
@@ -84,7 +84,50 @@ private struct PreparingSourceAnimation: View {
         }
     }
 
-    private func documentCardAnimation(systemImage: String) -> some View {
+    private var photosAnimation: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .frame(width: 88, height: 108)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 26,
+                    beamBlur: 8,
+                    lineWidth: 1.15,
+                    duration: 2.25
+                )
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .offset(
+                    x: isSecondaryAnimated ? -16 : -8,
+                    y: isSecondaryAnimated ? -12 : -4
+                )
+                .rotationEffect(.degrees(isSecondaryAnimated ? -9 : -3))
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(accent.opacity(0.24))
+                .frame(width: 98, height: 118)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 28,
+                    beamBlur: 9,
+                    lineWidth: 1.35,
+                    duration: 2.15
+                )
+                .overlay {
+                    Image(systemName: "text.viewfinder")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .offset(x: isPrimaryAnimated ? 10 : 4, y: isPrimaryAnimated ? 10 : -2)
+                .shadow(color: accent.opacity(0.18), radius: 18, y: 8)
+        }
+    }
+
+    private var pdfAnimation: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color.white.opacity(0.04))
@@ -119,7 +162,7 @@ private struct PreparingSourceAnimation: View {
                         .blur(radius: 0.2)
                 }
                 .overlay {
-                    Image(systemName: systemImage)
+                    Image(systemName: "doc.text.viewfinder")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.white)
                 }
