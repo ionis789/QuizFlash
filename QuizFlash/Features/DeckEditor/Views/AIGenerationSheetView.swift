@@ -401,7 +401,7 @@ struct AIGenerationSheetView: View {
                 accent: accent,
                 cornerRadius: UIConstants.Size.actionButton / 2,
                 beamBlur: 10,
-                lineWidth: 1.35,
+                lineWidth: 2,
                 isEnabled: viewModel.canConfirmAIGeneration
             )
             .contentShape(Capsule(style: .continuous))
