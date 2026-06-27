@@ -335,7 +335,7 @@ struct HomeDashboardView: View {
     }
 
     private var recentDecksSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
             HomeDashboardSectionHeader(
                 title: localized("Recent decks"),
                 count: recentDeckSnapshots.count
@@ -363,7 +363,7 @@ struct HomeDashboardView: View {
     }
 
     private var foldersSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HomeDashboardSectionHeader(
                 title: localized("Folders"),
                 count: folderSnapshots.count,
@@ -539,6 +539,7 @@ private struct HomeDashboardSectionHeader: View {
                 trailingAccessory
             }
         }
+        .padding(.bottom)
     }
 }
 

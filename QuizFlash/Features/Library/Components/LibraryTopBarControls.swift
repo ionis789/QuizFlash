@@ -78,12 +78,15 @@ struct LibraryTopBarTrailingAccessory: View {
         if searchText.isEmpty {
             EmptyView()
         } else {
-            ChromeSoftCircleSymbolButton(
-                systemName: "xmark",
-                accessibilityLabel: AppLocalization.string("Clear search text", locale: appPreferences.resolvedLocale),
-                action: clearAction,
-                size: 28,
-            )
+            Button(action: clearAction) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.string("Clear search text", locale: appPreferences.resolvedLocale))
         }
     }
 }

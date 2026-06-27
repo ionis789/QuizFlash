@@ -20,6 +20,7 @@ import UIKit
 /// - All colours are sourced from `ThemeManager` or semantic SwiftUI tokens — no
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Dependencies
@@ -94,20 +95,29 @@ struct HomeCalendarSectionView: View {
     /// Fades out and collapses vertically as `progress` approaches 1.0 (fully compact).
     @ViewBuilder
     private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-            Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: state.titleFontSize, weight: .black))
-                .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(AppLocalization.string("Activity", locale: appPreferences.resolvedLocale))
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.58))
                 .textCase(.uppercase)
                 .tracking(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
 
-            monthNavigationControl(
-                size: state.monthControlSize,
-                spacing: state.monthControlSpacing
-            )
+            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
+                    .font(.system(size: state.titleFontSize, weight: .black))
+                    .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                monthNavigationControl(
+                    size: state.monthControlSize,
+                    spacing: state.monthControlSpacing
+                )
+            }
         }
             .frame(height: state.titleHeight, alignment: .center)
             .padding(.bottom, state.titleBottomSpacing)

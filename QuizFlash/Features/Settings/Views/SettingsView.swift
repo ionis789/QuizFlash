@@ -833,20 +833,39 @@ struct SettingsView: View {
             Int(ceil((Double(used) / Double(limit)) * Double(segmentCount)))
         )
 
-        return HStack(spacing: 7) {
-            ForEach(0..<segmentCount, id: \.self) { index in
-                Capsule()
-                    .fill(
-                        index < filledSegments
-                            ? themeManager.accentColor.color
-                            : Color.white.opacity(0.14)
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 8)
+        return VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text("\(used) / \(limit)")
+                    .font(.subheadline.weight(.black).monospacedDigit())
+                    .foregroundStyle(themeManager.accentColor.color)
+                    .contentTransition(.numericText())
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
             }
+
+            HStack(spacing: 7) {
+                ForEach(0..<segmentCount, id: \.self) { index in
+                    Capsule()
+                        .fill(
+                            index < filledSegments
+                                ? themeManager.accentColor.color
+                                : Color.white.opacity(0.14)
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 8)
+                }
+            }
+            .frame(height: 8)
         }
         .padding(.top, UIConstants.Spacing.small)
-        .accessibilityLabel(AppLocalization.string("Free", locale: appPreferences.resolvedLocale))
+        .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
         .accessibilityValue("\(used) / \(limit)")
     }
 

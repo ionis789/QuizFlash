@@ -201,7 +201,12 @@ final class SubscriptionManager {
 
             applyQuotaResponse(response)
         } catch {
-            try await consumeAIGenerationQuotaDirectly(targetCards: targetCards)
+            do {
+                try await consumeAIGenerationQuotaDirectly(targetCards: targetCards)
+            } catch {
+                await refresh()
+                throw error
+            }
         }
     }
 
