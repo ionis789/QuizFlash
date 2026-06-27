@@ -115,20 +115,6 @@ extension DeckWorkspaceView {
                 elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration
             )
             .transition(runtimeCardTransition)
-        } else if viewModel.hasPausedAIGeneration {
-            let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
-            AIPausedResumeCard(
-                foundCount: viewModel.aiGeneratedCardCount,
-                targetCount: max(viewModel.aiTargetCardCount, 1),
-                remainingCount: max(viewModel.pausedRemainingCardCount, 0),
-                progress: progress,
-                elapsedStartDate: viewModel.aiGenerationStartedAt,
-                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration,
-                onResume: {
-                    viewModel.resumePausedAIGeneration()
-                }
-            )
-            .transition(runtimeCardTransition)
         }
     }
 
@@ -309,13 +295,7 @@ extension DeckWorkspaceView {
                     .lineLimit(1)
                     .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                     .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, 9)
-                    .background(accent.opacity(0.12), in: Capsule(style: .continuous))
-                    .aiGenerationBorderBeam(
-                        accent: accent,
-                        cornerRadius: 22,
-                        isEnabled: canStartLocalGeneration
-                    )
+                    .padding(.vertical, 6)
                     .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
@@ -693,16 +673,31 @@ private struct EmptyDeckPromptIllustration: View {
                 .offset(x: isFloating ? -14 : -30, y: 12)
                 .rotationEffect(.degrees(isFloating ? -4 : -11))
                 .scaleEffect(isFloating ? 0.98 : 1)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 30,
+                    isEnabled: animatesWhileWaiting
+                )
 
             middleCard
                 .offset(x: isFloating ? -2 : 24, y: 8)
                 .rotationEffect(.degrees(isFloating ? 13 : 11))
                 .scaleEffect(isFloating ? 1 : 0.98)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 30,
+                    isEnabled: animatesWhileWaiting
+                )
 
             frontCard
                 .offset(x: isFloating ? 12 : -3)
                 .rotationEffect(.degrees(isFloating ? -2 : 2))
                 .scaleEffect(isFloating ? 0.99 : 1)
+                .aiGenerationBorderBeam(
+                    accent: accent,
+                    cornerRadius: 32,
+                    isEnabled: animatesWhileWaiting
+                )
         }
         .frame(width: 180, height: 168)
         .accessibilityHidden(true)

@@ -343,11 +343,6 @@ extension DeckWorkspaceView {
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
             }
-            .aiGenerationBorderBeam(
-                accent: themeManager.accentColor.color,
-                cornerRadius: UIConstants.Size.capsuleHeight / 2,
-                isEnabled: canStartLocalGeneration
-            )
         }
     }
 
@@ -436,11 +431,6 @@ extension DeckWorkspaceView {
                 }
                 .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
             }
-            .aiGenerationBorderBeam(
-                accent: themeManager.accentColor.color,
-                cornerRadius: UIConstants.Size.capsuleHeight / 2,
-                isEnabled: canStartLocalGeneration
-            )
         }
     }
 
@@ -461,6 +451,11 @@ extension DeckWorkspaceView {
                 )
             }
             .buttonStyle(.plain)
+            .aiGenerationBorderBeam(
+                accent: themeManager.accentColor.color,
+                cornerRadius: UIConstants.Size.actionButton / 2,
+                isEnabled: viewModel.hasPausedAIGeneration
+            )
             .accessibilityLabel(
                 viewModel.hasPausedAIGeneration
                     ? localized("Resume AI generation")
