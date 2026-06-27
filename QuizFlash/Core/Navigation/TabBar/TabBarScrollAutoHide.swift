@@ -12,9 +12,7 @@ import UIKit
 
 /// A user-driven visibility intent emitted by scrollable root surfaces.
 enum TabBarAutoHideAction: Equatable {
-    case show
-    case hide
-    case bounceAtEdge
+    case setCompactProgress(CGFloat, animated: Bool)
 }
 
 // MARK: - Scroll Eligibility
@@ -32,171 +30,71 @@ enum TabBarScrollAutoHideEligibility {
         return max(minOffset, contentBottomOffset)
     }
 
-    /// Returns `true` only while the user can still scroll further downward in-bounds.
-    static func canHide(
+    /// Returns `true` only when the scroll view has meaningful vertical range.
+    static func canScroll(
+        minOffset: CGFloat,
+        maxOffset: CGFloat,
+        bottomTolerance: CGFloat = UIConstants.Layout.bottomChromeAutoHideBottomTolerance
+    ) -> Bool {
+        maxOffset > minOffset + bottomTolerance
+    }
+}
+
+// MARK: - TabBarScrollCompactProgressResolver
+
+/// Resolves raw scroll offsets into a continuous bottom-edge compact progress.
+/// Progress is intentionally tied to elastic bottom overscroll instead of scroll direction,
+/// so the tab bar only compresses when the user reaches the bottom and keeps pulling.
+struct TabBarScrollCompactProgressResolver {
+    let compactDistance: CGFloat
+    let changeEpsilon: CGFloat
+
+    init(
+        compactDistance: CGFloat = UIConstants.Layout.bottomChromeCompactOverscrollDistance,
+        changeEpsilon: CGFloat = UIConstants.Layout.bottomChromeCompactProgressEpsilon
+    ) {
+        self.compactDistance = compactDistance
+        self.changeEpsilon = changeEpsilon
+    }
+
+    private(set) var progress: CGFloat = 0
+
+    mutating func reset(animated: Bool = true) -> TabBarAutoHideAction? {
+        setProgress(0, animated: animated)
+    }
+
+    /// Processes a new vertical content offset sampled from the observed `UIScrollView`.
+    mutating func handle(
         offset: CGFloat,
         minOffset: CGFloat,
         maxOffset: CGFloat,
         isUserDriven: Bool,
-        bottomTolerance: CGFloat = UIConstants.Layout.bottomChromeAutoHideBottomTolerance
-    ) -> Bool {
-        guard isUserDriven else { return false }
-        guard maxOffset > minOffset + bottomTolerance else { return false }
-        return offset < maxOffset - bottomTolerance
-    }
-}
-
-// MARK: - TabBarScrollAutoHideResolver
-
-/// Resolves raw vertical scroll offsets into stable tab-bar visibility intents.
-///
-/// The resolver intentionally avoids per-pixel visibility toggles:
-/// - scrolling down hides only after a small cumulative threshold
-/// - any meaningful upward drag reveals immediately
-/// - reaching the top always reveals the bar
-struct TabBarScrollAutoHideResolver {
-    private enum Direction {
-        case up
-        case down
-    }
-
-    let downwardHideThreshold: CGFloat
-    let upwardRevealThreshold: CGFloat
-    let topRevealTolerance: CGFloat
-
-    private(set) var isHidden = false
-    private var lastOffset: CGFloat?
-    private var directionAnchorOffset: CGFloat?
-    private var lastDirection: Direction?
-
-    init(
-        downwardHideThreshold: CGFloat = UIConstants.Layout.bottomChromeAutoHideDownwardThreshold,
-        upwardRevealThreshold: CGFloat = UIConstants.Layout.bottomChromeAutoRevealUpwardThreshold,
-        topRevealTolerance: CGFloat = UIConstants.Layout.bottomChromeAutoRevealTopTolerance
-    ) {
-        self.downwardHideThreshold = downwardHideThreshold
-        self.upwardRevealThreshold = upwardRevealThreshold
-        self.topRevealTolerance = topRevealTolerance
-    }
-
-    /// Resets resolver state and, when needed, requests the bar to become visible again.
-    mutating func reset() -> TabBarAutoHideAction? {
-        let shouldReveal = isHidden
-        isHidden = false
-        lastOffset = nil
-        directionAnchorOffset = nil
-        lastDirection = nil
-        return shouldReveal ? .show : nil
-    }
-
-    /// Processes a new vertical content offset sampled from the observed UIScrollView.
-    mutating func handle(
-        offset: CGFloat,
-        minOffset: CGFloat,
-        canHide: Bool,
-        canShow: Bool
+        isDragging: Bool
     ) -> TabBarAutoHideAction? {
-        guard let previousOffset = lastOffset else {
-            lastOffset = offset
-            directionAnchorOffset = offset
+        guard isUserDriven,
+              TabBarScrollAutoHideEligibility.canScroll(minOffset: minOffset, maxOffset: maxOffset)
+        else {
+            return reset(animated: true)
+        }
+
+        guard isDragging else {
+            return reset(animated: true)
+        }
+
+        let overscroll = max(0, offset - maxOffset)
+        let targetProgress = min(max(overscroll / compactDistance, 0), 1)
+        return setProgress(targetProgress, animated: false)
+    }
+
+    private mutating func setProgress(_ newValue: CGFloat, animated: Bool) -> TabBarAutoHideAction? {
+        let clamped = min(max(newValue, 0), 1)
+        let isResettingActiveProgress = clamped == 0 && progress != 0
+        let didMeaningfullyChange = abs(clamped - progress) > changeEpsilon
+        guard isResettingActiveProgress || didMeaningfullyChange else {
             return nil
         }
-
-        defer { lastOffset = offset }
-
-        if offset <= minOffset + topRevealTolerance {
-            directionAnchorOffset = offset
-            lastDirection = nil
-
-            guard isHidden else { return nil }
-            isHidden = false
-            return .show
-        }
-
-        let delta = offset - previousOffset
-        guard abs(delta) > 0.5 else { return nil }
-
-        let direction: Direction = delta > 0 ? .down : .up
-        if lastDirection != direction {
-            lastDirection = direction
-            directionAnchorOffset = previousOffset
-        }
-
-        let anchorOffset = directionAnchorOffset ?? previousOffset
-
-        switch direction {
-        case .down:
-            guard canHide else { return nil }
-            guard !isHidden else { return nil }
-            guard offset - anchorOffset >= downwardHideThreshold else { return nil }
-
-            isHidden = true
-            directionAnchorOffset = offset
-            return .hide
-
-        case .up:
-            guard canShow else { return nil }
-            guard isHidden else { return nil }
-            guard anchorOffset - offset >= upwardRevealThreshold else { return nil }
-
-            isHidden = false
-            directionAnchorOffset = offset
-            return .show
-        }
-    }
-}
-
-// MARK: - TabBarScrollEdgeBounceResolver
-
-/// Emits one acknowledgement per deliberate overscroll and rearms after returning in-bounds.
-struct TabBarScrollEdgeBounceResolver {
-    private enum Edge {
-        case top
-        case bottom
-    }
-
-    let overscrollThreshold: CGFloat
-
-    private var activeEdge: Edge?
-
-    init(
-        overscrollThreshold: CGFloat = UIConstants.Layout.bottomChromeEdgeBounceThreshold
-    ) {
-        self.overscrollThreshold = overscrollThreshold
-    }
-
-    mutating func reset() {
-        activeEdge = nil
-    }
-
-    mutating func handle(
-        offset: CGFloat,
-        minOffset: CGFloat,
-        maxOffset: CGFloat,
-        isUserDragging: Bool
-    ) -> Bool {
-        guard isUserDragging else {
-            activeEdge = nil
-            return false
-        }
-
-        let edge: Edge?
-        if offset <= minOffset - overscrollThreshold {
-            edge = .top
-        } else if offset >= maxOffset + overscrollThreshold {
-            edge = .bottom
-        } else {
-            edge = nil
-        }
-
-        guard let edge else {
-            activeEdge = nil
-            return false
-        }
-        guard activeEdge != edge else { return false }
-
-        activeEdge = edge
-        return true
+        progress = clamped
+        return .setCompactProgress(clamped, animated: animated)
     }
 }
 
@@ -225,11 +123,11 @@ extension EnvironmentValues {
 // MARK: - View Extension
 
 extension View {
-    /// Reports user-driven vertical scroll direction to the shared custom tab bar.
+    /// Reports user-driven bottom overscroll to the shared custom tab bar.
     ///
     /// Attach this to the root vertical `ScrollView` of a screen. The reporter keeps
-    /// the tab bar visible by default and only requests hide/show when the underlying
-    /// `UIScrollView` receives genuine user-driven motion.
+    /// the tab bar full-size by default and only compacts it while the user is actively
+    /// pulling past the bottom edge.
     func tabBarAutoHideOnScroll(enabled: Bool = true) -> some View {
         modifier(TabBarAutoHideOnScrollModifier(isEnabled: enabled))
     }
@@ -280,8 +178,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
 
         var action: (TabBarAutoHideAction) -> Void
 
-        private var resolver = TabBarScrollAutoHideResolver()
-        private var edgeBounceResolver = TabBarScrollEdgeBounceResolver()
+        private var resolver = TabBarScrollCompactProgressResolver()
         private weak var scrollView: UIScrollView?
         private var offsetObservation: NSKeyValueObservation?
 
@@ -310,7 +207,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
                 }
             } else {
                 tearDownObservation()
-                emitIfNeeded(resolver.reset())
+                emitIfNeeded(resolver.reset(animated: true))
             }
         }
 
@@ -325,16 +222,16 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
         private func handleEnablementChange() {
             if isEnabled {
                 if let scrollView {
-                    _ = resolver.handle(
+                    emitIfNeeded(resolver.handle(
                         offset: scrollView.contentOffset.y,
                         minOffset: -scrollView.adjustedContentInset.top,
-                        canHide: false,
-                        canShow: false
-                    )
+                        maxOffset: currentMaxOffset(for: scrollView),
+                        isUserDriven: false,
+                        isDragging: false
+                    ))
                 }
             } else {
-                edgeBounceResolver.reset()
-                emitIfNeeded(resolver.reset())
+                emitIfNeeded(resolver.reset(animated: true))
             }
         }
 
@@ -345,12 +242,13 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
             tearDownObservation()
             self.scrollView = scrollView
 
-            _ = resolver.handle(
+            emitIfNeeded(resolver.handle(
                 offset: scrollView.contentOffset.y,
                 minOffset: -scrollView.adjustedContentInset.top,
-                canHide: false,
-                canShow: false
-            )
+                maxOffset: currentMaxOffset(for: scrollView),
+                isUserDriven: false,
+                isDragging: false
+            ))
 
             offsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
                 self?.handleObservedScroll(scrollView)
@@ -359,44 +257,32 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
 
         private func handleObservedScroll(_ scrollView: UIScrollView) {
             if !isEnabled {
-                edgeBounceResolver.reset()
-                emitIfNeeded(resolver.reset())
+                emitIfNeeded(resolver.reset(animated: true))
                 return
             }
 
             let offset = scrollView.contentOffset.y
             let minOffset = -scrollView.adjustedContentInset.top
-            let maxOffset = TabBarScrollAutoHideEligibility.maximumOffset(
-                contentHeight: scrollView.contentSize.height,
-                viewportHeight: scrollView.bounds.height,
-                adjustedInsets: scrollView.adjustedContentInset,
-                minOffset: minOffset
-            )
-            let canHide = TabBarScrollAutoHideEligibility.canHide(
-                offset: offset,
-                minOffset: minOffset,
-                maxOffset: maxOffset,
-                isUserDriven: scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
-            )
-            let canShow = scrollView.isTracking || scrollView.isDragging
-            let isUserDragging = scrollView.isTracking || scrollView.isDragging
-
-            if edgeBounceResolver.handle(
-                offset: offset,
-                minOffset: minOffset,
-                maxOffset: maxOffset,
-                isUserDragging: isUserDragging
-            ) {
-                action(.bounceAtEdge)
-            }
-
+            let maxOffset = currentMaxOffset(for: scrollView)
+            let isUserDriven = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
+            let isDragging = scrollView.isTracking || scrollView.isDragging
             emitIfNeeded(
                 resolver.handle(
                     offset: offset,
                     minOffset: minOffset,
-                    canHide: canHide,
-                    canShow: canShow
+                    maxOffset: maxOffset,
+                    isUserDriven: isUserDriven,
+                    isDragging: isDragging
                 )
+            )
+        }
+
+        private func currentMaxOffset(for scrollView: UIScrollView) -> CGFloat {
+            TabBarScrollAutoHideEligibility.maximumOffset(
+                contentHeight: scrollView.contentSize.height,
+                viewportHeight: scrollView.bounds.height,
+                adjustedInsets: scrollView.adjustedContentInset,
+                minOffset: -scrollView.adjustedContentInset.top
             )
         }
 
@@ -408,7 +294,6 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
         private func tearDownObservation() {
             offsetObservation = nil
             scrollView = nil
-            edgeBounceResolver.reset()
         }
 
         private func nearestAncestorScrollView() -> UIScrollView? {
