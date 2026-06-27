@@ -41,6 +41,9 @@ final class SubscriptionManager {
     @ObservationIgnored
     private var cachedFunctions: Functions?
 
+    @ObservationIgnored
+    private var activeUID: String?
+
     // MARK: - Init
 
     init() { }
@@ -69,6 +72,8 @@ final class SubscriptionManager {
             return
         }
 
+        prepareStateForUIDIfNeeded(uid)
+
         do {
             let tokenResult = try await Auth.auth().currentUser?.getIDTokenResult(forcingRefresh: true)
             let claimPremium = tokenResult?.claims["premium"] as? Bool
@@ -96,14 +101,16 @@ final class SubscriptionManager {
 
             let usage = userData?["freeGenerationsUsed"] as? Int
             let limit = userData?["freeGenerationsLimit"] as? Int
-            freeGenerationsUsed = isPremium ? nil : usage ?? 0
-            freeGenerationsLimit = isPremium ? nil : limit ?? Self.defaultFreeGenerationsLimit
-
             if isPremium {
-                await refreshCloudAIUsageQuota()
+                clearFreeQuota()
+            } else {
+                applyFreeQuota(used: usage, limit: limit)
+            }
+
+            await refreshCloudAIUsageQuota()
+            if isPremium {
                 await refreshCloudAIGenerationHistory()
             } else {
-                cloudAIUsageQuota = nil
                 cloudAIGenerationHistory = []
             }
         } catch {
@@ -157,15 +164,12 @@ final class SubscriptionManager {
             return
         }
 
-        guard isPremium else {
-            cloudAIUsageQuota = nil
-            return
-        }
-
         do {
             applyCloudAIQuotaState(try await CloudAIProxyClient.shared.currentUsageQuota())
         } catch {
-            lastErrorMessage = error.localizedDescription
+            if isPremium {
+                lastErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -220,8 +224,14 @@ final class SubscriptionManager {
 
         isPremium = state.premium
         planSource = state.premium ? .manualFirestore : .free
-        freeGenerationsUsed = state.premium ? nil : state.freeGenerationsUsed
-        freeGenerationsLimit = state.premium ? nil : state.freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
+        if state.premium {
+            clearFreeQuota()
+        } else {
+            applyFreeQuota(
+                used: state.freeGenerationsUsed,
+                limit: state.freeGenerationsLimit
+            )
+        }
         cloudAIUsageQuota = state
         lastErrorMessage = nil
     }
@@ -230,13 +240,14 @@ final class SubscriptionManager {
         if response["premium"] as? Bool == true {
             isPremium = true
             planSource = .manualFirestore
-            freeGenerationsUsed = nil
-            freeGenerationsLimit = nil
+            clearFreeQuota()
         } else {
             isPremium = false
             planSource = .free
-            freeGenerationsUsed = response["freeGenerationsUsed"] as? Int ?? freeGenerationsUsed
-            freeGenerationsLimit = response["freeGenerationsLimit"] as? Int ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit
+            applyFreeQuota(
+                used: response["freeGenerationsUsed"] as? Int,
+                limit: response["freeGenerationsLimit"] as? Int
+            )
         }
     }
 
@@ -248,13 +259,36 @@ final class SubscriptionManager {
     // MARK: - Private
 
     private func applySignedOutState() {
+        activeUID = nil
         isPremium = false
         planSource = .none
-        freeGenerationsUsed = nil
-        freeGenerationsLimit = nil
+        clearFreeQuota()
         lastErrorMessage = nil
         cloudAIUsageQuota = nil
         cloudAIGenerationHistory = []
+    }
+
+    private func prepareStateForUIDIfNeeded(_ uid: String) {
+        guard activeUID != uid else { return }
+        activeUID = uid
+        clearFreeQuota()
+        cloudAIUsageQuota = nil
+        cloudAIGenerationHistory = []
+    }
+
+    private func clearFreeQuota() {
+        freeGenerationsUsed = nil
+        freeGenerationsLimit = nil
+    }
+
+    private func applyFreeQuota(used: Int?, limit: Int?) {
+        let resolvedLimit = max(limit ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit, 1)
+        let currentUsed = min(max(freeGenerationsUsed ?? 0, 0), resolvedLimit)
+        let incomingUsed = min(max(used ?? currentUsed, 0), resolvedLimit)
+        let resolvedUsed = max(currentUsed, incomingUsed)
+
+        freeGenerationsUsed = resolvedUsed
+        freeGenerationsLimit = resolvedLimit
     }
 
     private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {
