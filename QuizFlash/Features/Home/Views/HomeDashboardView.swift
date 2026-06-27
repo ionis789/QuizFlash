@@ -158,12 +158,14 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        VStack(alignment: .leading, spacing: usesRegularMetrics ? 12 : 10) {
-            duoStudyCard {
+        duoStudyCard {
+            VStack(alignment: .leading, spacing: usesRegularMetrics ? 16 : 14) {
                 selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
-            }
 
-            weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+                AppSectionSeparator()
+
+                weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+            }
         }
     }
 
@@ -212,33 +214,33 @@ struct HomeDashboardView: View {
         }
 
         if let dailyGoal = overview.dailyGoal {
-            return localizedFormat("%d / %d cards reviewed", overview.cardsReviewed, dailyGoal)
+            return localizedFormat("%d of %d reviewed", overview.cardsReviewed, dailyGoal)
         }
-        return localizedFormat("%d cards reviewed", overview.cardsReviewed)
+        return localizedFormat("%d reviewed", overview.cardsReviewed)
     }
 
     private func selectedDayMetricsRow(for overview: HomeSelectedDayOverviewSummary) -> some View {
         HStack(spacing: usesRegularMetrics ? 16 : 12) {
-            metricPill(localizedFormat("Good %d", overview.correctCardCount), tint: .green)
-            metricPill(localizedFormat("Retry %d", overview.retryCardCount), tint: themeManager.roleColor(.buttonDangerFill))
+            metricPill(localizedFormat("Remembered %d", overview.correctCardCount), tint: .green)
+            metricPill(localizedFormat("Needs review %d", overview.retryCardCount), tint: themeManager.roleColor(.buttonDangerFill))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.activeDays == 1 {
-            return localized("1 active day")
+            return localized("1 study day")
         }
 
-        return localizedFormat("%d active days", summary.activeDays)
+        return localizedFormat("%d study days", summary.activeDays)
     }
 
     private func goalDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.goalHitDays == 1 {
-            return localized("1 goal day")
+            return localized("1 day hit goal")
         }
 
-        return localizedFormat("%d goal days", summary.goalHitDays)
+        return localizedFormat("%d days hit goal", summary.goalHitDays)
     }
 
     private func weeklyStatsButton(for summary: HomePastWeekPerformanceSummary) -> some View {
@@ -273,10 +275,8 @@ struct HomeDashboardView: View {
                     }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .modifier(HomeDashboardStudyCardModifier(
-                usesRegularMetrics: usesRegularMetrics,
-                isInteractive: true
-            ))
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -286,7 +286,7 @@ struct HomeDashboardView: View {
             return localized("No reviews this week")
         }
 
-        return localizedFormat("%d%% good cards", summary.goodRatePercent)
+        return localizedFormat("%d%% remembered", summary.goodRatePercent)
     }
 
     @ViewBuilder
@@ -345,17 +345,12 @@ struct HomeDashboardView: View {
     }
 
     private var recentDecksSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HomeDashboardSectionHeader(
                 title: localized("Recent decks"),
                 count: recentDeckSnapshots.count
             )
-            recentDecksSurface
-        }
-    }
 
-    private var recentDecksSurface: some View {
-        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
                 HomeDashboardRecentDeckRow(
                     snapshot: deck,
@@ -365,9 +360,10 @@ struct HomeDashboardView: View {
                 }
             }
         }
-        .padding(.horizontal, usesRegularMetrics ? 18 : 16)
-        .padding(.vertical, usesRegularMetrics ? 8 : 6)
-        .duoSurface(cornerRadius: usesRegularMetrics ? 26 : 24)
+        .modifier(HomeDashboardStudyCardModifier(
+            usesRegularMetrics: usesRegularMetrics,
+            isInteractive: false
+        ))
     }
 
     private var foldersSection: some View {
@@ -1298,13 +1294,14 @@ private struct HomeDashboardRecentDeckRow: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(localizedCardCount)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .lineLimit(1)
+                    HomeDashboardDeckMetaLine(
+                        cardCountText: localizedCardCount,
+                        showsFlashcards: snapshot.hasFlashcards,
+                        showsQuizCards: snapshot.hasQuizCards
+                    )
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 14)
+                .padding(.vertical, 13)
 
                 if showsSeparator {
                     AppSectionSeparator()
@@ -1314,6 +1311,33 @@ private struct HomeDashboardRecentDeckRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+private struct HomeDashboardDeckMetaLine: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let cardCountText: String
+    let showsFlashcards: Bool
+    let showsQuizCards: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if showsFlashcards {
+                Image(systemName: "rectangle.stack.fill")
+            }
+
+            if showsQuizCards {
+                Image(systemName: "questionmark.square.dashed")
+            }
+
+            Text(cardCountText)
+                .lineLimit(1)
+        }
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(themeManager.textSecondary)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
     }
 }
 

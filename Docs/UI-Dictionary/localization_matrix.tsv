@@ -48,6 +48,7 @@ key	en	ro	ru
 %d cards moved today	%d cards moved today	%d carduri mutate azi	%d карточек пройдено сегодня
 %d cards reviewed	%d cards reviewed	%d carduri revizuite	%d карточек пройдено
 %d cards reviewed today.	%d cards reviewed today.	%d carduri revizuite azi.	%d карточек пройдено сегодня.
+%d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d chars	%d chars	%d caractere	%d символов
 %d CORRECT CHOICES	%d CORRECT CHOICES	%d RĂSPUNSURI CORECTE	%d ПРАВИЛЬНЫХ ВАРИАНТОВ
 %d day	%d day	%d zi	%d день
@@ -66,6 +67,7 @@ key	en	ro	ru
 %d matches	%d matches	%d potriviri	%d совпадений
 %d more match	%d more match	%d potrivire în plus	%d совпадение
 %d more matches	%d more matches	%d potriviri în plus	%d совпадений
+%d of %d reviewed	%d of %d reviewed	%d din %d revizuite	%d из %d пройдено
 %d Pairs	%d Pairs	%d perechi	%d пар
 %d pass	%d pass	%d trecere	%d проход
 %d passes	%d passes	%d treceri	%d проходов
@@ -75,10 +77,12 @@ key	en	ro	ru
 %d retry	%d retry	%d retry	%d повтор
 %d reviewed	%d reviewed	%d revizuite	%d пройдено
 %d selected	%d selected	%d selectate	Выбрано: %d
+%d study days	%d study days	%d zile de studiu	%d учебных дней
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
 %d%% good cards	%d%% good cards	%d%% carduri bune	%d%% хороших карточек
+%d%% remembered	%d%% remembered	%d%% ținute minte	%d%% запомнено
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -93,8 +97,10 @@ key	en	ro	ru
 1 card left today	1 card left today	1 card rămas azi	Сегодня осталась 1 карточка
 1 CORRECT CHOICE	1 CORRECT CHOICE	1 RĂSPUNS CORECT	1 ПРАВИЛЬНЫЙ ВАРИАНТ
 1 day	1 day	1 zi	1 день
+1 day hit goal	1 day hit goal	1 zi cu ținta atinsă	1 день с выполненной целью
 1 goal day	1 goal day	1 zi cu țintă	1 день с целью
 1 still needs another pass.	1 still needs another pass.	1 încă are nevoie de o trecere.	1 ещё нужен повторный проход.
+1 study day	1 study day	1 zi de studiu	1 учебный день
 100	100	100	100
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
@@ -442,6 +448,7 @@ Move Down	Move Down	Mută jos	Переместить вниз
 Move Error	Move Error	Eroare la mutare	Ошибка перемещения
 Move selected decks	Move selected decks	Mută deckurile selectate	Переместить выбранные колоды
 Move to Folder	Move to Folder	Mută în folder	Переместить в папку
+Needs review %d	Needs review %d	De revăzut %d	Повторить %d
 Move Up	Move Up	Mută sus	Переместить вверх
 moves	moves	mutare	движений
 Multiple	Multiple	Multiple	Несколько
@@ -570,6 +577,7 @@ Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d s
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
+Remembered %d	Remembered %d	Ținute minte %d	Запомнено %d
 Render	Render	Randare	Рендер
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
 Replace Zone	Replace Zone	Înlocuiește zona	Заменить зону
