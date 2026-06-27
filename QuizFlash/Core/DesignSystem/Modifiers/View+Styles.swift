@@ -482,6 +482,94 @@ private struct DuoMetricPillModifier: ViewModifier {
     }
 }
 
+// MARK: - BorderBeamModifier
+
+/// Applies a moving gradient highlight around a rounded surface.
+private struct BorderBeamModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let border: Color
+    let hideFadeBorder: Bool
+    let beam: [Color]
+    let beamBlur: CGFloat
+    let cornerRadius: CGFloat
+    let lineWidth: CGFloat
+    let duration: TimeInterval
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isEnabled {
+                    if reduceMotion {
+                        beamLayers(progress: 0.18)
+                    } else {
+                        KeyframeAnimator(initialValue: 0.0, repeating: true) { progress in
+                            beamLayers(progress: progress)
+                        } keyframes: { _ in
+                            LinearKeyframe(1.0, duration: duration)
+                        }
+                    }
+                } else if !hideFadeBorder {
+                    shape
+                        .stroke(border.opacity(0.22), lineWidth: lineWidth)
+                }
+            }
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    private var resolvedBeam: [Color] {
+        beam.isEmpty ? [border.opacity(0.95), border.opacity(0.18)] : beam
+    }
+
+    private func beamLayers(progress: Double) -> some View {
+        let rotation = progress * 360
+        let borderGradient = AngularGradient(
+            colors: [.clear, border, .clear],
+            center: .center,
+            startAngle: .degrees(140 + rotation),
+            endAngle: .degrees(270 + rotation)
+        )
+        let beamGradient = LinearGradient(
+            colors: resolvedBeam,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
+        return ZStack {
+            if !hideFadeBorder {
+                shape
+                    .stroke(border.opacity(0.22), lineWidth: lineWidth)
+            }
+
+            shape
+                .fill(beamGradient)
+                .mask {
+                    Rectangle()
+                        .overlay {
+                            shape
+                                .blur(radius: beamBlur)
+                                .blendMode(.destinationOut)
+                        }
+                }
+                .mask {
+                    shape
+                        .fill(borderGradient)
+                        .blur(radius: beamBlur / 1.5)
+                        .padding(-beamBlur * 2)
+                }
+
+            shape
+                .stroke(borderGradient, lineWidth: lineWidth)
+        }
+        .padding(0.5)
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - DuoPressableSurfaceStyle
 
 /// Subtle full-surface press treatment for interactive Duolingo-style panels.
@@ -614,6 +702,31 @@ extension View {
     /// Applies the shared outlined metric-chip treatment.
     func duoMetricPill(tint: Color? = nil) -> some View {
         modifier(DuoMetricPillModifier(tint: tint))
+    }
+
+    /// Applies a moving gradient highlight around a rounded surface.
+    func borderBeam(
+        border: Color,
+        hideFadeBorder: Bool = true,
+        beam: [Color],
+        beamBlur: CGFloat,
+        cornerRadius: CGFloat,
+        lineWidth: CGFloat = 0.8,
+        duration: TimeInterval = 2.5,
+        isEnabled: Bool = true
+    ) -> some View {
+        modifier(
+            BorderBeamModifier(
+                border: border,
+                hideFadeBorder: hideFadeBorder,
+                beam: beam,
+                beamBlur: beamBlur,
+                cornerRadius: cornerRadius,
+                lineWidth: lineWidth,
+                duration: duration,
+                isEnabled: isEnabled
+            )
+        )
     }
 
     /// Applies the shared full-panel press response.

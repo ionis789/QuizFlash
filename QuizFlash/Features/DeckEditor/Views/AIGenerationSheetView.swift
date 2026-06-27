@@ -98,9 +98,7 @@ struct AIGenerationSheetView: View {
     private func configurationLayout(bottomClearance: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                section(
-                    title: AppLocalization.string("Cards Settings", locale: appPreferences.resolvedLocale)
-                ) {
+                section {
                     generationSettingsContent
                 }
 
@@ -173,7 +171,7 @@ struct AIGenerationSheetView: View {
 
     @ViewBuilder
     private func section<Content: View>(
-        title: String,
+        title: String? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         PlainGenerationSection(
@@ -395,7 +393,26 @@ struct AIGenerationSheetView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: UIConstants.Size.actionButton)
-            .background(accent, in: Capsule(style: .continuous))
+            .background {
+                Capsule(style: .continuous)
+                    .fill(accent)
+                    .shadow(color: Color.purple.opacity(0.30), radius: 12, y: 2)
+            }
+            .borderBeam(
+                border: Color.purple.opacity(0.95),
+                hideFadeBorder: false,
+                beam: [
+                    Color.purple.opacity(0.96),
+                    accent.opacity(0.98),
+                    Color(red: 0.88, green: 0.58, blue: 1.0).opacity(0.96),
+                    Color(red: 0.52, green: 0.24, blue: 1.0).opacity(0.90)
+                ],
+                beamBlur: 12,
+                cornerRadius: UIConstants.Size.actionButton / 2,
+                lineWidth: 1,
+                duration: 2.7,
+                isEnabled: viewModel.canConfirmAIGeneration
+            )
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
@@ -471,17 +488,19 @@ struct AIGenerationSheetView: View {
 }
 
 private struct PlainGenerationSection<Content: View>: View {
-    let title: String
+    let title: String?
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.system(size: 22, weight: .black))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, UIConstants.Spacing.small)
+            if let title {
+                Text(title)
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, UIConstants.Spacing.small)
+            }
 
             content()
                 .padding(.bottom, UIConstants.Spacing.standard)
