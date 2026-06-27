@@ -70,9 +70,6 @@ final class SubscriptionManager {
         prepareStateForUIDIfNeeded(uid)
 
         do {
-            let tokenResult = try await Auth.auth().currentUser?.getIDTokenResult(forcingRefresh: true)
-            let claimPremium = tokenResult?.claims["premium"] as? Bool
-
             let userData = try await firestore
                 .collection("users")
                 .document(uid)
@@ -81,12 +78,10 @@ final class SubscriptionManager {
 
             let profilePremium = userData?["premium"] as? Bool
             let profilePlan = userData?["plan"] as? String
+            let resolvedProfilePremium = profilePremium ?? (profilePlan == "premium")
             lastErrorMessage = nil
 
-            if claimPremium == true {
-                isPremium = true
-                planSource = .firebaseCustomClaim
-            } else if profilePremium == true || profilePlan == "premium" {
+            if resolvedProfilePremium {
                 isPremium = true
                 planSource = .manualFirestore
             } else {
@@ -255,7 +250,6 @@ enum SubscriptionPlanSource: String, Sendable {
     case none
     case free
     case manualFirestore
-    case firebaseCustomClaim
 
     func localizedTitle(locale: Locale) -> String {
         switch self {
@@ -265,8 +259,6 @@ enum SubscriptionPlanSource: String, Sendable {
             return AppLocalization.string("Free", locale: locale)
         case .manualFirestore:
             return AppLocalization.string("Manual premium", locale: locale)
-        case .firebaseCustomClaim:
-            return AppLocalization.string("Firebase claim", locale: locale)
         }
     }
 }

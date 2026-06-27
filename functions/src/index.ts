@@ -71,7 +71,7 @@ export const consumeAIGenerationQuota = onCall({enforceAppCheck: false}, async (
   return db.runTransaction(async (transaction) => {
     const userSnapshot = await transaction.get(userRef);
     const user = userSnapshot.data() ?? {};
-    const premium = request.auth?.token.premium === true || user.premium === true || user.plan === "premium";
+    const premium = firestorePremiumState(user);
     const maxCards = premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
 
     if (targetCards > maxCards) {
@@ -127,7 +127,7 @@ export const generateDeck = onCall({
   const usageRef = userRef.collection("usage").doc(monthKey(new Date()));
   const userSnapshot = await userRef.get();
   const user = userSnapshot.data() ?? {};
-  const premium = request.auth?.token.premium === true || user.premium === true || user.plan === "premium";
+  const premium = firestorePremiumState(user);
   const maxCards = premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
   const freeGenerationsLimit = positiveNumberOrDefault(
     user.freeGenerationsLimit,
@@ -232,6 +232,13 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function firestorePremiumState(user: Record<string, unknown>): boolean {
+  if (typeof user.premium === "boolean") {
+    return user.premium;
+  }
+  return user.plan === "premium";
 }
 
 function positiveNumberOrDefault(value: unknown, fallback: number): number {

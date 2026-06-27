@@ -33,7 +33,8 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 ### Usage Authority
 
 - Firestore is the only source of truth for plan, free quota, and monthly AI usage.
-- Canonical monthly usage lives at `users/{uid}/usage/{YYYYMM}`.
+- The root `users/{uid}` fields `premium`, `aiMonthlyBudgetMicroUSD`, and current-period `aiUsage` are canonical and directly editable by an administrator.
+- Monthly documents at `users/{uid}/usage/{YYYYMM}` are historical archives written atomically with the root usage projection.
 - D1 usage tables are caches and operational telemetry. The Worker must never push a stale D1 counter into Firestore.
 - An admin edit in Firestore affects the next entitlement/start/finalization request. That request also replaces the corresponding D1 cache row.
 - Failed or expired generations do not consume a free generation, but any provider cost/tokens already incurred are finalized in monthly Firestore usage.

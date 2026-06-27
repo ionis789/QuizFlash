@@ -35,10 +35,12 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 `users/{uid}` is the user-owned profile plus server-owned access state.
 
 - Client-owned profile fields: `email`, `displayName`, `photoURL`, `providers`, and safe presentation metadata.
-- Server-owned or admin-owned fields: `plan`, `premium`, `usage`, `cost`, `freeGenerationsUsed`, and `freeGenerationsLimit`.
+- Server-owned or admin-owned fields: `premium`, `aiMonthlyBudgetMicroUSD`, `aiUsage`, `freeGenerationsUsed`, and `freeGenerationsLimit`. `plan` is read only as a temporary legacy fallback.
 - Current rules permit a signed-in user to create/update only their own safe profile fields. Quota and usage fields are server/admin-owned; the iOS client cannot initialize, increment, or reset them.
-- Do not make `plan`, `premium`, quota, or usage client-writable.
-- Monthly canonical usage is stored at `users/{uid}/usage/{YYYYMM}`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
+- Do not make entitlement, budget, quota, or usage client-writable.
+- `users/{uid}.premium` is the canonical entitlement checkbox. An explicit `false` overrides any legacy `plan` value.
+- `users/{uid}.aiMonthlyBudgetMicroUSD` is the canonical per-user premium budget. `users/{uid}.aiUsage` is the canonical current-period usage map exposed for administration.
+- Historical monthly usage is mirrored atomically at `users/{uid}/usage/{YYYYMM}`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
 - Cloud deck data remains below `users/{uid}/decks/{deckId}/cards/{cardId}`. The current design uses soft deletion because client deletes are denied by the rules; account cleanup is a callable backend operation.
 
 Whenever the document shape changes, update all of these together: the iOS writer/reader, `firestore.rules`, Functions, migration/defaulting logic, and tests or emulator coverage.
@@ -58,7 +60,7 @@ Required behavior:
 
 1. Refresh plan state before presenting or confirming AI generation so a manual/admin entitlement change updates the picker promptly.
 2. Validate `targetCards` in the UI for clear feedback, then validate it again in the Firestore transaction or Callable Function. Never trust the picker clamp.
-3. Read `premium`/`plan` and current usage from Firestore inside the trusted Worker request that authorizes or finalizes quota. Do not authorize from stale client memory or D1.
+3. Read `premium`, `aiMonthlyBudgetMicroUSD`, and current `aiUsage` from Firestore inside the trusted Worker request that authorizes or finalizes quota. Do not authorize from stale client memory, custom claims, or D1.
 4. Update the UI from the authoritative response or Firestore listener after a successful mutation.
 5. Make retries idempotent. Firestore `usageEvents/{generationId}` is created in the same atomic commit as the quota/usage mutation, so a network retry cannot consume twice.
 6. Do not charge a free generation for a failed provider request. Provider cost and tokens are still recorded for failed/expired requests that reached DeepSeek.
@@ -93,8 +95,8 @@ Do not add a paywall first. Build entitlement synchronization first, then the pu
 1. Wait for Apple Developer and App Store Connect access. Create the app record, subscription products, subscription group, sandbox tester, and required agreements/tax/banking configuration.
 2. Add RevenueCat iOS SDK through Swift Package Manager. Configure it only after Firebase Auth resolves, using the Firebase UID as `appUserID`. Log out or reidentify RevenueCat when the Firebase session changes; never leave the previous user's entitlement cached on the next user.
 3. Define one entitlement identifier, for example `premium`. Map App Store products/offering packages to that entitlement in RevenueCat.
-4. Make RevenueCat's signed webhook/backend integration update Firebase through Admin SDK: write the server-owned plan fields and, if used, Firebase custom claims. Verify webhook signature and process events idempotently by event ID.
-5. Keep Firestore as the app's common entitlement read model. `SubscriptionManager` should refresh the user document and forced Firebase ID token after a purchase, restore, renewal, cancellation, refund, or webhook update. Do not let a device write `premium: true`.
+4. Make RevenueCat's signed webhook/backend integration update Firebase through Admin SDK by writing the server-owned `premium` field. Verify webhook signature and process events idempotently by event ID.
+5. Keep Firestore as the app's common entitlement read model. `SubscriptionManager` should refresh the user document after a purchase, restore, renewal, cancellation, refund, or webhook update. Do not let a device write `premium: true`.
 6. Let the client display RevenueCat entitlement state for responsiveness, but let Firestore/Functions decide backend access. Handle delayed webhooks with a bounded refresh/pending state rather than granting permanent access from an unverified local flag.
 7. Replace the placeholder `restorePurchases()` with the RevenueCat restore flow, then refresh Firebase state and validate the user can use the entitlement after an app restart and on a second device.
 8. Migrate current manual premium documents deliberately: define who is eligible, set server-owned fields once, track migration version, and remove temporary manual-admin UI before launch.

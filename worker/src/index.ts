@@ -158,9 +158,6 @@ type ProviderAccountingStatus = "accounted" | "accounting_error" | "not_billable
 
 const freeMaxCardsPerGeneration = 30;
 const premiumMaxCardsPerGeneration = 100;
-const premiumPlan = "premium";
-const monthlyPeriod = "monthly";
-const defaultPremiumMonthlyBudgetMicroUSD = 2_000_000;
 const pricingVersion = "deepseek-v4-flash@2026-06";
 const activeSessionTTLMilliseconds = 20 * 60 * 1_000;
 const providerResponseTTLMilliseconds = 15 * 60 * 1_000;
@@ -425,7 +422,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     ).bind(account.uid, account.monthlyUsage.period).first<{ reserved_cost_micro_usd: number }>();
     const consumed = Math.max(0, account.monthlyUsage.costMicroUSD);
     const reserved = Math.max(0, monthly?.reserved_cost_micro_usd ?? 0);
-    const limit = account.premium ? await activePlanLimitMicroUSD(this.env, premiumPlan) : null;
+    const limit = account.premium ? account.monthlyBudgetMicroUSD : null;
     const available = limit === null ? null : Math.max(0, limit - consumed - reserved);
     const percent = limit && limit > 0 ? Math.min(1, (consumed + reserved) / limit) : null;
     return {
@@ -609,19 +606,6 @@ async function activePromptConfig(env: Env): Promise<PromptBundleRecord> {
     "INSERT OR IGNORE INTO ai_prompt_configs (version, hash, status, templates_json, created_at_ms, activated_at_ms) VALUES (?, ?, 'active', ?, ?, ?)"
   ).bind(seeded.version, seeded.hash, JSON.stringify(seeded.templates), now, now).run();
   return seeded;
-}
-
-async function activePlanLimitMicroUSD(env: Env, plan: string): Promise<number> {
-  const configured = await env.AI_DB.prepare(
-    "SELECT limit_micro_usd FROM ai_plan_limits WHERE plan = ? AND period = ? AND active = 1 ORDER BY updated_at_ms DESC LIMIT 1"
-  ).bind(plan, monthlyPeriod).first<{ limit_micro_usd: number }>();
-  if (configured) return Math.max(0, configured.limit_micro_usd);
-  return fallbackPremiumMonthlyBudgetMicroUSD(env);
-}
-
-function fallbackPremiumMonthlyBudgetMicroUSD(env: Env): number {
-  const parsed = Number(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPremiumMonthlyBudgetMicroUSD;
 }
 
 export function promptStartResponse(session: Record<string, unknown>, promptConfig: PromptBundleRecord, knownPromptVersion: string | undefined): Record<string, unknown> {

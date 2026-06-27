@@ -71,7 +71,8 @@ describe("QuizFlash AI proxy", () => {
         fields: {
           plan: {stringValue: "free"},
           freeGenerationsUsed: {integerValue: "0"},
-          freeGenerationsLimit: {integerValue: "7"}
+          freeGenerationsLimit: {integerValue: "7"},
+          aiMonthlyBudgetMicroUSD: {integerValue: "2500000"}
         }
       },
       {
@@ -85,8 +86,53 @@ describe("QuizFlash AI proxy", () => {
 
     expect(account.freeGenerationsUsed).toBe(0);
     expect(account.freeGenerationsLimit).toBe(7);
+    expect(account.monthlyBudgetMicroUSD).toBe(2_500_000);
     expect(account.monthlyUsage.costMicroUSD).toBe(900);
     expect(account.monthlyUsage.requestCount).toBe(2);
+  });
+
+  it("lets the canonical premium boolean override the legacy plan string", () => {
+    const account = parseFirestoreAccountState("user", "202606", {
+      fields: {
+        premium: {booleanValue: false},
+        plan: {stringValue: "premium"}
+      }
+    }, null);
+
+    expect(account.premium).toBe(false);
+  });
+
+  it("uses the current root usage projection instead of a stale monthly archive", () => {
+    const account = parseFirestoreAccountState(
+      "user",
+      "202606",
+      {
+        fields: {
+          premium: {booleanValue: true},
+          aiUsage: {
+            mapValue: {
+              fields: {
+                period: {stringValue: "202606"},
+                requestCount: {integerValue: "9"},
+                totalTokens: {integerValue: "123456"},
+                costMicroUSD: {integerValue: "42000"}
+              }
+            }
+          }
+        }
+      },
+      {
+        fields: {
+          requestCount: {integerValue: "2"},
+          totalTokens: {integerValue: "100"},
+          costMicroUSD: {integerValue: "900"}
+        }
+      }
+    );
+
+    expect(account.monthlyUsage.requestCount).toBe(9);
+    expect(account.monthlyUsage.totalTokens).toBe(123_456);
+    expect(account.monthlyUsage.costMicroUSD).toBe(42_000);
   });
 
   it("increments canonical free and monthly usage from the latest Firestore value", () => {

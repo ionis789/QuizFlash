@@ -16,6 +16,8 @@ service cloud.firestore {
         'premium',
         'usage',
         'cost',
+        'aiUsage',
+        'aiMonthlyBudgetMicroUSD',
         'freeGenerationsUsed',
         'freeGenerationsLimit'
       ]);
@@ -29,6 +31,8 @@ service cloud.firestore {
           'premium',
           'usage',
           'cost',
+          'aiUsage',
+          'aiMonthlyBudgetMicroUSD',
           'freeGenerationsUsed',
           'freeGenerationsLimit'
         ]);

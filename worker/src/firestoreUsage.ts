@@ -1,6 +1,7 @@
 export type FirestoreAdminEnv = {
   FIREBASE_PROJECT_ID: string;
   FIREBASE_SERVICE_ACCOUNT_JSON: string;
+  PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD?: string;
 };
 
 export type FirestoreMonthlyUsage = {
@@ -22,6 +23,7 @@ export type FirestoreAccountState = {
   premium: boolean;
   freeGenerationsUsed: number;
   freeGenerationsLimit: number;
+  monthlyBudgetMicroUSD: number;
   monthlyUsage: FirestoreMonthlyUsage;
 };
 
@@ -43,6 +45,9 @@ type FirestoreValue = {
   integerValue?: string;
   stringValue?: string;
   timestampValue?: string;
+  mapValue?: {
+    fields?: Record<string, FirestoreValue>;
+  };
 };
 
 type FirestoreDocument = {
@@ -77,6 +82,7 @@ type ParsedAccountDocuments = {
 };
 
 const defaultFreeGenerationsLimit = 5;
+const defaultPremiumMonthlyBudgetMicroUSD = 2_000_000;
 const maximumCommitAttempts = 4;
 const textEncoder = new TextEncoder();
 
@@ -86,7 +92,24 @@ export async function readFirestoreAccountState(
   env: FirestoreAdminEnv
 ): Promise<FirestoreAccountState> {
   const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  return (await readAccountDocuments(uid, period, env, accessToken)).account;
+  for (let attempt = 0; attempt < maximumCommitAttempts; attempt += 1) {
+    const documents = await readAccountDocuments(uid, period, env, accessToken);
+    const fields = missingCanonicalProfileFields(documents);
+    if (Object.keys(fields).length === 0) {
+      return documents.account;
+    }
+
+    const response = await commitWrites([
+      updateWrite(userPath(uid, env), fields, documents.profile)
+    ], env, accessToken);
+    if (response.ok) {
+      return documents.account;
+    }
+    if (response.status !== 409 && response.status !== 412) {
+      throw new Error(`Firestore profile normalization failed with status ${response.status}.`);
+    }
+  }
+  throw new Error("Firestore profile normalization conflicted too many times.");
 }
 
 export async function finalizeFirestoreGenerationUsage(
@@ -162,16 +185,29 @@ export function parseFirestoreAccountState(
   uid: string,
   period: string,
   profile: FirestoreDocument | null,
-  usage: FirestoreDocument | null
+  usage: FirestoreDocument | null,
+  fallbackMonthlyBudgetMicroUSD = defaultPremiumMonthlyBudgetMicroUSD
 ): FirestoreAccountState {
   const profileFields = profile?.fields ?? {};
-  const usageFields = usage?.fields ?? {};
+  const rootUsageFields = profileFields.aiUsage?.mapValue?.fields;
+  const rootUsagePeriod = rootUsageFields?.period?.stringValue;
+  const usageFields = rootUsagePeriod === period
+    ? rootUsageFields ?? {}
+    : usage?.fields ?? {};
+  const premiumField = profileFields.premium?.booleanValue;
 
   return {
     uid,
-    premium: profileFields.premium?.booleanValue === true || profileFields.plan?.stringValue === "premium",
+    premium: typeof premiumField === "boolean"
+      ? premiumField
+      : profileFields.plan?.stringValue === "premium",
     freeGenerationsUsed: integerField(profileFields, "freeGenerationsUsed", 0),
     freeGenerationsLimit: integerField(profileFields, "freeGenerationsLimit", defaultFreeGenerationsLimit),
+    monthlyBudgetMicroUSD: integerField(
+      profileFields,
+      "aiMonthlyBudgetMicroUSD",
+      fallbackMonthlyBudgetMicroUSD
+    ),
     monthlyUsage: {
       period,
       generatedCards: integerField(usageFields, "generatedCards", 0),
@@ -200,7 +236,13 @@ async function readAccountDocuments(
   ]);
 
   return {
-    account: parseFirestoreAccountState(uid, period, profile.document, usage.document),
+    account: parseFirestoreAccountState(
+      uid,
+      period,
+      profile.document,
+      usage.document,
+      configuredMonthlyBudgetMicroUSD(env)
+    ),
     profile,
     usage
   };
@@ -213,21 +255,20 @@ function firestoreUsageCommitWrites(
   env: FirestoreAdminEnv
 ): FirestoreWrite[] {
   const now = new Date().toISOString();
-  const writes: FirestoreWrite[] = [];
-  const freeUsageChanged =
-    nextAccount.freeGenerationsUsed !== documents.account.freeGenerationsUsed;
-
-  if (freeUsageChanged) {
-    writes.push(updateWrite(
+  const writes: FirestoreWrite[] = [
+    updateWrite(
       userPath(nextAccount.uid, env),
       {
+        premium: {booleanValue: nextAccount.premium},
         freeGenerationsUsed: integerValue(nextAccount.freeGenerationsUsed),
         freeGenerationsLimit: integerValue(nextAccount.freeGenerationsLimit),
+        aiMonthlyBudgetMicroUSD: integerValue(nextAccount.monthlyBudgetMicroUSD),
+        aiUsage: currentUsageValue(nextAccount, delta.generationId, now),
         updatedAt: {timestampValue: now}
       },
       documents.profile
-    ));
-  }
+    )
+  ];
 
   writes.push(updateWrite(
     monthlyUsagePath(nextAccount.uid, nextAccount.monthlyUsage.period, env),
@@ -273,11 +314,41 @@ function firestoreUsageCommitWrites(
   return writes;
 }
 
+function currentUsageValue(
+  account: FirestoreAccountState,
+  generationId: string | undefined,
+  updatedAt: string
+): FirestoreValue {
+  const usage = account.monthlyUsage;
+  const fields: Record<string, FirestoreValue> = {
+    ...usageMetricFields(usage),
+    budgetMicroUSD: integerValue(account.monthlyBudgetMicroUSD),
+    remainingMicroUSD: integerValue(
+      Math.max(0, account.monthlyBudgetMicroUSD - usage.costMicroUSD)
+    ),
+    updatedAt: {timestampValue: updatedAt}
+  };
+  if (generationId) {
+    fields.lastGenerationId = {stringValue: generationId};
+  }
+  return {
+    mapValue: {fields}
+  };
+}
+
 function monthlyUsageFields(
   usage: FirestoreMonthlyUsage,
   generationId: string,
   updatedAt: string
 ): Record<string, FirestoreValue> {
+  return {
+    ...usageMetricFields(usage),
+    lastGenerationId: {stringValue: generationId},
+    updatedAt: {timestampValue: updatedAt}
+  };
+}
+
+function usageMetricFields(usage: FirestoreMonthlyUsage): Record<string, FirestoreValue> {
   return {
     period: {stringValue: usage.period},
     generatedCards: integerValue(usage.generatedCards),
@@ -289,10 +360,48 @@ function monthlyUsageFields(
     completionTokens: integerValue(usage.completionTokens),
     totalTokens: integerValue(usage.totalTokens),
     cacheHitTokens: integerValue(usage.cacheHitTokens),
-    cacheMissTokens: integerValue(usage.cacheMissTokens),
-    lastGenerationId: {stringValue: generationId},
-    updatedAt: {timestampValue: updatedAt}
+    cacheMissTokens: integerValue(usage.cacheMissTokens)
   };
+}
+
+function missingCanonicalProfileFields(
+  documents: ParsedAccountDocuments
+): Record<string, FirestoreValue> {
+  const existing = documents.profile.document?.fields ?? {};
+  const fields: Record<string, FirestoreValue> = {};
+  const usageFields = existing.aiUsage?.mapValue?.fields;
+  const requiredUsageFields = [
+    "period",
+    "generatedCards",
+    "requestCount",
+    "premiumRequestCount",
+    "freeRequestCount",
+    "costMicroUSD",
+    "promptTokens",
+    "completionTokens",
+    "totalTokens",
+    "cacheHitTokens",
+    "cacheMissTokens",
+    "budgetMicroUSD",
+    "remainingMicroUSD"
+  ];
+
+  if (typeof existing.premium?.booleanValue !== "boolean") {
+    fields.premium = {booleanValue: documents.account.premium};
+  }
+  if (existing.aiMonthlyBudgetMicroUSD?.integerValue === undefined) {
+    fields.aiMonthlyBudgetMicroUSD = integerValue(documents.account.monthlyBudgetMicroUSD);
+  }
+  if (
+    usageFields?.period?.stringValue !== documents.account.monthlyUsage.period ||
+    requiredUsageFields.some((field) => usageFields?.[field] === undefined)
+  ) {
+    fields.aiUsage = currentUsageValue(documents.account, undefined, new Date().toISOString());
+  }
+  if (Object.keys(fields).length > 0) {
+    fields.updatedAt = {timestampValue: new Date().toISOString()};
+  }
+  return fields;
 }
 
 function updateWrite(
@@ -372,6 +481,13 @@ function integerValue(value: number): FirestoreValue {
 
 function nonNegativeInteger(value: number): number {
   return Math.max(0, Math.trunc(Number.isFinite(value) ? value : 0));
+}
+
+function configuredMonthlyBudgetMicroUSD(env: FirestoreAdminEnv): number {
+  const parsed = Number(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD);
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : defaultPremiumMonthlyBudgetMicroUSD;
 }
 
 let cachedServiceAccountToken: {value: string; expiresAtMs: number} | undefined;
