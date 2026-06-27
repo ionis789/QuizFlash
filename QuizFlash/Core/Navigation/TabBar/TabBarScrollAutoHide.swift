@@ -14,6 +14,7 @@ import UIKit
 enum TabBarAutoHideAction: Equatable {
     case show
     case hide
+    case bounceAtEdge
 }
 
 // MARK: - Scroll Eligibility
@@ -145,6 +146,60 @@ struct TabBarScrollAutoHideResolver {
     }
 }
 
+// MARK: - TabBarScrollEdgeBounceResolver
+
+/// Emits one acknowledgement per deliberate overscroll and rearms after returning in-bounds.
+struct TabBarScrollEdgeBounceResolver {
+    private enum Edge {
+        case top
+        case bottom
+    }
+
+    let overscrollThreshold: CGFloat
+
+    private var activeEdge: Edge?
+
+    init(
+        overscrollThreshold: CGFloat = UIConstants.Layout.bottomChromeEdgeBounceThreshold
+    ) {
+        self.overscrollThreshold = overscrollThreshold
+    }
+
+    mutating func reset() {
+        activeEdge = nil
+    }
+
+    mutating func handle(
+        offset: CGFloat,
+        minOffset: CGFloat,
+        maxOffset: CGFloat,
+        isUserDragging: Bool
+    ) -> Bool {
+        guard isUserDragging else {
+            activeEdge = nil
+            return false
+        }
+
+        let edge: Edge?
+        if offset <= minOffset - overscrollThreshold {
+            edge = .top
+        } else if offset >= maxOffset + overscrollThreshold {
+            edge = .bottom
+        } else {
+            edge = nil
+        }
+
+        guard let edge else {
+            activeEdge = nil
+            return false
+        }
+        guard activeEdge != edge else { return false }
+
+        activeEdge = edge
+        return true
+    }
+}
+
 // MARK: - Environment Wiring
 
 private struct TabBarScrollAutoHideActionKey: EnvironmentKey {
@@ -226,6 +281,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
         var action: (TabBarAutoHideAction) -> Void
 
         private var resolver = TabBarScrollAutoHideResolver()
+        private var edgeBounceResolver = TabBarScrollEdgeBounceResolver()
         private weak var scrollView: UIScrollView?
         private var offsetObservation: NSKeyValueObservation?
 
@@ -277,6 +333,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
                     )
                 }
             } else {
+                edgeBounceResolver.reset()
                 emitIfNeeded(resolver.reset())
             }
         }
@@ -302,6 +359,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
 
         private func handleObservedScroll(_ scrollView: UIScrollView) {
             if !isEnabled {
+                edgeBounceResolver.reset()
                 emitIfNeeded(resolver.reset())
                 return
             }
@@ -321,6 +379,16 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
                 isUserDriven: scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
             )
             let canShow = scrollView.isTracking || scrollView.isDragging
+            let isUserDragging = scrollView.isTracking || scrollView.isDragging
+
+            if edgeBounceResolver.handle(
+                offset: offset,
+                minOffset: minOffset,
+                maxOffset: maxOffset,
+                isUserDragging: isUserDragging
+            ) {
+                action(.bounceAtEdge)
+            }
 
             emitIfNeeded(
                 resolver.handle(
@@ -340,6 +408,7 @@ private struct TabBarAutoHideScrollProbe: UIViewRepresentable {
         private func tearDownObservation() {
             offsetObservation = nil
             scrollView = nil
+            edgeBounceResolver.reset()
         }
 
         private func nearestAncestorScrollView() -> UIScrollView? {

@@ -160,4 +160,71 @@ final class TabBarScrollAutoHideResolverTests: XCTestCase {
             )
         )
     }
+
+    func testEdgeBounceEmitsOnceUntilScrollReturnsInBounds() {
+        var resolver = TabBarScrollEdgeBounceResolver(overscrollThreshold: 8)
+
+        XCTAssertFalse(
+            resolver.handle(
+                offset: 600,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+        XCTAssertTrue(
+            resolver.handle(
+                offset: 608,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+        XCTAssertFalse(
+            resolver.handle(
+                offset: 616,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+
+        XCTAssertFalse(
+            resolver.handle(
+                offset: 600,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+        XCTAssertTrue(
+            resolver.handle(
+                offset: 609,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+    }
+
+    func testEdgeBounceRequiresActiveDragging() {
+        var resolver = TabBarScrollEdgeBounceResolver(overscrollThreshold: 8)
+
+        XCTAssertFalse(
+            resolver.handle(
+                offset: -12,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: false
+            )
+        )
+        XCTAssertTrue(
+            resolver.handle(
+                offset: -12,
+                minOffset: 0,
+                maxOffset: 600,
+                isUserDragging: true
+            )
+        )
+    }
 }

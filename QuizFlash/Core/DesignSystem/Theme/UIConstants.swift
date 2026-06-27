@@ -181,6 +181,9 @@ enum UIConstants {
         /// Uniform scale used by the floating tab bar while scrolling downward.
         static let bottomChromeCompactScale: CGFloat = 0.84
 
+        /// Overscroll distance required before the floating tab bar acknowledges a scroll edge.
+        static let bottomChromeEdgeBounceThreshold: CGFloat = 8
+
         /// Tolerance used to keep the floating tab bar visible when the scroll view is effectively at the top.
         static let bottomChromeAutoRevealTopTolerance: CGFloat = 1
 
