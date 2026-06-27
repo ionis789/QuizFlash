@@ -113,6 +113,10 @@ struct HomeDashboardView: View {
         usesRegularMetrics ? 24 : 20
     }
 
+    private var sectionHeaderContentSpacing: CGFloat {
+        usesRegularMetrics ? 18 : 16
+    }
+
     private var studyHeroMinHeight: CGFloat {
         usesRegularMetrics ? 282 : 256
     }
@@ -158,13 +162,17 @@ struct HomeDashboardView: View {
     // MARK: - Study
 
     private var studySection: some View {
-        duoStudyCard {
-            VStack(alignment: .leading, spacing: usesRegularMetrics ? 16 : 14) {
-                selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
+        VStack(alignment: .leading, spacing: sectionHeaderContentSpacing) {
+            HomeDashboardSectionHeader(title: localized("Activity"))
 
-                AppSectionSeparator()
+            duoStudyCard {
+                VStack(alignment: .leading, spacing: usesRegularMetrics ? 16 : 14) {
+                    selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
 
-                weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+                    AppSectionSeparator()
+
+                    weeklyStatsButton(for: dashboardSnapshot.pastWeekPerformance)
+                }
             }
         }
     }
@@ -335,7 +343,7 @@ struct HomeDashboardView: View {
     }
 
     private var recentDecksSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: sectionHeaderContentSpacing) {
             HomeDashboardSectionHeader(
                 title: localized("Recent decks"),
                 count: recentDeckSnapshots.count
@@ -363,7 +371,7 @@ struct HomeDashboardView: View {
     }
 
     private var foldersSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: sectionHeaderContentSpacing) {
             HomeDashboardSectionHeader(
                 title: localized("Folders"),
                 count: folderSnapshots.count,
@@ -371,7 +379,8 @@ struct HomeDashboardView: View {
                     ChromeSoftCircleSymbolButton(
                         systemName: "plus",
                         accessibilityLabel: localized("Folders"),
-                        action: onCreateFolder
+                        action: onCreateFolder,
+                        size: usesRegularMetrics ? 42 : 40
                     )
                 }
             )
@@ -539,7 +548,6 @@ private struct HomeDashboardSectionHeader: View {
                 trailingAccessory
             }
         }
-        .padding(.bottom)
     }
 }
 
