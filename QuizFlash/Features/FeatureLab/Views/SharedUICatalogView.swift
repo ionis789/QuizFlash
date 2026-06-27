@@ -230,9 +230,7 @@ struct SharedUICatalogView: View {
 
         case .deckProgressView:
             DeckProgressView(
-                progress: runtime.progress,
                 stats: runtime.stats,
-                activity: runtime.todayActivity,
                 deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange
             )
 

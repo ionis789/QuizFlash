@@ -402,9 +402,7 @@ extension DeckContentView {
 
                     if searchQuery == nil || searchQuery?.isEmpty == true {
                         DeckProgressView(
-                            progress: viewModel.progressStats,
                             stats: viewModel.currentStats,
-                            activity: viewModel.todayActivitySummary,
                             deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
                         )
                         DeckPlayModesView(
