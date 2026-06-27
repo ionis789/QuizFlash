@@ -192,8 +192,6 @@ struct HomeDashboardView: View {
                 .minimumScaleFactor(0.68)
                 .multilineTextAlignment(.leading)
                 .contentTransition(.numericText())
-
-            selectedDayMetricsRow(for: overview)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -219,20 +217,12 @@ struct HomeDashboardView: View {
         return localizedFormat("%d reviewed", overview.cardsReviewed)
     }
 
-    private func selectedDayMetricsRow(for overview: HomeSelectedDayOverviewSummary) -> some View {
-        HStack(spacing: usesRegularMetrics ? 16 : 12) {
-            metricPill(localizedFormat("Remembered %d", overview.correctCardCount), tint: .green)
-            metricPill(localizedFormat("Needs review %d", overview.retryCardCount), tint: themeManager.roleColor(.buttonDangerFill))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.activeDays == 1 {
-            return localized("1 study day")
+            return localized("1-day streak")
         }
 
-        return localizedFormat("%d study days", summary.activeDays)
+        return localizedFormat("%d-day streak", summary.activeDays)
     }
 
     private func goalDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
@@ -286,7 +276,7 @@ struct HomeDashboardView: View {
             return localized("No reviews this week")
         }
 
-        return localizedFormat("%d%% remembered", summary.goodRatePercent)
+        return localizedFormat("Remembered: %d%%", summary.goodRatePercent)
     }
 
     @ViewBuilder

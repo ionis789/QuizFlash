@@ -96,8 +96,10 @@ struct HomeCalendarSectionView: View {
     private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: state.titleFontSize, weight: .bold))
-                .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
+                .font(.system(size: state.titleFontSize, weight: .black))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                .textCase(.uppercase)
+                .tracking(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -353,7 +355,7 @@ struct HomeCalendarSectionView: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: size * 0.58, weight: .black))
-                .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())
         }

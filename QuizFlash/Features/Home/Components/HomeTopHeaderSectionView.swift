@@ -328,8 +328,10 @@ private struct HomePadCalendarColumnView: View {
 
         return HStack(alignment: .center, spacing: headerState.calendarState.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: headerState.calendarState.titleFontSize, weight: .bold))
-                .foregroundStyle(themeManager.roleColor(.buttonPrimaryFill))
+                .font(.system(size: headerState.calendarState.titleFontSize, weight: .black))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                .textCase(.uppercase)
+                .tracking(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -448,8 +450,8 @@ private struct HomePadCalendarColumnView: View {
             calendarVM.monthUpdate(increment: increment)
         } label: {
             Image(systemName: increment ? "chevron.right" : "chevron.left")
-                .font(.system(size: size * 0.48, weight: .semibold))
-                .foregroundStyle(.secondary.opacity(0.95))
+                .font(.system(size: size * 0.48, weight: .black))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())
         }
