@@ -183,7 +183,7 @@ struct DeckIconBadge: View {
         ZStack {
             Circle().fill(color.opacity(0.20)).frame(width: size, height: size)
             Circle().stroke(color.opacity(0.30), lineWidth: 0.5).frame(width: size, height: size)
-            Image(systemName: icon.isEmpty ? "square.stack.fill" : icon)
+            Image(systemName: icon.isEmpty ? "rectangle.stack.fill" : icon)
                 .font(.system(size: size * 0.38, weight: .bold)).foregroundStyle(.white)
         }
     }

@@ -231,7 +231,7 @@ private struct SearchDeckResultRow: View {
 
                         HStack(spacing: 12) {
                             LibraryDeckMetaLabel(
-                                systemImage: "square.stack.fill",
+                                systemImage: "rectangle.stack.fill",
                                 text: localizedCardCount
                             )
                             LibraryDeckMetaLabel(

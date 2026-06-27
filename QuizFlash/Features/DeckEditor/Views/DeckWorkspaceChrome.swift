@@ -273,7 +273,7 @@ extension DeckWorkspaceView {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
                 if summary.cardCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "square.stack.fill", text: localizedFormat("%d cards", summary.cardCount))
+                    CreateDeckHeaderStatChip(symbol: "rectangle.stack.fill", text: localizedFormat("%d cards", summary.cardCount))
                 }
                 if summary.flashcardCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle.angled", text: localizedFormat("%d flashcards", summary.flashcardCount), rotation: Angle(degrees: 90))

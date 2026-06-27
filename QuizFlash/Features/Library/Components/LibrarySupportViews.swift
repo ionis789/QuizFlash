@@ -36,7 +36,7 @@ struct LibraryEmptyStateView: View {
                     Circle()
                         .fill(accent.opacity(0.1))
                         .frame(width: 80, height: 80)
-                    Image(systemName: "square.stack.fill")
+                    Image(systemName: "rectangle.stack.fill")
                         .font(.system(size: 34, weight: .bold))
                         .foregroundStyle(accent.opacity(0.9))
                 }

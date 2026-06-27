@@ -69,7 +69,7 @@ struct DeckHeaderView: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        Label(localizedFormat("%d cards", deck.cardCount), systemImage: "square.stack.fill")
+                        Label(localizedFormat("%d cards", deck.cardCount), systemImage: "rectangle.stack.fill")
                         Text("•")
                         Text(formattedCreationDate)
                     }

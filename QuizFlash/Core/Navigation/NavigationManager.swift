@@ -232,7 +232,7 @@ extension FeatureLabRoute {
         case .developmentSettings:
             return "slider.horizontal.3"
         case .flashCardsPlayModeSimulation:
-            return "square.stack.fill"
+            return "rectangle.stack.fill"
         case .animatedObjectsLab:
             return "sparkles"
         case .sharedUICatalog:

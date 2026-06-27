@@ -296,9 +296,9 @@ struct SettingsView: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: UIConstants.Spacing.small) {
                         profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                        profileMetric(icon: "square.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
+                        profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
                         profileMetric(
-                            icon: isPremiumUser ? "crown.fill" : "sparkles",
+                            icon: accountPlanIcon,
                             title: accountPlanSummary,
                             tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
                             alignment: .center
@@ -308,11 +308,11 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                         HStack(spacing: UIConstants.Spacing.small) {
                             profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                            profileMetric(icon: "square.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
+                            profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
                         }
 
                         profileMetric(
-                            icon: isPremiumUser ? "crown.fill" : "sparkles",
+                            icon: accountPlanIcon,
                             title: accountPlanSummary,
                             tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
                             alignment: .center
@@ -323,21 +323,7 @@ struct SettingsView: View {
                 if isPremiumUser {
                     premiumUsageProgressLine
                 } else {
-                    Button {
-                        isPremiumSheetPresented = true
-                    } label: {
-                        Text(AppLocalization.string("Unlock full AI features", locale: appPreferences.resolvedLocale))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(themeManager.accentColor.color)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.84)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, UIConstants.Spacing.large)
-                            .padding(.vertical, 12)
-                            .background(themeManager.accentColor.color.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    freeGenerationsProgressLine
                 }
             }
             .padding(UIConstants.Spacing.large)
@@ -351,11 +337,18 @@ struct SettingsView: View {
             isEditingDisplayName = true
         } label: {
             HStack(spacing: UIConstants.Spacing.small) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(themeManager.accentColor.color)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+
                 Text(profileName)
                     .font(.system(size: 30, weight: .black))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                    .contentTransition(.identity)
 
                 Image(systemName: "pencil")
                     .font(.system(size: 18, weight: .black))
@@ -363,6 +356,10 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
+            .animation(nil, value: profileName)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale))
@@ -432,6 +429,10 @@ struct SettingsView: View {
         isPremiumUser
             ? AppLocalization.string("Premium", locale: appPreferences.resolvedLocale)
             : AppLocalization.string("Free", locale: appPreferences.resolvedLocale)
+    }
+
+    private var accountPlanIcon: String? {
+        isPremiumUser ? "bolt.fill" : nil
     }
 
     private var photoURL: URL? {
@@ -823,11 +824,37 @@ struct SettingsView: View {
         }
     }
 
+    private var freeGenerationsProgressLine: some View {
+        let limit = max(subscriptionManager.freeGenerationsLimit ?? SubscriptionManager.defaultFreeGenerationsLimit, 1)
+        let used = min(max(subscriptionManager.freeGenerationsUsed ?? 0, 0), limit)
+        let segmentCount = SubscriptionManager.defaultFreeGenerationsLimit
+        let filledSegments = min(
+            segmentCount,
+            Int(ceil((Double(used) / Double(limit)) * Double(segmentCount)))
+        )
+
+        return HStack(spacing: 7) {
+            ForEach(0..<segmentCount, id: \.self) { index in
+                Capsule()
+                    .fill(
+                        index < filledSegments
+                            ? themeManager.accentColor.color
+                            : Color.white.opacity(0.14)
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 8)
+            }
+        }
+        .padding(.top, UIConstants.Spacing.small)
+        .accessibilityLabel(AppLocalization.string("Free", locale: appPreferences.resolvedLocale))
+        .accessibilityValue("\(used) / \(limit)")
+    }
+
     private func profileMetric(
         icon: String?,
         title: String,
         tint: Color,
-        alignment: Alignment = .leading
+        alignment: Alignment = .center
     ) -> some View {
         HStack(spacing: 6) {
             if let icon {

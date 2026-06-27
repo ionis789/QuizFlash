@@ -272,7 +272,7 @@ struct DeckCardGridView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "square.stack.fill")
+            Image(systemName: "rectangle.stack.fill")
                 .font(.system(size: 36))
                 .foregroundStyle(.tertiary)
             Text(localized("No cards yet"))

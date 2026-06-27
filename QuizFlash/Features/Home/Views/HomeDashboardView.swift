@@ -407,7 +407,7 @@ struct HomeDashboardView: View {
     private var createDeckSurface: some View {
         Button(action: onCreateDeck) {
             VStack(alignment: .center, spacing: usesRegularMetrics ? 14 : 12) {
-                Image(systemName: "square.stack.fill")
+                Image(systemName: "rectangle.stack.fill")
                     .font(.system(size: usesRegularMetrics ? 38 : 34, weight: .bold))
                     .foregroundStyle(accentColor)
                     .frame(
