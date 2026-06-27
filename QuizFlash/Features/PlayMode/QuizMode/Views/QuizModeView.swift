@@ -248,7 +248,7 @@ private struct QuizModeSessionView: View {
             systemName: "pencil",
             accessibilityLabel: "Edit current quiz",
             action: openCurrentQuizEditor,
-            size: UIConstants.Size.capsuleHeight,
+            size: UIConstants.Size.actionButton,
             tint: ThemeManager.shared.accentColor.color
         )
         .disabled(viewModel.currentCard == nil)

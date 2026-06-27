@@ -283,9 +283,13 @@ struct ChromeSoftCircleSymbol: View {
         backgroundTint ?? themeManager.roleColor(.circularToolbarFill)
     }
 
+    private var symbolSize: CGFloat {
+        min(UIConstants.Size.circularChromeSymbol, max(UIConstants.Size.iconSmall, size * 0.44))
+    }
+
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: UIConstants.Size.circularChromeSymbol, weight: .bold))
+            .font(.system(size: symbolSize, weight: .bold))
             .foregroundStyle(resolvedTint)
             .frame(width: size, height: size)
             .background {

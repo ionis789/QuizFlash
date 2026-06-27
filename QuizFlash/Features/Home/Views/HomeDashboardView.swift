@@ -341,6 +341,12 @@ struct HomeDashboardView: View {
                 count: recentDeckSnapshots.count
             )
 
+            recentDecksSurface
+        }
+    }
+
+    private var recentDecksSurface: some View {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
                 HomeDashboardRecentDeckRow(
                     snapshot: deck,

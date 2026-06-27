@@ -2386,8 +2386,8 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
 
     private func applyStyle(to button: UIButton, systemName: String, tint: UIColor) {
         let pointSize = systemName == "xmark"
-            ? UIConstants.Size.navigationChromeIcon
-            : UIConstants.Size.actionIcon
+            ? min(UIConstants.Size.circularChromeSymbol, max(UIConstants.Size.iconSmall, buttonSize * 0.44))
+            : min(UIConstants.Size.actionIcon, max(UIConstants.Size.iconSmall, buttonSize * 0.44))
         let configuration = UIImage.SymbolConfiguration(pointSize: CGFloat(pointSize), weight: .bold)
         button.setImage(UIImage(systemName: systemName, withConfiguration: configuration), for: .normal)
         button.tintColor = tint
