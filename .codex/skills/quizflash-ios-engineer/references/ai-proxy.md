@@ -18,17 +18,25 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 ## Current Release Flow
 
 1. The final Generate action calls `CloudAIProxyClient.startGeneration` with a Firebase ID token, target-card count, and idempotency key.
-2. `POST /v1/generations/start` verifies Firebase Auth, reads the server-owned Firebase profile entitlement, and reserves quota through the UID Durable Object.
+2. `POST /v1/generations/start` verifies Firebase Auth, reads canonical entitlement and current-month usage from Firestore, then creates the operational session through the UID Durable Object.
 3. `AIFlashcardService` keeps its local planner and builds the exact OpenAI-compatible request body: model, messages, response format, temperature, and thinking options.
 4. `AIRequestTransport.cloudProxy` changes only the destination and adds generation/session/provider-call headers. `POST /v1/chat/completions` forwards the received body bytes to DeepSeek and returns the response bytes unchanged.
 5. iOS runs the existing title parser, retry policy, JSON/DTO decoding, LaTeX normalization, and local deck/card insertion. Both title and card batches use the same proxy.
-6. iOS calls `/finish` with validated-card count or `/fail` after cancellation/no usable output. The Worker finalizes or releases quota and updates cost/usage.
+6. iOS calls `/finish` with validated-card count or `/fail` after cancellation/no usable output. The Worker atomically finalizes canonical Firestore usage with a server-only `usageEvents/{generationId}` idempotency record, then replaces the D1 cache from that Firestore result.
 
 ### Ownership Boundaries
 
 | iOS owns | Worker owns |
 | --- | --- |
-| Planner, source extraction, dynamic prompt composition, title generation, retry strategy, DTO decoding, LaTeX normalization, SwiftData insertion | Firebase token validation, entitlement read, quota reservation/finalization, concurrency, idempotency, DeepSeek key, raw proxying, token/cost audit |
+| Planner, source extraction, dynamic prompt composition, title generation, retry strategy, DTO decoding, LaTeX normalization, SwiftData insertion | Firebase token validation, Firestore-authoritative entitlement/quota/usage, concurrency, idempotency, DeepSeek key, raw proxying, token/cost audit |
+
+### Usage Authority
+
+- Firestore is the only source of truth for plan, free quota, and monthly AI usage.
+- Canonical monthly usage lives at `users/{uid}/usage/{YYYYMM}`.
+- D1 usage tables are caches and operational telemetry. The Worker must never push a stale D1 counter into Firestore.
+- An admin edit in Firestore affects the next entitlement/start/finalization request. That request also replaces the corresponding D1 cache row.
+- Failed or expired generations do not consume a free generation, but any provider cost/tokens already incurred are finalized in monthly Firestore usage.
 
 Do not move parsing, JSON repair, escaping repair, title parsing, prompt rewriting, card mapping, or card persistence into the Worker. Those changes previously caused visible regressions in generated-card formatting.
 

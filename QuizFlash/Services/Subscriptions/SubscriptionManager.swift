@@ -5,7 +5,6 @@
 
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFunctions
 import Foundation
 import Observation
 
@@ -39,18 +38,14 @@ final class SubscriptionManager {
     private var cachedFirestore: Firestore?
 
     @ObservationIgnored
-    private var cachedFunctions: Functions?
-
-    @ObservationIgnored
     private var activeUID: String?
 
     // MARK: - Init
 
     init() { }
 
-    init(firestore: Firestore, functions: Functions? = nil) {
+    init(firestore: Firestore) {
         self.cachedFirestore = firestore
-        self.cachedFunctions = functions
     }
 
     // MARK: - Public
@@ -192,36 +187,7 @@ final class SubscriptionManager {
         }
     }
 
-    func consumeAIGenerationQuota(targetCards: Int) async throws {
-        do {
-            let result = try await functions.httpsCallable("consumeAIGenerationQuota").call([
-                "targetCards": targetCards
-            ])
-
-            guard let response = result.data as? [String: Any] else {
-                await refresh()
-                return
-            }
-
-            applyQuotaResponse(response)
-        } catch {
-            do {
-                try await consumeAIGenerationQuotaDirectly(targetCards: targetCards)
-            } catch {
-                await refresh()
-                throw error
-            }
-        }
-    }
-
     func applyCloudAIQuotaState(_ state: CloudAIQuotaState) {
-        if isPremium && !state.premium {
-            freeGenerationsUsed = nil
-            freeGenerationsLimit = nil
-            lastErrorMessage = nil
-            return
-        }
-
         isPremium = state.premium
         planSource = state.premium ? .manualFirestore : .free
         if state.premium {
@@ -234,21 +200,6 @@ final class SubscriptionManager {
         }
         cloudAIUsageQuota = state
         lastErrorMessage = nil
-    }
-
-    private func applyQuotaResponse(_ response: [String: Any]) {
-        if response["premium"] as? Bool == true {
-            isPremium = true
-            planSource = .manualFirestore
-            clearFreeQuota()
-        } else {
-            isPremium = false
-            planSource = .free
-            applyFreeQuota(
-                used: response["freeGenerationsUsed"] as? Int,
-                limit: response["freeGenerationsLimit"] as? Int
-            )
-        }
     }
 
     /// Placeholder action until App Store Connect purchases are available.
@@ -282,76 +233,11 @@ final class SubscriptionManager {
     }
 
     private func applyFreeQuota(used: Int?, limit: Int?) {
-        let resolvedLimit = max(limit ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit, 1)
-        let currentUsed = min(max(freeGenerationsUsed ?? 0, 0), resolvedLimit)
-        let incomingUsed = min(max(used ?? currentUsed, 0), resolvedLimit)
-        let resolvedUsed = max(currentUsed, incomingUsed)
+        let resolvedLimit = max(limit ?? freeGenerationsLimit ?? Self.defaultFreeGenerationsLimit, 0)
+        let resolvedUsed = max(used ?? freeGenerationsUsed ?? 0, 0)
 
         freeGenerationsUsed = resolvedUsed
         freeGenerationsLimit = resolvedLimit
-    }
-
-    private func consumeAIGenerationQuotaDirectly(targetCards: Int) async throws {
-        guard let uid = Auth.auth().currentUser?.uid else {
-            throw SubscriptionManagerError.signInRequired
-        }
-
-        let userRef = firestore.collection("users").document(uid)
-        let response: [String: Any] = try await withCheckedThrowingContinuation { continuation in
-            firestore.runTransaction({ transaction, errorPointer -> Any? in
-                let snapshot: DocumentSnapshot
-                do {
-                    snapshot = try transaction.getDocument(userRef)
-                } catch {
-                    errorPointer?.pointee = error as NSError
-                    return nil
-                }
-
-                let data = snapshot.data() ?? [:]
-                let premium = data["premium"] as? Bool == true || data["plan"] as? String == "premium"
-                let maxCards = premium ? Self.premiumMaxCardsPerGeneration : Self.freeMaxCardsPerGeneration
-
-                guard targetCards <= maxCards else {
-                    errorPointer?.pointee = SubscriptionManagerError.aiCardLimitExceeded(maximum: maxCards) as NSError
-                    return nil
-                }
-
-                if premium {
-                    return [
-                        "premium": true
-                    ]
-                }
-
-                let used = data["freeGenerationsUsed"] as? Int ?? 0
-                let limit = data["freeGenerationsLimit"] as? Int ?? Self.defaultFreeGenerationsLimit
-
-                guard used < limit else {
-                    errorPointer?.pointee = SubscriptionManagerError.freeGenerationLimitReached as NSError
-                    return nil
-                }
-
-                let nextUsed = used + 1
-                transaction.setData([
-                    "freeGenerationsUsed": nextUsed,
-                    "freeGenerationsLimit": limit,
-                    "updatedAt": FieldValue.serverTimestamp()
-                ], forDocument: userRef, merge: true)
-
-                return [
-                    "premium": false,
-                    "freeGenerationsUsed": nextUsed,
-                    "freeGenerationsLimit": limit
-                ]
-            }) { object, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: object as? [String: Any] ?? [:])
-                }
-            }
-        }
-
-        applyQuotaResponse(response)
     }
 
     private var firestore: Firestore {
@@ -361,12 +247,6 @@ final class SubscriptionManager {
         return firestore
     }
 
-    private var functions: Functions {
-        if let cachedFunctions { return cachedFunctions }
-        let functions = Functions.functions()
-        cachedFunctions = functions
-        return functions
-    }
 }
 
 // MARK: - Subscription Plan Source
@@ -395,20 +275,11 @@ enum SubscriptionPlanSource: String, Sendable {
 
 enum SubscriptionManagerError: LocalizedError {
     case storeUnavailable
-    case signInRequired
-    case aiCardLimitExceeded(maximum: Int)
-    case freeGenerationLimitReached
 
     var errorDescription: String? {
         switch self {
         case .storeUnavailable:
             return "Purchases are not available until App Store Connect is ready."
-        case .signInRequired:
-            return "Sign in is required."
-        case .aiCardLimitExceeded(let maximum):
-            return "This plan allows up to \(maximum) cards per generation."
-        case .freeGenerationLimitReached:
-            return "Free AI generation limit reached."
         }
     }
 }

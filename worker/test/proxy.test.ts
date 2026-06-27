@@ -1,6 +1,7 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, firestoreFreeQuotaPatchBody, promptStartResponse} from "../src";
+import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse} from "../src";
+import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
@@ -62,14 +63,89 @@ describe("QuizFlash AI proxy", () => {
     expect(response.usageQuota).toEqual(usageQuota);
   });
 
-  it("builds a narrow Firestore free quota patch body", () => {
-    expect(firestoreFreeQuotaPatchBody(5, 5, 0)).toEqual({
-      fields: {
-        freeGenerationsUsed: {integerValue: "5"},
-        freeGenerationsLimit: {integerValue: "5"},
-        updatedAt: {timestampValue: "1970-01-01T00:00:00.000Z"}
+  it("uses Firestore values as the canonical account snapshot", () => {
+    const account = parseFirestoreAccountState(
+      "user",
+      "202606",
+      {
+        fields: {
+          plan: {stringValue: "free"},
+          freeGenerationsUsed: {integerValue: "0"},
+          freeGenerationsLimit: {integerValue: "7"}
+        }
+      },
+      {
+        fields: {
+          generatedCards: {integerValue: "20"},
+          requestCount: {integerValue: "2"},
+          costMicroUSD: {integerValue: "900"}
+        }
       }
+    );
+
+    expect(account.freeGenerationsUsed).toBe(0);
+    expect(account.freeGenerationsLimit).toBe(7);
+    expect(account.monthlyUsage.costMicroUSD).toBe(900);
+    expect(account.monthlyUsage.requestCount).toBe(2);
+  });
+
+  it("increments canonical free and monthly usage from the latest Firestore value", () => {
+    const account = parseFirestoreAccountState("user", "202606", {
+      fields: {
+        plan: {stringValue: "free"},
+        freeGenerationsUsed: {integerValue: "0"},
+        freeGenerationsLimit: {integerValue: "5"}
+      }
+    }, null);
+    const next = applyingUsageDelta(account, {
+      generationId: "generation",
+      status: "succeeded",
+      premiumAtStart: false,
+      validatedCards: 15,
+      costMicroUSD: 1200,
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      cacheHitTokens: 10,
+      cacheMissTokens: 90
     });
+
+    expect(next.freeGenerationsUsed).toBe(1);
+    expect(next.monthlyUsage).toMatchObject({
+      generatedCards: 15,
+      requestCount: 1,
+      freeRequestCount: 1,
+      premiumRequestCount: 0,
+      costMicroUSD: 1200,
+      totalTokens: 150
+    });
+  });
+
+  it("accounts failed premium provider cost without consuming free quota", () => {
+    const account = parseFirestoreAccountState("user", "202606", {
+      fields: {
+        plan: {stringValue: "premium"},
+        freeGenerationsUsed: {integerValue: "3"},
+        freeGenerationsLimit: {integerValue: "5"}
+      }
+    }, null);
+    const next = applyingUsageDelta(account, {
+      generationId: "generation",
+      status: "failed",
+      premiumAtStart: true,
+      validatedCards: 0,
+      costMicroUSD: 400,
+      promptTokens: 20,
+      completionTokens: 0,
+      totalTokens: 20,
+      cacheHitTokens: 0,
+      cacheMissTokens: 20
+    });
+
+    expect(next.freeGenerationsUsed).toBe(3);
+    expect(next.monthlyUsage.requestCount).toBe(1);
+    expect(next.monthlyUsage.premiumRequestCount).toBe(1);
+    expect(next.monthlyUsage.costMicroUSD).toBe(400);
   });
 
   it("calculates exact DeepSeek cost from returned usage and response model", () => {

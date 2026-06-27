@@ -1,4 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
+import {
+  finalizeFirestoreGenerationUsage,
+  readFirestoreAccountState,
+  type FirestoreAccountState
+} from "./firestoreUsage";
 import {defaultPromptBundle, type PromptBundleRecord, validatedPromptBundle} from "./promptBundle";
 
 type Env = {
@@ -14,13 +19,6 @@ type Env = {
   PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD: string;
 };
 
-type Entitlement = {
-  uid: string;
-  premium: boolean;
-  freeGenerationsUsed: number;
-  freeGenerationsLimit: number;
-};
-
 type StartRequest = {
   idempotencyKey?: unknown;
   targetCards?: unknown;
@@ -30,7 +28,7 @@ type StartRequest = {
 type SessionStart = {
   idempotencyKey: string;
   targetCards: number;
-  entitlement: Entitlement;
+  uid: string;
   promptVersion: string;
   promptHash: string;
 };
@@ -134,6 +132,17 @@ type ProviderCallAccountingResult = {
   event: UsageEventResponse;
 };
 
+type GenerationAccountingRow = {
+  uid: string;
+  premium: number;
+  cost_micro_usd: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_tokens: number;
+  total_cache_hit_tokens: number;
+  total_cache_miss_tokens: number;
+};
+
 type UsageEventResponse = {
   providerCallId: string;
   pricingVersion: string;
@@ -147,7 +156,6 @@ type UsageEventResponse = {
 
 type ProviderAccountingStatus = "accounted" | "accounting_error" | "not_billable";
 
-const freeLifetimeGenerationLimit = 5;
 const freeMaxCardsPerGeneration = 30;
 const premiumMaxCardsPerGeneration = 100;
 const premiumPlan = "premium";
@@ -176,30 +184,39 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     if (active && active.expiresAtMs > now && active.idempotencyKey !== input.idempotencyKey) {
       return sessionRejection(429, "resource-exhausted", "Another AI generation is already running.");
     }
+    const account = await readFirestoreAccountState(input.uid, monthKey(now), this.env);
+    await this.syncD1UsageCache(account, now);
 
     const existing = await this.env.AI_DB.prepare(
       "SELECT id, status, premium, target_cards FROM ai_generations WHERE uid = ? AND idempotency_key = ?"
-    ).bind(input.entitlement.uid, input.idempotencyKey).first<{ id: string; status: string; premium: number; target_cards: number }>();
+    ).bind(input.uid, input.idempotencyKey).first<{ id: string; status: string; premium: number; target_cards: number }>();
 
     if (existing?.status === "succeeded" || existing?.status === "partial") {
       return {
         kind: "session",
-        session: await this.sessionResponse(existing.id, input.entitlement.uid, existing.premium === 1, existing.target_cards, now)
+        session: await this.sessionResponse(existing.id, existing.target_cards, now, account)
       };
     }
 
-    const quota = await this.ensureFreeQuota(input.entitlement, now);
-    if (!input.entitlement.premium && quota.used >= quota.limit) {
-      return sessionRejection(429, "resource-exhausted", "Free AI generation limit reached.", await this.entitlementResponse(input.entitlement.uid, false));
+    if (
+      !account.premium &&
+      account.freeGenerationsUsed >= account.freeGenerationsLimit
+    ) {
+      return sessionRejection(
+        429,
+        "resource-exhausted",
+        "Free AI generation limit reached.",
+        await this.entitlementResponse(account)
+      );
     }
 
-    const maxCards = input.entitlement.premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
+    const maxCards = account.premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
     if (input.targetCards > maxCards) {
       return sessionRejection(412, "failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
     }
 
-    if (input.entitlement.premium) {
-      const usageQuota = await this.entitlementResponse(input.entitlement.uid, true);
+    if (account.premium) {
+      const usageQuota = await this.entitlementResponse(account);
       if ((usageQuota.availableMicroUSD ?? 0) <= 0) {
         return sessionRejection(429, "AI_QUOTA_EXHAUSTED", "Monthly AI budget reached.", usageQuota);
       }
@@ -213,9 +230,9 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         ) VALUES (?, ?, ?, 'reserved', ?, ?, ?, ?, ?, ?)`
       ).bind(
         generationId,
-        input.entitlement.uid,
+        input.uid,
         input.idempotencyKey,
-        input.entitlement.premium ? 1 : 0,
+        account.premium ? 1 : 0,
         input.targetCards,
         input.promptVersion,
         input.promptHash,
@@ -224,13 +241,13 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       ).run();
     }
 
-    const response = await this.sessionResponse(generationId, input.entitlement.uid, input.entitlement.premium, input.targetCards, now);
+    const response = await this.sessionResponse(generationId, input.targetCards, now, account);
     await this.ctx.storage.put("active", {
       generationId,
       idempotencyKey: input.idempotencyKey,
       sessionToken: response.sessionToken as string,
-      uid: input.entitlement.uid,
-      premium: input.entitlement.premium,
+      uid: input.uid,
+      premium: account.premium,
       targetCards: input.targetCards,
       expiresAtMs: now + activeSessionTTLMilliseconds
     } satisfies SessionState);
@@ -254,38 +271,20 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const active = await this.authorize(generationId, sessionToken);
     const now = Date.now();
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
-    const generation = await this.env.AI_DB.prepare(
-      "SELECT uid, premium, cost_micro_usd FROM ai_generations WHERE id = ?"
-    ).bind(generationId).first<{ uid: string; premium: number; cost_micro_usd: number }>();
+    const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
-    const costMicroUSD = Math.max(0, generation.cost_micro_usd);
-
-    const statements: D1PreparedStatement[] = [
-      this.env.AI_DB.prepare(
-        "UPDATE ai_generations SET status = ?, validated_cards = ?, updated_at_ms = ?, completed_at_ms = ? WHERE id = ?"
-      ).bind(finalStatus, validatedCards, now, now, generationId),
-      this.env.AI_DB.prepare(
-        `INSERT INTO ai_monthly_usage (uid, period, generated_cards, request_count, cost_micro_usd, reserved_cost_micro_usd, updated_at_ms)
-         VALUES (?, ?, ?, 1, ?, 0, ?)
-         ON CONFLICT(uid, period) DO UPDATE SET
-           generated_cards = generated_cards + excluded.generated_cards,
-           request_count = request_count + 1,
-           cost_micro_usd = cost_micro_usd + excluded.cost_micro_usd,
-           updated_at_ms = excluded.updated_at_ms`
-      ).bind(generation.uid, monthKey(now), validatedCards, costMicroUSD, now)
-    ];
-    if (generation.premium === 0 && validatedCards > 0) {
-      statements.push(this.env.AI_DB.prepare(
-        "UPDATE ai_free_quota SET used_generations = used_generations + 1, updated_at_ms = ? WHERE uid = ?"
-      ).bind(now, generation.uid));
-    }
-    await this.env.AI_DB.batch(statements);
+    const account = await finalizeFirestoreGenerationUsage(
+      generation.uid,
+      monthKey(now),
+      generationUsageDelta(generationId, finalStatus, validatedCards, generation),
+      this.env
+    );
+    await this.env.AI_DB.prepare(
+      "UPDATE ai_generations SET status = ?, validated_cards = ?, updated_at_ms = ?, completed_at_ms = ? WHERE id = ?"
+    ).bind(finalStatus, validatedCards, now, now, generationId).run();
+    await this.syncD1UsageCache(account, now);
     await this.clearActive(generationId);
-    const usageQuota = await this.entitlementResponse(generation.uid, generation.premium === 1);
-    if (generation.premium === 0 && validatedCards > 0) {
-      await syncFirestoreFreeQuotaBestEffort(generation.uid, usageQuota, this.env);
-    }
-    return usageQuota;
+    return this.entitlementResponse(account);
   }
 
   async fail(generationId: string, sessionToken: string): Promise<QuotaResponse> {
@@ -295,20 +294,29 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
   private async failLocked(generationId: string, sessionToken: string): Promise<QuotaResponse> {
     await this.authorize(generationId, sessionToken);
     const now = Date.now();
-    const generation = await this.env.AI_DB.prepare(
-      "SELECT uid, premium FROM ai_generations WHERE id = ?"
-    ).bind(generationId).first<{ uid: string; premium: number }>();
+    const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
+    const account = await finalizeFirestoreGenerationUsage(
+      generation.uid,
+      monthKey(now),
+      generationUsageDelta(generationId, "failed", 0, generation),
+      this.env
+    );
     await this.env.AI_DB.prepare(
       "UPDATE ai_generations SET status = 'failed', updated_at_ms = ?, completed_at_ms = ? WHERE id = ? AND status IN ('reserved', 'running')"
     ).bind(now, now, generationId).run();
+    await this.syncD1UsageCache(account, now);
     await this.clearActive(generationId);
-    return this.entitlementResponse(generation.uid, generation.premium === 1);
+    return this.entitlementResponse(account);
   }
 
-  async entitlement(entitlement: Entitlement): Promise<QuotaResponse> {
-    await this.ensureFreeQuota(entitlement, Date.now());
-    return this.entitlementResponse(entitlement.uid, entitlement.premium);
+  async entitlement(uid: string): Promise<QuotaResponse> {
+    return this.enqueue(async () => {
+      const now = Date.now();
+      const account = await readFirestoreAccountState(uid, monthKey(now), this.env);
+      await this.syncD1UsageCache(account, now);
+      return this.entitlementResponse(account);
+    });
   }
 
   async finalizeProviderCall(input: ProviderCallAccountingInput): Promise<ProviderCallAccountingResult> {
@@ -374,17 +382,33 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     await this.enqueue(async () => {
       const active = await this.ctx.storage.get<SessionState>("active");
       if (active && active.expiresAtMs <= Date.now()) {
+        const now = Date.now();
+        const generation = await this.generationAccountingRow(active.generationId);
+        if (generation) {
+          const account = await finalizeFirestoreGenerationUsage(
+            generation.uid,
+            monthKey(now),
+            generationUsageDelta(active.generationId, "expired", 0, generation),
+            this.env
+          );
+          await this.syncD1UsageCache(account, now);
+        }
         await this.env.AI_DB.prepare(
           "UPDATE ai_generations SET status = 'expired', updated_at_ms = ? WHERE id = ? AND status IN ('reserved', 'running')"
-        ).bind(Date.now(), active.generationId).run();
+        ).bind(now, active.generationId).run();
         await this.clearActive(active.generationId);
       }
     });
   }
 
-  private async sessionResponse(generationId: string, uid: string, premium: boolean, targetCards: number, now: number): Promise<GenerationSessionResponse> {
+  private async sessionResponse(
+    generationId: string,
+    targetCards: number,
+    now: number,
+    account: FirestoreAccountState
+  ): Promise<GenerationSessionResponse> {
     const sessionToken = await sessionTokenFor(generationId, this.env.RESPONSE_CACHE_ENCRYPTION_KEY);
-    const usageQuota = await this.entitlementResponse(uid, premium);
+    const usageQuota = await this.entitlementResponse(account);
     return {
       generationId,
       sessionToken,
@@ -395,22 +419,19 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     };
   }
 
-  private async entitlementResponse(uid: string, premium: boolean): Promise<QuotaResponse> {
-    const quota = await this.env.AI_DB.prepare(
-      "SELECT used_generations, limit_generations FROM ai_free_quota WHERE uid = ?"
-    ).bind(uid).first<{ used_generations: number; limit_generations: number }>();
+  private async entitlementResponse(account: FirestoreAccountState): Promise<QuotaResponse> {
     const monthly = await this.env.AI_DB.prepare(
-      "SELECT cost_micro_usd, reserved_cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
-    ).bind(uid, monthKey(Date.now())).first<{ cost_micro_usd: number; reserved_cost_micro_usd: number }>();
-    const consumed = Math.max(0, monthly?.cost_micro_usd ?? 0);
+      "SELECT reserved_cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
+    ).bind(account.uid, account.monthlyUsage.period).first<{ reserved_cost_micro_usd: number }>();
+    const consumed = Math.max(0, account.monthlyUsage.costMicroUSD);
     const reserved = Math.max(0, monthly?.reserved_cost_micro_usd ?? 0);
-    const limit = premium ? await activePlanLimitMicroUSD(this.env, premiumPlan) : null;
+    const limit = account.premium ? await activePlanLimitMicroUSD(this.env, premiumPlan) : null;
     const available = limit === null ? null : Math.max(0, limit - consumed - reserved);
     const percent = limit && limit > 0 ? Math.min(1, (consumed + reserved) / limit) : null;
     return {
-      premium,
-      freeGenerationsUsed: premium ? null : quota?.used_generations ?? 0,
-      freeGenerationsLimit: premium ? null : quota?.limit_generations ?? freeLifetimeGenerationLimit,
+      premium: account.premium,
+      freeGenerationsUsed: account.premium ? null : account.freeGenerationsUsed,
+      freeGenerationsLimit: account.premium ? null : account.freeGenerationsLimit,
       monthlyCostMicroUSD: consumed,
       limitMicroUSD: limit,
       consumedMicroUSD: consumed,
@@ -420,17 +441,57 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     };
   }
 
-  private async ensureFreeQuota(entitlement: Entitlement, now: number): Promise<{ used: number; limit: number }> {
-    const existing = await this.env.AI_DB.prepare(
-      "SELECT used_generations, limit_generations FROM ai_free_quota WHERE uid = ?"
-    ).bind(entitlement.uid).first<{ used_generations: number; limit_generations: number }>();
-    if (existing) return {used: existing.used_generations, limit: existing.limit_generations};
-    const used = Math.max(0, entitlement.freeGenerationsUsed);
-    const limit = Math.max(1, entitlement.freeGenerationsLimit || freeLifetimeGenerationLimit);
-    await this.env.AI_DB.prepare(
-      "INSERT INTO ai_free_quota (uid, used_generations, limit_generations, initialized_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?)"
-    ).bind(entitlement.uid, used, limit, now, now).run();
-    return {used, limit};
+  private async syncD1UsageCache(account: FirestoreAccountState, now: number): Promise<void> {
+    await this.env.AI_DB.batch([
+      this.env.AI_DB.prepare(
+        `INSERT INTO ai_free_quota (uid, used_generations, limit_generations, initialized_at_ms, updated_at_ms)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(uid) DO UPDATE SET
+           used_generations = excluded.used_generations,
+           limit_generations = excluded.limit_generations,
+           updated_at_ms = excluded.updated_at_ms`
+      ).bind(
+        account.uid,
+        account.freeGenerationsUsed,
+        account.freeGenerationsLimit,
+        now,
+        now
+      ),
+      this.env.AI_DB.prepare(
+        `INSERT INTO ai_monthly_usage (
+          uid, period, generated_cards, request_count, cost_micro_usd,
+          reserved_cost_micro_usd, updated_at_ms
+        ) VALUES (?, ?, ?, ?, ?, 0, ?)
+        ON CONFLICT(uid, period) DO UPDATE SET
+          generated_cards = excluded.generated_cards,
+          request_count = excluded.request_count,
+          cost_micro_usd = excluded.cost_micro_usd,
+          updated_at_ms = excluded.updated_at_ms`
+      ).bind(
+        account.uid,
+        account.monthlyUsage.period,
+        account.monthlyUsage.generatedCards,
+        account.monthlyUsage.requestCount,
+        account.monthlyUsage.costMicroUSD,
+        now
+      )
+    ]);
+  }
+
+  private async generationAccountingRow(generationId: string): Promise<GenerationAccountingRow | null> {
+    return this.env.AI_DB.prepare(
+      `SELECT
+        uid,
+        premium,
+        cost_micro_usd,
+        total_prompt_tokens,
+        total_completion_tokens,
+        total_tokens,
+        total_cache_hit_tokens,
+        total_cache_miss_tokens
+      FROM ai_generations
+      WHERE id = ?`
+    ).bind(generationId).first<GenerationAccountingRow>();
   }
 
   private async clearActive(generationId: string): Promise<void> {
@@ -501,27 +562,18 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
     stage = "prompt_config";
     const promptConfig = await activePromptConfig(env);
     stage = "entitlement";
-    const profile = await readFirestoreProfile(uid, env);
-    const entitlement: Entitlement = {
-      uid,
-      premium: profile.premium,
-      freeGenerationsUsed: profile.freeGenerationsUsed,
-      freeGenerationsLimit: profile.freeGenerationsLimit
-    };
     stage = "session_reservation";
     const stub = env.USER_GENERATION.getByName(uid);
     const startResult = await stub.start({
       idempotencyKey,
       targetCards,
-      entitlement,
+      uid,
       promptVersion: promptConfig.version,
       promptHash: promptConfig.hash
     });
     if (startResult.kind === "rejection") {
-      await syncFirestoreFreeQuotaIfChanged(uid, startResult.usageQuota, profile, env);
       throw new WorkerError(startResult.status, startResult.code, startResult.message, startResult.usageQuota);
     }
-    await syncFirestoreFreeQuotaIfChanged(uid, startResult.session.usageQuota, profile, env);
     return promptStartResponse({...startResult.session}, promptConfig, knownPromptVersion);
   } catch (error) {
     if (!(error instanceof WorkerError)) {
@@ -605,14 +657,7 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
 
 async function readEntitlement(request: Request, env: Env): Promise<Record<string, unknown>> {
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
-  const profile = await readFirestoreProfile(uid, env);
-  const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement({
-    uid,
-    premium: profile.premium,
-    freeGenerationsUsed: profile.freeGenerationsUsed,
-    freeGenerationsLimit: profile.freeGenerationsLimit
-  });
-  await syncFirestoreFreeQuotaIfChanged(uid, usageQuota, profile, env);
+  const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement(uid);
   return {...usageQuota};
 }
 
@@ -654,72 +699,6 @@ async function readUsageGenerations(request: Request, env: Env): Promise<Record<
       createdAtMs: Math.max(0, row.createdAtMs ?? 0),
       completedAtMs: row.completedAtMs ?? null
     }))
-  };
-}
-
-async function syncFirestoreFreeQuotaIfChanged(
-  uid: string,
-  usageQuota: QuotaResponse | undefined,
-  profile: Omit<Entitlement, "uid">,
-  env: Env
-): Promise<void> {
-  if (!usageQuota || usageQuota.premium) return;
-  if (usageQuota.freeGenerationsUsed === null || usageQuota.freeGenerationsLimit === null) return;
-  if (
-    usageQuota.freeGenerationsUsed === profile.freeGenerationsUsed &&
-    usageQuota.freeGenerationsLimit === profile.freeGenerationsLimit
-  ) {
-    return;
-  }
-  await syncFirestoreFreeQuotaBestEffort(uid, usageQuota, env);
-}
-
-async function syncFirestoreFreeQuotaBestEffort(uid: string, usageQuota: QuotaResponse, env: Env): Promise<void> {
-  if (usageQuota.premium) return;
-  if (usageQuota.freeGenerationsUsed === null || usageQuota.freeGenerationsLimit === null) return;
-
-  try {
-    const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    const documentPath = `projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
-    const url = new URL(`https://firestore.googleapis.com/v1/${documentPath}`);
-    url.searchParams.append("updateMask.fieldPaths", "freeGenerationsUsed");
-    url.searchParams.append("updateMask.fieldPaths", "freeGenerationsLimit");
-    url.searchParams.append("updateMask.fieldPaths", "updatedAt");
-
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(firestoreFreeQuotaPatchBody(
-        usageQuota.freeGenerationsUsed,
-        usageQuota.freeGenerationsLimit
-      ))
-    });
-    if (!response.ok) {
-      console.error(JSON.stringify({
-        event: "firestore_free_quota_sync_failed",
-        status: response.status,
-        uid
-      }));
-    }
-  } catch (error) {
-    console.error(JSON.stringify({
-      event: "firestore_free_quota_sync_failed",
-      error_name: errorName(error),
-      uid
-    }));
-  }
-}
-
-export function firestoreFreeQuotaPatchBody(used: number, limit: number, updatedAtMs = Date.now()): Record<string, unknown> {
-  return {
-    fields: {
-      freeGenerationsUsed: {integerValue: String(Math.max(0, Math.trunc(used)))},
-      freeGenerationsLimit: {integerValue: String(Math.max(1, Math.trunc(limit)))},
-      updatedAt: {timestampValue: new Date(updatedAtMs).toISOString()}
-    }
   };
 }
 
@@ -886,49 +865,6 @@ async function verifyFirebaseIDToken(idToken: string, env: Env): Promise<string>
   return uid;
 }
 
-async function readFirestoreProfile(uid: string, env: Env): Promise<Omit<Entitlement, "uid">> {
-  const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
-  const response = await fetch(url, {headers: {Authorization: `Bearer ${accessToken}`}});
-  if (response.status === 404) return {premium: false, freeGenerationsUsed: 0, freeGenerationsLimit: freeLifetimeGenerationLimit};
-  if (!response.ok) throw new WorkerError(503, "unavailable", "Subscription profile is unavailable.");
-  const document = await response.json<{ fields?: Record<string, { booleanValue?: boolean; stringValue?: string; integerValue?: string }> }>();
-  const fields = document.fields ?? {};
-  const premium = fields.premium?.booleanValue === true || fields.plan?.stringValue === "premium";
-  return {
-    premium,
-    freeGenerationsUsed: Number(fields.freeGenerationsUsed?.integerValue ?? 0) || 0,
-    freeGenerationsLimit: Number(fields.freeGenerationsLimit?.integerValue ?? freeLifetimeGenerationLimit) || freeLifetimeGenerationLimit
-  };
-}
-
-let cachedServiceAccountToken: { value: string; expiresAtMs: number } | undefined;
-async function serviceAccountAccessToken(secret: string): Promise<string> {
-  if (cachedServiceAccountToken && cachedServiceAccountToken.expiresAtMs > Date.now() + 60_000) return cachedServiceAccountToken.value;
-  const account = JSON.parse(secret) as { client_email: string; private_key: string; token_uri?: string };
-  const tokenURL = account.token_uri ?? "https://oauth2.googleapis.com/token";
-  const now = Math.floor(Date.now() / 1_000);
-  const assertion = await signServiceAccountJWT(account.client_email, account.private_key, tokenURL, now);
-  const response = await fetch(tokenURL, {
-    method: "POST",
-    headers: {"Content-Type": "application/x-www-form-urlencoded"},
-    body: new URLSearchParams({grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion})
-  });
-  const payload = await response.json<{ access_token?: string; expires_in?: number }>();
-  if (!response.ok || !payload.access_token) throw new WorkerError(503, "unavailable", "Subscription profile authorization failed.");
-  cachedServiceAccountToken = {value: payload.access_token, expiresAtMs: Date.now() + (payload.expires_in ?? 3600) * 1_000};
-  return payload.access_token;
-}
-
-async function signServiceAccountJWT(email: string, pem: string, audience: string, now: number): Promise<string> {
-  const encode = (value: unknown) => base64URL(textEncoder.encode(JSON.stringify(value)));
-  const signingInput = `${encode({alg: "RS256", typ: "JWT"})}.${encode({iss: email, scope: "https://www.googleapis.com/auth/datastore", aud: audience, iat: now, exp: now + 3600})}`;
-  const binary = pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const key = await crypto.subtle.importKey("pkcs8", bytesToArrayBuffer(base64ToBytes(binary)), {name: "RSASSA-PKCS1-v1_5", hash: "SHA-256"}, false, ["sign"]);
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, textEncoder.encode(signingInput));
-  return `${signingInput}.${base64URL(signature)}`;
-}
-
 async function encryptResponse(data: ArrayBuffer, secret: string): Promise<{ ciphertext: string; iv: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await aesKey(secret);
@@ -1050,6 +986,26 @@ function usageEvent(providerCallId: string, metadata: ProviderMetadata): UsageEv
     completionTokens: metadata.completionTokens,
     totalTokens: metadata.totalTokens,
     responseModel: metadata.model
+  };
+}
+
+function generationUsageDelta(
+  generationId: string,
+  status: "succeeded" | "partial" | "failed" | "expired",
+  validatedCards: number,
+  generation: GenerationAccountingRow
+) {
+  return {
+    generationId,
+    status,
+    premiumAtStart: generation.premium === 1,
+    validatedCards,
+    costMicroUSD: generation.cost_micro_usd,
+    promptTokens: generation.total_prompt_tokens,
+    completionTokens: generation.total_completion_tokens,
+    totalTokens: generation.total_tokens,
+    cacheHitTokens: generation.total_cache_hit_tokens,
+    cacheMissTokens: generation.total_cache_miss_tokens
   };
 }
 

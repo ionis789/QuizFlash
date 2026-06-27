@@ -7,7 +7,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Firebase project: the configured default project in `.firebaserc` is `quizflash-6b0ea`.
 - The iOS app boots Firebase in `App/QuizFlashApp.swift` and uses Firebase Auth, Firestore, and Firebase Functions.
 - Firestore rules are deployed to the fresh `quizflash-6b0ea` project. The project has no legacy user or deck data and must not acquire a first-login migration path.
-- Firestore is the live backend for Auth-linked profiles, background deck sync, manual premium state, and the Spark-compatible free AI quota fallback.
+- Firestore is the canonical backend for Auth-linked profiles, background deck sync, manual premium state, free AI quota, and monthly AI usage.
 - Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
 - Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
 - RevenueCat is not integrated yet. `SubscriptionManager` currently reads Firebase custom claims and the user document; `restorePurchases()` is intentionally a placeholder.
@@ -36,8 +36,9 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 
 - Client-owned profile fields: `email`, `displayName`, `photoURL`, `providers`, and safe presentation metadata.
 - Server-owned or admin-owned fields: `plan`, `premium`, `usage`, `cost`, `freeGenerationsUsed`, and `freeGenerationsLimit`.
-- Current rules permit a signed-in user to create/update their own safe profile fields. They permit exactly one narrow fallback mutation for a free generation: increment `freeGenerationsUsed` by one while preserving the current limit and only changing that counter plus `updatedAt`.
-- Do not make `plan` or `premium` client-writable. Do not broaden the fallback rule into a general usage write.
+- Current rules permit a signed-in user to create/update only their own safe profile fields. Quota and usage fields are server/admin-owned; the iOS client cannot initialize, increment, or reset them.
+- Do not make `plan`, `premium`, quota, or usage client-writable.
+- Monthly canonical usage is stored at `users/{uid}/usage/{YYYYMM}`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
 - Cloud deck data remains below `users/{uid}/decks/{deckId}/cards/{cardId}`. The current design uses soft deletion because client deletes are denied by the rules; account cleanup is a callable backend operation.
 
 Whenever the document shape changes, update all of these together: the iOS writer/reader, `firestore.rules`, Functions, migration/defaulting logic, and tests or emulator coverage.
@@ -57,11 +58,12 @@ Required behavior:
 
 1. Refresh plan state before presenting or confirming AI generation so a manual/admin entitlement change updates the picker promptly.
 2. Validate `targetCards` in the UI for clear feedback, then validate it again in the Firestore transaction or Callable Function. Never trust the picker clamp.
-3. Read `premium`/`plan` inside the same transaction or trusted server request that consumes quota. Do not authorize from stale client memory.
+3. Read `premium`/`plan` and current usage from Firestore inside the trusted Worker request that authorizes or finalizes quota. Do not authorize from stale client memory or D1.
 4. Update the UI from the authoritative response or Firestore listener after a successful mutation.
-5. Make retries idempotent. A network retry must not consume two generations or create two paid requests. Add an idempotency key/request document before enabling the cloud generation path for users.
-6. Do not charge a free generation for a failed provider request. The current Spark fallback consumes before direct generation; treat that as a known temporary limitation. The production callable generation path should reserve, call the provider, then atomically finalize usage only after a valid response, with recovery for interrupted reservations.
-7. Test at least free request 1, free request 5, rejected request 6, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, plan changes while the app is open, and two concurrent requests.
+5. Make retries idempotent. Firestore `usageEvents/{generationId}` is created in the same atomic commit as the quota/usage mutation, so a network retry cannot consume twice.
+6. Do not charge a free generation for a failed provider request. Provider cost and tokens are still recorded for failed/expired requests that reached DeepSeek.
+7. D1 is operational storage only: generation sessions, provider-call idempotency, encrypted retry responses, prompt configuration, and a replaceable usage cache. Every authorization starts from Firestore, and D1 usage rows are overwritten from the canonical Firestore snapshot.
+8. Test at least free request 1, free request 5, rejected request 6, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, plan changes while the app is open, and two concurrent requests.
 
 ## DeepSeek Production Boundary
 
@@ -69,7 +71,7 @@ The trusted production boundary is the `quizflash-ai` Cloudflare Worker, not Fir
 
 1. Keep `DEEPSEEK_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`, and `RESPONSE_CACHE_ENCRYPTION_KEY` only as Cloudflare Worker secrets. Never place their values in the app, repository, Firestore, traces, screenshots, or chat.
 2. Release iOS sends the OpenAI-compatible DeepSeek body through the Worker. The Worker validates auth/session/model/minimal structure, then forwards raw request bytes and returns raw response bytes without prompt rewriting, JSON repair, DTO mapping, title generation, or LaTeX processing.
-3. Enforce free/premium card limits, free quota, premium monthly budget, per-user concurrency, idempotency, and provider-call retry caching in the Worker using Firebase profile reads, Durable Objects, and D1.
+3. Enforce free/premium card limits, free quota, and premium monthly budget in the Worker from canonical Firestore values. Use Durable Objects for per-user concurrency and D1 for operational sessions, telemetry, prompt configuration, and retry caching.
 4. Keep iOS as the owner of planner allocations, dynamic message composition, retries, generated-title flow, card DTO decoding, LaTeX normalization, and SwiftData insertion. Title and card requests must share the same transparent proxy path.
 5. Record only operational metadata in D1: generation/provider-call IDs, model, token usage, estimated `microUSD` cost, response status, duration, and encrypted short-lived retry response. Do not store source text or prompt text in telemetry.
 6. Derive cost from the response model plus cache-hit, cache-miss, and completion token usage. Do not use the client-requested model alias as the billing source.

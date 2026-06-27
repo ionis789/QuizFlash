@@ -51,7 +51,6 @@ final class CloudUserProfileService {
 
         do {
             try await upsertUserProfileDirectly(for: user)
-            try await ensureInitialFreeAccountState(for: user.uid)
             await upsertUserProfileThroughFunctionIfAvailable(for: user)
             lastUpsertedUID = user.uid
             lastErrorMessage = nil
@@ -83,45 +82,6 @@ final class CloudUserProfileService {
             .collection("users")
             .document(user.uid)
             .setData(payload, merge: true)
-    }
-
-    private func ensureInitialFreeAccountState(for uid: String) async throws {
-        let userRef = firestore.collection("users").document(uid)
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            firestore.runTransaction({ transaction, errorPointer -> Any? in
-                let snapshot: DocumentSnapshot
-                do {
-                    snapshot = try transaction.getDocument(userRef)
-                } catch {
-                    errorPointer?.pointee = error as NSError
-                    return nil
-                }
-
-                let data = snapshot.data() ?? [:]
-                guard data["premium"] == nil, data["plan"] == nil else {
-                    return nil
-                }
-
-                let used = data["freeGenerationsUsed"] as? Int ?? 0
-                let limit = data["freeGenerationsLimit"] as? Int ?? SubscriptionManager.defaultFreeGenerationsLimit
-
-                transaction.setData([
-                    "plan": "free",
-                    "freeGenerationsUsed": used,
-                    "freeGenerationsLimit": limit,
-                    "updatedAt": FieldValue.serverTimestamp()
-                ], forDocument: userRef, merge: true)
-
-                return nil
-            }) { _, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
-        }
     }
 
     private func upsertUserProfileThroughFunctionIfAvailable(for user: AuthUserSnapshot) async {

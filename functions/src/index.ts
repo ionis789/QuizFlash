@@ -55,7 +55,6 @@ export const upsertUserProfile = onCall({enforceAppCheck: false}, async (request
     displayName: stringOrNull(data.displayName),
     photoURL: stringOrNull(data.photoURL),
     providers: Array.isArray(data.providers) ? data.providers.filter((value) => typeof value === "string") : [],
-    freeGenerationsLimit: freeLifetimeGenerationLimit,
     updatedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp()
   }, {merge: true});
@@ -130,6 +129,10 @@ export const generateDeck = onCall({
   const user = userSnapshot.data() ?? {};
   const premium = request.auth?.token.premium === true || user.premium === true || user.plan === "premium";
   const maxCards = premium ? premiumMaxCardsPerGeneration : freeMaxCardsPerGeneration;
+  const freeGenerationsLimit = positiveNumberOrDefault(
+    user.freeGenerationsLimit,
+    freeLifetimeGenerationLimit
+  );
 
   if (targetCards > maxCards) {
     throw new HttpsError("failed-precondition", `This plan allows up to ${maxCards} cards per generation.`);
@@ -137,7 +140,7 @@ export const generateDeck = onCall({
 
   if (!premium) {
     const used = numberOrZero(user.freeGenerationsUsed);
-    if (used >= freeLifetimeGenerationLimit) {
+    if (used >= freeGenerationsLimit) {
       throw new HttpsError("resource-exhausted", "Free AI generation limit reached.");
     }
   }
@@ -184,7 +187,7 @@ export const generateDeck = onCall({
   if (!premium) {
     writeBatch.set(userRef, {
       freeGenerationsUsed: FieldValue.increment(1),
-      freeGenerationsLimit: freeLifetimeGenerationLimit,
+      freeGenerationsLimit,
       updatedAt: FieldValue.serverTimestamp()
     }, {merge: true});
   }
@@ -203,7 +206,7 @@ export const generateDeck = onCall({
     title: null,
     cards: batch.cards,
     freeGenerationsUsed: premium ? null : numberOrZero(user.freeGenerationsUsed) + 1,
-    freeGenerationsLimit: premium ? null : freeLifetimeGenerationLimit
+    freeGenerationsLimit: premium ? null : freeGenerationsLimit
   };
 });
 

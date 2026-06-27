@@ -8,7 +8,7 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerQuotaTests: XCTestCase {
-    func testFreeQuotaDoesNotRegressAfterAuthoritativeLimitReachedState() {
+    func testFreeQuotaAcceptsAuthoritativeReset() {
         let manager = SubscriptionManager()
 
         manager.applyCloudAIQuotaState(CloudAIQuotaState(
@@ -25,7 +25,28 @@ final class SubscriptionManagerQuotaTests: XCTestCase {
             monthlyCostMicroUSD: 0
         ))
 
-        XCTAssertEqual(manager.freeGenerationsUsed, 5)
+        XCTAssertEqual(manager.freeGenerationsUsed, 0)
+        XCTAssertEqual(manager.freeGenerationsLimit, 5)
+    }
+
+    func testFirestoreDowngradeReplacesCachedPremiumState() {
+        let manager = SubscriptionManager()
+
+        manager.applyCloudAIQuotaState(CloudAIQuotaState(
+            premium: true,
+            freeGenerationsUsed: nil,
+            freeGenerationsLimit: nil,
+            monthlyCostMicroUSD: 50
+        ))
+        manager.applyCloudAIQuotaState(CloudAIQuotaState(
+            premium: false,
+            freeGenerationsUsed: 2,
+            freeGenerationsLimit: 5,
+            monthlyCostMicroUSD: 50
+        ))
+
+        XCTAssertFalse(manager.isPremium)
+        XCTAssertEqual(manager.freeGenerationsUsed, 2)
         XCTAssertEqual(manager.freeGenerationsLimit, 5)
     }
 }
