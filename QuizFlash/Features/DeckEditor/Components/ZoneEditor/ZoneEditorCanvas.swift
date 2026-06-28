@@ -110,7 +110,6 @@ struct ZoneEditorCanvas: View {
     @State private var renderLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
     @State private var pendingScrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var viewportScreenFrame: CGRect = .zero
-    @State private var alignmentMenuWindowFrame: CGRect?
     @State private var rawLayoutDebugSnapshot: ZoneEditorLayoutDebugSnapshot?
     @State private var renderLayoutDebugSnapshot: ZoneEditorLayoutDebugSnapshot?
     @State private var lastLayoutDebugSnapshotTime: CFTimeInterval = 0
@@ -969,7 +968,6 @@ struct ZoneEditorCanvas: View {
         withAnimation(.easeOut(duration: 0.16)) {
             alignmentMenuState = nil
         }
-        alignmentMenuWindowFrame = nil
         alignmentWiggleTask?.cancel()
         alignmentWiggleTask = nil
         alignmentWiggleTarget = nil
@@ -1125,15 +1123,7 @@ struct ZoneEditorCanvas: View {
                 .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
-        .position(
-            x: position.x + (menuWidth / 2),
-            y: position.y + (menuHeight / 2)
-        )
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { frame in
-            alignmentMenuWindowFrame = frame
-        }
+        .offset(x: position.x, y: position.y)
         .transition(.scale(scale: 0.82, anchor: transitionAnchor).combined(with: .opacity))
         .zIndex(4)
     }
@@ -1188,6 +1178,10 @@ struct ZoneEditorCanvas: View {
             contentWidth: contentWidth
         )
         let preferredY = menuState.anchor.y + Self.alignmentMenuVerticalSpacing
+        if rendersRichText {
+            return CGPoint(x: x, y: preferredY)
+        }
+
         let visibleTopY = renderVisibleContentTopY
         let visibleBottomY = visibleTopY + max(viewportScreenFrame.height, menuHeight)
         let minY = visibleTopY + 8
@@ -2151,25 +2145,10 @@ struct ZoneEditorCanvas: View {
         let tappedAlignmentMenuInContent = alignmentMenuFrame?
             .insetBy(dx: -24, dy: -24)
             .contains(contentPoint) ?? false
-        let tappedAlignmentMenuInWindow = alignmentMenuWindowFrame?
-            .insetBy(dx: -24, dy: -24)
-            .contains(snapshot.windowPoint) ?? false
-        let tappedAlignmentMenuButton = alignmentMenuWindowFrame?
-            .contains(snapshot.windowPoint) ?? false
-        let tappedAlignmentMenu = tappedAlignmentMenuInContent || tappedAlignmentMenuInWindow
+        let tappedAlignmentMenu = tappedAlignmentMenuInContent
         let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
         let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
         let menuIsOpen = alignmentMenuState != nil
-        let shouldPerformMenuAction = isCompletedTap
-            && snapshot.isTapLike
-            && menuIsOpen
-            && tappedAlignmentMenuButton
-            && !recentlyInteractedWithMenu
-        let shouldDismiss = isCompletedTap
-            && snapshot.isTapLike
-            && !recentlyInteractedWithMenu
-            && menuIsOpen
-            && !tappedAlignmentMenu
         let shouldSelectGroup = isCompletedTap
             && snapshot.isTapLike
             && !menuIsOpen
@@ -2190,17 +2169,10 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) menuFrame=\(alignmentMenuWindowFrame.map(traceRect) ?? "nil") recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldPerformMenuAction ? "MENU_ACTION" : shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu && !menuIsOpen ? "SELECT" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(menuIsOpen ? "KEEP_MENU_OPEN" : shouldSelectGroup ? "SELECT_GROUP" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
         )
 
-        if shouldPerformMenuAction,
-           let menuWindowFrame = alignmentMenuWindowFrame {
-            let direction: ZoneAlignmentDirection = snapshot.windowPoint.x < menuWindowFrame.midX ? .left : .right
-            lastAlignmentMenuInteractionTime = CACurrentMediaTime()
-            recordInteractionTrace(
-                "WINDOW MENU_ACTION direction=\(direction) frame=\(traceRect(menuWindowFrame)) point=\(tracePoint(snapshot.windowPoint))"
-            )
-            performAlignmentAction(direction)
+        if menuIsOpen {
             return
         }
 
@@ -2231,9 +2203,6 @@ struct ZoneEditorCanvas: View {
               !tappedAlignmentMenu,
               let tappedFrame,
               content.zone(at: tappedFrame.path) != nil else {
-            if shouldDismiss {
-                dismissAlignmentMenu()
-            }
             return
         }
 
