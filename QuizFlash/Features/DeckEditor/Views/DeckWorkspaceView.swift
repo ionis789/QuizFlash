@@ -54,9 +54,9 @@ struct DeckWorkspaceView: View {
     @State var aiAccessAlertMessage = ""
     @State var showAIAccessAlert = false
     @State var isCheckingAIAccess = false
-    @State var showsGenerationCompletionCheckmark = false
+    @State var showsGenerationCompletionDone = false
     @State var didReachAIGenerationAlmostReady = false
-    @State var generationCompletionCheckmarkTask: Task<Void, Never>?
+    @State var generationCompletionDoneTask: Task<Void, Never>?
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -388,7 +388,7 @@ struct DeckWorkspaceView: View {
             }
             .onDisappear {
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
-                dismissGenerationCompletionCheckmark(animated: false)
+                dismissGenerationCompletionDone(animated: false)
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
@@ -418,12 +418,12 @@ struct DeckWorkspaceView: View {
     ) {
         if oldValue == nil, newValue != nil {
             didReachAIGenerationAlmostReady = false
-            dismissGenerationCompletionCheckmark(animated: true)
+            dismissGenerationCompletionDone(animated: true)
         }
 
         if newValue == .preparingRequest {
             didReachAIGenerationAlmostReady = false
-            dismissGenerationCompletionCheckmark(animated: true)
+            dismissGenerationCompletionDone(animated: true)
         }
 
         if newValue == .almostReady {
@@ -435,38 +435,38 @@ struct DeckWorkspaceView: View {
         didReachAIGenerationAlmostReady = false
 
         if shouldShowCompletion {
-            presentGenerationCompletionCheckmark()
+            presentGenerationCompletionDone()
         } else {
-            dismissGenerationCompletionCheckmark(animated: true)
+            dismissGenerationCompletionDone(animated: true)
         }
     }
 
-    func presentGenerationCompletionCheckmark() {
-        generationCompletionCheckmarkTask?.cancel()
+    func presentGenerationCompletionDone() {
+        generationCompletionDoneTask?.cancel()
         withAnimation(generationPhaseAnimation) {
-            showsGenerationCompletionCheckmark = true
+            showsGenerationCompletionDone = true
         }
 
-        generationCompletionCheckmarkTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 900_000_000)
+        generationCompletionDoneTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_050_000_000)
             guard !Task.isCancelled else { return }
             withAnimation(generationPhaseAnimation) {
-                showsGenerationCompletionCheckmark = false
+                showsGenerationCompletionDone = false
             }
         }
     }
 
-    func dismissGenerationCompletionCheckmark(animated: Bool) {
-        generationCompletionCheckmarkTask?.cancel()
-        generationCompletionCheckmarkTask = nil
+    func dismissGenerationCompletionDone(animated: Bool) {
+        generationCompletionDoneTask?.cancel()
+        generationCompletionDoneTask = nil
 
-        guard showsGenerationCompletionCheckmark else { return }
+        guard showsGenerationCompletionDone else { return }
         if animated {
             withAnimation(generationPhaseAnimation) {
-                showsGenerationCompletionCheckmark = false
+                showsGenerationCompletionDone = false
             }
         } else {
-            showsGenerationCompletionCheckmark = false
+            showsGenerationCompletionDone = false
         }
     }
 
