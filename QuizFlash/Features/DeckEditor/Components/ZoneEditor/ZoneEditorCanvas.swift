@@ -2125,15 +2125,15 @@ struct ZoneEditorCanvas: View {
             .contains(contentPoint) ?? false
         let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
         let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
+        let menuIsOpen = alignmentMenuState != nil
         let shouldDismiss = isCompletedTap
             && snapshot.isTapLike
             && !recentlyInteractedWithMenu
-            && alignmentMenuState != nil
+            && menuIsOpen
             && !tappedAlignmentMenu
-            && candidateFrames.isEmpty
-            && groupHit == nil
         let shouldSelectGroup = isCompletedTap
             && snapshot.isTapLike
+            && !menuIsOpen
             && !tappedAlignmentMenu
             && candidateFrames.isEmpty
             && groupHit != nil
@@ -2151,7 +2151,7 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : shouldDismiss ? "DISMISS" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu && !menuIsOpen ? "SELECT" : "KEEP")"
         )
 
         if shouldSelectGroup, let groupHit {
@@ -2177,6 +2177,7 @@ struct ZoneEditorCanvas: View {
 
         guard isCompletedTap,
               snapshot.isTapLike,
+              !menuIsOpen,
               !tappedAlignmentMenu,
               let tappedFrame,
               content.zone(at: tappedFrame.path) != nil else {
