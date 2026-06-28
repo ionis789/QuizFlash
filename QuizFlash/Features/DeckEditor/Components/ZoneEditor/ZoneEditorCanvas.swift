@@ -763,19 +763,11 @@ struct ZoneEditorCanvas: View {
                 contentWidth: contentSize.width,
                 frames: zoneFrames
             ) {
-                selectedPath = nil
-                focusManager.forceReleaseKeyboard()
-                ZoneController.shared.forceReleaseKeyboard()
-                ZoneController.shared.updateFocusedZone(nil)
-                lastTapDebugLine = "render tap group path=\(groupHit.path.id)"
-                ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
-                recordInteractionTrace(
-                    "GROUP HIT path=\(groupHit.path.id) point=\(tracePoint(location)) frame=\(traceRect(groupHit.hitFrame))"
-                )
-                presentAlignmentMenu(
-                    for: groupHit.path,
+                selectRenderedAlignmentGroup(
+                    groupHit,
                     contentWidth: contentSize.width,
-                    preferredAnchor: location
+                    anchor: location,
+                    source: "render tap group"
                 )
                 return
             }
@@ -814,6 +806,28 @@ struct ZoneEditorCanvas: View {
                 contentSize: contentSize,
                 zoneFrames: zoneFrames
             )
+        )
+    }
+
+    private func selectRenderedAlignmentGroup(
+        _ groupHit: (path: ZonePath, hitFrame: CGRect),
+        contentWidth: CGFloat,
+        anchor: CGPoint,
+        source: String
+    ) {
+        selectedPath = groupHit.path
+        focusManager.forceReleaseKeyboard()
+        ZoneController.shared.forceReleaseKeyboard()
+        ZoneController.shared.updateFocusedZone(nil)
+        lastTapDebugLine = "\(source) path=\(groupHit.path.id)"
+        ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+        recordInteractionTrace(
+            "GROUP HIT path=\(groupHit.path.id) point=\(tracePoint(anchor)) frame=\(traceRect(groupHit.hitFrame))"
+        )
+        presentAlignmentMenu(
+            for: groupHit.path,
+            contentWidth: contentWidth,
+            preferredAnchor: anchor
         )
     }
 
@@ -2151,7 +2165,6 @@ struct ZoneEditorCanvas: View {
         let menuIsOpen = alignmentMenuState != nil
         let shouldSelectGroup = isCompletedTap
             && snapshot.isTapLike
-            && !menuIsOpen
             && !tappedAlignmentMenu
             && candidateFrames.isEmpty
             && groupHit != nil
@@ -2169,31 +2182,26 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(menuIsOpen ? "KEEP_MENU_OPEN" : shouldSelectGroup ? "SELECT_GROUP" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
         )
 
-        if menuIsOpen {
-            return
-        }
-
         if shouldSelectGroup, let groupHit {
-            selectedPath = nil
-            focusManager.forceReleaseKeyboard()
-            ZoneController.shared.forceReleaseKeyboard()
-            ZoneController.shared.updateFocusedZone(nil)
-            lastTapDebugLine = "window tap group path=\(groupHit.path.id)"
-            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
-            presentAlignmentMenu(
-                for: groupHit.path,
+            selectRenderedAlignmentGroup(
+                groupHit,
                 contentWidth: max(
                     viewportScreenFrame.width - (contentHorizontalPadding * 2),
                     1
                 ),
-                preferredAnchor: contentPoint
+                anchor: contentPoint,
+                source: "window tap group"
             )
             recordInteractionTrace(
                 "WINDOW SELECT_GROUP path=\(groupHit.path.id) frame=\(traceRect(groupHit.hitFrame))"
             )
+            return
+        }
+
+        if menuIsOpen {
             return
         }
 
