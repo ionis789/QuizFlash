@@ -124,7 +124,8 @@ struct ZoneEditorCanvas: View {
     private static let alignmentTolerance: CGFloat = 1
     private static let alignmentMenuSize = CGSize(width: 104, height: 44)
     private static let alignmentMenuVerticalSpacing: CGFloat = 28
-    private static let renderHitSlop: CGFloat = 8
+    private static let renderLeafHorizontalHitSlop: CGFloat = 32
+    private static let renderLeafVerticalHitSlop: CGFloat = 10
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var screenToCardHorizontalPadding: CGFloat {
@@ -841,7 +842,7 @@ struct ZoneEditorCanvas: View {
     private func renderHitTargetOverlay(contentWidth: CGFloat) -> some View {
         if rendersRichText {
             ZStack(alignment: .topLeading) {
-                ForEach(zoneFrames, id: \.zoneID) { resolvedFrame in
+                ForEach(renderSelectableFrames, id: \.zoneID) { resolvedFrame in
                     Color.clear
                         .frame(
                             width: max(resolvedFrame.frame.width, 1),
@@ -861,6 +862,12 @@ struct ZoneEditorCanvas: View {
                 }
             }
             .allowsHitTesting(true)
+        }
+    }
+
+    private var renderSelectableFrames: [ZoneEditorResolvedZoneFrame] {
+        zoneFrames.filter { frame in
+            content.zone(at: frame.path)?.isLeaf == true
         }
     }
 
@@ -2048,8 +2055,15 @@ struct ZoneEditorCanvas: View {
             x: snapshot.contentPoint.x - contentHorizontalPadding,
             y: snapshot.contentPoint.y - contentVerticalPadding - topContentInset
         )
-        let candidateFrames = zoneFrames
-            .filter { $0.frame.insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop).contains(localPoint) }
+        let candidateFrames = renderSelectableFrames
+            .filter {
+                $0.frame
+                    .insetBy(
+                        dx: -Self.renderLeafHorizontalHitSlop,
+                        dy: -Self.renderLeafVerticalHitSlop
+                    )
+                    .contains(localPoint)
+            }
         let matchedPath = candidateFrames
             .min { ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height) }?
             .path.id ?? "nil"
@@ -2104,9 +2118,12 @@ struct ZoneEditorCanvas: View {
                 - contentVerticalPadding
                 - topContentInset
         )
-        let candidateFrames = zoneFrames.filter {
+        let candidateFrames = renderSelectableFrames.filter {
             $0.frame
-                .insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop)
+                .insetBy(
+                    dx: -Self.renderLeafHorizontalHitSlop,
+                    dy: -Self.renderLeafVerticalHitSlop
+                )
                 .contains(contentPoint)
         }
         let tappedFrame = candidateFrames.min {
