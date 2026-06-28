@@ -54,6 +54,7 @@ struct FlashcardEditorView: View {
     @State private var scrollTransition = FlashcardEditorScrollTransitionState()
     @State private var suppressCanvasEmptyTapUntil: CFAbsoluteTime = 0
     @State private var editorSessionID = UUID()
+    @State private var isEditorSurfaceClosing = false
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -244,6 +245,12 @@ struct FlashcardEditorView: View {
                     .zIndex(20)
                 floatingFormatBar
                 floatingFormatBarDebugOverlay
+
+                if isEditorSurfaceClosing {
+                    Color.black
+                        .ignoresSafeArea()
+                        .zIndex(1000)
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -1314,6 +1321,7 @@ struct FlashcardEditorView: View {
 
     private func closeEditorDiscardingChanges() {
         let start = CFAbsoluteTimeGetCurrent()
+        guard !isEditorSurfaceClosing else { return }
         recordDismissFlow("flashcard.discard.start", details: "render=\(debugFlag(showsRenderedContent))")
         focusManager.forceReleaseKeyboard()
         recordDismissFlow("flashcard.discard.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1321,9 +1329,7 @@ struct FlashcardEditorView: View {
         recordDismissFlow("flashcard.discard.after-zone-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
-        recordDismissFlow("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        dismiss()
-        recordDismissFlow("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        finishEditorDismissalAfterSurfaceHide(flow: "discard", start: start)
     }
 
     private func blurEditingBeforeSideSwitch() {
@@ -1553,6 +1559,7 @@ struct FlashcardEditorView: View {
 
     private func saveCard() {
         let start = CFAbsoluteTimeGetCurrent()
+        guard !isEditorSurfaceClosing else { return }
         recordDismissFlow("flashcard.save.start", details: "render=\(debugFlag(showsRenderedContent))")
         frontZoneContent.cleanup()
         recordDismissFlow("flashcard.save.after-front-cleanup", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1565,9 +1572,22 @@ struct FlashcardEditorView: View {
         recordDismissFlow("flashcard.save.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
-        recordDismissFlow("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        dismiss()
-        recordDismissFlow("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        finishEditorDismissalAfterSurfaceHide(flow: "save", start: start)
+    }
+
+    private func finishEditorDismissalAfterSurfaceHide(flow: String, start: CFAbsoluteTime) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isEditorSurfaceClosing = true
+        }
+        recordDismissFlow("flashcard.\(flow).surface-hidden", details: "elapsed=\(formatMilliseconds(since: start))")
+        Task { @MainActor in
+            await Task.yield()
+            recordDismissFlow("flashcard.\(flow).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
+            dismiss()
+            recordDismissFlow("flashcard.\(flow).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        }
     }
 
     // MARK: - Helpers
