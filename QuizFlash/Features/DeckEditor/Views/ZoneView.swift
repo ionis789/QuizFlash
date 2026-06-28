@@ -190,6 +190,7 @@ struct ZoneEditorView: View {
             maxEditableZoneHeight: maxEditableZoneHeight,
             rendersRichText: rendersRichText,
             showsZoneSurfaces: showsZoneSurfaces,
+            showsZoneHeightGuides: showsZoneHeightGuides,
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
@@ -644,7 +645,11 @@ struct ZoneContentView: View {
                     }
 
                 if shouldShowZoneHeightGuide(for: zone) {
-                    zoneHeightGuide(layout: layout, zone: zone)
+                    zoneHeightGuide(
+                        layout: layout,
+                        zone: zone,
+                        contentLeadingInset: contentPlacement.leadingInset
+                    )
                 }
             }
             .frame(
@@ -792,12 +797,15 @@ struct ZoneContentView: View {
 
     private func zoneHeightGuide(
         layout: ZoneContentLayoutResult,
-        zone: ZoneModel
+        zone: ZoneModel,
+        contentLeadingInset: CGFloat
     ) -> some View {
-        Rectangle()
+        let lineX = max(contentLeadingInset - 7, 0)
+
+        return Rectangle()
             .fill(editorZoneHeightGuideColor(for: zone))
-            .frame(width: 1, height: layout.blockSize.height)
-            .offset(x: 0, y: 0)
+            .frame(width: 1.5, height: layout.blockSize.height)
+            .offset(x: lineX, y: 0)
             .allowsHitTesting(false)
     }
 

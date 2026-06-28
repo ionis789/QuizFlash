@@ -714,7 +714,7 @@ struct ZoneEditorCanvas: View {
                 fontScale: fontScale,
                 availableWidth: layout.availableContentWidth,
                 centersLeafBlocks: faceVerticalAlignment == .center,
-                showsDebugGuides: showsGridDebugOverlay,
+                showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: showsDebugTools,

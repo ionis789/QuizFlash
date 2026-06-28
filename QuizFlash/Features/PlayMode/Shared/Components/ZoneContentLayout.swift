@@ -658,7 +658,7 @@ private struct ZoneContentTreePreview: View {
                            !suppressOwnEditorRenderGuide {
                             let isSelected = alignmentFeedback.highlightedTarget == groupTarget
 
-                            if isSelected {
+                            if isSelected, debugGuideStyle != .editorRender {
                                 zoneAlignmentHighlight(
                                     cornerRadius: groupDebugGuideCornerRadius,
                                     lineWidth: 1.6,
@@ -671,7 +671,9 @@ private struct ZoneContentTreePreview: View {
                                     style: .continuous
                                 )
                                     .strokeBorder(
-                                        groupDebugGuideColor,
+                                        isSelected && debugGuideStyle == .editorRender
+                                            ? ThemeManager.shared.accentColor.color.opacity(0.9)
+                                            : groupDebugGuideColor,
                                         style: StrokeStyle(lineWidth: 1.4, dash: [8, 5])
                                     )
                                     .padding(groupDebugGuideInsets)
@@ -1219,7 +1221,7 @@ private struct ZoneContentLeafPreview: View {
                 return StrokeStyle(lineWidth: 1.6, dash: [5, 4])
             }
             return isLeafAlignmentTarget
-                ? StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+                ? StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round, dash: [5, 4])
             : StrokeStyle(lineWidth: 1.6, dash: [5, 4])
         }
     }
