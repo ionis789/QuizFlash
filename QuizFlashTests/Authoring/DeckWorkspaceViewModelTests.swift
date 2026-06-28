@@ -32,6 +32,54 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(title, "Advanced Programming - Lecture 2 - Objects and Classes")
     }
 
+    func testLocalDeckTitleRejectsOCRNoiseLines() {
+        let title = DeckWorkspaceViewModel.localDeckTitleSuggestion(
+            pdfURL: nil,
+            segments: [
+                AITextSourceSegment(
+                    index: 1,
+                    label: "Image 1",
+                    text: """
+                    atunci avem
+                    ,u.EV,
+                    qr¥
+                    Functii reale. Generalitati
+                    """
+                )
+            ]
+        )
+
+        XCTAssertEqual(title, "Functii reale. Generalitati")
+    }
+
+    func testPhotoDocumentPageOrderUsesDetectedFooters() {
+        let reordered = DeckWorkspaceViewModel.documentPageReorderedIndices(
+            for: [
+                """
+                l. Dac2 (V, +,.), (W, +,.) sunt doua spalii liniare.
+                qr¥
+                18146
+                """,
+                """
+                Functii reale. Generalitati
+                qr¥
+                3146
+                """,
+                """
+                Exemple de functii reale
+                qr¥
+                9146
+                """,
+                """
+                Functia identitate.
+                2146
+                """
+            ]
+        )
+
+        XCTAssertEqual(reordered, [3, 1, 2, 0])
+    }
+
     func testSaveDeckCreatesDeckAndCardsInSelectedFolder() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Science", colorHex: "#22AA88")

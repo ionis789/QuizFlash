@@ -317,11 +317,18 @@ extension DeckWorkspaceViewModel {
                 return
             }
 
+            let orderedPayload = Self.reorderedPhotoPayloadIfDocumentPagesDetected(
+                images: images,
+                texts: texts
+            )
             let source = AIPreparedGenerationSource(
                 kind: .photos,
-                previewItems: makePhotoPreviewItems(images: images, texts: texts),
-                textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
-                images: images,
+                previewItems: makePhotoPreviewItems(
+                    images: orderedPayload.images,
+                    texts: orderedPayload.texts
+                ),
+                textSegments: makeTextSegments(from: orderedPayload.texts, labelPrefix: "Image"),
+                images: orderedPayload.images,
                 pdfURL: nil,
                 needsOCRCorrection: DocumentTextExtractor.needsAICorrectionForExtractedText(texts)
             )
@@ -529,6 +536,119 @@ extension DeckWorkspaceViewModel {
                 text: text
             )
         }
+    }
+
+    nonisolated static func reorderedPhotoPayloadIfDocumentPagesDetected(
+        images: [UIImage],
+        texts: [String]
+    ) -> (images: [UIImage], texts: [String]) {
+        guard let indices = documentPageReorderedIndices(for: texts) else {
+            return (images, texts)
+        }
+
+        let orderedTexts = indices.compactMap { texts.indices.contains($0) ? texts[$0] : nil }
+        let orderedImages = indices.compactMap { images.indices.contains($0) ? images[$0] : nil }
+        guard orderedTexts.count == texts.count,
+              orderedImages.count == images.count else {
+            return (images, texts)
+        }
+        return (orderedImages, orderedTexts)
+    }
+
+    nonisolated static func documentPageReorderedIndices(for texts: [String]) -> [Int]? {
+        guard texts.count > 1 else { return nil }
+
+        let detections = texts.enumerated().compactMap { index, text -> (index: Int, page: Int, total: Int)? in
+            guard let footer = detectedDocumentPageFooter(in: text) else { return nil }
+            return (index, footer.page, footer.total)
+        }
+        guard !detections.isEmpty else { return nil }
+
+        let groupedByTotal = Dictionary(grouping: detections, by: \.total)
+        guard let dominant = groupedByTotal.max(by: { $0.value.count < $1.value.count }) else {
+            return nil
+        }
+
+        let minimumDetectedCount = min(
+            texts.count,
+            max(3, Int((Double(texts.count) * 0.45).rounded(.up)))
+        )
+        guard dominant.value.count >= minimumDetectedCount else {
+            return nil
+        }
+
+        let pagesByIndex = Dictionary(uniqueKeysWithValues: dominant.value.map { ($0.index, $0.page) })
+        let sortedIndices = texts.indices.sorted { lhs, rhs in
+            let lhsPage = pagesByIndex[lhs]
+            let rhsPage = pagesByIndex[rhs]
+
+            switch (lhsPage, rhsPage) {
+            case let (lhsPage?, rhsPage?):
+                if lhsPage == rhsPage {
+                    return lhs < rhs
+                }
+                return lhsPage < rhsPage
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                return lhs < rhs
+            }
+        }
+
+        return sortedIndices == Array(texts.indices) ? nil : sortedIndices
+    }
+
+    private nonisolated static func detectedDocumentPageFooter(in text: String) -> (page: Int, total: Int)? {
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .suffix(10)
+
+        for line in lines.reversed() {
+            if let explicit = pageFooterMatch(
+                in: line,
+                pattern: #"(?<!\d)([1-9]\d{0,2})\s*[/\\|]\s*([1-9]\d{1,2})(?!\d)"#
+            ) {
+                return explicit
+            }
+
+            let compact = line.replacingOccurrences(
+                of: #"\s+"#,
+                with: "",
+                options: .regularExpression
+            )
+            if let collapsed = pageFooterMatch(
+                in: compact,
+                pattern: #"^([1-9]\d{0,2})[1Il|/\\]([1-9]\d{1,2})$"#
+            ) {
+                return collapsed
+            }
+        }
+
+        return nil
+    }
+
+    private nonisolated static func pageFooterMatch(
+        in text: String,
+        pattern: String
+    ) -> (page: Int, total: Int)? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsRange = NSRange(text.startIndex ..< text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, range: nsRange),
+              match.numberOfRanges >= 3,
+              let pageRange = Range(match.range(at: 1), in: text),
+              let totalRange = Range(match.range(at: 2), in: text),
+              let page = Int(text[pageRange]),
+              let total = Int(text[totalRange]),
+              total >= 2,
+              page >= 1,
+              page <= total else {
+            return nil
+        }
+        return (page, total)
     }
 
     func fullQualityPreviewImage(

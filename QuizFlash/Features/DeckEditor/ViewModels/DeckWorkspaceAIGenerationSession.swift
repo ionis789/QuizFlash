@@ -759,6 +759,10 @@ extension DeckWorkspaceViewModel {
         guard (3...72).contains(collapsed.count),
               collapsed.rangeOfCharacter(from: .letters) != nil,
               collapsed.split(separator: " ").count <= 12,
+              !Self.startsWithLowercaseLetter(collapsed),
+              Self.titleLineSymbolRatio(collapsed) <= 0.22,
+              collapsed.range(of: #"[¥�{}=<>∀∈∉∪∩→←↔≤≥]"#, options: .regularExpression) == nil,
+              collapsed.range(of: #"[;,]"#, options: .regularExpression) == nil,
               collapsed.range(of: #"^(page|image|slide|pagina|imagine)\s*\d*$"#, options: [.regularExpression, .caseInsensitive]) == nil,
               collapsed.range(of: #"https?://|www\.|@"#, options: [.regularExpression, .caseInsensitive]) == nil,
               !collapsed.hasSuffix("."),
@@ -767,6 +771,29 @@ extension DeckWorkspaceViewModel {
             return nil
         }
         return collapsed
+    }
+
+    nonisolated private static func startsWithLowercaseLetter(_ text: String) -> Bool {
+        guard let firstScalar = text.unicodeScalars.first else { return false }
+        return CharacterSet.lowercaseLetters.contains(firstScalar)
+    }
+
+    nonisolated private static func titleLineSymbolRatio(_ text: String) -> Double {
+        let scalars = text.unicodeScalars
+        guard !scalars.isEmpty else { return 1 }
+
+        let allowedSeparators = CharacterSet(charactersIn: " -–—:/()'&")
+        let symbolCount = scalars.reduce(0) { count, scalar in
+            if CharacterSet.letters.contains(scalar)
+                || CharacterSet.decimalDigits.contains(scalar)
+                || CharacterSet.whitespacesAndNewlines.contains(scalar)
+                || allowedSeparators.contains(scalar) {
+                return count
+            }
+            return count + 1
+        }
+
+        return Double(symbolCount) / Double(scalars.count)
     }
 
     func presentAIGenerationSheet() {
