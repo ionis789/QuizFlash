@@ -1125,7 +1125,10 @@ struct ZoneEditorCanvas: View {
                 .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
-        .offset(x: position.x, y: position.y)
+        .position(
+            x: position.x + (menuWidth / 2),
+            y: position.y + (menuHeight / 2)
+        )
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { frame in
