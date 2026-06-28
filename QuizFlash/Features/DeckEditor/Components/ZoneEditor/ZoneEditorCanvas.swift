@@ -1189,7 +1189,7 @@ struct ZoneEditorCanvas: View {
 
     private var renderVisibleContentTopY: CGFloat {
         max(
-            scrollDriver.currentNormalizedOffsetY - contentVerticalPadding - topContentInset,
+            scrollDriver.effectiveNormalizedOffsetY() - contentVerticalPadding - topContentInset,
             0
         )
     }
@@ -1552,7 +1552,7 @@ struct ZoneEditorCanvas: View {
         let visibleTopY = renderVisibleContentTopY
         let visibleBottomY = visibleTopY + max(viewportScreenFrame.height, Self.alignmentMenuSize.height)
 
-        return "align \(action) target=\(state.target.path.id) tapped=\(state.tappedPath.id) kind=\(state.target.kind.debugName) frame=\(Int(state.frame.width))x\(Int(state.frame.height))@\(Int(state.frame.minX)),\(Int(state.frame.minY)) anchor=\(tracePoint(state.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY)) visible=\(Int(visibleTopY))...\(Int(visibleBottomY)) cur=\(state.currentAlignment.rawValue) moveW=\(Int(state.movementWidth))"
+        return "align \(action) target=\(state.target.path.id) tapped=\(state.tappedPath.id) kind=\(state.target.kind.debugName) frame=\(Int(state.frame.width))x\(Int(state.frame.height))@\(Int(state.frame.minX)),\(Int(state.frame.minY)) anchor=\(tracePoint(state.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.effectiveNormalizedOffsetY())) visible=\(Int(visibleTopY))...\(Int(visibleBottomY)) cur=\(state.currentAlignment.rawValue) moveW=\(Int(state.movementWidth))"
     }
 
     private func performAlignmentAction(_ direction: ZoneAlignmentDirection) {
@@ -1886,7 +1886,7 @@ struct ZoneEditorCanvas: View {
                     mode: mode,
                     screenY: geometry.screenFrame.minY,
                     contentY: geometry.contentFrame.minY,
-                    scrollY: scrollDriver.currentNormalizedOffsetY,
+                    scrollY: scrollDriver.effectiveNormalizedOffsetY(),
                     frame: selectedFrame ?? geometry.contentFrame,
                     topInset: layout.contentTopInset,
                     horizontalPadding: horizontalPadding,
@@ -2034,7 +2034,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var scrollDebugSummaryText: String {
-        "offset=\(debugNumber(scrollDriver.currentNormalizedOffsetY)) kb=\(debugNumber(keyboardMonitor.visibleHeight)) toolbar=\(debugNumber(bottomAccessoryHeight))\nvisible=\(debugOptionalNumber(visibleBottomDebugScreenY)) caret=\(debugOptionalNumber(activeCaretWindowRect?.maxY))"
+        "offset=\(debugNumber(scrollDriver.effectiveNormalizedOffsetY())) kb=\(debugNumber(keyboardMonitor.visibleHeight)) toolbar=\(debugNumber(bottomAccessoryHeight))\nvisible=\(debugOptionalNumber(visibleBottomDebugScreenY)) caret=\(debugOptionalNumber(activeCaretWindowRect?.maxY))"
     }
 
     private func debugNumber(_ value: CGFloat) -> String {
@@ -2077,7 +2077,7 @@ struct ZoneEditorCanvas: View {
 
         guard showsDebugTools else { return }
 
-        let line = "probe tap content=\(Int(localPoint.x)),\(Int(localPoint.y)) window=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY)) hit=\(snapshot.hitViewName) super=\(snapshot.hitSuperviewName) frames=\(zoneFrames.count) match=\(matchedPath) swift=\(lastTapDebugLine)"
+        let line = "probe tap content=\(Int(localPoint.x)),\(Int(localPoint.y)) window=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) scroll=\(Int(scrollDriver.effectiveNormalizedOffsetY())) hit=\(snapshot.hitViewName) super=\(snapshot.hitSuperviewName) frames=\(zoneFrames.count) match=\(matchedPath) swift=\(lastTapDebugLine)"
         lastTapDebugLine = line
         ZoneEditorDebugStore.shared.recordTap(line)
     }
@@ -2111,10 +2111,11 @@ struct ZoneEditorCanvas: View {
     private func handleWindowTouchProbe(_ snapshot: ZoneEditorWindowTouchSnapshot) {
         let selected = selectedPath?.id ?? "nil"
         let rootID = content.rootZone.id.uuidString.prefix(6)
+        let effectiveScrollOffsetY = scrollDriver.effectiveNormalizedOffsetY()
         let contentPoint = CGPoint(
             x: snapshot.viewportPoint.x - contentHorizontalPadding,
             y: snapshot.viewportPoint.y
-                + scrollDriver.currentNormalizedOffsetY
+                + effectiveScrollOffsetY
                 - contentVerticalPadding
                 - topContentInset
         )
@@ -2159,7 +2160,7 @@ struct ZoneEditorCanvas: View {
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
             "HIT \(snapshot.hitViewDescription)",
             "CHAIN \(snapshot.hitViewChain)",
-            "CANVAS render=\(rendersRichText ? 1 : 0) root=\(rootID) selected=\(selected) frames=\(zoneFrames.count) scroll=\(Int(scrollDriver.currentNormalizedOffsetY))",
+            "CANVAS render=\(rendersRichText ? 1 : 0) root=\(rootID) selected=\(selected) frames=\(zoneFrames.count) scroll=\(Int(effectiveScrollOffsetY))",
         ] + snapshot.gestureLines
         ZoneEditorDebugStore.shared.recordTap(
             "window \(snapshot.phase) hit=\(snapshot.hitViewName) gestures=\(snapshot.gestureCount)"
@@ -2168,7 +2169,7 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu && !menuIsOpen ? "SELECT" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu && !menuIsOpen ? "SELECT" : "KEEP")"
         )
 
         if shouldSelectGroup, let groupHit {
@@ -2237,7 +2238,7 @@ struct ZoneEditorCanvas: View {
         let menu = alignmentMenuState.map {
             let contentWidth = max(viewportScreenFrame.width - (contentHorizontalPadding * 2), 1)
             let position = alignmentMenuPosition(for: $0, contentWidth: contentWidth)
-            return "open target=\($0.target.path.id) tapped=\($0.tappedPath.id) frame=\(traceRect($0.frame)) anchor=\(tracePoint($0.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY))"
+            return "open target=\($0.target.path.id) tapped=\($0.tappedPath.id) frame=\(traceRect($0.frame)) anchor=\(tracePoint($0.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.effectiveNormalizedOffsetY()))"
         } ?? "closed"
         let frames = zoneFrames
             .map { "\($0.path.id)=\(traceRect($0.frame))" }
@@ -2249,7 +2250,7 @@ struct ZoneEditorCanvas: View {
         mode: \(rendersRichText ? "render" : "raw")
         menu: \(menu)
         viewport: \(traceRect(viewportScreenFrame))
-        scrollY: \(Int(scrollDriver.currentNormalizedOffsetY))
+        scrollY: \(Int(scrollDriver.effectiveNormalizedOffsetY()))
         tapProbe: \(scrollDriver.tapProbeStatus)
         padding: \(Int(contentHorizontalPadding)),\(Int(contentVerticalPadding))
         topContentInset: \(Int(topContentInset))
@@ -2561,7 +2562,7 @@ struct ZoneEditorCanvas: View {
         debugStore.updateCanvas(
             cardSize: cardSize,
             contentSize: contentSize,
-            scrollOffsetY: scrollDriver.currentNormalizedOffsetY,
+            scrollOffsetY: scrollDriver.effectiveNormalizedOffsetY(),
             contentTopInset: layout.contentTopInset,
             contentBodyHeight: layout.contentBodyHeight,
             scrollContentHeight: layout.scrollContentHeight,

@@ -300,6 +300,18 @@ final class ZoneEditorScrollDriver {
         return scrollSnapshotDetails(in: scrollView)
     }
 
+    func effectiveNormalizedOffsetY() -> CGFloat {
+        guard let scrollView else {
+            return currentNormalizedOffsetY
+        }
+
+        let visualOffsetY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.bounds.origin.y
+        let normalizedOffsetY = max(0, visualOffsetY + scrollView.adjustedContentInset.top)
+        currentNormalizedOffsetY = normalizedOffsetY
+        captureInsetDebugState(in: scrollView)
+        return normalizedOffsetY
+    }
+
     func recordDebugSnapshot(_ stage: String, zoneID: UUID?, extra: String = "") {
         guard let scrollView else {
             ZoneEditorDebugStore.shared.recordScrollDecision(
