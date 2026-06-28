@@ -396,6 +396,40 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertLessThan(sourceRange.lowerBound, coveredRange.lowerBound)
     }
 
+    func testAutoLanguageDetectionLocksRomanianPDFText() {
+        let text = """
+        Aplicaţii liniare
+        Cursul 6
+        Matematică
+        Calcul diferenţial şi integral - Anul I
+        Structura cursului
+        Funcţii reale. Generalităţi
+        Aplicaţii liniare pe spaţii vectoriale
+        Fie V si W doua spaţii vectoriale. Definim imaginea si nucleul unei aplicaţii liniare.
+        Atunci avem o teorema pentru valoarea proprie si matricea asociata.
+        """
+
+        let hint = AIFlashcardService.detectedSourceLanguageHint(in: text)
+
+        XCTAssertEqual(hint?.languageCode, "ro")
+        XCTAssertEqual(hint?.displayName, "Romanian")
+    }
+
+    func testAutoLanguageDetectionLocksEnglishSourceText() {
+        let text = """
+        Linear maps and vector spaces
+        This lecture defines the kernel and image of a linear transformation.
+        The rank-nullity theorem explains how dimensions are related.
+        For each matrix, the characteristic polynomial and eigenvalue definitions are used.
+        If the source gives a definition, the generated cards should preserve the theorem.
+        """
+
+        let hint = AIFlashcardService.detectedSourceLanguageHint(in: text)
+
+        XCTAssertEqual(hint?.languageCode, "en")
+        XCTAssertEqual(hint?.displayName, "English")
+    }
+
     func testSystemPromptIsStableAcrossBatchCardCounts() throws {
         let service = makeService()
         let options = AIGenerationOptions(cardType: .flashcards, cardLevel: .pro)
