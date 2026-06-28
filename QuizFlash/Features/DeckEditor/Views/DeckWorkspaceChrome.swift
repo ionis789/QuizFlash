@@ -12,20 +12,7 @@ extension DeckWorkspaceView {
     // MARK: 1. Header Chrome
     func heroHeader(topPadding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
-                .font(.system(size: 42, weight: .heavy))
-                .textFieldStyle(.plain)
-                .foregroundStyle(.primary)
-                .lineLimit(1 ... 2)
-                .layoutPriority(1)
-                .focused($isTitleFocused)
-                .submitLabel(.done)
-                .onSubmit { isTitleFocused = false }
-                .frame(minHeight: heroTitleReservedHeight, alignment: .leading)
-                .id(heroTitleTransitionIdentity)
-                .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .leading)))
-                .animation(.easeInOut(duration: UIConstants.Animation.medium), value: heroTitleReservedHeight)
-                .animation(.easeInOut(duration: UIConstants.Animation.medium), value: heroTitleTransitionIdentity)
+            heroTitleControl
 
             if shouldShowHeaderMetadataRow {
                 headerMetadataRow
@@ -35,6 +22,72 @@ extension DeckWorkspaceView {
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
         .padding(.top, topPadding)
         .padding(.bottom, UIConstants.Spacing.extraLarge)
+    }
+
+    @ViewBuilder
+    private var heroTitleControl: some View {
+        if hasActiveGenerationRuntime && !isTitleFocused {
+            generationHeroTitle
+        } else {
+            editableHeroTitleField
+        }
+    }
+
+    private var editableHeroTitleField: some View {
+        TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
+            .font(.system(size: 42, weight: .heavy))
+            .textFieldStyle(.plain)
+            .foregroundStyle(.primary)
+            .lineLimit(1 ... 2)
+            .layoutPriority(1)
+            .focused($isTitleFocused)
+            .submitLabel(.done)
+            .onSubmit { isTitleFocused = false }
+            .frame(minHeight: heroTitleReservedHeight, alignment: .leading)
+            .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .leading)))
+            .animation(generationPhaseAnimation, value: heroTitleReservedHeight)
+    }
+
+    private var generationHeroTitle: some View {
+        let resolvedTitle = collapsedDeckTitle
+        let isResolved = !resolvedTitle.isEmpty
+        let displayTitle = isResolved ? resolvedTitle : localized("Untitled Deck")
+
+        return ZStack(alignment: .leading) {
+            if isResolved {
+                Text(displayTitle)
+                    .id("resolved-\(displayTitle)")
+                    .transition(heroTitleTextTransition(insertsResolvedTitle: true))
+            } else {
+                Text(displayTitle)
+                    .id("pending-title")
+                    .transition(heroTitleTextTransition(insertsResolvedTitle: false))
+            }
+        }
+        .font(.system(size: 42, weight: .heavy))
+        .foregroundStyle(isResolved ? Color.primary : Color.secondary.opacity(0.68))
+        .lineLimit(1 ... 2)
+        .layoutPriority(1)
+        .frame(maxWidth: .infinity, minHeight: heroTitleReservedHeight, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(generationPhaseAnimation) {
+                isTitleFocused = true
+            }
+        }
+        .animation(generationPhaseAnimation, value: generationMotionKey)
+        .animation(generationPhaseAnimation, value: displayTitle)
+    }
+
+    private func heroTitleTextTransition(insertsResolvedTitle: Bool) -> AnyTransition {
+        let insertion = AnyTransition.opacity
+            .combined(with: .move(edge: insertsResolvedTitle ? .bottom : .top))
+            .combined(with: .scale(scale: insertsResolvedTitle ? 0.985 : 1.01, anchor: .leading))
+        let removal = AnyTransition.opacity
+            .combined(with: .move(edge: insertsResolvedTitle ? .top : .bottom))
+            .combined(with: .scale(scale: insertsResolvedTitle ? 1.01 : 0.985, anchor: .leading))
+
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 
     @ViewBuilder
@@ -156,8 +209,16 @@ extension DeckWorkspaceView {
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
+                    .transition(
+                        .asymmetric(
+                            insertion: .offset(y: -8).combined(with: .opacity),
+                            removal: .opacity
+                        )
+                    )
             }
         }
+        .animation(generationPhaseAnimation, value: viewModel.draftCards.isEmpty)
+        .animation(generationPhaseAnimation, value: generationMotionKey)
         .background {
             Color.clear
                 .onGeometryChange(for: CGFloat.self) { proxy in
@@ -307,6 +368,7 @@ extension DeckWorkspaceView {
                 symbol: "checkmark",
                 tint: canSave ? themeManager.successPrimary : .secondary
             )
+            .animation(generationPhaseAnimation, value: generationMotionKey)
         }
     }
 
@@ -402,13 +464,14 @@ extension DeckWorkspaceView {
             }
             .buttonStyle(.plain)
             .aiGenerationBorderBeam(
-                accent: themeManager.accentColor.color,
+                accent: aiToolbarTint,
                 cornerRadius: UIConstants.Size.actionButton / 2,
                 beamBlur: 8,
                 lineWidth: 1.45,
                 duration: 2.2,
                 isEnabled: viewModel.isGenerating || viewModel.hasPausedAIGeneration
             )
+            .animation(generationPhaseAnimation, value: generationMotionKey)
             .accessibilityLabel(
                 viewModel.hasPausedAIGeneration
                     ? localized("Resume AI generation")
@@ -433,13 +496,17 @@ extension DeckWorkspaceView {
             .map(localizedGenerationDisplayPhase) ?? localized("Generating cards")
 
         return HStack(spacing: UIConstants.Spacing.small) {
-            AIShimmeringStatusText(statusTitle)
+            AnimatedGenerationStatusTitle(
+                title: statusTitle,
+                animation: generationPhaseAnimation
+            )
                 .font(.system(size: 20, weight: .heavy))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
             ProgressActivityDots(color: aiToolbarTint)
                 .frame(minWidth: 28)
+                .animation(generationPhaseAnimation, value: generationMotionKey)
 
             if viewModel.aiTargetCardCount > 0 {
                 Text("\(viewModel.aiGeneratedCardCount)/\(viewModel.aiTargetCardCount)")
@@ -447,10 +514,12 @@ extension DeckWorkspaceView {
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: UIConstants.Animation.standard), value: viewModel.aiGeneratedCardCount)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(aiToolbarStatusText ?? statusTitle)
+        .animation(generationPhaseAnimation, value: generationMotionKey)
     }
 
     var addCardButton: some View {
@@ -748,5 +817,28 @@ struct CreateDeckCollapsedTitlePill: View {
             isVisible: isVisible,
             fallbackTitle: fallbackTitle
         )
+    }
+}
+
+private struct AnimatedGenerationStatusTitle: View {
+    let title: String
+    let animation: Animation
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            AIShimmeringStatusText(title)
+                .id(title)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity
+                            .combined(with: .offset(x: 0, y: 7))
+                            .combined(with: .scale(scale: 0.985, anchor: .leading)),
+                        removal: .opacity
+                            .combined(with: .offset(x: 0, y: -7))
+                            .combined(with: .scale(scale: 1.01, anchor: .leading))
+                    )
+                )
+        }
+        .animation(animation, value: title)
     }
 }

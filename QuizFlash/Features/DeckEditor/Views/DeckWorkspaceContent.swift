@@ -123,7 +123,9 @@ extension DeckWorkspaceView {
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.94)),
-                            removal: .scale(scale: 0.66).combined(with: .opacity)
+                            removal: .offset(y: -10)
+                                .combined(with: .scale(scale: 0.82))
+                                .combined(with: .opacity)
                         )
                     )
                 } else if createdCount > 0 {
@@ -134,7 +136,8 @@ extension DeckWorkspaceView {
                 }
             }
         }
-        .animation(.easeInOut(duration: UIConstants.Animation.standard), value: createdCount)
+        .animation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0), value: createdCount)
+        .animation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0), value: viewModel.aiGenerationDisplayPhase)
     }
 
     @ViewBuilder

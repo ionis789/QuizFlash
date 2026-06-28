@@ -90,6 +90,32 @@ struct DeckWorkspaceView: View {
         }
     }
 
+    var generationPhaseAnimation: Animation {
+        .smooth(duration: UIConstants.Animation.slow, extraBounce: 0)
+    }
+
+    var generationMotionKey: String {
+        let phaseKey: String
+        switch viewModel.aiGenerationDisplayPhase {
+        case .preparingRequest:
+            phaseKey = "preparing"
+        case .generatingCards:
+            phaseKey = "generating"
+        case .almostReady:
+            phaseKey = "ready"
+        case .paused:
+            phaseKey = "paused"
+        case .none:
+            phaseKey = "none"
+        }
+
+        return [
+            phaseKey,
+            collapsedDeckTitle.isEmpty ? "title-pending" : "title-ready",
+            canSave ? "save-ready" : "save-pending",
+        ].joined(separator: "-")
+    }
+
     var canSave: Bool {
         let hasTitle = !viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isEditingExistingDeck {
@@ -136,10 +162,14 @@ struct DeckWorkspaceView: View {
         return localizedGenerationDisplayPhase(phase)
     }
     var aiToolbarTint: Color {
-        if case .extractingText = viewModel.aiState {
+        switch viewModel.aiGenerationDisplayPhase {
+        case .preparingRequest:
             return .orange
+        case .almostReady:
+            return themeManager.successPrimary
+        case .generatingCards, .paused, .none:
+            return accent
         }
-        return accent
     }
     var successOverlayMaxWidth: CGFloat {
         min(UIScreen.main.bounds.width - (UIConstants.Layout.screenEdgeInset * 2), 320)
