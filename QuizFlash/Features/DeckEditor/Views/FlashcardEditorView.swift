@@ -8,8 +8,6 @@
 
 import SwiftUI
 import PhotosUI
-import SwiftData
-import OSLog
 import UIKit
 
 // MARK: - Flashcard Editor View
@@ -18,7 +16,6 @@ struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.modelContext) private var context
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
@@ -45,8 +42,6 @@ struct FlashcardEditorView: View {
     @State private var isPhotoPickerPresented = false
     @State private var scheduledFocusTask: Task<Void, Never>?
     @State private var scheduledRenderToggleTask: Task<Void, Never>?
-    @State private var showSaveErrorAlert = false
-    @State private var saveErrorMessage = ""
     @State private var floatingFormatBarTopY: CGFloat?
     @State private var floatingFormatBarTopUpdateCount = 0
     @State private var floatingFormatBarKeyboardHeight: CGFloat = 0
@@ -162,11 +157,6 @@ struct FlashcardEditorView: View {
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
-    private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
-        category: "FlashcardEditorView"
-    )
-
     // MARK: - Initialization
 
     init(
@@ -309,11 +299,6 @@ struct FlashcardEditorView: View {
             Color.clear
         }
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
-        .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {
-            Button(localized("OK"), role: .cancel) { }
-        } message: {
-            Text(saveErrorMessage.isEmpty ? localized("Your card changes couldn't be saved right now.") : saveErrorMessage)
-        }
         .confirmationDialog(
             localized("Save changes before leaving?"),
             isPresented: $showUnsavedChangesDialog,
@@ -1555,16 +1540,6 @@ struct FlashcardEditorView: View {
         frontZoneContent.cleanup()
         backZoneContent.cleanup()
         onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
-        do {
-            try context.save()
-        } catch {
-            Self.logger.error(
-                "Failed to save card editor changes: \(error.localizedDescription, privacy: .public)"
-            )
-            saveErrorMessage = error.localizedDescription
-            showSaveErrorAlert = true
-            return
-        }
         focusManager.forceReleaseKeyboard()
         lineTracker.clearAll()
         zoneController.clearHeightCache()
