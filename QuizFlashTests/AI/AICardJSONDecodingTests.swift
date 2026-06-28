@@ -396,38 +396,31 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertLessThan(sourceRange.lowerBound, coveredRange.lowerBound)
     }
 
-    func testAutoLanguageDetectionLocksRomanianPDFText() {
-        let text = """
-        Aplicaţii liniare
-        Cursul 6
-        Matematică
-        Calcul diferenţial şi integral - Anul I
-        Structura cursului
-        Funcţii reale. Generalităţi
-        Aplicaţii liniare pe spaţii vectoriale
-        Fie V si W doua spaţii vectoriale. Definim imaginea si nucleul unei aplicaţii liniare.
-        Atunci avem o teorema pentru valoarea proprie si matricea asociata.
-        """
+    func testSourceProfileResponseNormalizesLanguageCodeAndTitle() {
+        let profile = AIFlashcardService.sourceGenerationProfile(
+            from: SourceProfileResponseDTO(
+                deck_title: "  Course Overview  ",
+                language_code: "zz-ZZ",
+                language_display_name: "  Test Language  "
+            )
+        )
 
-        let hint = AIFlashcardService.detectedSourceLanguageHint(in: text)
-
-        XCTAssertEqual(hint?.languageCode, "ro")
-        XCTAssertEqual(hint?.displayName, "Romanian")
+        XCTAssertEqual(profile.deckTitle, "Course Overview")
+        XCTAssertEqual(profile.languageHint?.languageCode, "zz")
+        XCTAssertEqual(profile.languageHint?.displayName, "Test Language")
     }
 
-    func testAutoLanguageDetectionLocksEnglishSourceText() {
-        let text = """
-        Linear maps and vector spaces
-        This lecture defines the kernel and image of a linear transformation.
-        The rank-nullity theorem explains how dimensions are related.
-        For each matrix, the characteristic polynomial and eigenvalue definitions are used.
-        If the source gives a definition, the generated cards should preserve the theorem.
-        """
+    func testSourceProfilePromptUsesPromptBundleTemplate() throws {
+        let service = makeService()
+        let messages = try service.buildSourceProfileMessages(fromText: "Sample source text")
 
-        let hint = AIFlashcardService.detectedSourceLanguageHint(in: text)
-
-        XCTAssertEqual(hint?.languageCode, "en")
-        XCTAssertEqual(hint?.displayName, "English")
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[0]["role"] as? String, "system")
+        XCTAssertEqual(messages[1]["role"] as? String, "user")
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("deck_title") == true)
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("language_code") == true)
+        XCTAssertTrue((messages[1]["content"] as? String)?.contains("Sample source text") == true)
+        XCTAssertFalse((messages[1]["content"] as? String)?.contains("{{text}}") == true)
     }
 
     func testSystemPromptIsStableAcrossBatchCardCounts() throws {

@@ -13,6 +13,8 @@ nonisolated enum AIPromptTemplateKey {
     static let depthSimple = "depth.simple"
     static let languageAuto = "language.auto"
     static let languageLocked = "language.locked"
+    static let sourceProfileSystem = "sourceProfile.system"
+    static let sourceProfileUser = "sourceProfile.user"
     static let layoutFlashcard = "layout.flashcard"
     static let layoutQuiz = "layout.quiz"
     static let rulesFlashcard = "rules.flashcard"
@@ -22,8 +24,6 @@ nonisolated enum AIPromptTemplateKey {
     static let sourceTruncated = "source.truncated"
     static let systemBase = "system.base"
     static let systemOCR = "system.ocr"
-    static let titleSystem = "title.system"
-    static let titleUser = "title.user"
     static let userTextBase = "user.text.base"
     static let userTextCoveredHeader = "user.text.covered.header"
     static let userTextCoveredItem = "user.text.covered.item"
@@ -47,6 +47,8 @@ nonisolated enum AIPromptTemplateKey {
         depthSimple,
         languageAuto,
         languageLocked,
+        sourceProfileSystem,
+        sourceProfileUser,
         layoutFlashcard,
         layoutQuiz,
         rulesFlashcard,
@@ -56,8 +58,6 @@ nonisolated enum AIPromptTemplateKey {
         sourceTruncated,
         systemBase,
         systemOCR,
-        titleSystem,
-        titleUser,
         userTextBase,
         userTextCoveredHeader,
         userTextCoveredItem,

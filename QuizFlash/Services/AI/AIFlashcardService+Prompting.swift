@@ -71,14 +71,21 @@ extension AIFlashcardService {
         ]
     }
 
-    nonisolated func buildDeckTitleMessages(fromText text: String) throws -> [[String: Any]] {
+    nonisolated func buildSourceProfileMessages(fromText text: String) throws -> [[String: Any]] {
         [
-            ["role": "system", "content": try renderPromptTemplate(AIPromptTemplateKey.titleSystem)],
+            ["role": "system", "content": try renderPromptTemplate(AIPromptTemplateKey.sourceProfileSystem)],
             ["role": "user", "content": try renderPromptTemplate(
-                AIPromptTemplateKey.titleUser,
-                values: ["text": String(text.prefix(6_000))]
+                AIPromptTemplateKey.sourceProfileUser,
+                values: ["text": sourceProfileSample(from: text)]
             )],
         ]
+    }
+
+    nonisolated func sourceProfileSample(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 12_000 else { return trimmed }
+
+        return String(trimmed.prefix(8_000)) + "\n\n...\n\n" + String(trimmed.suffix(4_000))
     }
 
     nonisolated func buildTextUserMessage(

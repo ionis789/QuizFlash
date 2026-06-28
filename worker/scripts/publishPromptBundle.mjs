@@ -9,9 +9,9 @@ import {spawnSync} from "node:child_process";
 const requiredTemplateKeys = [
   "schema.flashcard",
   "schema.quiz",
-  "system.base",
-  "title.system",
-  "title.user"
+  "sourceProfile.system",
+  "sourceProfile.user",
+  "system.base"
 ];
 
 const args = process.argv.slice(2);

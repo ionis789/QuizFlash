@@ -71,18 +71,22 @@ extension AIFlashcardService {
     /// Generates a short deck title that matches the dominant language and
     /// subject of the supplied source text.
     public func generateDeckTitle(fromText text: String) async throws -> String? {
+        try await resolveSourceGenerationProfile(fromText: text)?.deckTitle
+    }
+
+    func resolveSourceGenerationProfile(fromText text: String) async throws -> AISourceGenerationProfile? {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return nil }
 
         return try await withDebugRun(
             kind: .utility,
-            targetType: "deck_title",
+            targetType: "source_profile",
             sourceKind: "text",
             sourceCount: 1,
             metadata: ["source_char_count": String(trimmedText.count)]
         ) { [self] in
-            try await self.sendDeckTitleRequest(
-                messages: try self.buildDeckTitleMessages(fromText: trimmedText),
+            try await self.sendSourceProfileRequest(
+                messages: try self.buildSourceProfileMessages(fromText: trimmedText),
                 model: self.textModel
             )
         }
@@ -284,15 +288,9 @@ extension AIFlashcardService {
                     let combinedText = segments
                         .map(\.text)
                         .joined(separator: "\n\n")
-                    let resolvedOptions = self.resolvedGenerationOptions(
-                        for: combinedText,
-                        needsOCRCorrection: needsOCRCorrection,
-                        base: options
-                    )
-
                     try await withDebugRun(
                         kind: .generation,
-                        targetType: resolvedOptions.cardType.rawValue,
+                        targetType: options.cardType.rawValue,
                         sourceKind: "segments",
                         targetCount: targetCards,
                         sourceCount: segments.count,
@@ -301,6 +299,12 @@ extension AIFlashcardService {
                             "allocation_count": String(allocations.count)
                         ]
                     ) { [self] in
+                        let resolvedOptions = try await self.resolvedGenerationOptions(
+                            for: combinedText,
+                            needsOCRCorrection: needsOCRCorrection,
+                            base: options
+                        )
+
                         await self.trace(
                             .planPrepared,
                             "Resolved text-generation language lock.",
@@ -498,7 +502,7 @@ extension AIFlashcardService {
         needsOCRCorrection: Bool,
         options: AIGenerationOptions
     ) async throws -> [AIFlashcard] {
-        let resolvedOptions = resolvedGenerationOptions(
+        let resolvedOptions = try await resolvedGenerationOptions(
             for: text,
             needsOCRCorrection: needsOCRCorrection,
             base: options
@@ -522,7 +526,7 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
     ) async throws {
-        let resolvedOptions = resolvedGenerationOptions(
+        let resolvedOptions = try await resolvedGenerationOptions(
             for: text,
             needsOCRCorrection: needsOCRCorrection,
             base: options
@@ -592,115 +596,40 @@ extension AIFlashcardService {
         for text: String,
         needsOCRCorrection: Bool,
         base options: AIGenerationOptions
-    ) -> AIGenerationOptions {
+    ) async throws -> AIGenerationOptions {
         var resolved = options
-        resolved.sourceLanguageHint = resolvedOutputLanguage(from: options, sourceText: text)
+        resolved.sourceLanguageHint = try await resolvedOutputLanguage(from: options, sourceText: text)
         return resolved
     }
 
     private func resolvedVisionGenerationOptions(base options: AIGenerationOptions) -> AIGenerationOptions {
         var resolved = options
-        resolved.sourceLanguageHint = resolvedOutputLanguage(from: options, sourceText: nil)
+        resolved.sourceLanguageHint = resolvedManualOutputLanguage(from: options)
         return resolved
     }
 
     private func resolvedOutputLanguage(
         from options: AIGenerationOptions,
         sourceText: String?
-    ) -> AIGenerationLanguageHint? {
+    ) async throws -> AIGenerationLanguageHint? {
         switch options.outputLanguageMode {
         case .auto:
+            if let sourceLanguageHint = options.sourceLanguageHint {
+                return sourceLanguageHint
+            }
             guard let sourceText else { return nil }
-            return Self.detectedSourceLanguageHint(in: sourceText)
+            return try await resolveSourceGenerationProfile(fromText: sourceText)?.languageHint
         case .manual:
             return options.manualOutputLanguage
         }
     }
 
-    nonisolated static func detectedSourceLanguageHint(in text: String) -> AIGenerationLanguageHint? {
-        let normalized = normalizedLanguageSample(text)
-        guard normalized.count >= 80 else { return nil }
-
-        if let cyrillicHint = detectedCyrillicLanguageHint(in: normalized) {
-            return cyrillicHint
-        }
-
-        let romanianScore = languageScore(
-            in: normalized,
-            markers: [
-                "aplicatie", "aplicatii", "atunci", "cursul", "daca", "defineste",
-                "definitie", "demonstratie", "diferential", "este", "exemplu", "fie",
-                "functie", "functia", "functii", "generalitati", "imaginea", "integral",
-                "liniare", "matematica", "matrice", "multime", "nucleul", "oricare",
-                "pentru", "proprie", "reale", "rezulta", "spatii", "teorema",
-                "valoare", "vectoriale"
-            ]
-        )
-        let englishScore = languageScore(
-            in: normalized,
-            markers: [
-                "and", "definition", "example", "for", "function", "if", "image",
-                "integral", "kernel", "linear", "matrix", "of", "real", "space",
-                "spaces", "the", "then", "theorem", "value", "vector", "where", "with"
-            ]
-        )
-
-        if romanianScore >= 8, romanianScore >= Int(Double(englishScore) * 1.25) {
-            return languageHint(forCode: "ro")
-        }
-
-        if englishScore >= 8, englishScore >= Int(Double(romanianScore) * 1.25) {
-            return languageHint(forCode: "en")
-        }
-
-        return nil
-    }
-
-    private nonisolated static func normalizedLanguageSample(_ text: String) -> String {
-        String(text.prefix(16_000))
-            .precomposedStringWithCanonicalMapping
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .replacingOccurrences(of: #"[^a-zа-яіїєґёăâîșțĂÂÎȘȚ ]+"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-    }
-
-    private nonisolated static func languageScore(in text: String, markers: [String]) -> Int {
-        markers.reduce(into: 0) { score, marker in
-            let pattern = #"(?<![a-z])"# + NSRegularExpression.escapedPattern(for: marker) + #"(?![a-z])"#
-            let range = NSRange(text.startIndex..<text.endIndex, in: text)
-            score += regexMatchCount(pattern: pattern, in: text, range: range)
-        }
-    }
-
-    private nonisolated static func regexMatchCount(pattern: String, in text: String, range: NSRange) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(in: text, range: range)
-    }
-
-    private nonisolated static func detectedCyrillicLanguageHint(in text: String) -> AIGenerationLanguageHint? {
-        let cyrillicCount = text.unicodeScalars.filter { scalar in
-            (0x0400...0x04FF).contains(Int(scalar.value))
-        }.count
-        guard cyrillicCount >= 24 else { return nil }
-
-        let ukrainianSignals = ["і", "ї", "є", "ґ"].reduce(0) { count, marker in
-            count + text.filter { String($0) == marker }.count
-        }
-        return languageHint(forCode: ukrainianSignals >= 3 ? "uk" : "ru")
-    }
-
-    private nonisolated static func languageHint(forCode code: String) -> AIGenerationLanguageHint? {
-        switch code {
-        case "en":
-            return AIGenerationLanguageHint(languageCode: "en", displayName: "English")
-        case "ro":
-            return AIGenerationLanguageHint(languageCode: "ro", displayName: "Romanian")
-        case "uk":
-            return AIGenerationLanguageHint(languageCode: "uk", displayName: "Ukrainian")
-        case "ru":
-            return AIGenerationLanguageHint(languageCode: "ru", displayName: "Russian")
-        default:
-            return nil
+    private func resolvedManualOutputLanguage(from options: AIGenerationOptions) -> AIGenerationLanguageHint? {
+        switch options.outputLanguageMode {
+        case .auto:
+            return options.sourceLanguageHint
+        case .manual:
+            return options.manualOutputLanguage
         }
     }
 }

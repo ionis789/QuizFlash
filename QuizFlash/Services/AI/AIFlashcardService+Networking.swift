@@ -29,19 +29,61 @@ extension AIFlashcardService {
         }
     }
 
-    func sendDeckTitleRequest(
+    func sendSourceProfileRequest(
         messages: [[String: Any]],
         model: String
-    ) async throws -> String? {
-        return try await performRetriableJSONRequest(
-            messages: messages,
-            model: model,
-            maxCompletionTokens: 128
-        ) { [self] data in
-            let content = try await self.parseResponseContent(from: data)
-            let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
-            return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
+    ) async throws -> AISourceGenerationProfile {
+        let profileScope = AIDebugTraceContext.currentScope?.with(
+            modelName: model,
+            operation: "title",
+            requestID: UUID()
+        )
+
+        return try await withTraceScope(profileScope) { [self] in
+            try await self.performRetriableJSONRequest(
+                messages: messages,
+                model: model,
+                maxCompletionTokens: 192
+            ) { [self] data in
+                let content = try await self.parseResponseContent(from: data)
+                let decoded = try JSONDecoder().decode(SourceProfileResponseDTO.self, from: Data(content.utf8))
+                return Self.sourceGenerationProfile(from: decoded)
+            }
         }
+    }
+
+    nonisolated static func sourceGenerationProfile(from decoded: SourceProfileResponseDTO) -> AISourceGenerationProfile {
+        let rawTitle = decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = rawTitle.isEmpty ? nil : rawTitle
+
+        return AISourceGenerationProfile(
+            deckTitle: title,
+            languageHint: normalizedLanguageHint(
+                code: decoded.language_code,
+                displayName: decoded.language_display_name
+            )
+        )
+    }
+
+    nonisolated static func normalizedLanguageHint(
+        code rawCode: String?,
+        displayName rawDisplayName: String?
+    ) -> AIGenerationLanguageHint? {
+        let displayName = rawDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !displayName.isEmpty, displayName.count <= 64 else { return nil }
+
+        let codeCandidate = rawCode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .first
+            .map(String.init)
+        guard let code = codeCandidate,
+              code.range(of: #"^[a-z]{2,3}$"#, options: .regularExpression) != nil else {
+            return nil
+        }
+
+        return AIGenerationLanguageHint(languageCode: code, displayName: displayName)
     }
 
     func performRetriableJSONRequest<T: Sendable>(

@@ -209,6 +209,11 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
+                let resolvedOptions = try await resolvedAIGenerationOptions(
+                    for: source,
+                    base: options,
+                    aiService: aiService
+                )
 
                 try await consumeGeneratedBatchChunks(
                     from: aiService.generateFlashcardBatchStream(
@@ -216,7 +221,7 @@ extension DeckWorkspaceViewModel {
                         targetCards: targetCardCount,
                         allocations: allocations,
                         needsOCRCorrection: source.needsOCRCorrection,
-                        options: options
+                        options: resolvedOptions
                     )
                 )
             } catch {
@@ -274,6 +279,11 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
+                let resolvedOptions = try await resolvedAIGenerationOptions(
+                    for: source,
+                    base: options,
+                    aiService: aiService
+                )
 
                 try await consumeGeneratedBatchChunks(
                     from: aiService.generateFlashcardBatchStream(
@@ -281,7 +291,7 @@ extension DeckWorkspaceViewModel {
                         targetCards: targetCardCount,
                         allocations: allocations,
                         needsOCRCorrection: source.needsOCRCorrection,
-                        options: options
+                        options: resolvedOptions
                     )
                 )
             } catch {
@@ -289,6 +299,29 @@ extension DeckWorkspaceViewModel {
                 handleAIGenerationFailure(error)
             }
         }
+    }
+
+    func resolvedAIGenerationOptions(
+        for source: AIPreparedGenerationSource,
+        base options: AIGenerationOptions,
+        aiService: AIFlashcardService
+    ) async throws -> AIGenerationOptions {
+        let sourceText = source.textSegments
+            .map(\.text)
+            .joined(separator: "\n\n")
+        let profile = try await aiService.resolveSourceGenerationProfile(fromText: sourceText)
+        if deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let suggestedTitle = profile?.deckTitle,
+           !suggestedTitle.isEmpty {
+            deckTitle = suggestedTitle
+        }
+
+        var resolvedOptions = options
+        if options.outputLanguageMode == .auto,
+           let languageHint = profile?.languageHint {
+            resolvedOptions.sourceLanguageHint = languageHint
+        }
+        return resolvedOptions
     }
 
     // MARK: - Source Preparation

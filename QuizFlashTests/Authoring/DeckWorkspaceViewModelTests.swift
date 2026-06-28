@@ -11,47 +11,6 @@ import SwiftData
 
 @MainActor
 final class DeckWorkspaceViewModelTests: XCTestCase {
-    func testLocalDeckTitleUsesSourceHeadingsWithoutAIRequest() {
-        let title = DeckWorkspaceViewModel.localDeckTitleSuggestion(
-            pdfURL: nil,
-            segments: [
-                AITextSourceSegment(
-                    index: 1,
-                    label: "Page 1",
-                    text: """
-                    Advanced Programming
-                    Lecture 2
-                    Objects and Classes
-
-                    This sentence explains the lesson.
-                    """
-                )
-            ]
-        )
-
-        XCTAssertEqual(title, "Advanced Programming - Lecture 2 - Objects and Classes")
-    }
-
-    func testLocalDeckTitleRejectsOCRNoiseLines() {
-        let title = DeckWorkspaceViewModel.localDeckTitleSuggestion(
-            pdfURL: nil,
-            segments: [
-                AITextSourceSegment(
-                    index: 1,
-                    label: "Image 1",
-                    text: """
-                    atunci avem
-                    ,u.EV,
-                    qr¥
-                    Functii reale. Generalitati
-                    """
-                )
-            ]
-        )
-
-        XCTAssertEqual(title, "Functii reale. Generalitati")
-    }
-
     func testPhotoDocumentPageOrderUsesDetectedFooters() {
         let reordered = DeckWorkspaceViewModel.documentPageReorderedIndices(
             for: [

@@ -7,7 +7,7 @@ import XCTest
 @testable import QuizFlash
 
 enum AIPromptBundleFixture {
-    static func bundle(version: String = "v2") throws -> AIPromptBundle {
+    static func bundle(version: String = "v3") throws -> AIPromptBundle {
         let templates = templates
         return AIPromptBundle(
             version: version,
@@ -60,6 +60,18 @@ Preserve quoted terms, formulas, code, and proper nouns exactly when needed.
 LANGUAGE RULE
 Write every generated card in {{languageDisplayName}} ({{languageCode}}).
 Do not mix languages unless the source itself contains a quoted term, formula, code, or proper noun.
+""",
+        "sourceProfile.system": """
+You analyze QuizFlash source material before card generation.
+Return STRICT JSON only with this shape: {"deck_title":"...","language_code":"...","language_display_name":"..."}.
+Infer the dominant natural language and a concise study deck title from the source itself.
+Do not translate the title away from the source language.
+If the source is too ambiguous, keep fields conservative rather than guessing wildly.
+""",
+        "sourceProfile.user": """
+Analyze this source and return the JSON profile only:
+
+{{text}}
 """,
         "layout.flashcard": """
 
@@ -341,17 +353,6 @@ OCR CORRECTION MODE ENABLED
 Repair broken words, split hyphenations, noisy symbols, damaged code syntax, and corrupted notation before generating cards.
 PDF/text extraction may split language-specific diacritics or formal symbols across lines. Normalize obvious words and notation, but keep uncertain formulas conservative.
 For corrupted formal notation, use a faithful simplified statement if the exact formula is not recoverable; do not fabricate a full equation just to make the card look mathematical.
-""",
-        "title.system": """
-You create short study deck titles.
-Return STRICT JSON only: {"deck_title":"..."}.
-Use the dominant language of the source.
-Keep the title under 6 words when possible.
-""",
-        "title.user": """
-Create one concise deck title for this source:
-
-{{text}}
 """,
         "user.text.base": """
 GENERATION CONTEXT

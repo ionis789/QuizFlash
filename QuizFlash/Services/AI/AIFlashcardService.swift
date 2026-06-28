@@ -27,8 +27,15 @@ public enum AIServiceError: LocalizedError {
     }
 }
 
-nonisolated struct DeckTitleResponseDTO: Codable {
+nonisolated struct SourceProfileResponseDTO: Codable {
     let deck_title: String?
+    let language_code: String?
+    let language_display_name: String?
+}
+
+nonisolated struct AISourceGenerationProfile: Equatable, Sendable {
+    let deckTitle: String?
+    let languageHint: AIGenerationLanguageHint?
 }
 
 nonisolated struct AIProviderErrorEnvelope: Decodable {

@@ -703,99 +703,6 @@ extension DeckWorkspaceViewModel {
         )
     }
 
-    func applyLocalDeckTitleIfNeeded(from source: AIPreparedGenerationSource) {
-        let currentTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard currentTitle.isEmpty,
-              let suggestedTitle = Self.localDeckTitleSuggestion(
-                pdfURL: source.pdfURL,
-                segments: source.textSegments
-              ) else {
-            return
-        }
-        deckTitle = suggestedTitle
-    }
-
-    nonisolated static func localDeckTitleSuggestion(
-        pdfURL: URL?,
-        segments: [AITextSourceSegment]
-    ) -> String? {
-        let headingLines = segments
-            .prefix(2)
-            .flatMap { $0.text.components(separatedBy: .newlines).prefix(12) }
-            .compactMap(normalizedTitleLine)
-
-        var selectedLines: [String] = []
-        for line in headingLines {
-            let candidate = (selectedLines + [line]).joined(separator: " - ")
-            guard candidate.count <= 72 else { break }
-            selectedLines.append(line)
-            if selectedLines.count == 4 { break }
-        }
-        if !selectedLines.isEmpty {
-            return selectedLines.joined(separator: " - ")
-        }
-
-        if let pdfURL,
-           let fileTitle = normalizedTitleLine(
-            pdfURL.deletingPathExtension().lastPathComponent
-                .replacingOccurrences(of: "_", with: " ")
-                .replacingOccurrences(of: "-", with: " ")
-           ) {
-            return fileTitle
-        }
-
-        return segments.lazy
-            .map(\.text)
-            .flatMap { $0.components(separatedBy: .newlines) }
-            .compactMap(normalizedTitleLine)
-            .first
-    }
-
-    nonisolated private static func normalizedTitleLine(_ rawLine: String) -> String? {
-        let collapsed = rawLine
-            .replacingOccurrences(of: #"^[\s#*•\-–—\d.)]+"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (3...72).contains(collapsed.count),
-              collapsed.rangeOfCharacter(from: .letters) != nil,
-              collapsed.split(separator: " ").count <= 12,
-              !Self.startsWithLowercaseLetter(collapsed),
-              Self.titleLineSymbolRatio(collapsed) <= 0.22,
-              collapsed.range(of: #"[¥�{}=<>∀∈∉∪∩→←↔≤≥]"#, options: .regularExpression) == nil,
-              collapsed.range(of: #"[;,]"#, options: .regularExpression) == nil,
-              collapsed.range(of: #"^(page|image|slide|pagina|imagine)\s*\d*$"#, options: [.regularExpression, .caseInsensitive]) == nil,
-              collapsed.range(of: #"https?://|www\.|@"#, options: [.regularExpression, .caseInsensitive]) == nil,
-              !collapsed.hasSuffix("."),
-              !collapsed.hasSuffix("?"),
-              !collapsed.hasSuffix("!") else {
-            return nil
-        }
-        return collapsed
-    }
-
-    nonisolated private static func startsWithLowercaseLetter(_ text: String) -> Bool {
-        guard let firstScalar = text.unicodeScalars.first else { return false }
-        return CharacterSet.lowercaseLetters.contains(firstScalar)
-    }
-
-    nonisolated private static func titleLineSymbolRatio(_ text: String) -> Double {
-        let scalars = text.unicodeScalars
-        guard !scalars.isEmpty else { return 1 }
-
-        let allowedSeparators = CharacterSet(charactersIn: " -–—:/()'&")
-        let symbolCount = scalars.reduce(0) { count, scalar in
-            if CharacterSet.letters.contains(scalar)
-                || CharacterSet.decimalDigits.contains(scalar)
-                || CharacterSet.whitespacesAndNewlines.contains(scalar)
-                || allowedSeparators.contains(scalar) {
-                return count
-            }
-            return count + 1
-        }
-
-        return Double(symbolCount) / Double(scalars.count)
-    }
-
     func presentAIGenerationSheet() {
         clearsPendingAISourceOnSheetDismiss = true
         aiSheetDestination = .prepareGeneration
@@ -976,7 +883,6 @@ extension DeckWorkspaceViewModel {
             targetCardCount: targetCardCount,
             shouldResetProgress: shouldResetProgress
         )
-        applyLocalDeckTitleIfNeeded(from: source)
 
         switch source.kind {
         case .photos:
