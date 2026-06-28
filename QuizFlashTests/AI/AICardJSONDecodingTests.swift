@@ -362,6 +362,50 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(metadata["prompt_payload"]?.contains("exact sanitized provider JSON body") == true)
     }
 
+    func testRequestBodyIncludesDynamicCompletionLimit() {
+        let service = makeService()
+        let options = AIGenerationOptions(cardType: .flashcards, cardLevel: .pro)
+        let limit = options.maxCompletionTokens(for: 12)
+        let body = service.requestBody(
+            messages: [["role": "user", "content": "Generate cards"]],
+            model: "test-text",
+            maxCompletionTokens: limit
+        )
+
+        XCTAssertEqual(body["max_tokens"] as? Int, 8_784)
+    }
+
+    func testTextPromptPlacesStableSourceBeforeBatchMetadata() throws {
+        let service = makeService()
+        let prompt = try service.buildTextUserMessage(
+            text: "Stable source prefix",
+            targetCards: 12,
+            options: AIGenerationOptions(cardType: .flashcards),
+            cardType: .flashcards,
+            sourceLabel: "Page 1",
+            batchIndex: 2,
+            totalBatches: 3,
+            passIndex: 1,
+            coveredPrompts: ["Covered concept"]
+        )
+
+        let sourceRange = try XCTUnwrap(prompt.range(of: "Stable source prefix"))
+        let batchRange = try XCTUnwrap(prompt.range(of: "Batch 2 of 3"))
+        let coveredRange = try XCTUnwrap(prompt.range(of: "Covered concept"))
+        XCTAssertLessThan(sourceRange.lowerBound, batchRange.lowerBound)
+        XCTAssertLessThan(sourceRange.lowerBound, coveredRange.lowerBound)
+    }
+
+    func testSystemPromptIsStableAcrossBatchCardCounts() throws {
+        let service = makeService()
+        let options = AIGenerationOptions(cardType: .flashcards, cardLevel: .pro)
+
+        XCTAssertEqual(
+            try service.systemPrompt(targetCards: 3, isOCR: false, options: options),
+            try service.systemPrompt(targetCards: 12, isOCR: false, options: options)
+        )
+    }
+
     func testQuizPromptPrefersCompactChoicesForNamedTechnicalAnswers() throws {
         let service = makeService()
         let prompt = try service.systemPrompt(
@@ -430,14 +474,14 @@ final class AICardJSONDecodingTests: XCTestCase {
             options: AIGenerationOptions(cardType: .quiz)
         )
 
-        XCTAssertEqual(plans.map(\.targetCards), [3, 6, 6])
-        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1 - Page 4", "Page 5 - Page 7", "Page 8 - Page 10"])
+        XCTAssertEqual(plans.map(\.targetCards), [3, 12])
+        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1 - Page 2", "Page 3 - Page 10"])
         XCTAssertTrue(plans[0].text.contains("Page 1 content"))
         XCTAssertFalse(plans[0].text.contains("Page 10 content"))
-        XCTAssertTrue(plans[2].text.contains("Page 10 content"))
+        XCTAssertTrue(plans[1].text.contains("Page 10 content"))
     }
 
-    func testHighVolumeTextBatchingUsesUniformTenCardRequests() {
+    func testHighVolumeTextBatchingUsesFourUniformRequests() {
         let service = makeService()
         let text = (1...100)
             .map { "Page \($0)\nDense source paragraph \($0)." }
@@ -449,8 +493,8 @@ final class AICardJSONDecodingTests: XCTestCase {
             options: AIGenerationOptions(cardType: .flashcards)
         )
 
-        XCTAssertEqual(plans.count, 10)
-        XCTAssertEqual(plans.map(\.targetCards), Array(repeating: 10, count: 10))
+        XCTAssertEqual(plans.count, 4)
+        XCTAssertEqual(plans.map(\.targetCards), Array(repeating: 25, count: 4))
     }
 
     @MainActor
@@ -480,7 +524,7 @@ final class AICardJSONDecodingTests: XCTestCase {
             options: AIGenerationOptions(cardType: .quiz)
         )
 
-        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1", "Page 1", "Page 1"])
+        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1", "Page 1 (focus pass 2)"])
         XCTAssertEqual(
             service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 6),
             1

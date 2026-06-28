@@ -44,7 +44,7 @@ export const requiredPromptTemplateKeys = [
 ] as const;
 
 export const defaultPromptBundle: PromptBundle = {
-  version: "v1",
+  version: "v2",
   status: "active",
   templates: {
       "cardType.flashcard": "\nCARD TYPE: FLASHCARDS\nCreate active-recall question/answer cards. Preserve exact technical terms, notation, formulas, and short code snippets when they are the best learning surface.",
@@ -81,6 +81,11 @@ export const defaultPromptBundle: PromptBundle = {
       "user.vision.repeat": "\nThis source group has already been used in an earlier pass. Cover new concepts or a clearly different angle."
   }
 };
+
+defaultPromptBundle.templates["system.base"] = defaultPromptBundle.templates["system.base"].replace(
+  "Output STRICTLY valid JSON using the canonical QuizFlash card DTO with EXACTLY {{targetCards}} cards.",
+  "Output STRICTLY valid JSON using the canonical QuizFlash card DTO with the exact card count requested in the user message."
+);
 
 export async function promptBundleHash(templates: Record<string, string>): Promise<string> {
   const bytes = new TextEncoder().encode(stableJSONString(templates));

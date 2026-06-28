@@ -45,8 +45,16 @@ extension AIFlashcardService {
         passIndex: Int,
         coveredPrompts: [String]
     ) throws -> [[String: Any]] {
-        var userContent: [[String: Any]] = [
-            ["type": "text", "text": try buildVisionUserMessage(
+        var userContent: [[String: Any]] = []
+        for image in images {
+            guard let data = image.jpegData(compressionQuality: 0.7) else { continue }
+            userContent.append([
+                "type": "image_url",
+                "image_url": ["url": "data:image/jpeg;base64,\(data.base64EncodedString())", "detail": "auto"],
+            ])
+        }
+        userContent.append([
+            "type": "text", "text": try buildVisionUserMessage(
                 targetCards: targetCards,
                 options: options,
                 cardType: options.cardType,
@@ -55,15 +63,8 @@ extension AIFlashcardService {
                 totalBatches: totalBatches,
                 passIndex: passIndex,
                 coveredPrompts: coveredPrompts
-            )],
-        ]
-        for image in images {
-            guard let data = image.jpegData(compressionQuality: 0.7) else { continue }
-            userContent.append([
-                "type": "image_url",
-                "image_url": ["url": "data:image/jpeg;base64,\(data.base64EncodedString())", "detail": "auto"],
-            ])
-        }
+            )
+        ])
         return [
             ["role": "system", "content": try systemPrompt(targetCards: targetCards, isOCR: false, options: options)],
             ["role": "user", "content": userContent],
@@ -92,6 +93,10 @@ extension AIFlashcardService {
         coveredPrompts: [String]
     ) throws -> String {
         var message = try renderPromptTemplate(
+            AIPromptTemplateKey.userTextSource,
+            values: ["text": text]
+        )
+        message += try renderPromptTemplate(
             AIPromptTemplateKey.userTextBase,
             values: [
                 "batchIndex": String(batchIndex),
@@ -127,7 +132,6 @@ extension AIFlashcardService {
             }
         }
 
-        message += try renderPromptTemplate(AIPromptTemplateKey.userTextSource, values: ["text": text])
         return message
     }
 

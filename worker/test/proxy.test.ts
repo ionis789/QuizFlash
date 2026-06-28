@@ -216,6 +216,27 @@ describe("QuizFlash AI proxy", () => {
     expect(metadata.responseID).toBe("chatcmpl-test");
   });
 
+  it("does not double-count a fully cached prompt", () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      id: "chatcmpl-cached",
+      model: "deepseek-v4-flash",
+      usage: {
+        prompt_tokens: 1000,
+        prompt_cache_hit_tokens: 1000,
+        prompt_cache_miss_tokens: 0,
+        completion_tokens: 50,
+        total_tokens: 1050
+      },
+      choices: [{finish_reason: "stop"}]
+    })).buffer;
+
+    const metadata = extractProviderMetadata(bytes, "deepseek-v4-flash", true);
+
+    expect(metadata.cacheHitTokens).toBe(1000);
+    expect(metadata.cacheMissTokens).toBe(0);
+    expect(metadata.costMicroUSD).toBe(estimateCostMicroUSD("deepseek-v4-flash", 1000, 0, 50));
+  });
+
   it("marks successful provider responses without usage as accounting errors", () => {
     const bytes = new TextEncoder().encode(JSON.stringify({
       id: "chatcmpl-test",

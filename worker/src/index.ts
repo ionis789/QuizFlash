@@ -120,6 +120,7 @@ type ProviderCallAccountingInput = {
   operation: string;
   requestedModel: string;
   httpStatus: number;
+  upstreamDurationMs: number;
   rawResponseBytes: number;
   metadata: ProviderMetadata;
   responseCiphertext: string;
@@ -334,14 +335,15 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         this.env.AI_DB.prepare(
           `INSERT INTO ai_provider_calls (
             provider_call_id, generation_id, operation, requested_model, response_model, provider_response_id,
-            http_status, finish_reason, raw_response_bytes, prompt_tokens, completion_tokens, total_tokens,
+            http_status, finish_reason, upstream_duration_ms, raw_response_bytes, prompt_tokens, completion_tokens, total_tokens,
             cache_hit_tokens, cache_miss_tokens, estimated_cost_micro_usd, final_cost_micro_usd,
             pricing_version, accounting_status, accounted_at_ms, response_ciphertext, response_iv,
             response_expires_at_ms, created_at_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
           input.providerCallId, input.generationId, input.operation, input.requestedModel, input.metadata.model, input.metadata.responseID,
-          input.httpStatus, input.metadata.finishReason, input.rawResponseBytes, input.metadata.promptTokens, input.metadata.completionTokens,
+          input.httpStatus, input.metadata.finishReason, input.upstreamDurationMs, input.rawResponseBytes,
+          input.metadata.promptTokens, input.metadata.completionTokens,
           input.metadata.totalTokens, input.metadata.cacheHitTokens, input.metadata.cacheMissTokens, input.metadata.costMicroUSD,
           input.metadata.costMicroUSD, input.metadata.pricingVersion, input.metadata.accountingStatus,
           input.metadata.accountingStatus === "accounted" ? input.createdAtMs : null,
@@ -733,6 +735,7 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
     operation,
     requestedModel: requestPayload.model,
     httpStatus: upstream.status,
+    upstreamDurationMs: upstreamDuration,
     rawResponseBytes: responseBytes.byteLength,
     metadata,
     responseCiphertext: encrypted.ciphertext,
@@ -776,7 +779,9 @@ export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: stri
     const promptTokens = numeric(usage.prompt_tokens);
     const completionTokens = numeric(usage.completion_tokens);
     const cacheHitTokens = numeric(usage.prompt_cache_hit_tokens);
-    const cacheMissTokens = numeric(usage.prompt_cache_miss_tokens) || promptTokens;
+    const cacheMissTokens = usage.prompt_cache_miss_tokens === undefined
+      ? Math.max(0, promptTokens - cacheHitTokens)
+      : numeric(usage.prompt_cache_miss_tokens);
     const model = envelope.model ?? null;
     const costMicroUSD = billable && usagePresent && model !== null
       ? estimateCostMicroUSD(model, cacheHitTokens, cacheMissTokens, completionTokens)

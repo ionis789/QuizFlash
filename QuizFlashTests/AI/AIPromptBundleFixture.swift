@@ -7,7 +7,7 @@ import XCTest
 @testable import QuizFlash
 
 enum AIPromptBundleFixture {
-    static func bundle(version: String = "v1") throws -> AIPromptBundle {
+    static func bundle(version: String = "v2") throws -> AIPromptBundle {
         let templates = templates
         return AIPromptBundle(
             version: version,
@@ -233,7 +233,7 @@ For a real executable snippet where block structure helps, use a standalone code
         "system.base": """
 You generate rigorous study content for QuizFlash.
 Your absolute priorities are technical accuracy, compact mobile readability, and faithful notation.
-Output STRICTLY valid JSON using the canonical QuizFlash card DTO with EXACTLY {{targetCards}} cards.
+Output STRICTLY valid JSON using the canonical QuizFlash card DTO with the exact card count requested in the user message.
 Generate only the requested card type: {{cardTypeTitle}}.
 Do not generate deck metadata, ids, dates, image zones, or sketch zones.
 

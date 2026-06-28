@@ -314,11 +314,9 @@ final class DeckWorkspaceViewModel {
     @ObservationIgnored var aiSourcePreparationTask: Task<Void, Never>?
     @ObservationIgnored var pendingAISourceSelection: PendingAISourceSelection?
     @ObservationIgnored var aiRevealTask: Task<Void, Error>?
-    @ObservationIgnored var aiDeckTitleTask: Task<Void, Never>?
     @ObservationIgnored var aiSessionPersistenceTask: Task<Void, Never>?
     @ObservationIgnored var saveOverlayTask: Task<Void, Never>?
 
-    @ObservationIgnored var pendingAIDeckTitleRequestID: UUID?
     @ObservationIgnored var pendingAIGeneratedCards: [AIFlashcard] = []
     @ObservationIgnored var aiDidFinishReceivingGeneratedCards = false
     @ObservationIgnored var aiGeneratedShortfallCount = 0

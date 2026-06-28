@@ -29,7 +29,6 @@ const hash = sha256(stableJSONString(bundle.templates));
 const now = Date.now();
 const status = activate ? "active" : "draft";
 const sql = `
-BEGIN TRANSACTION;
 INSERT INTO ai_prompt_configs (version, hash, status, templates_json, created_at_ms, activated_at_ms)
 VALUES (${sqlString(bundle.version)}, ${sqlString(hash)}, 'draft', ${sqlString(JSON.stringify(bundle.templates))}, ${now}, NULL)
 ON CONFLICT(version) DO UPDATE SET
@@ -40,13 +39,12 @@ ${activate ? `
 UPDATE ai_prompt_configs SET status = 'retired' WHERE status = 'active' AND version <> ${sqlString(bundle.version)};
 UPDATE ai_prompt_configs SET status = 'active', activated_at_ms = ${now} WHERE version = ${sqlString(bundle.version)};
 ` : ""}
-COMMIT;
 `;
 
 const tempDir = await mkdtemp(join(tmpdir(), "quizflash-prompt-"));
 const sqlPath = join(tempDir, "publish-prompt.sql");
 await writeFile(sqlPath, sql);
-const result = spawnSync("npx", ["wrangler", "d1", "execute", "quizflash-ai", "--file", sqlPath], {
+const result = spawnSync("npx", ["wrangler", "d1", "execute", "quizflash-ai", "--remote", "--file", sqlPath], {
   cwd: new URL("..", import.meta.url),
   stdio: "inherit"
 });

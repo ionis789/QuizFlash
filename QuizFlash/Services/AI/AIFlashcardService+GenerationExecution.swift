@@ -56,7 +56,12 @@ extension AIFlashcardService {
                 )
 
                 return GeneratedBatchExecutionResult(
-                    cards: try await sendRequest(messages: messages, model: textModel, options: options),
+                    cards: try await sendRequest(
+                        messages: messages,
+                        model: textModel,
+                        options: options,
+                        targetCards: plan.targetCards
+                    ),
                     shortfallCount: 0
                 )
             },
@@ -112,7 +117,12 @@ extension AIFlashcardService {
                 )
 
                 return GeneratedBatchExecutionResult(
-                    cards: try await sendRequest(messages: messages, model: visionModel, options: options),
+                    cards: try await sendRequest(
+                        messages: messages,
+                        model: visionModel,
+                        options: options,
+                        targetCards: plan.targetCards
+                    ),
                     shortfallCount: 0
                 )
             },
@@ -281,9 +291,16 @@ extension AIFlashcardService {
         let boundedMaxConcurrent = min(max(requestedMaxConcurrent, 1), plans.count)
         guard boundedMaxConcurrent > 1 else { return boundedMaxConcurrent }
 
-        var seenSourceLabels = Set<String>()
+        var seenSourceIdentities = Set<String>()
         for plan in plans {
-            if !seenSourceLabels.insert(plan.sourceLabel).inserted {
+            let sourceIdentity = allocationID(for: plan)
+                .map { "allocation:\($0.uuidString)" }
+                ?? plan.sourceLabel.replacingOccurrences(
+                    of: #"\s*\(focus pass \d+\)$"#,
+                    with: "",
+                    options: .regularExpression
+                )
+            if !seenSourceIdentities.insert(sourceIdentity).inserted {
                 return 1
             }
         }

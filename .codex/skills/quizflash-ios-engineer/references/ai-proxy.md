@@ -21,7 +21,7 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 2. `POST /v1/generations/start` verifies Firebase Auth, reads canonical entitlement and current-month usage from Firestore, then creates the operational session through the UID Durable Object.
 3. `AIFlashcardService` keeps its local planner and builds the exact OpenAI-compatible request body: model, messages, response format, temperature, and thinking options.
 4. `AIRequestTransport.cloudProxy` changes only the destination and adds generation/session/provider-call headers. `POST /v1/chat/completions` forwards the received body bytes to DeepSeek and returns the response bytes unchanged.
-5. iOS runs the existing title parser, retry policy, JSON/DTO decoding, LaTeX normalization, and local deck/card insertion. Both title and card batches use the same proxy.
+5. iOS derives a best-effort deck title locally from source headings or the PDF filename, then runs the existing retry policy, JSON/DTO decoding, LaTeX normalization, and local card insertion. New clients send only card batches through the proxy; the title operation remains accepted for backward compatibility.
 6. iOS calls `/finish` with validated-card count or `/fail` after cancellation/no usable output. The Worker atomically finalizes canonical Firestore usage with a server-only `usageEvents/{generationId}` idempotency record, then replaces the D1 cache from that Firestore result.
 
 ### Ownership Boundaries
@@ -72,6 +72,9 @@ A remote prompt is a quality/configuration control, not a security control. Beca
 - Do not decode and re-encode the provider envelope in the Worker.
 - Preserve stable `providerCallId` across an iOS retry so the encrypted 15-minute response cache prevents duplicate provider calls/cost.
 - Emit and preserve `Server-Timing` and request IDs for latency analysis.
+- Keep the system prompt independent of per-batch card count, place stable text/image source content before batch-specific suffix instructions, and version every prompt-order change.
+- Bound `max_tokens` from card type, depth, and requested batch size with enough headroom to preserve valid JSON.
+- Store provider upstream duration per call in D1 so title/card, retry, cache, and batch changes can be compared from measured data.
 - Treat an added user-visible delay as a regression. Measure start/configuration and provider timings separately.
 
 ## Verification And Deployment

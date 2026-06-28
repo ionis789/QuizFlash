@@ -13,9 +13,14 @@ extension AIFlashcardService {
     func sendRequest(
         messages: [[String: Any]],
         model: String,
-        options: AIGenerationOptions
+        options: AIGenerationOptions,
+        targetCards: Int
     ) async throws -> [AIFlashcard] {
-        try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
+        try await performRetriableJSONRequest(
+            messages: messages,
+            model: model,
+            maxCompletionTokens: options.maxCompletionTokens(for: targetCards)
+        ) { [self] data in
             let content = try await self.parseResponseContent(from: data)
             return try await self.decodeGeneratedCards(
                 from: content,
@@ -28,7 +33,11 @@ extension AIFlashcardService {
         messages: [[String: Any]],
         model: String
     ) async throws -> String? {
-        return try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
+        return try await performRetriableJSONRequest(
+            messages: messages,
+            model: model,
+            maxCompletionTokens: 128
+        ) { [self] data in
             let content = try await self.parseResponseContent(from: data)
             let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
             return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -38,6 +47,7 @@ extension AIFlashcardService {
     func performRetriableJSONRequest<T: Sendable>(
         messages: [[String: Any]],
         model: String,
+        maxCompletionTokens: Int?,
         parser: @escaping @Sendable (Data) async throws -> T
     ) async throws -> T {
         guard let url = apiEndpoint else { throw AIServiceError.networkError }
@@ -81,7 +91,11 @@ extension AIFlashcardService {
                         )
                     }
 
-                    let body = self.requestBody(messages: messages, model: model)
+                    let body = self.requestBody(
+                        messages: messages,
+                        model: model,
+                        maxCompletionTokens: maxCompletionTokens
+                    )
                     let traceBody = self.traceJSONString(forJSONObject: body) ?? "Failed to pretty-print request body."
                     await self.trace(
                         .requestPrepared,
@@ -220,7 +234,11 @@ extension AIFlashcardService {
         }
     }
 
-    func requestBody(messages: [[String: Any]], model: String) -> [String: Any] {
+    func requestBody(
+        messages: [[String: Any]],
+        model: String,
+        maxCompletionTokens: Int? = nil
+    ) -> [String: Any] {
         switch provider.requestStyle {
         case .openAICompatible:
             var body: [String: Any] = [
@@ -231,6 +249,9 @@ extension AIFlashcardService {
 
             if supportsTemperatureParameter(for: model) {
                 body["temperature"] = 0.2
+            }
+            if let maxCompletionTokens {
+                body["max_tokens"] = maxCompletionTokens
             }
 
             if let extraBody = provider.extraBodyObject {

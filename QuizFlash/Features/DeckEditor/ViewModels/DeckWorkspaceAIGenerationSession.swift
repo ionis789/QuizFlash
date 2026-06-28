@@ -316,9 +316,6 @@ extension DeckWorkspaceViewModel {
             aiBackgroundCoordinator.endSession(id: sessionID)
         }
         aiGenerationTask = nil
-        aiDeckTitleTask?.cancel()
-        aiDeckTitleTask = nil
-        pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
         finalizeAIGenerationClock()
@@ -345,9 +342,6 @@ extension DeckWorkspaceViewModel {
         }
         aiGenerationTask?.cancel()
         aiGenerationTask = nil
-        aiDeckTitleTask?.cancel()
-        aiDeckTitleTask = nil
-        pendingAIDeckTitleRequestID = nil
         aiSessionPersistenceTask?.cancel()
         aiSessionPersistenceTask = nil
         resetAIGenerationRevealPipeline()
@@ -417,9 +411,6 @@ extension DeckWorkspaceViewModel {
         aiGenerationSessionID = nil
         aiGenerationTask?.cancel()
         aiGenerationTask = nil
-        aiDeckTitleTask?.cancel()
-        aiDeckTitleTask = nil
-        pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
         finalizeAIGenerationClock()
@@ -712,87 +703,70 @@ extension DeckWorkspaceViewModel {
         )
     }
 
-    func requestAIDeckTitleIfNeeded(
-        from source: AIPreparedGenerationSource,
-        aiService: AIFlashcardService
-    ) {
+    func applyLocalDeckTitleIfNeeded(from source: AIPreparedGenerationSource) {
         let currentTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard currentTitle.isEmpty else {
-            aiDeckTitleTask?.cancel()
-            aiDeckTitleTask = nil
-            pendingAIDeckTitleRequestID = nil
+        guard currentTitle.isEmpty,
+              let suggestedTitle = Self.localDeckTitleSuggestion(
+                pdfURL: source.pdfURL,
+                segments: source.textSegments
+              ) else {
             return
         }
-
-        let sampledText = sampledTextForAIDeckTitle(from: source)
-        guard !sampledText.isEmpty else { return }
-
-        aiDeckTitleTask?.cancel()
-        let requestID = UUID()
-        pendingAIDeckTitleRequestID = requestID
-
-        aiDeckTitleTask = Task { [weak self] in
-            guard let self else { return }
-
-            defer {
-                if pendingAIDeckTitleRequestID == requestID {
-                    aiDeckTitleTask = nil
-                    pendingAIDeckTitleRequestID = nil
-                }
-            }
-
-            do {
-                guard let suggestedTitle = try await aiService.generateDeckTitle(fromText: sampledText)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                    !suggestedTitle.isEmpty else {
-                    return
-                }
-
-                guard pendingAIDeckTitleRequestID == requestID else { return }
-                guard deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                withAnimation(.smooth(duration: UIConstants.Animation.medium, extraBounce: 0)) {
-                    self.deckTitle = suggestedTitle
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                return
-            }
-        }
+        deckTitle = suggestedTitle
     }
 
-    func sampledTextForAIDeckTitle(from source: AIPreparedGenerationSource) -> String {
-        let nonEmptySegments = source.textSegments.filter {
-            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    nonisolated static func localDeckTitleSuggestion(
+        pdfURL: URL?,
+        segments: [AITextSourceSegment]
+    ) -> String? {
+        let headingLines = segments
+            .prefix(2)
+            .flatMap { $0.text.components(separatedBy: .newlines).prefix(12) }
+            .compactMap(normalizedTitleLine)
+
+        var selectedLines: [String] = []
+        for line in headingLines {
+            let candidate = (selectedLines + [line]).joined(separator: " - ")
+            guard candidate.count <= 72 else { break }
+            selectedLines.append(line)
+            if selectedLines.count == 4 { break }
         }
-        guard !nonEmptySegments.isEmpty else { return "" }
-
-        let sampleCount = min(max(3, Int(ceil(Double(nonEmptySegments.count) / 10.0))), 6)
-        let sampledIndices = evenlySampledIndices(
-            totalCount: nonEmptySegments.count,
-            sampleCount: sampleCount
-        )
-
-        let sampledText = sampledIndices.map { index in
-            let segment = nonEmptySegments[index]
-            return "\(segment.label)\n\(segment.text)"
+        if !selectedLines.isEmpty {
+            return selectedLines.joined(separator: " - ")
         }
-        .joined(separator: "\n\n")
 
-        return String(sampledText.prefix(6_000))
+        if let pdfURL,
+           let fileTitle = normalizedTitleLine(
+            pdfURL.deletingPathExtension().lastPathComponent
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+           ) {
+            return fileTitle
+        }
+
+        return segments.lazy
+            .map(\.text)
+            .flatMap { $0.components(separatedBy: .newlines) }
+            .compactMap(normalizedTitleLine)
+            .first
     }
 
-    func evenlySampledIndices(
-        totalCount: Int,
-        sampleCount: Int
-    ) -> [Int] {
-        guard totalCount > 0, sampleCount > 0 else { return [] }
-        guard sampleCount < totalCount else { return Array(0..<totalCount) }
-
-        let step = Double(totalCount - 1) / Double(max(sampleCount - 1, 1))
-        return (0..<sampleCount).map { offset in
-            Int((Double(offset) * step).rounded())
+    nonisolated private static func normalizedTitleLine(_ rawLine: String) -> String? {
+        let collapsed = rawLine
+            .replacingOccurrences(of: #"^[\s#*•\-–—\d.)]+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (3...72).contains(collapsed.count),
+              collapsed.rangeOfCharacter(from: .letters) != nil,
+              collapsed.split(separator: " ").count <= 12,
+              collapsed.range(of: #"^(page|image|slide|pagina|imagine)\s*\d*$"#, options: [.regularExpression, .caseInsensitive]) == nil,
+              collapsed.range(of: #"https?://|www\.|@"#, options: [.regularExpression, .caseInsensitive]) == nil,
+              !collapsed.hasSuffix("."),
+              !collapsed.hasSuffix("?"),
+              !collapsed.hasSuffix("!") else {
+            return nil
         }
+        return collapsed
     }
 
     func presentAIGenerationSheet() {
@@ -975,7 +949,7 @@ extension DeckWorkspaceViewModel {
             targetCardCount: targetCardCount,
             shouldResetProgress: shouldResetProgress
         )
-        requestAIDeckTitleIfNeeded(from: source, aiService: aiService)
+        applyLocalDeckTitleIfNeeded(from: source)
 
         switch source.kind {
         case .photos:

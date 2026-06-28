@@ -462,22 +462,39 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
         case 1 ... 4:
             adaptiveBatchSize = safeTarget
         case 5 ... 12:
-            adaptiveBatchSize = 4
+            adaptiveBatchSize = 12
         case 13 ... 24:
-            adaptiveBatchSize = 6
+            adaptiveBatchSize = 12
         case 25 ... 50:
-            adaptiveBatchSize = 8
+            adaptiveBatchSize = 18
         case 51 ... 90:
-            adaptiveBatchSize = 10
+            adaptiveBatchSize = 24
         case 91 ... 180:
-            adaptiveBatchSize = 10
+            adaptiveBatchSize = 25
         case 181 ... 320:
-            adaptiveBatchSize = 14
+            adaptiveBatchSize = 28
         default:
-            adaptiveBatchSize = 16
+            adaptiveBatchSize = 32
         }
 
         return min(adaptiveBatchSize, safeTarget)
+    }
+
+    /// Caps pathological output without constraining normal card responses.
+    func maxCompletionTokens(for targetCards: Int) -> Int {
+        let perCard: Int
+        switch (cardType, cardLevel) {
+        case (.flashcards, .simple):
+            perCard = 360
+        case (.flashcards, .pro):
+            perCard = 700
+        case (.quiz, .simple):
+            perCard = 420
+        case (.quiz, .pro):
+            perCard = 760
+        }
+
+        return min(32_000, max(768, 384 + max(targetCards, 1) * perCard))
     }
 }
 

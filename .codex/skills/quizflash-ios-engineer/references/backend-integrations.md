@@ -10,7 +10,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Firestore is the canonical backend for Auth-linked profiles, background deck sync, manual premium state, free AI quota, and monthly AI usage.
 - Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
 - Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
-- RevenueCat is not integrated yet. `SubscriptionManager` currently reads Firebase custom claims and the user document; `restorePurchases()` is intentionally a placeholder.
+- RevenueCat is not integrated yet. `SubscriptionManager` currently reads the canonical Firestore user document; `restorePurchases()` is intentionally a placeholder.
 
 ## Authority And Identity
 

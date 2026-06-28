@@ -11,6 +11,27 @@ import SwiftData
 
 @MainActor
 final class DeckWorkspaceViewModelTests: XCTestCase {
+    func testLocalDeckTitleUsesSourceHeadingsWithoutAIRequest() {
+        let title = DeckWorkspaceViewModel.localDeckTitleSuggestion(
+            pdfURL: nil,
+            segments: [
+                AITextSourceSegment(
+                    index: 1,
+                    label: "Page 1",
+                    text: """
+                    Advanced Programming
+                    Lecture 2
+                    Objects and Classes
+
+                    This sentence explains the lesson.
+                    """
+                )
+            ]
+        )
+
+        XCTAssertEqual(title, "Advanced Programming - Lecture 2 - Objects and Classes")
+    }
+
     func testSaveDeckCreatesDeckAndCardsInSelectedFolder() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Science", colorHex: "#22AA88")

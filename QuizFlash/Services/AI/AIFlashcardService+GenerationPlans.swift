@@ -20,7 +20,7 @@ extension AIFlashcardService {
         var units = makeTextUnits(from: text)
         units = expandTextUnits(units, toReach: batchSizes.count)
 
-        let groupedUnits = distributeElementsEvenly(units, into: batchSizes.count)
+        let groupedUnits = distributeElementsProportionally(units, weights: batchSizes)
 
         return groupedUnits.enumerated().compactMap { index, group in
             guard !group.isEmpty else { return nil }
@@ -126,9 +126,9 @@ extension AIFlashcardService {
                 TextSourceUnit(content: $0.text, label: $0.label)
             }
             let expandedUnits = expandTextUnits(selectedUnits, toReach: batchSizes.count)
-            let groupedUnits = groupedTextUnits(
+            let groupedUnits = distributeElementsProportionally(
                 expandedUnits,
-                batchCount: batchSizes.count
+                weights: batchSizes
             )
             guard !groupedUnits.isEmpty else { continue }
 
@@ -403,6 +403,33 @@ extension AIFlashcardService {
             cursor = end
             return slice
         }
+    }
+
+    func distributeElementsProportionally<T>(
+        _ elements: [T],
+        weights: [Int]
+    ) -> [[T]] {
+        guard !elements.isEmpty, !weights.isEmpty else { return [] }
+        let normalizedWeights = weights.map { max($0, 1) }
+        let totalWeight = normalizedWeights.reduce(0, +)
+        var groups: [[T]] = []
+        var startIndex = 0
+        var cumulativeWeight = 0
+
+        for index in normalizedWeights.indices {
+            cumulativeWeight += normalizedWeights[index]
+            let remainingGroups = normalizedWeights.count - index - 1
+            let idealEnd = index == normalizedWeights.indices.last
+                ? elements.count
+                : Int((Double(cumulativeWeight) / Double(totalWeight) * Double(elements.count)).rounded())
+            let minimumEnd = min(elements.count, startIndex + 1)
+            let maximumEnd = max(minimumEnd, elements.count - remainingGroups)
+            let endIndex = min(max(idealEnd, minimumEnd), maximumEnd)
+            groups.append(Array(elements[startIndex..<endIndex]))
+            startIndex = endIndex
+        }
+
+        return groups
     }
 
     func groupedSourceSegments(
