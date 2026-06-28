@@ -65,6 +65,17 @@ private struct ZoneEditorLayoutDebugSnapshot: Equatable {
     var path: String
 }
 
+private struct ZoneEditorRenderScreenZoneFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [ZoneEditorResolvedZoneFrame] { [] }
+
+    static func reduce(
+        value: inout [ZoneEditorResolvedZoneFrame],
+        nextValue: () -> [ZoneEditorResolvedZoneFrame]
+    ) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 // MARK: - Zone Editor Canvas
 
 /// A reusable editing canvas that renders a zone tree on the authoring surface.
@@ -107,6 +118,7 @@ struct ZoneEditorCanvas: View {
     @State private var alignmentFrameUpdateTask: Task<Void, Never>?
     @State private var alignmentFrameGate = ZoneAlignmentFrameGate()
     @State private var renderMeasuredContentSize: CGSize = .zero
+    @State private var renderScreenZoneFrames: [ZoneEditorResolvedZoneFrame] = []
     @State private var renderLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
     @State private var pendingScrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var viewportScreenFrame: CGRect = .zero
@@ -637,8 +649,30 @@ struct ZoneEditorCanvas: View {
                 } : []
             )
         }
+        .overlayPreferenceValue(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
+            GeometryReader { proxy in
+                let origin = proxy.frame(in: .global).origin
+                Color.clear.preference(
+                    key: ZoneEditorRenderScreenZoneFramePreferenceKey.self,
+                    value: rendersRichText ? bounds.compactMap { bound in
+                        guard let path = findPath(for: bound.zoneID, in: content.rootZone) else {
+                            return nil
+                        }
+
+                        return ZoneEditorResolvedZoneFrame(
+                            path: path,
+                            zoneID: bound.zoneID,
+                            frame: bound.frame.offsetBy(dx: origin.x, dy: origin.y)
+                        )
+                    } : []
+                )
+            }
+        }
         .onPreferenceChange(ZoneEditorResolvedZoneFramePreferenceKey.self) { frames in
             handleResolvedZoneFrames(frames, contentWidth: contentWidth)
+        }
+        .onPreferenceChange(ZoneEditorRenderScreenZoneFramePreferenceKey.self) { frames in
+            commitRenderScreenZoneFrames(frames)
         }
         .overlay(alignment: .topLeading) {
             renderHitTargetOverlay(contentWidth: contentWidth)
@@ -1055,6 +1089,11 @@ struct ZoneEditorCanvas: View {
         }
     }
 
+    private func commitRenderScreenZoneFrames(_ frames: [ZoneEditorResolvedZoneFrame]) {
+        guard !resolvedFramesMatch(renderScreenZoneFrames, frames) else { return }
+        renderScreenZoneFrames = frames
+    }
+
     private func resolvedFramesMatch(
         _ lhs: [ZoneEditorResolvedZoneFrame],
         _ rhs: [ZoneEditorResolvedZoneFrame]
@@ -1446,9 +1485,33 @@ struct ZoneEditorCanvas: View {
         })
     }
 
+    private func renderContentPoint(fromScreenPoint screenPoint: CGPoint, path: ZonePath) -> CGPoint? {
+        guard let screenFrame = frame(for: path, in: renderScreenZoneFrames),
+              let contentFrame = frame(for: path, in: zoneFrames) else {
+            return nil
+        }
+
+        return CGPoint(
+            x: contentFrame.minX + (screenPoint.x - screenFrame.minX),
+            y: contentFrame.minY + (screenPoint.y - screenFrame.minY)
+        )
+    }
+
     private func renderedAlignmentGroupHit(
         at point: CGPoint,
         contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> (path: ZonePath, hitFrame: CGRect)? {
+        renderedAlignmentGroupHit(
+            at: point,
+            horizontalBounds: 0...contentWidth,
+            frames: frames
+        )
+    }
+
+    private func renderedAlignmentGroupHit(
+        at point: CGPoint,
+        horizontalBounds: ClosedRange<CGFloat>,
         frames: [ZoneEditorResolvedZoneFrame]
     ) -> (path: ZonePath, hitFrame: CGRect)? {
         var candidatePaths = Set<ZonePath>()
@@ -1474,8 +1537,8 @@ struct ZoneEditorCanvas: View {
                 dx: -contentHorizontalPadding,
                 dy: -ZoneContentMetrics.childSpacing
             )
-            let minX = max(expandedFrame.minX, 0)
-            let maxX = min(expandedFrame.maxX, contentWidth)
+            let minX = max(expandedFrame.minX, horizontalBounds.lowerBound)
+            let maxX = min(expandedFrame.maxX, horizontalBounds.upperBound)
             let hitFrame = CGRect(
                 x: minX,
                 y: expandedFrame.minY,
@@ -2148,12 +2211,28 @@ struct ZoneEditorCanvas: View {
         let tappedFrame = candidateFrames.min {
             ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height)
         }
+        let renderContentWidth = max(
+            viewportScreenFrame.width - (contentHorizontalPadding * 2),
+            1
+        )
+        let screenCandidateFrames = renderScreenZoneFrames.filter { frame in
+            content.zone(at: frame.path)?.isLeaf == true
+                && frame.frame
+                    .insetBy(
+                        dx: -Self.renderLeafHorizontalHitSlop,
+                        dy: -Self.renderLeafVerticalHitSlop
+                    )
+                    .contains(snapshot.windowPoint)
+        }
+        let screenHorizontalBounds = (viewportScreenFrame.minX + contentHorizontalPadding)...(viewportScreenFrame.minX + contentHorizontalPadding + renderContentWidth)
+        let screenGroupHit = renderScreenZoneFrames.isEmpty ? nil : renderedAlignmentGroupHit(
+            at: snapshot.windowPoint,
+            horizontalBounds: screenHorizontalBounds,
+            frames: renderScreenZoneFrames
+        )
         let groupHit = renderedAlignmentGroupHit(
             at: contentPoint,
-            contentWidth: max(
-                viewportScreenFrame.width - (contentHorizontalPadding * 2),
-                1
-            ),
+            contentWidth: renderContentWidth,
             frames: zoneFrames
         )
         let tappedAlignmentMenuInContent = alignmentMenuFrame?
@@ -2163,11 +2242,12 @@ struct ZoneEditorCanvas: View {
         let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
         let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
         let menuIsOpen = alignmentMenuState != nil
+        let groupHitForSelection = (screenCandidateFrames.isEmpty ? screenGroupHit : nil) ?? groupHit
         let shouldSelectGroup = isCompletedTap
             && snapshot.isTapLike
             && !tappedAlignmentMenu
-            && candidateFrames.isEmpty
-            && groupHit != nil
+            && (screenGroupHit != nil ? screenCandidateFrames.isEmpty : candidateFrames.isEmpty)
+            && groupHitForSelection != nil
 
         windowTouchDebugLines = [
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
@@ -2182,17 +2262,17 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) screenCandidates=\(screenCandidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") screenGroup=\(screenGroupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
         )
 
-        if shouldSelectGroup, let groupHit {
+        if shouldSelectGroup, let groupHit = groupHitForSelection {
+            let anchor = screenGroupHit == nil
+                ? contentPoint
+                : renderContentPoint(fromScreenPoint: snapshot.windowPoint, path: groupHit.path) ?? contentPoint
             selectRenderedAlignmentGroup(
                 groupHit,
-                contentWidth: max(
-                    viewportScreenFrame.width - (contentHorizontalPadding * 2),
-                    1
-                ),
-                anchor: contentPoint,
+                contentWidth: renderContentWidth,
+                anchor: anchor,
                 source: "window tap group"
             )
             recordInteractionTrace(
