@@ -128,6 +128,7 @@
 "All Cards" = "All Cards";
 "All Decks" = "All Decks";
 "All folders" = "All folders";
+"Almost ready" = "Almost ready";
 "Also visible in %@" = "Also visible in %@";
 "An account with this email already exists." = "An account with this email already exists.";
 "Analyzing card previews and review history to group weak areas, fresh material, and stable concepts." = "Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.";
@@ -498,6 +499,7 @@
 "Password" = "Password";
 "Password reset link sent." = "Password reset link sent.";
 "Passwords do not match." = "Passwords do not match.";
+"Paused" = "Paused";
 "Pause AI generation" = "Pause AI generation";
 "Performance" = "Performance";
 "Photos or PDF" = "Photos or PDF";
@@ -521,6 +523,7 @@
 "Premium access" = "Premium access";
 "Premium active" = "Premium active";
 "Premium is managed manually until App Store Connect is ready." = "Premium is managed manually until App Store Connect is ready.";
+"Preparing request" = "Preparing request";
 "Preparing source" = "Preparing source";
 "Preparing your material" = "Preparing your material";
 "Preview" = "Preview";

@@ -190,10 +190,7 @@ extension DeckWorkspaceView {
     }
 
     var shouldShowTopAIGenerationControls: Bool {
-        if case .generatingCards = viewModel.aiState {
-            return true
-        }
-        return viewModel.hasPausedAIGeneration
+        viewModel.aiGenerationDisplayPhase != nil
     }
 
     var heroTitleReservedHeight: CGFloat {
@@ -432,8 +429,11 @@ extension DeckWorkspaceView {
     }
 
     var generationHeaderStatusControl: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            AIShimmeringStatusText(localized("Generating cards"))
+        let statusTitle = viewModel.aiGenerationDisplayPhase
+            .map(localizedGenerationDisplayPhase) ?? localized("Generating cards")
+
+        return HStack(spacing: UIConstants.Spacing.small) {
+            AIShimmeringStatusText(statusTitle)
                 .font(.system(size: 20, weight: .heavy))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -450,7 +450,7 @@ extension DeckWorkspaceView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel(aiToolbarStatusText ?? localized("Generating cards"))
+        .accessibilityLabel(aiToolbarStatusText ?? statusTitle)
     }
 
     var addCardButton: some View {

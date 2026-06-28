@@ -128,6 +128,7 @@
 "All Cards" = "Toate cardurile";
 "All Decks" = "Toate deckurile";
 "All folders" = "Toate foldere";
+"Almost ready" = "Aproape gata";
 "Also visible in %@" = "Vizibil și în %@";
 "An account with this email already exists." = "Există deja un cont cu acest email.";
 "Analyzing card previews and review history to group weak areas, fresh material, and stable concepts." = "Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.";
@@ -498,6 +499,7 @@
 "Password" = "Parolă";
 "Password reset link sent." = "Linkul de resetare a fost trimis.";
 "Passwords do not match." = "Parolele nu coincid.";
+"Paused" = "Pe pauză";
 "Pause AI generation" = "Pune pe pauză generarea AI";
 "Performance" = "Performanță";
 "Photos or PDF" = "Poze sau PDF";
@@ -521,6 +523,7 @@
 "Premium access" = "Acces Premium";
 "Premium active" = "Premium activ";
 "Premium is managed manually until App Store Connect is ready." = "Premium este administrat manual până când App Store Connect este gata.";
+"Preparing request" = "Se pregătește cererea";
 "Preparing source" = "Se pregătește sursa";
 "Preparing your material" = "Pregătirea materialului dvs";
 "Preview" = "Previzualizare";

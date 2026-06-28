@@ -56,6 +56,7 @@ extension DeckWorkspaceViewModel {
     ) async throws {
         aiState = .generatingCards(progress: 0, foundCount: 0)
         resetAIGenerationRevealPipeline()
+        aiCardBatchStreamIsActive = true
         aiRevealTask = Task { [weak self] in
             guard let self else { return }
             try await self.drainGeneratedCardsContinuously()
@@ -69,11 +70,13 @@ extension DeckWorkspaceViewModel {
                 await Task.yield()
             }
 
+            aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
             try Task.checkCancellation()
             completeAIGeneration()
         } catch {
+            aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
             aiRevealTask?.cancel()
             aiRevealTask = nil
@@ -90,6 +93,7 @@ extension DeckWorkspaceViewModel {
             foundCount: aiGeneratedCardCount
         )
         resetAIGenerationRevealPipeline()
+        aiCardBatchStreamIsActive = true
         aiRevealTask = Task { [weak self] in
             guard let self else { return }
             try await self.drainGeneratedCardsContinuously()
@@ -105,6 +109,7 @@ extension DeckWorkspaceViewModel {
                 await Task.yield()
             }
 
+            aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
             try Task.checkCancellation()
@@ -115,6 +120,7 @@ extension DeckWorkspaceViewModel {
             }
             completeAIGeneration()
         } catch {
+            aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
             aiRevealTask?.cancel()
             aiRevealTask = nil
@@ -175,9 +181,48 @@ extension DeckWorkspaceViewModel {
         pendingCount: Int,
         isAwaitingMoreCards: Bool
     ) -> UInt64 {
-        let _ = pendingCount
-        let _ = isAwaitingMoreCards
+        guard base > 0 else { return 0 }
+
+        if !isAwaitingMoreCards {
+            let drainMultiplier = pendingCount <= 2 ? 0.38 : 0.56
+            return clampedRevealDelayNanoseconds(
+                UInt64(Double(base) * drainMultiplier),
+                minimum: 55_000_000,
+                maximum: base
+            )
+        }
+
+        let comfortBuffer = max(4, min(10, max(aiTargetCardCount, 1) / 4))
+        if pendingCount >= comfortBuffer * 2 {
+            return clampedRevealDelayNanoseconds(
+                UInt64(Double(base) * 1.85),
+                minimum: base,
+                maximum: 520_000_000
+            )
+        }
+        if pendingCount >= comfortBuffer {
+            return clampedRevealDelayNanoseconds(
+                UInt64(Double(base) * 1.45),
+                minimum: base,
+                maximum: 440_000_000
+            )
+        }
+        if pendingCount <= 1, aiGeneratedCardCount > 0 {
+            return clampedRevealDelayNanoseconds(
+                UInt64(Double(base) * 0.72),
+                minimum: 70_000_000,
+                maximum: base
+            )
+        }
         return base
+    }
+
+    func clampedRevealDelayNanoseconds(
+        _ delay: UInt64,
+        minimum: UInt64,
+        maximum: UInt64
+    ) -> UInt64 {
+        min(max(delay, minimum), maximum)
     }
 
     func appendGeneratedCard(_ generatedCard: AIFlashcard) throws {
@@ -557,6 +602,7 @@ extension DeckWorkspaceViewModel {
         aiRevealTask = nil
         pendingAIGeneratedCards.removeAll()
         aiDidFinishReceivingGeneratedCards = false
+        aiCardBatchStreamIsActive = false
         aiGeneratedShortfallCount = 0
     }
 

@@ -27,6 +27,13 @@ enum PendingAISourceSelection {
     case pdf(URL)
 }
 
+enum AIGenerationDisplayPhase: Equatable {
+    case preparingRequest
+    case generatingCards
+    case almostReady
+    case paused
+}
+
 enum CardEditorDestination: Identifiable, Equatable {
     case create(kind: CardKind)
     case createFromDraft(kind: CardKind, sourceCard: DraftCard)
@@ -162,6 +169,25 @@ final class DeckWorkspaceViewModel {
     var aiGenerationBaseCardCount: Int = 0
     var aiGenerationStartedAt: Date? = nil
     var aiAccumulatedGenerationDuration: TimeInterval = 0
+    var aiCardBatchStreamIsActive = false
+
+    var aiGenerationDisplayPhase: AIGenerationDisplayPhase? {
+        if hasPausedAIGeneration {
+            return .paused
+        }
+
+        switch aiState {
+        case .idle, .error:
+            return nil
+        case .analyzingDocument, .extractingText:
+            return .preparingRequest
+        case .generatingCards:
+            if aiDidFinishReceivingGeneratedCards {
+                return .almostReady
+            }
+            return aiCardBatchStreamIsActive ? .generatingCards : .preparingRequest
+        }
+    }
 
     func presentPersistenceError(
         _ error: Error,

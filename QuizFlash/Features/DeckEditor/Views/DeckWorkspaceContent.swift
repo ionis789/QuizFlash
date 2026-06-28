@@ -655,38 +655,16 @@ private struct EmptyDeckPromptIllustration: View {
     var body: some View {
         ZStack {
             backCard
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 30,
-                    beamBlur: 8,
-                    lineWidth: 1.35,
-                    isEnabled: animatesWhileWaiting
-                )
                 .offset(x: isFloating ? -14 : -30, y: 12)
                 .rotationEffect(.degrees(isFloating ? -4 : -11))
                 .scaleEffect(isFloating ? 0.98 : 1)
 
             middleCard
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 30,
-                    beamBlur: 8,
-                    lineWidth: 1.35,
-                    isEnabled: animatesWhileWaiting
-                )
                 .offset(x: isFloating ? -2 : 24, y: 8)
                 .rotationEffect(.degrees(isFloating ? 13 : 11))
                 .scaleEffect(isFloating ? 1 : 0.98)
 
             frontCard
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 32,
-                    beamBlur: 8,
-                    lineWidth: 1.45,
-                    duration: 2.2,
-                    isEnabled: animatesWhileWaiting
-                )
                 .offset(x: isFloating ? 12 : -3)
                 .rotationEffect(.degrees(isFloating ? -2 : 2))
                 .scaleEffect(isFloating ? 0.99 : 1)
@@ -702,53 +680,104 @@ private struct EmptyDeckPromptIllustration: View {
     }
 
     private var backCard: some View {
-        RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(surfaceColor)
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(accent, lineWidth: 1.5)
-            }
-            .frame(width: 108, height: 132)
+        loadingCard(
+            width: 108,
+            height: 132,
+            cornerRadius: 30,
+            border: AnyShapeStyle(accent),
+            lineWidth: 1.35
+        )
     }
 
     private var middleCard: some View {
-        RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(surfaceColor)
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(actionColor, lineWidth: 1.5)
-            }
-            .frame(width: 108, height: 132)
+        loadingCard(
+            width: 108,
+            height: 132,
+            cornerRadius: 30,
+            border: AnyShapeStyle(actionColor),
+            lineWidth: 1.35
+        )
     }
 
     private var frontCard: some View {
-        RoundedRectangle(cornerRadius: 32, style: .continuous)
+        loadingCard(
+            width: 118,
+            height: 142,
+            cornerRadius: 32,
+            border: AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        actionColor,
+                        accent,
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            ),
+            lineWidth: 1.45,
+            duration: 2.2
+        ) {
+            VStack(alignment: .leading, spacing: 9) {
+                promptLine(width: 55, opacity: 0.64)
+                promptLine(width: 74, opacity: 0.46)
+                promptLine(width: 44, opacity: 0.34)
+            }
+            .padding(.top, 37)
+            .padding(.leading, 27)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
+    }
+
+    private func loadingCard(
+        width: CGFloat,
+        height: CGFloat,
+        cornerRadius: CGFloat,
+        border: AnyShapeStyle,
+        lineWidth: CGFloat,
+        beamBlur: CGFloat = 8,
+        duration: TimeInterval = 2.7
+    ) -> some View {
+        loadingCard(
+            width: width,
+            height: height,
+            cornerRadius: cornerRadius,
+            border: border,
+            lineWidth: lineWidth,
+            beamBlur: beamBlur,
+            duration: duration
+        ) {
+            EmptyView()
+        }
+    }
+
+    private func loadingCard<Content: View>(
+        width: CGFloat,
+        height: CGFloat,
+        cornerRadius: CGFloat,
+        border: AnyShapeStyle,
+        lineWidth: CGFloat,
+        beamBlur: CGFloat = 8,
+        duration: TimeInterval = 2.7,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(surfaceColor)
+            .frame(width: width, height: height)
             .overlay {
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                actionColor,
-                                accent,
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2
-                    )
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(border, lineWidth: lineWidth)
+                    .allowsHitTesting(false)
             }
-            .overlay(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 9) {
-                    promptLine(width: 55, opacity: 0.64)
-                    promptLine(width: 74, opacity: 0.46)
-                    promptLine(width: 44, opacity: 0.34)
-                }
-                .padding(.top, 37)
-                .padding(.leading, 27)
-            }
-            .shadow(color: actionColor.opacity(0.18), radius: 22, x: 0, y: 12)
-            .frame(width: 118, height: 142)
+            .aiGenerationBorderBeam(
+                accent: accent,
+                cornerRadius: cornerRadius,
+                beamBlur: beamBlur,
+                lineWidth: lineWidth,
+                duration: duration,
+                isEnabled: animatesWhileWaiting
+            )
+            .overlay(content: content)
     }
 
     private func promptLine(width: CGFloat, opacity: Double) -> some View {

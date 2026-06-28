@@ -86,42 +86,38 @@ private struct PreparingSourceAnimation: View {
 
     private var photosAnimation: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .frame(width: 88, height: 108)
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 26,
-                    beamBlur: 8,
-                    lineWidth: 1.15,
-                    duration: 2.25
-                )
-                .overlay {
-                    Image(systemName: "photo")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
+            preparationCard(
+                width: 88,
+                height: 108,
+                cornerRadius: 26,
+                fill: Color.white.opacity(0.05),
+                beamBlur: 8,
+                lineWidth: 1.15,
+                duration: 2.25
+            ) {
+                Image(systemName: "photo")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
                 .offset(
                     x: isSecondaryAnimated ? -16 : -8,
                     y: isSecondaryAnimated ? -12 : -4
                 )
                 .rotationEffect(.degrees(isSecondaryAnimated ? -9 : -3))
 
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(accent.opacity(0.24))
-                .frame(width: 98, height: 118)
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 28,
-                    beamBlur: 9,
-                    lineWidth: 1.35,
-                    duration: 2.15
-                )
-                .overlay {
-                    Image(systemName: "text.viewfinder")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(.white)
-                }
+            preparationCard(
+                width: 98,
+                height: 118,
+                cornerRadius: 28,
+                fill: accent.opacity(0.24),
+                beamBlur: 9,
+                lineWidth: 1.35,
+                duration: 2.15
+            ) {
+                Image(systemName: "text.viewfinder")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
+            }
                 .offset(x: isPrimaryAnimated ? 10 : 4, y: isPrimaryAnimated ? 10 : -2)
                 .shadow(color: accent.opacity(0.18), radius: 18, y: 8)
         }
@@ -129,31 +125,33 @@ private struct PreparingSourceAnimation: View {
 
     private var pdfAnimation: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-                .frame(width: 94, height: 118)
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 28,
-                    beamBlur: 8,
-                    lineWidth: 1.1,
-                    duration: 2.35
-                )
+            preparationCard(
+                width: 94,
+                height: 118,
+                cornerRadius: 28,
+                fill: Color.white.opacity(0.04),
+                beamBlur: 8,
+                lineWidth: 1.1,
+                duration: 2.35
+            )
                 .offset(
                     x: isSecondaryAnimated ? -10 : -4,
                     y: isSecondaryAnimated ? -6 : 2
                 )
 
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(accent.opacity(0.22))
-                .frame(width: 102, height: 126)
-                .aiGenerationBorderBeam(
-                    accent: accent,
-                    cornerRadius: 28,
-                    beamBlur: 9,
-                    lineWidth: 1.35,
-                    duration: 2.15
-                )
+            preparationCard(
+                width: 102,
+                height: 126,
+                cornerRadius: 28,
+                fill: accent.opacity(0.22),
+                beamBlur: 9,
+                lineWidth: 1.35,
+                duration: 2.15
+            ) {
+                Image(systemName: "doc.text.viewfinder")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.white)
+            }
                 .overlay(alignment: .top) {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.white.opacity(0.88))
@@ -161,14 +159,54 @@ private struct PreparingSourceAnimation: View {
                         .offset(y: isPrimaryAnimated ? 52 : 28)
                         .blur(radius: 0.2)
                 }
-                .overlay {
-                    Image(systemName: "doc.text.viewfinder")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(.white)
-                }
                 .offset(y: isPrimaryAnimated ? 8 : -4)
                 .shadow(color: accent.opacity(0.18), radius: 18, y: 8)
         }
+    }
+
+    private func preparationCard(
+        width: CGFloat,
+        height: CGFloat,
+        cornerRadius: CGFloat,
+        fill: Color,
+        beamBlur: CGFloat,
+        lineWidth: CGFloat,
+        duration: TimeInterval
+    ) -> some View {
+        preparationCard(
+            width: width,
+            height: height,
+            cornerRadius: cornerRadius,
+            fill: fill,
+            beamBlur: beamBlur,
+            lineWidth: lineWidth,
+            duration: duration
+        ) {
+            EmptyView()
+        }
+    }
+
+    private func preparationCard<Content: View>(
+        width: CGFloat,
+        height: CGFloat,
+        cornerRadius: CGFloat,
+        fill: Color,
+        beamBlur: CGFloat,
+        lineWidth: CGFloat,
+        duration: TimeInterval,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(fill)
+            .frame(width: width, height: height)
+            .aiGenerationBorderBeam(
+                accent: accent,
+                cornerRadius: cornerRadius,
+                beamBlur: beamBlur,
+                lineWidth: lineWidth,
+                duration: duration
+            )
+            .overlay(content: content)
     }
 }
 

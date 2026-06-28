@@ -128,6 +128,7 @@
 "All Cards" = "Все карточки";
 "All Decks" = "Все колоды";
 "All folders" = "Все папки";
+"Almost ready" = "Почти готово";
 "Also visible in %@" = "Также видно в %@";
 "An account with this email already exists." = "Аккаунт с этим email уже существует.";
 "Analyzing card previews and review history to group weak areas, fresh material, and stable concepts." = "Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.";
@@ -498,6 +499,7 @@
 "Password" = "Пароль";
 "Password reset link sent." = "Ссылка для сброса пароля отправлена.";
 "Passwords do not match." = "Пароли не совпадают.";
+"Paused" = "На паузе";
 "Pause AI generation" = "Поставить AI генерацию на паузу";
 "Performance" = "Прогресс";
 "Photos or PDF" = "Фото или PDF";
@@ -521,6 +523,7 @@
 "Premium access" = "Доступ Premium";
 "Premium active" = "Premium активен";
 "Premium is managed manually until App Store Connect is ready." = "Premium управляется вручную, пока App Store Connect не готов.";
+"Preparing request" = "Подготовка запроса";
 "Preparing source" = "Подготовка источника";
 "Preparing your material" = "Подготовка вашего материала";
 "Preview" = "Предварительный просмотр";

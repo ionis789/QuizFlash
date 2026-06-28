@@ -154,6 +154,7 @@ extension DeckWorkspaceViewModel {
         beginAIGenerationSession(targetCardCount: mockCards.count)
         aiState = .generatingCards(progress: 0, foundCount: 0)
         resetAIGenerationRevealPipeline()
+        aiCardBatchStreamIsActive = true
         aiRevealTask = Task { [weak self] in
             guard let self else { return }
             try await self.drainGeneratedCardsContinuously()
@@ -175,12 +176,14 @@ extension DeckWorkspaceViewModel {
                     await Task.yield()
                 }
 
+                aiCardBatchStreamIsActive = false
                 aiDidFinishReceivingGeneratedCards = true
                 try await aiRevealTask?.value
                 try await Task.sleep(nanoseconds: 220_000_000)
                 guard !Task.isCancelled else { return }
                 completeAIGeneration()
             } catch {
+                aiCardBatchStreamIsActive = false
                 guard !(error is CancellationError) else { return }
                 handleAIGenerationFailure(error)
             }

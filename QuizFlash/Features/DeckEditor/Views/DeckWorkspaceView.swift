@@ -77,6 +77,19 @@ struct DeckWorkspaceView: View {
         return String(format: format, locale: locale, arguments: arguments)
     }
 
+    func localizedGenerationDisplayPhase(_ phase: AIGenerationDisplayPhase) -> String {
+        switch phase {
+        case .preparingRequest:
+            return localized("Preparing request")
+        case .generatingCards:
+            return localized("Generating cards")
+        case .almostReady:
+            return localized("Almost ready")
+        case .paused:
+            return localized("Paused")
+        }
+    }
+
     var canSave: Bool {
         let hasTitle = !viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isEditingExistingDeck {
@@ -108,31 +121,19 @@ struct DeckWorkspaceView: View {
         derivedDeckState.contentSummary
     }
     var aiToolbarStatusText: String? {
-        switch viewModel.aiState {
-        case .extractingText:
-            return localized("Reading Docs...")
-        case .generatingCards(_, let foundCount):
-            let target = max(viewModel.aiTargetCardCount, 1)
-            return foundCount > 0
-                ? "AI \(foundCount)/\(target)"
-                : localized("Generating AI...")
-        default:
+        guard let phase = viewModel.aiGenerationDisplayPhase else {
             return nil
         }
+
+        let title = localizedGenerationDisplayPhase(phase)
+        guard viewModel.aiTargetCardCount > 0 else { return title }
+        return "\(title) \(viewModel.aiGeneratedCardCount)/\(viewModel.aiTargetCardCount)"
     }
     var aiVisualStatusText: String? {
-        switch viewModel.aiState {
-        case .extractingText:
-            return localized("Reading")
-        case .generatingCards(_, let foundCount):
-            let target = max(viewModel.aiTargetCardCount, 1)
-            return foundCount > 0 ? "\(foundCount)/\(target)" : localized("Generating")
-        default:
-            if viewModel.hasPausedAIGeneration {
-                return aiToolbarCountText ?? localized("AI generation paused")
-            }
+        guard let phase = viewModel.aiGenerationDisplayPhase else {
             return nil
         }
+        return localizedGenerationDisplayPhase(phase)
     }
     var aiToolbarTint: Color {
         if case .extractingText = viewModel.aiState {
@@ -208,9 +209,7 @@ struct DeckWorkspaceView: View {
     }
 
     var hasActiveGenerationRuntime: Bool {
-        if case .extractingText = viewModel.aiState { return true }
-        if case .generatingCards = viewModel.aiState { return true }
-        return viewModel.hasPausedAIGeneration
+        viewModel.aiGenerationDisplayPhase != nil
     }
 
     var hasUnifiedAISession: Bool {
@@ -299,6 +298,9 @@ struct DeckWorkspaceView: View {
             .onChange(of: viewModel.hasPausedAIGeneration) { _, _ in
                 syncAIWorkspaceGenerationState()
             }
+            .onChange(of: viewModel.aiGenerationDisplayPhase) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
             .onChange(of: viewModel.deckTitle) { _, _ in
                 syncAIWorkspaceGenerationState()
             }
@@ -312,6 +314,9 @@ struct DeckWorkspaceView: View {
                 refreshSessionPresentationState()
             }
             .onChange(of: viewModel.hasPausedAIGeneration) { _, _ in
+                refreshSessionPresentationState()
+            }
+            .onChange(of: viewModel.aiGenerationDisplayPhase) { _, _ in
                 refreshSessionPresentationState()
             }
     }
