@@ -144,6 +144,11 @@ type GenerationAccountingRow = {
   total_cache_miss_tokens: number;
 };
 
+type ActiveGenerationStatusRow = {
+  status: string;
+  provider_call_count: number;
+};
+
 type UsageEventResponse = {
   providerCallId: string;
   pricingVersion: string;
@@ -180,7 +185,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const now = Date.now();
     const active = await this.ctx.storage.get<SessionState>("active");
     if (active && active.expiresAtMs > now && active.idempotencyKey !== input.idempotencyKey) {
-      return sessionRejection(429, "resource-exhausted", "Another AI generation is already running.");
+      const released = await this.releaseUnusedActiveReservation(active, now);
+      if (!released) {
+        return sessionRejection(429, "resource-exhausted", "Another AI generation is already running.");
+      }
     }
     const account = await readFirestoreAccountState(input.uid, monthKey(now), this.env);
     await this.syncD1UsageCache(account, now);
@@ -499,6 +507,33 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       await this.ctx.storage.delete("active");
       await this.ctx.storage.deleteAlarm();
     }
+  }
+
+  private async releaseUnusedActiveReservation(active: SessionState, now: number): Promise<boolean> {
+    const row = await this.env.AI_DB.prepare(
+      `SELECT
+        g.status AS status,
+        COUNT(c.provider_call_id) AS provider_call_count
+      FROM ai_generations g
+      LEFT JOIN ai_provider_calls c ON c.generation_id = g.id
+      WHERE g.id = ?
+      GROUP BY g.id, g.status`
+    ).bind(active.generationId).first<ActiveGenerationStatusRow>();
+
+    if (!row) {
+      await this.clearActive(active.generationId);
+      return true;
+    }
+
+    if (row.status !== "reserved" || Number(row.provider_call_count) > 0) {
+      return false;
+    }
+
+    await this.env.AI_DB.prepare(
+      "UPDATE ai_generations SET status = 'expired', updated_at_ms = ?, completed_at_ms = ? WHERE id = ? AND status = 'reserved'"
+    ).bind(now, now, active.generationId).run();
+    await this.clearActive(active.generationId);
+    return true;
   }
 
   private async enqueue<T>(operation: () => Promise<T>): Promise<T> {

@@ -255,15 +255,25 @@ final class CloudAIProxyClient {
         )
         let promptBundle: AIPromptBundle
         let promptCacheStatus: String
-        if let bundle = response.promptBundle {
-            promptBundle = try await AIPromptBundleCache.shared.store(bundle)
-            promptCacheStatus = "miss"
-        } else {
-            promptBundle = try await AIPromptBundleCache.shared.bundle(
-                version: response.promptVersion,
-                hash: response.promptHash
+        do {
+            if let bundle = response.promptBundle {
+                promptBundle = try await AIPromptBundleCache.shared.store(bundle)
+                promptCacheStatus = "miss"
+            } else {
+                promptBundle = try await AIPromptBundleCache.shared.bundle(
+                    version: response.promptVersion,
+                    hash: response.promptHash
+                )
+                promptCacheStatus = "hit"
+            }
+        } catch {
+            await failGeneration(
+                baseURL: baseURL,
+                uid: user.uid,
+                generationID: response.generationID,
+                sessionToken: response.sessionToken
             )
-            promptCacheStatus = "hit"
+            throw error
         }
         return CloudAIGenerationSession(
             baseURL: baseURL,
@@ -290,11 +300,25 @@ final class CloudAIProxyClient {
     }
 
     func failGeneration(_ generation: CloudAIGenerationSession) async {
+        await failGeneration(
+            baseURL: generation.baseURL,
+            uid: generation.uid,
+            generationID: generation.generationID,
+            sessionToken: generation.sessionToken
+        )
+    }
+
+    private func failGeneration(
+        baseURL: URL,
+        uid: String,
+        generationID: String,
+        sessionToken: String
+    ) async {
         let response: QuotaResponseEnvelope? = try? await sendJSON(
-            endpoint: generation.baseURL.appending(path: "v1/generations/fail"),
+            endpoint: baseURL.appending(path: "v1/generations/fail"),
             method: "POST",
-            headers: ["X-QuizFlash-UID": generation.uid],
-            body: FailRequest(generationID: generation.generationID, sessionToken: generation.sessionToken)
+            headers: ["X-QuizFlash-UID": uid],
+            body: FailRequest(generationID: generationID, sessionToken: sessionToken)
         )
         if let response {
             SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
