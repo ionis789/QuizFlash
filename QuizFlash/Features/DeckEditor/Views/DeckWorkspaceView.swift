@@ -54,6 +54,9 @@ struct DeckWorkspaceView: View {
     @State var aiAccessAlertMessage = ""
     @State var showAIAccessAlert = false
     @State var isCheckingAIAccess = false
+    @State var showsGenerationCompletionCheckmark = false
+    @State var didReachAIGenerationAlmostReady = false
+    @State var generationCompletionCheckmarkTask: Task<Void, Never>?
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -331,6 +334,9 @@ struct DeckWorkspaceView: View {
             .onChange(of: viewModel.aiGenerationDisplayPhase) { _, _ in
                 syncAIWorkspaceGenerationState()
             }
+            .onChange(of: viewModel.aiGenerationDisplayPhase) { oldValue, newValue in
+                handleGenerationDisplayPhaseChange(from: oldValue, to: newValue)
+            }
             .onChange(of: viewModel.deckTitle) { _, _ in
                 syncAIWorkspaceGenerationState()
             }
@@ -382,6 +388,7 @@ struct DeckWorkspaceView: View {
             }
             .onDisappear {
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
+                dismissGenerationCompletionCheckmark(animated: false)
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
@@ -403,6 +410,64 @@ struct DeckWorkspaceView: View {
             } message: {
                 Text(aiAccessAlertMessage)
             }
+    }
+
+    func handleGenerationDisplayPhaseChange(
+        from oldValue: AIGenerationDisplayPhase?,
+        to newValue: AIGenerationDisplayPhase?
+    ) {
+        if oldValue == nil, newValue != nil {
+            didReachAIGenerationAlmostReady = false
+            dismissGenerationCompletionCheckmark(animated: true)
+        }
+
+        if newValue == .preparingRequest {
+            didReachAIGenerationAlmostReady = false
+            dismissGenerationCompletionCheckmark(animated: true)
+        }
+
+        if newValue == .almostReady {
+            didReachAIGenerationAlmostReady = true
+        }
+
+        guard oldValue != nil, newValue == nil else { return }
+        let shouldShowCompletion = didReachAIGenerationAlmostReady && !viewModel.draftCards.isEmpty
+        didReachAIGenerationAlmostReady = false
+
+        if shouldShowCompletion {
+            presentGenerationCompletionCheckmark()
+        } else {
+            dismissGenerationCompletionCheckmark(animated: true)
+        }
+    }
+
+    func presentGenerationCompletionCheckmark() {
+        generationCompletionCheckmarkTask?.cancel()
+        withAnimation(generationPhaseAnimation) {
+            showsGenerationCompletionCheckmark = true
+        }
+
+        generationCompletionCheckmarkTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(generationPhaseAnimation) {
+                showsGenerationCompletionCheckmark = false
+            }
+        }
+    }
+
+    func dismissGenerationCompletionCheckmark(animated: Bool) {
+        generationCompletionCheckmarkTask?.cancel()
+        generationCompletionCheckmarkTask = nil
+
+        guard showsGenerationCompletionCheckmark else { return }
+        if animated {
+            withAnimation(generationPhaseAnimation) {
+                showsGenerationCompletionCheckmark = false
+            }
+        } else {
+            showsGenerationCompletionCheckmark = false
+        }
     }
 
     func syncAIGenerationLimit() {
