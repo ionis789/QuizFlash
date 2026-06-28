@@ -786,7 +786,7 @@ final class ZoneEditorScrollDriver {
                     self.lockOffset(
                         scrollView.contentOffset,
                         in: scrollView,
-                        duration: .milliseconds(1400),
+                        duration: .milliseconds(260),
                         reason: "programmatic-scroll-complete",
                         zoneID: debugZoneID
                     )

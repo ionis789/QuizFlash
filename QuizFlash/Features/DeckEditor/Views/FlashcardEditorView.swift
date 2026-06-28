@@ -1070,7 +1070,7 @@ struct FlashcardEditorView: View {
         }
 
         if let id = newZoneID {
-            scheduleFocusAction(after: .milliseconds(70)) {
+            scheduleFocusAction {
                 focusManager.requestFocus(for: id)
             }
         }
@@ -1078,7 +1078,7 @@ struct FlashcardEditorView: View {
     }
 
     private var zoneListMutationAnimation: Animation {
-        .smooth(duration: 0.26, extraBounce: 0)
+        .smooth(duration: 0.17, extraBounce: 0)
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath) -> UUID? {
@@ -1102,10 +1102,10 @@ struct FlashcardEditorView: View {
         return nil
     }
 
-    private func scheduleFocusAction(after delay: Duration, _ action: @escaping @MainActor () -> Void) {
+    private func scheduleFocusAction(_ action: @escaping @MainActor () -> Void) {
         scheduledFocusTask?.cancel()
         scheduledFocusTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
+            await Task.yield()
             guard !Task.isCancelled else { return }
             action()
         }

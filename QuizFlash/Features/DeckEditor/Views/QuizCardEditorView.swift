@@ -2938,7 +2938,7 @@ struct QuizCardEditorView: View {
     }
 
     private var zoneListMutationAnimation: Animation {
-        .smooth(duration: 0.26, extraBounce: 0)
+        .smooth(duration: 0.17, extraBounce: 0)
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {

@@ -199,7 +199,7 @@ struct ZoneEditorCanvas: View {
                 : 0
             let rawContentGrowthInset = max(editorViewportHeight * 0.45, 260)
             let rawKeyboardCreationInset = keyboardMonitor.isVisible
-                ? max(keyboardMonitor.visibleHeight, 0) + max(bottomAccessoryHeight, 0)
+                ? max(keyboardMonitor.visibleHeight, 0) + max(bottomAccessoryHeight, 0) + caretBottomChromeBuffer
                 : max(rawBottomAccessoryInset, rawContentGrowthInset)
             let renderRequestedBottomScrollInset = dynamicBottomScrollInset > 0
                 ? dynamicBottomScrollInset
@@ -1714,7 +1714,7 @@ struct ZoneEditorCanvas: View {
 
             let didScroll = scrollFocusedEditingContentAboveBottomChromeIfNeeded()
             if !didScroll {
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(24))
                 guard !Task.isCancelled, shouldMaintainKeyboardAvoidance else { return }
                 _ = scrollFocusedEditingContentAboveBottomChromeIfNeeded()
             }
@@ -1808,7 +1808,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretBottomChromeBuffer: CGFloat {
-        100
+        72
     }
 
     private var dynamicBottomScrollInset: CGFloat {
@@ -1837,8 +1837,8 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretScrollAnimationDuration: TimeInterval {
-        guard keyboardMonitor.isVisible else { return 0.16 }
-        return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
+        guard keyboardMonitor.isVisible else { return 0.12 }
+        return min(max(keyboardMonitor.animationDuration * 0.42, 0.12), 0.18)
     }
 
     private func layoutStartMarker(

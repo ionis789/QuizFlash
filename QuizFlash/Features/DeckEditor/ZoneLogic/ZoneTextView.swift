@@ -471,8 +471,8 @@ final class ZoneEditorDebugStore {
              "caret.settled-schedule",
              "caret.settled-runloop-before-layout",
              "caret.settled-runloop-after-layout",
-             "caret.settled-80ms-before-layout",
-             "caret.settled-80ms-after-layout",
+             "caret.settled-followup-before-layout",
+             "caret.settled-followup-after-layout",
              "caret-geometry",
              "scroll-native-rect-request",
              "scroll-apply",
@@ -1363,21 +1363,21 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 source: source
             )
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self, weak textView] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.024) { [weak self, weak textView] in
                 guard let self,
                       let textView,
                       self.caretReportGeneration == generation,
                       textView.window != nil else { return }
 
                 self.recordCaretProbe(
-                    "caret.settled-80ms-before-layout",
+                    "caret.settled-followup-before-layout",
                     textView: textView,
                     extra: "generation=\(generation)"
                 )
                 textView.window?.layoutIfNeeded()
                 textView.superview?.layoutIfNeeded()
                 self.recordCaretProbe(
-                    "caret.settled-80ms-after-layout",
+                    "caret.settled-followup-after-layout",
                     textView: textView,
                     extra: "generation=\(generation)"
                 )
