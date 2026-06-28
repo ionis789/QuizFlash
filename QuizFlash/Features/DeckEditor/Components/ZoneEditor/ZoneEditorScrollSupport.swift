@@ -291,8 +291,84 @@ final class ZoneEditorScrollDriver {
         applyContentInsetsIfNeeded()
     }
 
-    func resetBottomInset() {
+    func resetBottomInset(
+        animationDuration: TimeInterval = 0,
+        animationOptions: UIView.AnimationOptions = [.curveEaseOut]
+    ) {
+        guard animationDuration > 0.02, let scrollView else {
+            setBottomInset(0)
+            return
+        }
+
+        let visualOffsetY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
+        let startOffset = CGPoint(x: scrollView.contentOffset.x, y: visualOffsetY)
+
+        clearOffsetLock()
         setBottomInset(0)
+
+        let targetY = clampedOffsetY(visualOffsetY, in: scrollView)
+        guard abs(targetY - visualOffsetY) > 0.5 else {
+            reportScrollOffset(in: scrollView, force: true)
+            return
+        }
+
+        UIView.performWithoutAnimation {
+            scrollView.setContentOffset(startOffset, animated: false)
+            scrollView.layoutIfNeeded()
+        }
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-bottom-inset-reset-animate",
+            zoneID: nil,
+            details: "from=\(debugPoint(startOffset)) to=\(debugValue(targetY)) duration=\(debugValue(animationDuration)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        setContentOffset(
+            CGPoint(x: startOffset.x, y: targetY),
+            in: scrollView,
+            duration: animationDuration,
+            options: animationOptions,
+            debugRequestID: nil,
+            debugZoneID: nil,
+            keepsOffsetLocked: false
+        )
+    }
+
+    func smoothClampOffsetIfNeeded(
+        duration: TimeInterval,
+        options: UIView.AnimationOptions = [.curveEaseOut]
+    ) {
+        guard duration > 0.02,
+              let scrollView,
+              !scrollView.isTracking,
+              !scrollView.isDragging,
+              !scrollView.isDecelerating
+        else { return }
+
+        let visualOffsetY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
+        let targetY = clampedOffsetY(visualOffsetY, in: scrollView)
+        guard abs(targetY - visualOffsetY) > 0.5 else { return }
+
+        clearOffsetLock()
+        let startOffset = CGPoint(x: scrollView.contentOffset.x, y: visualOffsetY)
+        UIView.performWithoutAnimation {
+            scrollView.setContentOffset(startOffset, animated: false)
+            scrollView.layoutIfNeeded()
+        }
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-clamp-animate",
+            zoneID: nil,
+            details: "from=\(debugPoint(startOffset)) to=\(debugValue(targetY)) duration=\(debugValue(duration)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        setContentOffset(
+            CGPoint(x: startOffset.x, y: targetY),
+            in: scrollView,
+            duration: duration,
+            options: options,
+            debugRequestID: nil,
+            debugZoneID: nil,
+            keepsOffsetLocked: false
+        )
     }
 
     func debugSnapshotDetails() -> String {

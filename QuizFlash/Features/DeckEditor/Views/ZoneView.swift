@@ -1606,7 +1606,7 @@ struct ZoneContentView: View {
     }
 
     private func editorZoneHeightGuideColor(for zone: ZoneModel) -> Color {
-        Color.white.opacity(isSelected || isTextViewFirstResponder ? 0.28 : 0.18)
+        Color.white.opacity(isSelected ? 0.28 : 0.18)
     }
 
     // MARK: - Image View

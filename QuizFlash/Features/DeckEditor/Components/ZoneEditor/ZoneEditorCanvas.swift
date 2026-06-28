@@ -316,14 +316,30 @@ struct ZoneEditorCanvas: View {
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
                     if rendersRichText {
-                        refreshBottomScrollInset()
+                        refreshBottomScrollInset(
+                            animationDuration: newHeight <= 1 && !keyboardMonitor.isVisible
+                                ? keyboardDismissScrollAnimationDuration
+                                : 0,
+                            animationOptions: keyboardMonitor.animationOptions
+                        )
                     } else {
                         scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
-                        scrollDriver.resetBottomInset()
+                        if newHeight <= 1, !keyboardMonitor.isVisible {
+                            scrollDriver.resetBottomInset(
+                                animationDuration: keyboardDismissScrollAnimationDuration,
+                                animationOptions: keyboardMonitor.animationOptions
+                            )
+                        } else {
+                            scrollDriver.resetBottomInset()
+                        }
                     }
 
                     if newHeight <= 1, !keyboardMonitor.isVisible {
                         cancelCaretAvoidanceScroll()
+                        scrollDriver.smoothClampOffsetIfNeeded(
+                            duration: keyboardDismissScrollAnimationDuration,
+                            options: keyboardMonitor.animationOptions
+                        )
                     } else if abs(newHeight - oldHeight) > 1 || shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
@@ -335,9 +351,15 @@ struct ZoneEditorCanvas: View {
                 .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
                     if rendersRichText {
-                        refreshBottomScrollInset()
+                        refreshBottomScrollInset(
+                            animationDuration: isVisible ? 0 : keyboardDismissScrollAnimationDuration,
+                            animationOptions: keyboardMonitor.animationOptions
+                        )
                     } else {
-                        scrollDriver.resetBottomInset()
+                        scrollDriver.resetBottomInset(
+                            animationDuration: isVisible ? 0 : keyboardDismissScrollAnimationDuration,
+                            animationOptions: keyboardMonitor.animationOptions
+                        )
                     }
                     if isVisible {
                         if !rendersRichText {
@@ -346,7 +368,10 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
                         cancelCaretAvoidanceScroll()
-                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus(duration: .milliseconds(900))
+                        scrollDriver.smoothClampOffsetIfNeeded(
+                            duration: keyboardDismissScrollAnimationDuration,
+                            options: keyboardMonitor.animationOptions
+                        )
                     }
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
@@ -1023,8 +1048,19 @@ struct ZoneEditorCanvas: View {
         thawFrameUpdates()
     }
 
-    private func refreshBottomScrollInset() {
-        scrollDriver.setBottomInset(dynamicBottomScrollInset)
+    private func refreshBottomScrollInset(
+        animationDuration: TimeInterval = 0,
+        animationOptions: UIView.AnimationOptions = [.curveEaseOut]
+    ) {
+        let inset = dynamicBottomScrollInset
+        if inset <= 0.5 {
+            scrollDriver.resetBottomInset(
+                animationDuration: animationDuration,
+                animationOptions: animationOptions
+            )
+        } else {
+            scrollDriver.setBottomInset(inset)
+        }
     }
 
     @ViewBuilder
@@ -1942,6 +1978,10 @@ struct ZoneEditorCanvas: View {
     private var caretScrollAnimationDuration: TimeInterval {
         guard keyboardMonitor.isVisible else { return 0.12 }
         return min(max(keyboardMonitor.animationDuration * 0.42, 0.12), 0.18)
+    }
+
+    private var keyboardDismissScrollAnimationDuration: TimeInterval {
+        min(max(keyboardMonitor.animationDuration, 0.22), 0.32)
     }
 
     private func layoutStartMarker(
