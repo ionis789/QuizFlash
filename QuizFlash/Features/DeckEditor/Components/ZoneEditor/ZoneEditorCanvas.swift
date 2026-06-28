@@ -714,7 +714,7 @@ struct ZoneEditorCanvas: View {
                 fontScale: fontScale,
                 availableWidth: layout.availableContentWidth,
                 centersLeafBlocks: faceVerticalAlignment == .center,
-                showsDebugGuides: true,
+                showsDebugGuides: showsGridDebugOverlay,
                 debugGuideStyle: .editorRender,
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: showsDebugTools,
@@ -1883,7 +1883,7 @@ struct ZoneEditorCanvas: View {
 
     @ViewBuilder
     private var usefulSurfaceDebugOutline: some View {
-        if showsDebugTools {
+        if showsEditorDebugHUD {
             Rectangle()
                 .stroke(
                     Color.red,
@@ -1895,7 +1895,7 @@ struct ZoneEditorCanvas: View {
 
     @ViewBuilder
     private var viewportDebugOverlay: some View {
-        if showsDebugTools {
+        if showsEditorDebugHUD {
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .stroke(
@@ -2544,7 +2544,13 @@ struct ZoneEditorCanvas: View {
     }
 
     private var showsDebugTools: Bool {
-        AppFeatures.current.showsVisualDebugOverlays && showsDebugOverlays
+        showsEditorDebugHUD || showsGridDebugOverlay
+    }
+
+    private var showsEditorDebugHUD: Bool {
+        AppFeatures.current.showsVisualDebugOverlays
+            && showsDebugOverlays
+            && developmentPreferences.zoneEditorDebugHUDEnabled
     }
 
     private var showsGridDebugOverlay: Bool {
