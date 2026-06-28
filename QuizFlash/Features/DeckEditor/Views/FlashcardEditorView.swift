@@ -1059,6 +1059,8 @@ struct FlashcardEditorView: View {
 
     private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {
         var newZoneID: UUID?
+        let haptic = UIImpactFeedbackGenerator(style: .light)
+        haptic.prepare()
 
         withAnimation(zoneListMutationAnimation) {
             newZoneID = currentContent.addTextZone(relativeTo: path, direction: direction)
@@ -1068,9 +1070,11 @@ struct FlashcardEditorView: View {
         }
 
         if let id = newZoneID {
-            focusManager.requestFocus(for: id)
+            scheduleFocusAction(after: .milliseconds(70)) {
+                focusManager.requestFocus(for: id)
+            }
         }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        haptic.impactOccurred(intensity: 0.72)
     }
 
     private var zoneListMutationAnimation: Animation {

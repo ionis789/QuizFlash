@@ -2218,14 +2218,12 @@ struct QuizCardEditorView: View {
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
 
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
+        withAnimation(zoneListMutationAnimation) {
             choices.append(newChoice)
             activateEditor(.choice(newChoice.id))
         }
 
-        requestFocus(for: newChoice.content.rootZone.id, delaySeconds: 0.12)
+        requestFocus(for: newChoice.content.rootZone.id, delaySeconds: 0.07)
     }
 
     private func deleteChoice(_ choiceID: UUID) {
@@ -2266,7 +2264,7 @@ struct QuizCardEditorView: View {
         }
 
         withAnimation(zoneListMutationAnimation) {
-            choices.remove(at: index)
+            _ = choices.remove(at: index)
         }
     }
 
@@ -2389,16 +2387,14 @@ struct QuizCardEditorView: View {
     private func addExplanation() {
         let newExplanationContent = ZoneCardContent(rootZone: .text())
 
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
+        withAnimation(zoneListMutationAnimation) {
             explanationContent = newExplanationContent
             explanationSelectedPath = .root
             isExplanationExpanded = true
             activateEditor(.explanation)
         }
 
-        requestFocus(for: newExplanationContent.rootZone.id, delaySeconds: 0.12)
+        requestFocus(for: newExplanationContent.rootZone.id, delaySeconds: 0.07)
     }
 
     private func removeExplanation() {

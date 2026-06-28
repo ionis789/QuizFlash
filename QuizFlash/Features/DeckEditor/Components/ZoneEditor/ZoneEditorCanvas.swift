@@ -333,9 +333,7 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
                         cancelCaretAvoidanceScroll()
-                        if selectedPath == nil {
-                            scrollDriver.resetToTop(duration: 0.34)
-                        }
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus(duration: .milliseconds(900))
                     }
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
