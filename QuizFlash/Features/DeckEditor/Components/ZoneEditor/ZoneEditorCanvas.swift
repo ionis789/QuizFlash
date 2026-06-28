@@ -344,7 +344,6 @@ struct ZoneEditorCanvas: View {
                             duration: keyboardDismissScrollAnimationDuration,
                             options: keyboardMonitor.animationOptions
                         )
-                        clearRawTextSelectionAfterKeyboardDismissIfIdle(reason: "height-change")
                     } else if abs(newHeight - oldHeight) > 1 || shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
@@ -385,7 +384,6 @@ struct ZoneEditorCanvas: View {
                             duration: keyboardDismissScrollAnimationDuration,
                             options: keyboardMonitor.animationOptions
                         )
-                        clearRawTextSelectionAfterKeyboardDismissIfIdle(reason: "visible-change")
                     }
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
@@ -651,12 +649,10 @@ struct ZoneEditorCanvas: View {
             if rendersRichText {
                 Color.clear
                     .frame(width: contentWidth, height: bottomScrollInset)
-                    .animation(bottomScrollInsetAnimation, value: bottomScrollInset)
                     .allowsHitTesting(false)
             } else {
                 Color.clear
                     .frame(width: contentWidth, height: bottomScrollInset)
-                    .animation(bottomScrollInsetAnimation, value: bottomScrollInset)
                     .contentShape(Rectangle())
                     .gesture(emptySpaceTapGesture(contentSize: tappableContentSize))
             }
@@ -2002,28 +1998,6 @@ struct ZoneEditorCanvas: View {
 
     private var keyboardDismissScrollAnimationDuration: TimeInterval {
         min(max(keyboardMonitor.animationDuration, 0.22), 0.32)
-    }
-
-    private var bottomScrollInsetAnimation: Animation {
-        .easeOut(duration: keyboardDismissScrollAnimationDuration)
-    }
-
-    private func clearRawTextSelectionAfterKeyboardDismissIfIdle(reason: String) {
-        guard !rendersRichText,
-              !keyboardMonitor.isVisible,
-              focusManager.focusedZoneID == nil,
-              focusManager.pendingFocusZoneID == nil,
-              let path = selectedPath,
-              let zone = content.zone(at: path),
-              !zone.isEditorMediaLeaf else {
-            return
-        }
-        clearActiveCaretGeometry()
-        selectedPath = nil
-        ZoneEditorDebugStore.shared.recordEditorState(
-            "keyboard.dismiss-clear-selection",
-            details: "reason=\(reason) path=\(path.id) zone=\(shortID(zone.id))"
-        )
     }
 
     private func recordKeyboardStateFlow(_ stage: String, details: String) {

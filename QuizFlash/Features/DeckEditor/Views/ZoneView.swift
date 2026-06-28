@@ -1441,7 +1441,7 @@ struct ZoneContentView: View {
         )
         ZoneEditorDebugStore.shared.recordEditorState(
             "zone-guide-state",
-            details: "reason=\(reason) path=\(path.id) zone=\(String(zone.id.uuidString.prefix(6))) guide=\(shouldShowZoneHeightGuide(for: zone) ? 1 : 0) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0) opacity=\(isSelected ? "0.28" : "0.18") mode=\(rendersRichText ? "rich" : "raw") block=\(debugSize(layout.blockSize))"
+            details: "reason=\(reason) path=\(path.id) zone=\(String(zone.id.uuidString.prefix(6))) guide=\(shouldShowZoneHeightGuide(for: zone) ? 1 : 0) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0) opacity=\(debugValue(zoneHeightGuideOpacity)) mode=\(rendersRichText ? "rich" : "raw") block=\(debugSize(layout.blockSize))"
         )
     }
 
@@ -1610,7 +1610,12 @@ struct ZoneContentView: View {
     }
 
     private func editorZoneHeightGuideColor(for zone: ZoneModel) -> Color {
-        Color.white.opacity(isSelected ? 0.28 : 0.18)
+        Color.white.opacity(zoneHeightGuideOpacity)
+    }
+
+    private var zoneHeightGuideOpacity: CGFloat {
+        let hasActiveTextFocus = isFocused || isTextViewFirstResponder
+        return isSelected && (rendersRichText || hasActiveTextFocus) ? 0.28 : 0.18
     }
 
     // MARK: - Image View
