@@ -849,12 +849,15 @@ struct ZoneEditorCanvas: View {
                         )
                         .contentShape(Rectangle())
                         .position(x: resolvedFrame.frame.midX, y: resolvedFrame.frame.midY)
-                        .onTapGesture {
+                        .gesture(
+                            SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
+                                .onEnded { value in
                             handleRenderedZoneTap(
                                 resolvedFrame.zoneID,
-                                contentWidth: contentWidth
+                                contentWidth: contentWidth,
+                                tapLocation: value.location
                             )
-                        }
+                        })
                 }
             }
             .allowsHitTesting(true)
@@ -1168,18 +1171,20 @@ struct ZoneEditorCanvas: View {
             contentWidth: contentWidth
         )
         let preferredY = menuState.anchor.y + Self.alignmentMenuVerticalSpacing
-        let visibleTopY = max(
-            scrollDriver.currentNormalizedOffsetY - contentVerticalPadding - topContentInset,
-            0
-        )
+        let visibleTopY = renderVisibleContentTopY
         let visibleBottomY = visibleTopY + max(viewportScreenFrame.height, menuHeight)
         let minY = visibleTopY + 8
         let maxY = max(visibleBottomY - menuHeight - 8, minY)
-        let aboveY = menuState.anchor.y - menuHeight - Self.alignmentMenuVerticalSpacing
-        let unclampedY = preferredY <= maxY ? preferredY : aboveY
-        let y = min(max(unclampedY, minY), maxY)
+        let y = min(max(preferredY, minY), maxY)
 
         return CGPoint(x: x, y: y)
+    }
+
+    private var renderVisibleContentTopY: CGFloat {
+        max(
+            scrollDriver.currentNormalizedOffsetY - contentVerticalPadding - topContentInset,
+            0
+        )
     }
 
     private func resolveAlignmentTarget(
@@ -1535,7 +1540,12 @@ struct ZoneEditorCanvas: View {
     }
 
     private func debugSummary(for state: ZoneAlignmentMenuState, action: String) -> String {
-        "align \(action) path=\(state.target.path.id) kind=\(state.target.kind.debugName) frame=\(Int(state.frame.width))x\(Int(state.frame.height))@\(Int(state.frame.minX)),\(Int(state.frame.minY)) cur=\(state.currentAlignment.rawValue) moveW=\(Int(state.movementWidth))"
+        let contentWidth = max(viewportScreenFrame.width - (contentHorizontalPadding * 2), 1)
+        let position = alignmentMenuPosition(for: state, contentWidth: contentWidth)
+        let visibleTopY = renderVisibleContentTopY
+        let visibleBottomY = visibleTopY + max(viewportScreenFrame.height, Self.alignmentMenuSize.height)
+
+        return "align \(action) target=\(state.target.path.id) tapped=\(state.tappedPath.id) kind=\(state.target.kind.debugName) frame=\(Int(state.frame.width))x\(Int(state.frame.height))@\(Int(state.frame.minX)),\(Int(state.frame.minY)) anchor=\(tracePoint(state.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY)) visible=\(Int(visibleTopY))...\(Int(visibleBottomY)) cur=\(state.currentAlignment.rawValue) moveW=\(Int(state.movementWidth))"
     }
 
     private func performAlignmentAction(_ direction: ZoneAlignmentDirection) {
@@ -2207,7 +2217,9 @@ struct ZoneEditorCanvas: View {
 
     private var interactionTraceReport: String {
         let menu = alignmentMenuState.map {
-            "open path=\($0.tappedPath.id) frame=\(traceRect($0.frame)) anchor=\(tracePoint($0.anchor))"
+            let contentWidth = max(viewportScreenFrame.width - (contentHorizontalPadding * 2), 1)
+            let position = alignmentMenuPosition(for: $0, contentWidth: contentWidth)
+            return "open target=\($0.target.path.id) tapped=\($0.tappedPath.id) frame=\(traceRect($0.frame)) anchor=\(tracePoint($0.anchor)) pos=\(tracePoint(position)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY))"
         } ?? "closed"
         let frames = zoneFrames
             .map { "\($0.path.id)=\(traceRect($0.frame))" }
