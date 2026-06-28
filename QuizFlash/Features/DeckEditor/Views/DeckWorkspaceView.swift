@@ -19,6 +19,12 @@ enum DeckWorkspaceLaunchAction: Equatable {
     case showAIGenerationOptions
 }
 
+enum GenerationCompletionDisplayState: Equatable {
+    case none
+    case holdingAlmostReady
+    case done
+}
+
 struct DeckWorkspaceView: View {
     // MARK: - Environment
     @Environment(\.modelContext) var context
@@ -54,8 +60,12 @@ struct DeckWorkspaceView: View {
     @State var aiAccessAlertMessage = ""
     @State var showAIAccessAlert = false
     @State var isCheckingAIAccess = false
-    @State var showsGenerationCompletionDone = false
+    @State var generationCompletionDisplayState = GenerationCompletionDisplayState.none
+    @State var blocksGenerateMoreReveal = false
     @State var didReachAIGenerationAlmostReady = false
+    @State var almostReadyBecameVisibleAt: Date?
+    @State var completionStatusGeneratedCount = 0
+    @State var completionStatusTargetCount = 0
     @State var generationCompletionDoneTask: Task<Void, Never>?
 
     /// Tracks the focus state of the deck title text field.
@@ -216,6 +226,7 @@ struct DeckWorkspaceView: View {
             && !viewModel.showAIPickerOptions
             && !viewModel.showSuccessOverlay
             && !hasUnifiedAISession
+            && shouldRevealAIGenerateActions
     }
     var shouldShowCollapsedTitle: Bool {
         scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
@@ -248,6 +259,12 @@ struct DeckWorkspaceView: View {
     var hasUnifiedAISession: Bool {
         hasActiveGenerationRuntime
             || viewModel.hasAISessionDraftCards
+    }
+
+    var shouldRevealAIGenerateActions: Bool {
+        viewModel.aiGenerationDisplayPhase == nil
+            && generationCompletionDisplayState == .none
+            && !blocksGenerateMoreReveal
     }
 
     var tracksWorkspaceGenerationStatus: Bool {
@@ -388,7 +405,7 @@ struct DeckWorkspaceView: View {
             }
             .onDisappear {
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
-                dismissGenerationCompletionDone(animated: false)
+                dismissGenerationCompletionSequence(animated: false)
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
@@ -418,16 +435,20 @@ struct DeckWorkspaceView: View {
     ) {
         if oldValue == nil, newValue != nil {
             didReachAIGenerationAlmostReady = false
-            dismissGenerationCompletionDone(animated: true)
+            almostReadyBecameVisibleAt = nil
+            dismissGenerationCompletionSequence(animated: true)
         }
 
         if newValue == .preparingRequest {
             didReachAIGenerationAlmostReady = false
-            dismissGenerationCompletionDone(animated: true)
+            almostReadyBecameVisibleAt = nil
+            dismissGenerationCompletionSequence(animated: true)
         }
 
         if newValue == .almostReady {
             didReachAIGenerationAlmostReady = true
+            almostReadyBecameVisibleAt = Date()
+            captureCompletionStatusCounts()
         }
 
         guard oldValue != nil, newValue == nil else { return }
@@ -435,38 +456,75 @@ struct DeckWorkspaceView: View {
         didReachAIGenerationAlmostReady = false
 
         if shouldShowCompletion {
-            presentGenerationCompletionDone()
+            captureCompletionStatusCounts()
+            presentGenerationCompletionSequence()
         } else {
-            dismissGenerationCompletionDone(animated: true)
+            dismissGenerationCompletionSequence(animated: true)
         }
     }
 
-    func presentGenerationCompletionDone() {
+    func captureCompletionStatusCounts() {
+        if viewModel.aiGeneratedCardCount > 0 {
+            completionStatusGeneratedCount = viewModel.aiGeneratedCardCount
+        }
+        if viewModel.aiTargetCardCount > 0 {
+            completionStatusTargetCount = viewModel.aiTargetCardCount
+        }
+        if completionStatusTargetCount == 0, !viewModel.draftCards.isEmpty {
+            completionStatusTargetCount = viewModel.draftCards.count
+        }
+        completionStatusGeneratedCount = max(completionStatusGeneratedCount, min(viewModel.draftCards.count, completionStatusTargetCount))
+    }
+
+    func presentGenerationCompletionSequence() {
         generationCompletionDoneTask?.cancel()
+        blocksGenerateMoreReveal = true
+
+        let minimumAlmostReadyDuration: TimeInterval = 0.85
+        let visibleDate = almostReadyBecameVisibleAt ?? Date()
+        let elapsed = Date().timeIntervalSince(visibleDate)
+        let remainingAlmostReadyDelay = max(0, minimumAlmostReadyDuration - elapsed)
+
         withAnimation(generationPhaseAnimation) {
-            showsGenerationCompletionDone = true
+            generationCompletionDisplayState = remainingAlmostReadyDelay > 0 ? .holdingAlmostReady : .done
         }
 
         generationCompletionDoneTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_050_000_000)
+            if remainingAlmostReadyDelay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(remainingAlmostReadyDelay * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                withAnimation(generationPhaseAnimation) {
+                    generationCompletionDisplayState = .done
+                }
+            }
+
+            try? await Task.sleep(nanoseconds: 850_000_000)
             guard !Task.isCancelled else { return }
             withAnimation(generationPhaseAnimation) {
-                showsGenerationCompletionDone = false
+                generationCompletionDisplayState = .none
             }
+
+            try? await Task.sleep(nanoseconds: 420_000_000)
+            guard !Task.isCancelled else { return }
+            blocksGenerateMoreReveal = false
         }
     }
 
-    func dismissGenerationCompletionDone(animated: Bool) {
+    func dismissGenerationCompletionSequence(animated: Bool) {
         generationCompletionDoneTask?.cancel()
         generationCompletionDoneTask = nil
+        blocksGenerateMoreReveal = false
+        almostReadyBecameVisibleAt = nil
+        completionStatusGeneratedCount = 0
+        completionStatusTargetCount = 0
 
-        guard showsGenerationCompletionDone else { return }
+        guard generationCompletionDisplayState != .none else { return }
         if animated {
             withAnimation(generationPhaseAnimation) {
-                showsGenerationCompletionDone = false
+                generationCompletionDisplayState = .none
             }
         } else {
-            showsGenerationCompletionDone = false
+            generationCompletionDisplayState = .none
         }
     }
 

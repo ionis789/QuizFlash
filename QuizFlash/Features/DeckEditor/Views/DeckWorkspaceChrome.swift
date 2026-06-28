@@ -175,7 +175,8 @@ extension DeckWorkspaceView {
             generationMetadataActionRow
             .frame(minHeight: UIConstants.Size.capsuleHeight)
             .animation(.easeInOut(duration: UIConstants.Animation.standard), value: shouldShowGenerationHeaderStatus)
-            .animation(generationPhaseAnimation, value: showsGenerationCompletionDone)
+            .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
+            .animation(generationPhaseAnimation, value: shouldRevealAIGenerateActions)
             .animation(generationPhaseAnimation, value: viewModel.draftCards.isEmpty)
 
             if !viewModel.draftCards.isEmpty {
@@ -210,7 +211,7 @@ extension DeckWorkspaceView {
     }
 
     var shouldShowGenerationHeaderStatus: Bool {
-        viewModel.aiGenerationDisplayPhase != nil || showsGenerationCompletionDone
+        viewModel.aiGenerationDisplayPhase != nil || generationCompletionDisplayState != .none
     }
 
     var shouldShowMockAIHeaderAction: Bool {
@@ -222,6 +223,7 @@ extension DeckWorkspaceView {
 
     var shouldShowPrimaryGenerateAction: Bool {
         !hasUnifiedAISession
+            && shouldRevealAIGenerateActions
             && !shouldShowFloatingGenerate
     }
 
@@ -369,10 +371,10 @@ extension DeckWorkspaceView {
                     headerGenerateActionControl
                 }
             }
-            .opacity(shouldShowGenerationHeaderStatus ? 0 : 1)
-            .offset(x: shouldShowGenerationHeaderStatus ? 14 : 0)
-            .scaleEffect(shouldShowGenerationHeaderStatus ? 0.98 : 1, anchor: .trailing)
-            .allowsHitTesting(!shouldShowGenerationHeaderStatus)
+            .opacity(shouldRevealAIGenerateActions ? 1 : 0)
+            .offset(x: shouldRevealAIGenerateActions ? 0 : 14)
+            .scaleEffect(shouldRevealAIGenerateActions ? 1 : 0.98, anchor: .trailing)
+            .allowsHitTesting(shouldRevealAIGenerateActions)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipped()
@@ -489,53 +491,50 @@ extension DeckWorkspaceView {
     }
 
     var generationHeaderStatusControl: some View {
-        let showsCompletionStatus = showsGenerationCompletionDone || viewModel.aiGenerationDisplayPhase == nil
-        let statusTitle = showsCompletionStatus
-            ? localized("Done")
-            : viewModel.aiGenerationDisplayPhase.map(localizedGenerationDisplayPhase) ?? localized("Generating cards")
-        let tint = showsCompletionStatus ? themeManager.successPrimary : aiToolbarTint
+        let showsDoneStatus = generationCompletionDisplayState == .done
+        let holdsAlmostReadyStatus = generationCompletionDisplayState == .holdingAlmostReady
+        let statusTitle: String = {
+            if showsDoneStatus {
+                return localized("Done")
+            }
+            if holdsAlmostReadyStatus {
+                return localized("Almost ready")
+            }
+            return viewModel.aiGenerationDisplayPhase.map(localizedGenerationDisplayPhase) ?? localized("Almost ready")
+        }()
+        let generatedCount = holdsAlmostReadyStatus ? completionStatusGeneratedCount : viewModel.aiGeneratedCardCount
+        let targetCount = holdsAlmostReadyStatus ? completionStatusTargetCount : viewModel.aiTargetCardCount
+        let tint = (showsDoneStatus || holdsAlmostReadyStatus) ? themeManager.successPrimary : aiToolbarTint
 
         return HStack(spacing: UIConstants.Spacing.small) {
-            if showsCompletionStatus {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 22, weight: .heavy))
-                    .foregroundStyle(tint)
-                    .symbolEffect(.bounce, value: showsGenerationCompletionDone)
-                    .transition(.opacity.combined(with: .scale(scale: 0.74, anchor: .leading)))
+            AnimatedGenerationStatusTitle(
+                title: statusTitle,
+                animation: generationPhaseAnimation,
+                tint: showsDoneStatus ? tint : nil
+            )
+                .font(.system(size: 20, weight: .heavy))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
-                Text(statusTitle)
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundStyle(tint)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .leading)))
-            } else {
-                AnimatedGenerationStatusTitle(
-                    title: statusTitle,
-                    animation: generationPhaseAnimation
-                )
-                    .font(.system(size: 20, weight: .heavy))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-
+            if !showsDoneStatus {
                 ProgressActivityDots(color: tint)
                     .frame(minWidth: 28)
                     .animation(generationPhaseAnimation, value: generationMotionKey)
             }
 
-            if !showsCompletionStatus, viewModel.aiTargetCardCount > 0 {
-                Text("\(viewModel.aiGeneratedCardCount)/\(viewModel.aiTargetCardCount)")
+            if !showsDoneStatus, targetCount > 0 {
+                Text("\(generatedCount)/\(targetCount)")
                     .font(.system(size: 15, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: UIConstants.Animation.standard), value: viewModel.aiGeneratedCardCount)
+                    .animation(.easeInOut(duration: UIConstants.Animation.standard), value: generatedCount)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(aiToolbarStatusText ?? statusTitle)
         .animation(generationPhaseAnimation, value: generationMotionKey)
-        .animation(generationPhaseAnimation, value: showsGenerationCompletionDone)
+        .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
     }
 
     var addCardButton: some View {
@@ -839,21 +838,29 @@ struct CreateDeckCollapsedTitlePill: View {
 private struct AnimatedGenerationStatusTitle: View {
     let title: String
     let animation: Animation
+    var tint: Color? = nil
 
     var body: some View {
         ZStack(alignment: .leading) {
-            AIShimmeringStatusText(title)
-                .id(title)
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity
-                            .combined(with: .offset(x: 0, y: 7))
-                            .combined(with: .scale(scale: 0.985, anchor: .leading)),
-                        removal: .opacity
-                            .combined(with: .offset(x: 0, y: -7))
-                            .combined(with: .scale(scale: 1.01, anchor: .leading))
-                    )
+            Group {
+                if let tint {
+                    Text(title)
+                        .foregroundStyle(tint)
+                } else {
+                    AIShimmeringStatusText(title)
+                }
+            }
+            .id(title)
+            .transition(
+                .asymmetric(
+                    insertion: .opacity
+                        .combined(with: .offset(x: 0, y: 7))
+                        .combined(with: .scale(scale: 0.985, anchor: .leading)),
+                    removal: .opacity
+                        .combined(with: .offset(x: 0, y: -7))
+                        .combined(with: .scale(scale: 1.01, anchor: .leading))
                 )
+            )
         }
         .animation(animation, value: title)
     }
