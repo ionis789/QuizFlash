@@ -146,6 +146,20 @@ final class ZoneEditorScrollDriver {
         let presentationY: CGFloat?
     }
 
+    private struct KeyboardDismissTrace {
+        let id: Int
+        let reason: String
+        let startedAt: CFTimeInterval
+        let startOffset: CGPoint
+        let startNormalizedOffsetY: CGFloat
+        let startContentInset: UIEdgeInsets
+        let startAdjustedInset: UIEdgeInsets
+        let startBounds: CGRect
+        let startContentSize: CGSize
+        var lastRawOffsetY: CGFloat
+        var lastNormalizedOffsetY: CGFloat
+    }
+
     private weak var scrollView: UIScrollView?
     private var pendingTopInset: CGFloat = 0
     private var pendingBottomInset: CGFloat = 0
@@ -162,8 +176,12 @@ final class ZoneEditorScrollDriver {
     private var lastDebugScrollRequestID: Int?
     private var lastDebugScrollRequestZoneID: UUID?
     private var lastDebugObservedRawOffsetY: CGFloat?
+    private var lastDebugObservedNormalizedOffsetY: CGFloat?
     private var activeDebugOffsetCommand: DebugOffsetCommand?
     private var offsetAnimationTask: Task<Void, Never>?
+    private var keyboardDismissTraceSequence = 0
+    private var activeKeyboardDismissTrace: KeyboardDismissTrace?
+    private var keyboardDismissTraceTask: Task<Void, Never>?
     private var tapProbe: ZoneEditorTapProbe?
     private var debugTraceContext: String?
     private(set) var tapProbeStatus = "not-configured"
@@ -211,6 +229,9 @@ final class ZoneEditorScrollDriver {
 #endif
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
+        keyboardDismissTraceTask?.cancel()
+        keyboardDismissTraceTask = nil
+        activeKeyboardDismissTrace = nil
         offsetLockTask?.cancel()
         offsetLockTask = nil
         lockedOffset = nil
@@ -225,6 +246,7 @@ final class ZoneEditorScrollDriver {
         lastDebugScrollRequestID = nil
         lastDebugScrollRequestZoneID = nil
         lastDebugObservedRawOffsetY = nil
+        lastDebugObservedNormalizedOffsetY = nil
         activeDebugOffsetCommand = nil
         debugTraceContext = nil
         scrollView = nil
@@ -343,6 +365,68 @@ final class ZoneEditorScrollDriver {
             debugZoneID: nil,
             keepsOffsetLocked: false
         )
+    }
+
+    func beginKeyboardDismissTrace(
+        duration: TimeInterval,
+        reason: String
+    ) {
+        guard let scrollView else {
+            ZoneEditorDebugStore.shared.recordEditorState(
+                "keyboard-dismiss.trace.missing-scroll",
+                details: "reason=\(reason) duration=\(debugValue(duration))"
+            )
+            return
+        }
+
+        keyboardDismissTraceSequence += 1
+        let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        let trace = KeyboardDismissTrace(
+            id: keyboardDismissTraceSequence,
+            reason: reason,
+            startedAt: CACurrentMediaTime(),
+            startOffset: scrollView.contentOffset,
+            startNormalizedOffsetY: normalizedOffsetY,
+            startContentInset: scrollView.contentInset,
+            startAdjustedInset: scrollView.adjustedContentInset,
+            startBounds: scrollView.bounds,
+            startContentSize: scrollView.contentSize,
+            lastRawOffsetY: scrollView.contentOffset.y,
+            lastNormalizedOffsetY: normalizedOffsetY
+        )
+        activeKeyboardDismissTrace = trace
+        keyboardDismissTraceTask?.cancel()
+
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "keyboard-dismiss.trace.start",
+            details: "id=\(trace.id) reason=\(reason) duration=\(debugValue(duration)) \(keyboardDismissTraceDetails(trace, in: scrollView))"
+        )
+
+        let sampleDelays: [TimeInterval] = [0.016, 0.05, 0.10, 0.18, 0.28, max(duration, 0.32), max(duration + 0.12, 0.44)]
+        keyboardDismissTraceTask = Task { @MainActor [weak self, weak scrollView] in
+            var previousDelay: TimeInterval = 0
+            for delay in sampleDelays {
+                let wait = max(delay - previousDelay, 0)
+                previousDelay = delay
+                try? await Task.sleep(for: .seconds(wait))
+                guard let self, let scrollView, !Task.isCancelled else { return }
+                self.recordKeyboardDismissTraceSample(
+                    id: trace.id,
+                    stage: "sample-\(Int(delay * 1_000))ms",
+                    in: scrollView
+                )
+            }
+            guard let self, let scrollView, !Task.isCancelled else { return }
+            self.recordKeyboardDismissTraceSample(
+                id: trace.id,
+                stage: "end",
+                in: scrollView
+            )
+            if self.activeKeyboardDismissTrace?.id == trace.id {
+                self.activeKeyboardDismissTrace = nil
+            }
+            self.keyboardDismissTraceTask = nil
+        }
     }
 
     func smoothClampOffsetIfNeeded(
@@ -971,9 +1055,16 @@ final class ZoneEditorScrollDriver {
         let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
         currentNormalizedOffsetY = normalizedOffsetY
         captureInsetDebugState(in: scrollView)
+        recordKeyboardDismissOffsetChangeIfNeeded(
+            in: scrollView,
+            normalizedOffsetY: normalizedOffsetY,
+            force: force,
+            observation: observation
+        )
         if force
             || lastDebugObservedRawOffsetY.map({ abs($0 - scrollView.contentOffset.y) > 8 }) != false {
             lastDebugObservedRawOffsetY = scrollView.contentOffset.y
+            lastDebugObservedNormalizedOffsetY = normalizedOffsetY
             let command = activeDebugOffsetCommand
             let panState = scrollView.panGestureRecognizer.state
             let origin: String
@@ -992,6 +1083,8 @@ final class ZoneEditorScrollDriver {
                 zoneID: command?.zoneID ?? lastDebugScrollRequestZoneID,
                 details: "origin=\(origin) command=\(command.map { String($0.token) } ?? "nil") commandRequest=\(command?.requestID.map(String.init) ?? "nil") commandTargetY=\(command.map { debugValue($0.target.y) } ?? "nil") request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") context=\(debugTraceContext ?? "none") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) pan=\(panState.rawValue) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(mutationDetails) \(scrollSnapshotDetails(in: scrollView))"
             )
+        } else {
+            lastDebugObservedNormalizedOffsetY = normalizedOffsetY
         }
         guard let onScrollOffsetChange else { return }
         if !force,
@@ -1002,6 +1095,53 @@ final class ZoneEditorScrollDriver {
 
         lastReportedScrollOffsetY = normalizedOffsetY
         onScrollOffsetChange(normalizedOffsetY)
+    }
+
+    private func recordKeyboardDismissOffsetChangeIfNeeded(
+        in scrollView: UIScrollView,
+        normalizedOffsetY: CGFloat,
+        force: Bool,
+        observation: DebugOffsetObservation?
+    ) {
+        guard var trace = activeKeyboardDismissTrace else { return }
+
+        let rawDelta = scrollView.contentOffset.y - trace.lastRawOffsetY
+        let normalizedDelta = normalizedOffsetY - trace.lastNormalizedOffsetY
+        let startRawDelta = scrollView.contentOffset.y - trace.startOffset.y
+        let startNormalizedDelta = normalizedOffsetY - trace.startNormalizedOffsetY
+        let shouldRecord = force
+            || abs(rawDelta) > 1.5
+            || abs(normalizedDelta) > 1.5
+            || observation != nil
+        guard shouldRecord else { return }
+
+        let elapsedMS = Int((CACurrentMediaTime() - trace.startedAt) * 1_000)
+        let mutationDetails = observation.map {
+            "mutationOld=\(debugOptionalPoint($0.oldValue)) mutationNew=\(debugOptionalPoint($0.newValue)) mutationPresentationY=\(debugOptionalValue($0.presentationY))"
+        } ?? "mutation=none"
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "keyboard-dismiss.offset-change",
+            details: "id=\(trace.id) +\(elapsedMS)ms reason=\(trace.reason) rawDelta=\(debugValue(rawDelta)) normalizedDelta=\(debugValue(normalizedDelta)) fromStartRaw=\(debugValue(startRawDelta)) fromStartNormalized=\(debugValue(startNormalizedDelta)) force=\(force ? 1 : 0) \(mutationDetails) \(keyboardDismissTraceDetails(trace, in: scrollView))"
+        )
+
+        trace.lastRawOffsetY = scrollView.contentOffset.y
+        trace.lastNormalizedOffsetY = normalizedOffsetY
+        activeKeyboardDismissTrace = trace
+    }
+
+    private func recordKeyboardDismissTraceSample(
+        id: Int,
+        stage: String,
+        in scrollView: UIScrollView
+    ) {
+        guard let trace = activeKeyboardDismissTrace, trace.id == id else { return }
+
+        let elapsedMS = Int((CACurrentMediaTime() - trace.startedAt) * 1_000)
+        let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "keyboard-dismiss.trace.\(stage)",
+            details: "id=\(trace.id) +\(elapsedMS)ms reason=\(trace.reason) rawFromStart=\(debugValue(scrollView.contentOffset.y - trace.startOffset.y)) normalizedFromStart=\(debugValue(normalizedOffsetY - trace.startNormalizedOffsetY)) insetDelta=\(debugInsetsDelta(from: trace.startContentInset, to: scrollView.contentInset)) adjustedDelta=\(debugInsetsDelta(from: trace.startAdjustedInset, to: scrollView.adjustedContentInset)) boundsDelta=\(debugRectDelta(from: trace.startBounds, to: scrollView.bounds)) contentDelta=\(debugSizeDelta(from: trace.startContentSize, to: scrollView.contentSize)) \(scrollSnapshotDetails(in: scrollView))"
+        )
     }
 
     private func restoreLockedOffsetIfNeeded(
@@ -1082,6 +1222,16 @@ final class ZoneEditorScrollDriver {
         let oldMinOffsetY = -scrollView.adjustedContentInset.top
         let shouldKeepPinnedToTop = abs(scrollView.contentOffset.y - oldMinOffsetY) <= 1
             || scrollView.contentOffset.y < oldMinOffsetY
+        let oldContentInset = scrollView.contentInset
+        let oldAdjustedInset = scrollView.adjustedContentInset
+        let oldOffset = scrollView.contentOffset
+        let oldBounds = scrollView.bounds
+        let oldContentSize = scrollView.contentSize
+
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "scroll.apply-insets.before",
+            details: "targetTop=\(debugValue(pendingTopInset)) targetBottom=\(debugValue(pendingBottomInset)) pinnedTop=\(shouldKeepPinnedToTop ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+        )
 
         appliedTopInset = pendingTopInset
         appliedBottomInset = pendingBottomInset
@@ -1107,8 +1257,8 @@ final class ZoneEditorScrollDriver {
             }
         }
         ZoneEditorDebugStore.shared.recordEditorState(
-            "scroll.apply-insets",
-            details: "top=\(debugValue(pendingTopInset)) bottom=\(debugValue(pendingBottomInset)) pinnedTop=\(shouldKeepPinnedToTop ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+            "scroll.apply-insets.after",
+            details: "targetTop=\(debugValue(pendingTopInset)) targetBottom=\(debugValue(pendingBottomInset)) pinnedTop=\(shouldKeepPinnedToTop ? 1 : 0) offsetDelta=\(debugPointDelta(from: oldOffset, to: scrollView.contentOffset)) insetDelta=\(debugInsetsDelta(from: oldContentInset, to: scrollView.contentInset)) adjustedDelta=\(debugInsetsDelta(from: oldAdjustedInset, to: scrollView.adjustedContentInset)) boundsDelta=\(debugRectDelta(from: oldBounds, to: scrollView.bounds)) contentDelta=\(debugSizeDelta(from: oldContentSize, to: scrollView.contentSize)) \(scrollSnapshotDetails(in: scrollView))"
         )
         captureInsetDebugState(in: scrollView)
     }
@@ -1190,12 +1340,42 @@ final class ZoneEditorScrollDriver {
         ].joined(separator: " ")
     }
 
+    private func keyboardDismissTraceDetails(
+        _ trace: KeyboardDismissTrace,
+        in scrollView: UIScrollView
+    ) -> String {
+        let normalizedOffsetY = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+        return [
+            "startOffset=\(debugPoint(trace.startOffset))",
+            "startNormalized=\(debugValue(trace.startNormalizedOffsetY))",
+            "currentOffset=\(debugPoint(scrollView.contentOffset))",
+            "currentNormalized=\(debugValue(normalizedOffsetY))",
+            "startInset=\(debugInsets(trace.startContentInset))",
+            "currentInset=\(debugInsets(scrollView.contentInset))",
+            "startAdjusted=\(debugInsets(trace.startAdjustedInset))",
+            "currentAdjusted=\(debugInsets(scrollView.adjustedContentInset))",
+            "startBounds=\(debugRect(trace.startBounds))",
+            "currentBounds=\(debugRect(scrollView.bounds))",
+            "startContent=\(debugSize(trace.startContentSize))",
+            "currentContent=\(debugSize(scrollView.contentSize))",
+            "scroll=\(scrollSnapshotDetails(in: scrollView))"
+        ].joined(separator: " ")
+    }
+
     private func debugRect(_ rect: CGRect) -> String {
         "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
     }
 
+    private func debugRectDelta(from oldValue: CGRect, to newValue: CGRect) -> String {
+        "\(debugValue(newValue.minX - oldValue.minX)),\(debugValue(newValue.minY - oldValue.minY)),\(debugValue(newValue.width - oldValue.width))x\(debugValue(newValue.height - oldValue.height))"
+    }
+
     private func debugPoint(_ point: CGPoint) -> String {
         "\(debugValue(point.x)),\(debugValue(point.y))"
+    }
+
+    private func debugPointDelta(from oldValue: CGPoint, to newValue: CGPoint) -> String {
+        "\(debugValue(newValue.x - oldValue.x)),\(debugValue(newValue.y - oldValue.y))"
     }
 
     private func debugOptionalPoint(_ point: CGPoint?) -> String {
@@ -1206,8 +1386,16 @@ final class ZoneEditorScrollDriver {
         "\(debugValue(size.width))x\(debugValue(size.height))"
     }
 
+    private func debugSizeDelta(from oldValue: CGSize, to newValue: CGSize) -> String {
+        "\(debugValue(newValue.width - oldValue.width))x\(debugValue(newValue.height - oldValue.height))"
+    }
+
     private func debugInsets(_ insets: UIEdgeInsets) -> String {
         "\(debugValue(insets.top)),\(debugValue(insets.left)),\(debugValue(insets.bottom)),\(debugValue(insets.right))"
+    }
+
+    private func debugInsetsDelta(from oldValue: UIEdgeInsets, to newValue: UIEdgeInsets) -> String {
+        "\(debugValue(newValue.top - oldValue.top)),\(debugValue(newValue.left - oldValue.left)),\(debugValue(newValue.bottom - oldValue.bottom)),\(debugValue(newValue.right - oldValue.right))"
     }
 
     private func debugOptionalValue(_ value: CGFloat?) -> String {

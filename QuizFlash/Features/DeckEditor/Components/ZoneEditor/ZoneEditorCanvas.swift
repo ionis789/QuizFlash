@@ -329,6 +329,10 @@ struct ZoneEditorCanvas: View {
                     } else {
                         scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         if newHeight <= 1, !keyboardMonitor.isVisible {
+                            scrollDriver.beginKeyboardDismissTrace(
+                                duration: keyboardDismissScrollAnimationDuration,
+                                reason: "height-change-to-zero"
+                            )
                             scrollDriver.resetBottomInset(
                                 animationDuration: keyboardDismissScrollAnimationDuration,
                                 animationOptions: keyboardMonitor.animationOptions
@@ -379,6 +383,10 @@ struct ZoneEditorCanvas: View {
                         }
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
+                        scrollDriver.beginKeyboardDismissTrace(
+                            duration: keyboardDismissScrollAnimationDuration,
+                            reason: "visible-change-false"
+                        )
                         cancelCaretAvoidanceScroll()
                         scrollDriver.smoothClampOffsetIfNeeded(
                             duration: keyboardDismissScrollAnimationDuration,
