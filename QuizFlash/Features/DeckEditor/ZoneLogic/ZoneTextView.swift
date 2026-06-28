@@ -1840,9 +1840,19 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
         (textView as? FullHitTextView)?.usesCompactCaret = true
+
+        let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
+        let stylingSignature = stylingSignatureForCurrentState
+        let needsStylingUpdate = context.coordinator.lastAppliedStylingSignature != stylingSignature
+        let needsFocusSync = textView.isFirstResponder != isFirstResponder
+
+        guard textView.text != displayText || needsStylingUpdate || needsFocusSync else {
+            return
+        }
+
+        let uiModelText = ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "")
         if AppFeatures.current.showsVisualDebugOverlays {
-            let modelText = ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "")
-            let textLength = (modelText as NSString).length
+            let textLength = (uiModelText as NSString).length
             ZoneEditorDebugStore.shared.recordLayoutEvent(
                 "ui-update",
                 zoneID: zoneID,
@@ -1854,14 +1864,9 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 textViewFirstResponder: textView.isFirstResponder,
                 uiViewFirstResponder: textView.isFirstResponder,
                 requestedFirstResponder: isFirstResponder,
-                textLength: (ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "") as NSString).length
+                textLength: textLength
             )
         }
-
-        let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
-        let stylingSignature = stylingSignatureForCurrentState
-        let needsStylingUpdate = context.coordinator.lastAppliedStylingSignature != stylingSignature
-        let uiModelText = ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "")
 
         guard textView.text != displayText else {
             if needsStylingUpdate {
