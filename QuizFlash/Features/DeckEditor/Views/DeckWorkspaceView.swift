@@ -755,6 +755,24 @@ struct DeckWorkspaceView: View {
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
+            .onAppear {
+                ZoneEditorDebugStore.shared.recordDismissFlow(
+                    "workspace.cover.appear",
+                    details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
+                )
+            }
+            .onDisappear {
+                ZoneEditorDebugStore.shared.recordDismissFlow(
+                    "workspace.cover.disappear",
+                    details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
+                )
+            }
+        }
+        .onChange(of: viewModel.cardEditorDestination?.id) { oldValue, newValue in
+            ZoneEditorDebugStore.shared.recordDismissFlow(
+                "workspace.destination-change",
+                details: "old=\(oldValue ?? "nil") new=\(newValue ?? "nil") drafts=\(viewModel.draftCards.count)"
+            )
         }
         .alert(localized("Save Error"), isPresented: $viewModel.showPersistenceError) {
             Button(localized("OK"), role: .cancel) { }

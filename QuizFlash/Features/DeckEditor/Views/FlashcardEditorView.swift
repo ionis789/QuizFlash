@@ -316,6 +316,7 @@ struct FlashcardEditorView: View {
         }
         .onAppear {
             configureZoneEditorDebugRecording()
+            recordDismissFlow("flashcard.appear", details: "render=\(debugFlag(showsRenderedContent))")
             recordEditorLifecycle("editor-appear", details: "destination=flashcard")
             if selectedPath == nil {
                 selectedPath = Self.initialSelectedPath(in: currentContent.rootZone)
@@ -323,6 +324,7 @@ struct FlashcardEditorView: View {
             focusManager.forceReleaseKeyboard()
         }
         .onDisappear {
+            recordDismissFlow("flashcard.disappear", details: "render=\(debugFlag(showsRenderedContent))")
             recordEditorLifecycle("editor-disappear", details: "destination=flashcard")
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
@@ -674,6 +676,13 @@ struct FlashcardEditorView: View {
             zoneID: currentContent.rootZone.id,
             pathID: selectedPath?.id,
             details: "session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) frontObj=\(contentObjectDebugID(frontZoneContent)) backObj=\(contentObjectDebugID(backZoneContent)) selected=\(selectedPath?.id ?? "nil") front=\(zoneDebugSummary(frontZoneContent.rootZone)) back=\(zoneDebugSummary(backZoneContent.rootZone)) \(details)"
+        )
+    }
+
+    private func recordDismissFlow(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            stage,
+            details: "session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) selected=\(selectedPath?.id ?? "nil") front=\(zoneDebugSummary(frontZoneContent.rootZone)) back=\(zoneDebugSummary(backZoneContent.rootZone)) \(details)"
         )
     }
 
@@ -1304,11 +1313,17 @@ struct FlashcardEditorView: View {
     }
 
     private func closeEditorDiscardingChanges() {
+        let start = CFAbsoluteTimeGetCurrent()
+        recordDismissFlow("flashcard.discard.start", details: "render=\(debugFlag(showsRenderedContent))")
         focusManager.forceReleaseKeyboard()
+        recordDismissFlow("flashcard.discard.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
         zoneController.forceReleaseKeyboard()
+        recordDismissFlow("flashcard.discard.after-zone-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
+        recordDismissFlow("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
         dismiss()
+        recordDismissFlow("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
     }
 
     private func blurEditingBeforeSideSwitch() {
@@ -1537,13 +1552,22 @@ struct FlashcardEditorView: View {
     // MARK: - Save
 
     private func saveCard() {
+        let start = CFAbsoluteTimeGetCurrent()
+        recordDismissFlow("flashcard.save.start", details: "render=\(debugFlag(showsRenderedContent))")
         frontZoneContent.cleanup()
+        recordDismissFlow("flashcard.save.after-front-cleanup", details: "elapsed=\(formatMilliseconds(since: start))")
         backZoneContent.cleanup()
+        recordDismissFlow("flashcard.save.after-back-cleanup", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordDismissFlow("flashcard.save.before-onsave", details: "elapsed=\(formatMilliseconds(since: start))")
         onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
+        recordDismissFlow("flashcard.save.after-onsave", details: "elapsed=\(formatMilliseconds(since: start))")
         focusManager.forceReleaseKeyboard()
+        recordDismissFlow("flashcard.save.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
+        recordDismissFlow("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
         dismiss()
+        recordDismissFlow("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
     }
 
     // MARK: - Helpers

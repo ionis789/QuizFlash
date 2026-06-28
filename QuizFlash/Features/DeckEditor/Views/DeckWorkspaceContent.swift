@@ -492,14 +492,27 @@ extension DeckWorkspaceView {
     }
 
     func handleCardEditorSave(destination: CardEditorDestination, content: DraftCardContent) {
+        let start = CFAbsoluteTimeGetCurrent()
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "workspace.handle-save.start",
+            details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
+        )
         switch destination {
         case .create, .createFromDraft:
             viewModel.addCard(content: content)
         case .edit(let draftCard):
             viewModel.updateCard(draftCard, content: content)
         }
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "workspace.handle-save.after-mutation",
+            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms drafts=\(viewModel.draftCards.count)"
+        )
 
         viewModel.dismissCardEditor()
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "workspace.handle-save.after-dismiss-request",
+            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms destination=\(viewModel.cardEditorDestination?.id ?? "nil")"
+        )
     }
 
     func requestDismiss() {

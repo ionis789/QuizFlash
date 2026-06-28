@@ -12,6 +12,10 @@ extension DeckWorkspaceViewModel {
 
     /// Appends a new draft card with the given front and back zones.
     func addCard(content: DraftCardContent, creationSource: CardCreationSource = .manual) {
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.add-card.start",
+            details: "countBefore=\(draftCards.count) source=\(creationSource.rawValue)"
+        )
         let newCard = DraftCard(
             cardNumber: allocateNextDraftCardNumber(),
             content: content,
@@ -24,16 +28,34 @@ extension DeckWorkspaceViewModel {
             draftCards.append(newCard)
         }
         registerSessionDraftID(newCard.id)
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.add-card.end",
+            details: "countAfter=\(draftCards.count) card=\(String(newCard.id.uuidString.prefix(6)))"
+        )
     }
 
     /// Updates the draft card's zone content and bumps `editedAt` if content changed.
     func updateCard(_ card: DraftCard, content: DraftCardContent) {
-        guard let index = draftCards.firstIndex(where: { $0.id == card.id }) else { return }
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.update-card.start",
+            details: "count=\(draftCards.count) card=\(String(card.id.uuidString.prefix(6)))"
+        )
+        guard let index = draftCards.firstIndex(where: { $0.id == card.id }) else {
+            ZoneEditorDebugStore.shared.recordDismissFlow(
+                "viewmodel.update-card.missing",
+                details: "count=\(draftCards.count) card=\(String(card.id.uuidString.prefix(6)))"
+            )
+            return
+        }
         var updated = draftCards[index]
         let changed = updated.content != content
         updated.content = content
         if changed { updated.editedAt = Date() }
         withAnimation { draftCards[index] = updated }
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.update-card.end",
+            details: "count=\(draftCards.count) index=\(index) changed=\(changed ? 1 : 0)"
+        )
     }
 
     /// Opens the editor in create mode for the requested card kind.
@@ -48,7 +70,15 @@ extension DeckWorkspaceViewModel {
 
     /// Dismisses the currently presented card editor, if any.
     func dismissCardEditor() {
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.dismiss-card-editor.start",
+            details: "destination=\(cardEditorDestination?.id ?? "nil")"
+        )
         cardEditorDestination = nil
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "viewmodel.dismiss-card-editor.end",
+            details: "destination=\(cardEditorDestination?.id ?? "nil")"
+        )
     }
 
     /// Enters multi-card selection mode for the current draft list.

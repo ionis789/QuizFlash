@@ -63,6 +63,10 @@ struct CardEditorView: View {
                 )
             }
         ) { frontZone, backZone in
+            ZoneEditorDebugStore.shared.recordDismissFlow(
+                "card-editor.flashcard-onsave.start",
+                details: "destination=\(destination.id) kind=\(destination.kind.rawValue)"
+            )
             onSave(
                 .flashcard(
                     FlashcardCardContent(
@@ -72,6 +76,10 @@ struct CardEditorView: View {
                         backType: content.backType
                     )
                 )
+            )
+            ZoneEditorDebugStore.shared.recordDismissFlow(
+                "card-editor.flashcard-onsave.end",
+                details: "destination=\(destination.id) kind=\(destination.kind.rawValue)"
             )
         }
     }

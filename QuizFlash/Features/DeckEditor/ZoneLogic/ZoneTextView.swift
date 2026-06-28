@@ -326,10 +326,13 @@ final class ZoneEditorDebugStore {
     private(set) var tapLine: String = "tap idle"
     private(set) var alignmentLine: String = "align idle"
     private(set) var caretLine: String = "caret idle"
+    private(set) var dismissLine: String = "dismiss idle"
     private(set) var layoutEvents: [String] = []
     private(set) var toolbarLifecycleEvents: [String] = []
+    private(set) var dismissFlowEvents: [String] = []
     private var layoutEventIndex = 0
     private var toolbarLifecycleEventIndex = 0
+    private var dismissFlowEventIndex = 0
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
     private var cachedCounterSummary = "none"
@@ -349,7 +352,8 @@ final class ZoneEditorDebugStore {
             toolbarLine,
             tapLine,
             alignmentLine,
-            caretLine
+            caretLine,
+            dismissLine
         ]
     }
 
@@ -361,6 +365,7 @@ final class ZoneEditorDebugStore {
             canvasLine,
             toolbarLine,
             caretLine,
+            dismissLine,
             "rates \(counterSummary)"
         ]
     }
@@ -402,13 +407,41 @@ final class ZoneEditorDebugStore {
         }
     }
 
+    func recordDismissFlow(
+        _ stage: String,
+        details: @autoclosure () -> String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        dismissFlowEventIndex += 1
+        eventCounters["dismiss.\(stage)", default: 0] += 1
+        refreshCounterSummaryIfNeeded(for: "dismiss.\(stage)")
+
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let detailText = details()
+        let line = detailText.isEmpty
+            ? "D\(dismissFlowEventIndex) +\(elapsedMS)ms \(stage)"
+            : "D\(dismissFlowEventIndex) +\(elapsedMS)ms \(stage) \(detailText)"
+        dismissFlowEvents.append(line)
+        if dismissFlowEvents.count > 240 {
+            dismissFlowEvents.removeFirst(dismissFlowEvents.count - 240)
+        }
+
+        setLine(&dismissLine, line)
+        recordEvent("dismiss.\(stage)")
+    }
+
     var layoutTraceReport: String {
         let counters = counterReport
         let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
         let toolbarEvents = toolbarLifecycleEvents.isEmpty ? "<none>" : toolbarLifecycleEvents.joined(separator: "\n")
+        let dismissEvents = dismissFlowEvents.isEmpty ? "<none>" : dismissFlowEvents.joined(separator: "\n")
         return """
         COUNTERS
         \(counters)
+
+        EDITOR DISMISS FLOW
+        \(dismissEvents)
 
         KEYBOARD / TOOLBAR LIFECYCLE
         \(toolbarEvents)
