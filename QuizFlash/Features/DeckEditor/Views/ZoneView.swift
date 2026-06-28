@@ -1439,6 +1439,10 @@ struct ZoneContentView: View {
             pathID: path.id,
             details: "reason=\(reason) mode=\(rendersRichText ? "rich" : "raw") available=\(debugValue(availableWidth)) measurement=\(debugValue(measurementWidth)) textLen=\((zone.text as NSString).length) sizeMode=\(zone.sizeMode.rawValue) measured=\(debugSize(measuredLayoutContentSize(for: zone, layoutZone: normalizedLayoutZone(zone)))) block=\(debugSize(layout.blockSize)) contentW=\(debugValue(layout.contentLayoutWidth)) lead=\(debugValue(layout.leadingInset)) rendered=\(debugSize(renderedContentSize)) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0)"
         )
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "zone-guide-state",
+            details: "reason=\(reason) path=\(path.id) zone=\(String(zone.id.uuidString.prefix(6))) guide=\(shouldShowZoneHeightGuide(for: zone) ? 1 : 0) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0) opacity=\(isSelected ? "0.28" : "0.18") mode=\(rendersRichText ? "rich" : "raw") block=\(debugSize(layout.blockSize))"
+        )
     }
 
     private func debugSize(_ size: CGSize) -> String {

@@ -315,6 +315,10 @@ struct ZoneEditorCanvas: View {
                 .onChange(of: keyboardMonitor.visibleHeight) { _, newHeight in
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
+                    recordKeyboardStateFlow(
+                        "keyboard.height-change.start",
+                        details: "old=\(debugNumber(oldHeight)) new=\(debugNumber(newHeight))"
+                    )
                     if rendersRichText {
                         refreshBottomScrollInset(
                             animationDuration: newHeight <= 1 && !keyboardMonitor.isVisible
@@ -347,8 +351,16 @@ struct ZoneEditorCanvas: View {
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
+                    recordKeyboardStateFlow(
+                        "keyboard.height-change.end",
+                        details: "old=\(debugNumber(oldHeight)) new=\(debugNumber(newHeight))"
+                    )
                 }
                 .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+                    recordKeyboardStateFlow(
+                        "keyboard.visible-change.start",
+                        details: "visible=\(isVisible ? 1 : 0)"
+                    )
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
                     if rendersRichText {
                         refreshBottomScrollInset(
@@ -376,6 +388,10 @@ struct ZoneEditorCanvas: View {
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                    recordKeyboardStateFlow(
+                        "keyboard.visible-change.end",
+                        details: "visible=\(isVisible ? 1 : 0)"
                     )
                 }
                 .onChange(of: focusManager.focusedZoneID) { _, focusedID in
@@ -1984,6 +2000,13 @@ struct ZoneEditorCanvas: View {
         min(max(keyboardMonitor.animationDuration, 0.22), 0.32)
     }
 
+    private func recordKeyboardStateFlow(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordEditorState(
+            stage,
+            details: "render=\(rendersRichText ? 1 : 0) selectedPath=\(selectedPath?.id ?? "nil") selectedZone=\(shortID(selectedZone?.id)) focused=\(shortID(focusManager.focusedZoneID)) pending=\(shortID(focusManager.pendingFocusZoneID)) kb=\(keyboardMonitor.isVisible ? 1 : 0):\(debugNumber(keyboardMonitor.visibleHeight)) dur=\(debugNumber(keyboardMonitor.animationDuration)) accessory=\(debugNumber(bottomAccessoryHeight)) inset=\(debugNumber(scrollDriver.currentContentInsetBottom))/\(debugNumber(scrollDriver.currentAdjustedContentInsetBottom)) offset=\(debugNumber(scrollDriver.effectiveNormalizedOffsetY())) \(details) scroll={\(scrollDriver.debugSnapshotDetails())}"
+        )
+    }
+
     private func layoutStartMarker(
         mode: String,
         layout: ZoneContentLayout,
@@ -2160,6 +2183,10 @@ struct ZoneEditorCanvas: View {
 
     private func debugNumber(_ value: CGFloat) -> String {
         String(format: "%.1f", value)
+    }
+
+    private func debugNumber(_ value: TimeInterval) -> String {
+        String(format: "%.3f", value)
     }
 
     private func debugOptionalNumber(_ value: CGFloat?) -> String {

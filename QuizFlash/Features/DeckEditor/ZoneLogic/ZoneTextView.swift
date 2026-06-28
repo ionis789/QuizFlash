@@ -330,9 +330,11 @@ final class ZoneEditorDebugStore {
     private(set) var layoutEvents: [String] = []
     private(set) var toolbarLifecycleEvents: [String] = []
     private(set) var dismissFlowEvents: [String] = []
+    private(set) var editorStateEvents: [String] = []
     private var layoutEventIndex = 0
     private var toolbarLifecycleEventIndex = 0
     private var dismissFlowEventIndex = 0
+    private var editorStateEventIndex = 0
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
     private var cachedCounterSummary = "none"
@@ -431,17 +433,47 @@ final class ZoneEditorDebugStore {
         recordEvent("dismiss.\(stage)")
     }
 
+    func recordEditorState(
+        _ stage: String,
+        details: @autoclosure () -> String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        editorStateEventIndex += 1
+        eventCounters["state.\(stage)", default: 0] += 1
+        refreshCounterSummaryIfNeeded(for: "state.\(stage)")
+
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let detailText = details()
+        let line = detailText.isEmpty
+            ? "S\(editorStateEventIndex) +\(elapsedMS)ms \(stage)"
+            : "S\(editorStateEventIndex) +\(elapsedMS)ms \(stage) \(detailText)"
+        editorStateEvents.append(line)
+        if editorStateEvents.count > 360 {
+            editorStateEvents.removeFirst(editorStateEvents.count - 360)
+        }
+
+        recordEvent("state.\(stage)")
+    }
+
     var layoutTraceReport: String {
         let counters = counterReport
         let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
         let toolbarEvents = toolbarLifecycleEvents.isEmpty ? "<none>" : toolbarLifecycleEvents.joined(separator: "\n")
         let dismissEvents = dismissFlowEvents.isEmpty ? "<none>" : dismissFlowEvents.joined(separator: "\n")
+        let stateEvents = editorStateEvents.isEmpty ? "<none>" : editorStateEvents.joined(separator: "\n")
         return """
+        LIVE SNAPSHOT
+        \(hudLines.joined(separator: "\n"))
+
         COUNTERS
         \(counters)
 
         EDITOR DISMISS FLOW
         \(dismissEvents)
+
+        EDITOR STATE FLOW
+        \(stateEvents)
 
         KEYBOARD / TOOLBAR LIFECYCLE
         \(toolbarEvents)
@@ -449,6 +481,19 @@ final class ZoneEditorDebugStore {
         EVENTS
         \(events)
         """
+    }
+
+    var report: String {
+        """
+        QuizFlash Zone Editor Debug
+        timestamp: \(ISO8601DateFormatter().string(from: Date()))
+
+        \(layoutTraceReport)
+        """
+    }
+
+    var eventCount: Int {
+        layoutEvents.count + toolbarLifecycleEvents.count + dismissFlowEvents.count + editorStateEvents.count
     }
 
     var latestLayoutLines: [String] {

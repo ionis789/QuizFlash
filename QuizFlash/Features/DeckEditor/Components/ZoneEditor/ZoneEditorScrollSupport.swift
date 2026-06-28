@@ -288,6 +288,10 @@ final class ZoneEditorScrollDriver {
         else { return }
 
         pendingBottomInset = resolvedInset
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "scroll.set-bottom-inset",
+            details: "target=\(debugValue(resolvedInset)) \(scrollView.map { scrollSnapshotDetails(in: $0) } ?? "scrollView=nil")"
+        )
         applyContentInsetsIfNeeded()
     }
 
@@ -304,10 +308,18 @@ final class ZoneEditorScrollDriver {
         let startOffset = CGPoint(x: scrollView.contentOffset.x, y: visualOffsetY)
 
         clearOffsetLock()
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "scroll.reset-bottom-inset.start",
+            details: "duration=\(debugValue(animationDuration)) start=\(debugPoint(startOffset)) \(scrollSnapshotDetails(in: scrollView))"
+        )
         setBottomInset(0)
 
         let targetY = clampedOffsetY(visualOffsetY, in: scrollView)
         guard abs(targetY - visualOffsetY) > 0.5 else {
+            ZoneEditorDebugStore.shared.recordEditorState(
+                "scroll.reset-bottom-inset.no-clamp",
+                details: "target=\(debugValue(targetY)) visual=\(debugValue(visualOffsetY)) \(scrollSnapshotDetails(in: scrollView))"
+            )
             reportScrollOffset(in: scrollView, force: true)
             return
         }
@@ -346,7 +358,13 @@ final class ZoneEditorScrollDriver {
 
         let visualOffsetY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
         let targetY = clampedOffsetY(visualOffsetY, in: scrollView)
-        guard abs(targetY - visualOffsetY) > 0.5 else { return }
+        guard abs(targetY - visualOffsetY) > 0.5 else {
+            ZoneEditorDebugStore.shared.recordEditorState(
+                "scroll.smooth-clamp.skip",
+                details: "reason=already-valid target=\(debugValue(targetY)) visual=\(debugValue(visualOffsetY)) \(scrollSnapshotDetails(in: scrollView))"
+            )
+            return
+        }
 
         clearOffsetLock()
         let startOffset = CGPoint(x: scrollView.contentOffset.x, y: visualOffsetY)
@@ -358,6 +376,10 @@ final class ZoneEditorScrollDriver {
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-clamp-animate",
             zoneID: nil,
+            details: "from=\(debugPoint(startOffset)) to=\(debugValue(targetY)) duration=\(debugValue(duration)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "scroll.smooth-clamp.apply",
             details: "from=\(debugPoint(startOffset)) to=\(debugValue(targetY)) duration=\(debugValue(duration)) \(scrollSnapshotDetails(in: scrollView))"
         )
         setContentOffset(
@@ -1084,6 +1106,10 @@ final class ZoneEditorScrollDriver {
                 )
             }
         }
+        ZoneEditorDebugStore.shared.recordEditorState(
+            "scroll.apply-insets",
+            details: "top=\(debugValue(pendingTopInset)) bottom=\(debugValue(pendingBottomInset)) pinnedTop=\(shouldKeepPinnedToTop ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+        )
         captureInsetDebugState(in: scrollView)
     }
 
@@ -1191,6 +1217,11 @@ final class ZoneEditorScrollDriver {
     private func debugValue(_ value: CGFloat) -> String {
         guard value.isFinite else { return value.description }
         return String(format: "%.1f", Double(value))
+    }
+
+    private func debugValue(_ value: TimeInterval) -> String {
+        guard value.isFinite else { return value.description }
+        return String(format: "%.3f", value)
     }
 
     private func debugObjectID(_ object: AnyObject) -> String {

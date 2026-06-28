@@ -12,6 +12,7 @@ struct DevelopmentSettingsView: View {
     @Environment(AIProviderStore.self) private var aiProviderStore
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var didCopyPDFImportDebug = false
+    @State private var didCopyZoneEditorDebug = false
     @State private var pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
 
     var body: some View {
@@ -125,6 +126,21 @@ struct DevelopmentSettingsView: View {
                 detail: nil,
                 isOn: zoneEditorDebugHUDBinding
             )
+
+            SettingsCardDivider()
+
+            Button {
+                copyZoneEditorDebugReport()
+            } label: {
+                SettingsNavigationRow(
+                    icon: didCopyZoneEditorDebug ? "checkmark" : "doc.on.doc",
+                    tint: .purple,
+                    title: "Zone Editor Debug",
+                    detail: nil,
+                    value: "\(ZoneEditorDebugStore.shared.eventCount)"
+                )
+            }
+            .buttonStyle(.plain)
 
             SettingsCardDivider()
 
@@ -425,6 +441,16 @@ struct DevelopmentSettingsView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.2))
             didCopyPDFImportDebug = false
+        }
+    }
+
+    private func copyZoneEditorDebugReport() {
+        UIPasteboard.general.string = ZoneEditorDebugStore.shared.report
+        didCopyZoneEditorDebug = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopyZoneEditorDebug = false
         }
     }
 
