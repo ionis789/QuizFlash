@@ -372,8 +372,7 @@ extension DeckWorkspaceView {
                 }
             }
             .opacity(shouldRevealAIGenerateActions ? 1 : 0)
-            .offset(x: shouldRevealAIGenerateActions ? 0 : 14)
-            .scaleEffect(shouldRevealAIGenerateActions ? 1 : 0.98, anchor: .trailing)
+            .scaleEffect(shouldRevealAIGenerateActions ? 1 : 0.82, anchor: .trailing)
             .allowsHitTesting(shouldRevealAIGenerateActions)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

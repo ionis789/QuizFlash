@@ -498,15 +498,12 @@ struct DeckWorkspaceView: View {
                 }
             }
 
-            try? await Task.sleep(nanoseconds: 850_000_000)
+            try? await Task.sleep(nanoseconds: 720_000_000)
             guard !Task.isCancelled else { return }
             withAnimation(generationPhaseAnimation) {
                 generationCompletionDisplayState = .none
+                blocksGenerateMoreReveal = false
             }
-
-            try? await Task.sleep(nanoseconds: 420_000_000)
-            guard !Task.isCancelled else { return }
-            blocksGenerateMoreReveal = false
         }
     }
 
