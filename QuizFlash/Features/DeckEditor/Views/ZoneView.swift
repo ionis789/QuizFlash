@@ -610,8 +610,6 @@ struct ZoneContentView: View {
                 blockFrameReporter(layout: layout, zone: zone)
                 if effectiveShowsZoneSurfaces {
                     blockSurface(layout: layout, zone: zone)
-                } else if showsZoneHeightGuides, !zone.isEditorMediaLeaf {
-                    zoneHeightGuide(layout: layout, zone: zone)
                 }
 
                 if effectiveShowsZoneSurfaces {
@@ -645,6 +643,9 @@ struct ZoneContentView: View {
                         }
                     }
 
+                if shouldShowZoneHeightGuide(for: zone) {
+                    zoneHeightGuide(layout: layout, zone: zone)
+                }
             }
             .frame(
                 width: availableWidth,
@@ -781,8 +782,12 @@ struct ZoneContentView: View {
             .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
             .allowsHitTesting(false)
         } else {
-            zoneHeightGuide(layout: layout, zone: zone)
+            EmptyView()
         }
+    }
+
+    private func shouldShowZoneHeightGuide(for zone: ZoneModel) -> Bool {
+        showsZoneHeightGuides && !zone.isEditorMediaLeaf
     }
 
     private func zoneHeightGuide(
@@ -1593,15 +1598,7 @@ struct ZoneContentView: View {
     }
 
     private func editorZoneHeightGuideColor(for zone: ZoneModel) -> Color {
-        if isTextViewFirstResponder {
-            return accent.opacity(0.72)
-        }
-
-        if isSelected {
-            return accent.opacity(0.42)
-        }
-
-        return zone.highlightColor.zoneSurfaceTint?.opacity(0.72) ?? Color.white.opacity(0.18)
+        Color.white.opacity(isSelected || isTextViewFirstResponder ? 0.28 : 0.18)
     }
 
     // MARK: - Image View

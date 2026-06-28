@@ -621,6 +621,9 @@ struct QuizCardEditorView: View {
         }
         floatingFormatBarPresentationTask = nil
         focusManager.suppressFocusRequests(for: 0.9, releasesKeyboard: false)
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
         recordToolbarLifecycle("dismiss-fade-start", details: toolbarLifecycleDetails())
         withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
             isFloatingFormatBarPresented = false
@@ -635,9 +638,6 @@ struct QuizCardEditorView: View {
             try? await Task.sleep(for: EditorKeyboardAccessoryMotion.keyboardDismissDelay)
             guard !Task.isCancelled else { return }
             recordToolbarLifecycle("dismiss-keyboard-release-start", details: toolbarLifecycleDetails())
-            focusManager.forceReleaseKeyboard()
-            zoneController.forceReleaseKeyboard()
-            zoneController.updateFocusedZone(nil)
             currentSelectedPath = nil
             previewDirection = nil
             withTransaction(Transaction(animation: nil)) {
