@@ -1156,6 +1156,7 @@ private struct ZoneContentLeafPreview: View {
     @ViewBuilder
     private func paddingDebugGuide(layout: ZoneContentLayoutResult) -> some View {
         if showsDebugGuides,
+           debugGuideStyle != .editorRender,
            (zone.contentType == .empty || zone.contentType == .text || zone.contentType == .code) {
             let horizontalInset = layout.textHorizontalInsets / 2
             let verticalInset = textVerticalPadding / 2

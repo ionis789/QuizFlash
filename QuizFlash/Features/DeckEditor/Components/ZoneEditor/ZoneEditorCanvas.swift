@@ -1168,11 +1168,16 @@ struct ZoneEditorCanvas: View {
             contentWidth: contentWidth
         )
         let preferredY = menuState.anchor.y + Self.alignmentMenuVerticalSpacing
-        let minY: CGFloat = 0
-        let maxY = max(viewportScreenFrame.height - menuHeight - 8, minY)
-        let y = preferredY <= maxY
-            ? max(preferredY, minY)
-            : max(menuState.anchor.y - menuHeight - Self.alignmentMenuVerticalSpacing, minY)
+        let visibleTopY = max(
+            scrollDriver.currentNormalizedOffsetY - contentVerticalPadding - topContentInset,
+            0
+        )
+        let visibleBottomY = visibleTopY + max(viewportScreenFrame.height, menuHeight)
+        let minY = visibleTopY + 8
+        let maxY = max(visibleBottomY - menuHeight - 8, minY)
+        let aboveY = menuState.anchor.y - menuHeight - Self.alignmentMenuVerticalSpacing
+        let unclampedY = preferredY <= maxY ? preferredY : aboveY
+        let y = min(max(unclampedY, minY), maxY)
 
         return CGPoint(x: x, y: y)
     }
