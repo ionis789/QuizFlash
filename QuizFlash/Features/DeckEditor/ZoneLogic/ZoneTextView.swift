@@ -332,6 +332,7 @@ final class ZoneEditorDebugStore {
     private var toolbarLifecycleEventIndex = 0
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
+    private var cachedCounterSummary = "none"
     private var isRecordingEnabled = false
     private let startedAt = Date()
 
@@ -377,14 +378,15 @@ final class ZoneEditorDebugStore {
         _ stage: String,
         zoneID: UUID?,
         pathID: String? = nil,
-        details: String
+        details: @autoclosure () -> String
     ) {
         guard AppFeatures.current.showsVisualDebugOverlays, isRecordingEnabled else { return }
 
         eventCounters[stage, default: 0] += 1
-        if shouldThrottleLayoutEvent(stage) {
+        refreshCounterSummaryIfNeeded(for: stage)
+        if let sampleInterval = layoutEventSampleInterval(for: stage) {
             let count = eventCounters[stage, default: 0]
-            if count > 3 && !count.isMultiple(of: 20) {
+            if count > 3 && !count.isMultiple(of: sampleInterval) {
                 skippedEventCounters[stage, default: 0] += 1
                 return
             }
@@ -393,7 +395,7 @@ final class ZoneEditorDebugStore {
         layoutEventIndex += 1
         let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
         let path = pathID.map { " path=\($0)" } ?? ""
-        let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details)"
+        let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details())"
         layoutEvents.append(line)
         if layoutEvents.count > 900 {
             layoutEvents.removeFirst(layoutEvents.count - 900)
@@ -421,15 +423,7 @@ final class ZoneEditorDebugStore {
     }
 
     private var counterSummary: String {
-        let hot = eventCounters
-            .sorted { lhs, rhs in
-                if lhs.value == rhs.value { return lhs.key < rhs.key }
-                return lhs.value > rhs.value
-            }
-            .prefix(4)
-            .map { "\($0.key)=\($0.value)" }
-            .joined(separator: " ")
-        return hot.isEmpty ? "none" : hot
+        cachedCounterSummary
     }
 
     private var counterReport: String {
@@ -446,7 +440,7 @@ final class ZoneEditorDebugStore {
             .joined(separator: "\n")
     }
 
-    private func shouldThrottleLayoutEvent(_ stage: String) -> Bool {
+    private func layoutEventSampleInterval(for stage: String) -> Int? {
         switch stage {
         case "ui-update",
              "ui-sync",
@@ -457,10 +451,52 @@ final class ZoneEditorDebugStore {
              "editor-body",
              "scroll-skip",
              "scroll-schedule-skip":
-            return true
+            return 20
+        case "leaf-layout",
+             "zone-content-init",
+             "zone-content-update",
+             "zone-content-update-root",
+             "card-editor-body",
+             "caret.geometry-before-layout",
+             "caret.geometry-after-layout",
+             "caret.geometry-emit",
+             "caret.geometry-skip-same",
+             "caret.selection-change-start",
+             "caret.selection-change-pending-text-edit",
+             "caret.selection-change-waiting-layout",
+             "caret.should-change",
+             "caret.did-change-start",
+             "caret.did-change-after-style",
+             "caret.overflow-decision",
+             "caret.settled-schedule",
+             "caret.settled-runloop-before-layout",
+             "caret.settled-runloop-after-layout",
+             "caret.settled-80ms-before-layout",
+             "caret.settled-80ms-after-layout",
+             "caret-geometry",
+             "scroll-native-rect-request",
+             "scroll-apply",
+             "scroll-set-offset-start",
+             "scroll-offset-observed":
+            return 80
         default:
-            return false
+            return nil
         }
+    }
+
+    private func refreshCounterSummaryIfNeeded(for stage: String) {
+        let count = eventCounters[stage, default: 0]
+        guard count <= 3 || count.isMultiple(of: 25) else { return }
+
+        let hot = eventCounters
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                return lhs.value > rhs.value
+            }
+            .prefix(4)
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: " ")
+        cachedCounterSummary = hot.isEmpty ? "none" : hot
     }
 
     func updateFocusManager(focusedZoneID: UUID?, pendingZoneID: UUID?, retainKeyboard: Bool) {
@@ -599,9 +635,9 @@ final class ZoneEditorDebugStore {
     func recordScrollDecision(
         _ stage: String,
         zoneID: UUID?,
-        details: String
+        details: @autoclosure () -> String
     ) {
-        recordLayoutEvent(stage, zoneID: zoneID, details: details)
+        recordLayoutEvent(stage, zoneID: zoneID, details: details())
     }
 
     func recordToolbarLifecycle(
@@ -785,6 +821,24 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     ) {
         guard AppFeatures.current.showsVisualDebugOverlays else { return }
 
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: zoneID,
+            details: caretProbeDetails(
+                textView: textView,
+                changedRange: changedRange,
+                replacementText: replacementText,
+                extra: extra
+            )
+        )
+    }
+
+    private func caretProbeDetails(
+        textView: UITextView,
+        changedRange: NSRange?,
+        replacementText: String?,
+        extra: String
+    ) -> String {
         let displayText = textView.text ?? ""
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
         let displayRange = textView.selectedRange
@@ -827,12 +881,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         ]
         .filter { !$0.isEmpty }
         .joined(separator: " ")
-
-        ZoneEditorDebugStore.shared.recordLayoutEvent(
-            stage,
-            zoneID: zoneID,
-            details: details
-        )
+        return details
     }
 
     private func caretDebugRects(in textView: UITextView) -> (local: String, window: String, first: String) {

@@ -2340,35 +2340,48 @@ enum ZoneContentEstimator {
     }
 
     nonisolated private static func roundedCacheComponent(_ value: CGFloat) -> String {
-        String(format: "%.2f", Double(value))
+        String(roundedCacheBucket(value))
+    }
+
+    nonisolated private static func roundedCacheBucket(_ value: CGFloat) -> Int {
+        Int((Double(value) * 100).rounded())
     }
 
     nonisolated private static func zoneCacheFingerprint(_ zone: ZoneModel) -> String {
-        var parts: [String] = [
-            zone.id.uuidString,
-            String(describing: zone.contentType),
-            zone.codeLanguage ?? "",
-            zone.text,
-            String(describing: zone.textStyle),
-            String(describing: zone.sizeMode),
-            zone.fixedWidth.map(roundedCacheComponent) ?? "nil",
-            zone.fixedHeight.map(roundedCacheComponent) ?? "nil",
-            String(describing: zone.verticalAlignment),
-            String(describing: zone.textColor),
-            String(zone.isBold),
-            String(zone.isItalic),
-            String(describing: zone.fontFamily),
-            String(describing: zone.highlightColor),
-            roundedCacheComponent(zone.imageScale),
-            String(describing: zone.direction),
-            zone.imageData.map { "\($0.count):\($0.hashValue)" } ?? "nil"
-        ]
+        var hasher = Hasher()
+        combineZoneCacheFingerprint(zone, into: &hasher)
+        return String(hasher.finalize())
+    }
 
-        if let children = zone.children, !children.isEmpty {
-            parts.append(contentsOf: children.map(zoneCacheFingerprint))
+    nonisolated private static func combineZoneCacheFingerprint(_ zone: ZoneModel, into hasher: inout Hasher) {
+        hasher.combine(zone.id)
+        hasher.combine(zone.contentType.rawValue)
+        hasher.combine(zone.codeLanguage)
+        hasher.combine(zone.text)
+        hasher.combine(zone.textStyle.rawValue)
+        hasher.combine(zone.sizeMode.rawValue)
+        hasher.combine(zone.fixedWidth.map(roundedCacheBucket))
+        hasher.combine(zone.fixedHeight.map(roundedCacheBucket))
+        hasher.combine(zone.verticalAlignment.rawValue)
+        hasher.combine(zone.textColor.rawValue)
+        hasher.combine(zone.isBold)
+        hasher.combine(zone.isItalic)
+        hasher.combine(zone.fontFamily.rawValue)
+        hasher.combine(zone.highlightColor.rawValue)
+        hasher.combine(roundedCacheBucket(zone.imageScale))
+        hasher.combine(zone.direction.rawValue)
+        if let imageData = zone.imageData {
+            hasher.combine(imageData.count)
+            hasher.combine(imageData.hashValue)
+        } else {
+            hasher.combine(0)
         }
 
-        return parts.joined(separator: "\u{1F}")
+        let children = zone.children ?? []
+        hasher.combine(children.count)
+        for child in children {
+            combineZoneCacheFingerprint(child, into: &hasher)
+        }
     }
 
     static func estimatedBlockWidth(

@@ -36,11 +36,10 @@ private enum ZoneEditorScrollMutationTracer {
         guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
         guard target.y < scrollView.contentOffset.y - 48 else { return }
 
-        let stack = Thread.callStackSymbols.prefix(14).joined(separator: " || ")
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-native-upward-setter",
             zoneID: nil,
-            details: "selector=\(selector) animated=\(animated.map { $0 ? "1" : "0" } ?? "nil") from=\(pointDescription(scrollView.contentOffset)) to=\(pointDescription(target)) class=\(String(describing: type(of: scrollView))) stack=\(stack)"
+            details: "selector=\(selector) animated=\(animated.map { $0 ? "1" : "0" } ?? "nil") from=\(pointDescription(scrollView.contentOffset)) to=\(pointDescription(target)) class=\(String(describing: type(of: scrollView))) stack=\(Thread.callStackSymbols.prefix(14).joined(separator: " || "))"
         )
     }
 
@@ -51,11 +50,10 @@ private enum ZoneEditorScrollMutationTracer {
     ) {
         guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
 
-        let stack = Thread.callStackSymbols.prefix(14).joined(separator: " || ")
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-native-rect-request",
             zoneID: nil,
-            details: "rect=\(rectDescription(rect)) animated=\(animated ? "1" : "0") offset=\(pointDescription(scrollView.contentOffset)) class=\(String(describing: type(of: scrollView))) stack=\(stack)"
+            details: "rect=\(rectDescription(rect)) animated=\(animated ? "1" : "0") offset=\(pointDescription(scrollView.contentOffset)) class=\(String(describing: type(of: scrollView))) stack=\(Thread.callStackSymbols.prefix(14).joined(separator: " || "))"
         )
     }
 
