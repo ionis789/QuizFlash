@@ -2189,6 +2189,29 @@ struct ZoneEditorCanvas: View {
         )
     }
 
+    private var alignmentMenuScreenFrame: CGRect? {
+        guard let menuState = alignmentMenuState,
+              let menuFrame = alignmentMenuFrame else {
+            return nil
+        }
+
+        let targetPath = menuState.target.path
+        let screenTargetFrame: CGRect?
+        switch menuState.target.kind {
+        case .group:
+            screenTargetFrame = frame(forSubtree: targetPath, in: renderScreenZoneFrames)
+        case .leaf:
+            screenTargetFrame = frame(for: targetPath, in: renderScreenZoneFrames)
+        }
+
+        guard let screenTargetFrame else { return nil }
+
+        return menuFrame.offsetBy(
+            dx: screenTargetFrame.minX - menuState.frame.minX,
+            dy: screenTargetFrame.minY - menuState.frame.minY
+        )
+    }
+
     private func handleWindowTouchProbe(_ snapshot: ZoneEditorWindowTouchSnapshot) {
         let selected = selectedPath?.id ?? "nil"
         let rootID = content.rootZone.id.uuidString.prefix(6)
@@ -2238,7 +2261,10 @@ struct ZoneEditorCanvas: View {
         let tappedAlignmentMenuInContent = alignmentMenuFrame?
             .insetBy(dx: -24, dy: -24)
             .contains(contentPoint) ?? false
-        let tappedAlignmentMenu = tappedAlignmentMenuInContent
+        let tappedAlignmentMenuInScreen = alignmentMenuScreenFrame?
+            .insetBy(dx: -24, dy: -24)
+            .contains(snapshot.windowPoint) ?? false
+        let tappedAlignmentMenu = tappedAlignmentMenuInContent || tappedAlignmentMenuInScreen
         let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
         let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
         let menuIsOpen = alignmentMenuState != nil
@@ -2248,6 +2274,11 @@ struct ZoneEditorCanvas: View {
             && !tappedAlignmentMenu
             && (screenGroupHit != nil ? screenCandidateFrames.isEmpty : candidateFrames.isEmpty)
             && groupHitForSelection != nil
+        let shouldDismissMenu = isCompletedTap
+            && snapshot.isTapLike
+            && menuIsOpen
+            && !tappedAlignmentMenu
+            && (renderScreenZoneFrames.isEmpty ? groupHit == nil : screenGroupHit == nil)
 
         windowTouchDebugLines = [
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
@@ -2262,7 +2293,7 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) screenCandidates=\(screenCandidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") screenGroup=\(screenGroupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) screenCandidates=\(screenCandidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") screenGroup=\(screenGroupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismissMenu ? "DISMISS_MENU" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
         )
 
         if shouldSelectGroup, let groupHit = groupHitForSelection {
@@ -2278,6 +2309,12 @@ struct ZoneEditorCanvas: View {
             recordInteractionTrace(
                 "WINDOW SELECT_GROUP path=\(groupHit.path.id) frame=\(traceRect(groupHit.hitFrame))"
             )
+            return
+        }
+
+        if shouldDismissMenu {
+            dismissAlignmentMenu()
+            recordInteractionTrace("WINDOW DISMISS_MENU")
             return
         }
 
