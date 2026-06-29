@@ -54,6 +54,8 @@ struct FlashcardEditorView: View {
     @State private var scrollTransition = FlashcardEditorScrollTransitionState()
     @State private var suppressCanvasEmptyTapUntil: CFAbsoluteTime = 0
     @State private var editorSessionID = UUID()
+    @State private var isEditorDismissInFlight = false
+    @State private var editorCoverDismissTask: Task<Void, Never>?
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -233,21 +235,10 @@ struct FlashcardEditorView: View {
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
 
-                editorArea(safeTopInset: safeTopInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .ignoresSafeArea(.container, edges: .vertical)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-                    .screenEdgeShadow(
-                        topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
-                        bottomHeight: editorBottomBlurHeight(safeBottomInset: safeBottomInset),
-                        debugScreenID: "flashcard.editor",
-                        style: .progressiveBlur()
-                    )
-
-                topChrome
-                    .zIndex(20)
-                floatingFormatBar
-                floatingFormatBarDebugOverlay
+                editorInteractiveLayer(safeTopInset: safeTopInset, safeBottomInset: safeBottomInset)
+                    .opacity(isEditorDismissInFlight ? 0 : 1)
+                    .allowsHitTesting(!isEditorDismissInFlight)
+                    .animation(.easeOut(duration: 0.055), value: isEditorDismissInFlight)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -348,6 +339,26 @@ struct FlashcardEditorView: View {
 
     private func notifyContentChange() {
         onContentChange?(frontZoneContent.rootZone, backZoneContent.rootZone)
+    }
+
+    private func editorInteractiveLayer(safeTopInset: CGFloat, safeBottomInset: CGFloat) -> some View {
+        ZStack(alignment: .top) {
+            editorArea(safeTopInset: safeTopInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea(.container, edges: .vertical)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .screenEdgeShadow(
+                    topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                    bottomHeight: editorBottomBlurHeight(safeBottomInset: safeBottomInset),
+                    debugScreenID: "flashcard.editor",
+                    style: .progressiveBlur()
+                )
+
+            topChrome
+                .zIndex(20)
+            floatingFormatBar
+            floatingFormatBarDebugOverlay
+        }
     }
 
     @ViewBuilder
@@ -841,7 +852,7 @@ struct FlashcardEditorView: View {
             showsZoneHeightGuides: true,
             showsDebugOverlays: activeSide == side,
             onScrollOffsetChange: { offsetY in
-                guard activeSide == side else { return }
+                guard activeSide == side, !isEditorDismissInFlight else { return }
                 handleEditorScrollOffsetChange(offsetY)
             },
             onEmptySpaceTap: { context in
@@ -1156,6 +1167,8 @@ struct FlashcardEditorView: View {
         scheduledFocusTask = nil
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
+        editorCoverDismissTask?.cancel()
+        editorCoverDismissTask = nil
     }
 
     private var topChrome: some View {
@@ -1368,12 +1381,7 @@ struct FlashcardEditorView: View {
         recordDismissFlow("flashcard.discard.after-zone-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
-        recordDismissFlow("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        recordEditorSheetDismissTrace("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        dismiss()
-        scheduleEditorSheetDismissTraceSamples(action: "discard")
-        recordDismissFlow("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
-        recordEditorSheetDismissTrace("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        startEditorCoverDismiss(action: "discard", start: start)
     }
 
     private func blurEditingBeforeSideSwitch() {
@@ -1616,12 +1624,33 @@ struct FlashcardEditorView: View {
         recordDismissFlow("flashcard.save.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
         lineTracker.clearAll()
         zoneController.clearHeightCache()
-        recordDismissFlow("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        recordEditorSheetDismissTrace("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-        dismiss()
-        scheduleEditorSheetDismissTraceSamples(action: "save")
-        recordDismissFlow("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
-        recordEditorSheetDismissTrace("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        startEditorCoverDismiss(action: "save", start: start)
+    }
+
+    private func startEditorCoverDismiss(action: String, start: CFAbsoluteTime) {
+        guard !isEditorDismissInFlight else { return }
+
+        recordDismissFlow("flashcard.\(action).teardown-start", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordEditorSheetDismissTrace("flashcard.\(action).teardown-start", details: "elapsed=\(formatMilliseconds(since: start))")
+        withAnimation(.easeOut(duration: 0.055)) {
+            isEditorDismissInFlight = true
+            isFloatingFormatBarPresented = false
+            floatingFormatBarKeyboardHeight = 0
+            floatingFormatBarTopY = nil
+        }
+
+        editorCoverDismissTask?.cancel()
+        editorCoverDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(55))
+            guard !Task.isCancelled else { return }
+
+            recordDismissFlow("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
+            recordEditorSheetDismissTrace("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
+            dismiss()
+            scheduleEditorSheetDismissTraceSamples(action: action)
+            recordDismissFlow("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+            recordEditorSheetDismissTrace("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        }
     }
 
     // MARK: - Helpers
