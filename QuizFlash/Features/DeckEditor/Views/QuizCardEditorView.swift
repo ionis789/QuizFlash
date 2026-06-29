@@ -245,6 +245,10 @@ struct QuizCardEditorView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let _ = recordQuizSheetDismissTrace(
+                "quiz.body",
+                details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
+            )
             let safeTopInset = proxy.safeAreaInsets.top
             let contentWidth = max(proxy.size.width - 16, 1)
 
@@ -439,6 +443,7 @@ struct QuizCardEditorView: View {
         }
         .onAppear {
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(isQuizDebugRecordingActive)
+            recordQuizSheetDismissTrace("quiz.appear", details: "render=\(debugFlag(showsRenderedContent))")
             recordQuizScroll(
                 "quiz.editor-appear",
                 pathID: currentSelectedPath?.id,
@@ -447,6 +452,7 @@ struct QuizCardEditorView: View {
         }
         .onDisappear {
             quizScrollDriver.setDebugTraceContext(nil)
+            recordQuizSheetDismissTrace("quiz.disappear", details: "render=\(debugFlag(showsRenderedContent))")
             recordQuizScroll(
                 "quiz.editor-disappear",
                 pathID: currentSelectedPath?.id,
@@ -827,6 +833,38 @@ struct QuizCardEditorView: View {
 
     private func debugRect(_ rect: CGRect) -> String {
         "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func beginQuizSheetDismissTrace(_ action: String, details: String) {
+        ZoneEditorDebugStore.shared.beginSheetDismissTrace(
+            "quiz.\(action).begin",
+            details: quizSheetDismissTraceDetails(details)
+        )
+    }
+
+    private func recordQuizSheetDismissTrace(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+            stage,
+            details: quizSheetDismissTraceDetails(details)
+        )
+    }
+
+    private func quizSheetDismissTraceDetails(_ details: String) -> String {
+        "surface=quiz target=\(debugTargetID(activeEditor)) selected=\(currentSelectedPath?.id ?? "nil") render=\(debugFlag(showsRenderedContent)) scroll=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) keyboard=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugFlag(isFloatingFormatBarVisible)) viewport=\(debugRect(quizViewportScreenFrame)) \(details)"
+    }
+
+    private func scheduleQuizSheetDismissTraceSamples(action: String) {
+        let targetAtStart = debugTargetID(activeEditor)
+        let selectedPathID = currentSelectedPath?.id ?? "nil"
+        for delayMS in [16, 80, 160, 260, 420] {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(delayMS))
+                ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                    "quiz.\(action).sample-\(delayMS)ms",
+                    details: "surface=quiz startTarget=\(targetAtStart) startSelected=\(selectedPathID) target=\(debugTargetID(activeEditor)) selected=\(currentSelectedPath?.id ?? "nil") render=\(debugFlag(showsRenderedContent)) scroll=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) keyboard=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugFlag(isFloatingFormatBarVisible)) viewport=\(debugRect(quizViewportScreenFrame))"
+                )
+            }
+        }
     }
 
     private func debugDuration(_ duration: Duration) -> String {
@@ -2794,19 +2832,28 @@ struct QuizCardEditorView: View {
     }
 
     private func closeEditorDiscardingChanges() {
+        beginQuizSheetDismissTrace("discard", details: "phase=start")
         dismissEditorAfterKeyboardSettles {
+            recordQuizSheetDismissTrace("quiz.discard.before-dismiss", details: "phase=completion")
             dismiss()
+            scheduleQuizSheetDismissTraceSamples(action: "discard")
+            recordQuizSheetDismissTrace("quiz.discard.after-dismiss-call", details: "phase=completion")
         }
     }
 
     private func saveCard() {
+        beginQuizSheetDismissTrace("save", details: "phase=start")
         questionContent.cleanup()
         choices.forEach { $0.content.cleanup() }
         explanationContent?.cleanup()
         let contentToSave = currentQuizContent
         dismissEditorAfterKeyboardSettles {
+            recordQuizSheetDismissTrace("quiz.save.before-onsave", details: "phase=completion")
             onSave(contentToSave)
+            recordQuizSheetDismissTrace("quiz.save.before-dismiss", details: "phase=completion")
             dismiss()
+            scheduleQuizSheetDismissTraceSamples(action: "save")
+            recordQuizSheetDismissTrace("quiz.save.after-dismiss-call", details: "phase=completion")
         }
     }
 

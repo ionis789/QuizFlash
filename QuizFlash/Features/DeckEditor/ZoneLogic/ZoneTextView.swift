@@ -330,11 +330,14 @@ final class ZoneEditorDebugStore {
     private(set) var layoutEvents: [String] = []
     private(set) var toolbarLifecycleEvents: [String] = []
     private(set) var dismissFlowEvents: [String] = []
+    private(set) var sheetDismissTraceEvents: [String] = []
     private(set) var editorStateEvents: [String] = []
     private var layoutEventIndex = 0
     private var toolbarLifecycleEventIndex = 0
     private var dismissFlowEventIndex = 0
+    private var sheetDismissTraceEventIndex = 0
     private var editorStateEventIndex = 0
+    private var sheetDismissTraceActiveUntil: Date?
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
     private var cachedCounterSummary = "none"
@@ -433,6 +436,46 @@ final class ZoneEditorDebugStore {
         recordEvent("dismiss.\(stage)")
     }
 
+    var isSheetDismissTraceActive: Bool {
+        guard let sheetDismissTraceActiveUntil else { return false }
+        return sheetDismissTraceActiveUntil > Date()
+    }
+
+    func beginSheetDismissTrace(
+        _ stage: String,
+        details: @autoclosure () -> String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        sheetDismissTraceActiveUntil = Date().addingTimeInterval(8)
+        recordSheetDismissTrace(stage, details: details())
+    }
+
+    func recordSheetDismissTrace(
+        _ stage: String,
+        details: @autoclosure () -> String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isSheetDismissTraceActive || stage.contains("begin") || stage.contains("start") else { return }
+
+        sheetDismissTraceEventIndex += 1
+        eventCounters["sheet-dismiss.\(stage)", default: 0] += 1
+        refreshCounterSummaryIfNeeded(for: "sheet-dismiss.\(stage)")
+
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let detailText = details()
+        let snapshot = "canvas{\(canvasLine)} toolbar{\(toolbarLine)} caret{\(caretLine)}"
+        let line = detailText.isEmpty
+            ? "SD\(sheetDismissTraceEventIndex) +\(elapsedMS)ms \(stage) \(snapshot)"
+            : "SD\(sheetDismissTraceEventIndex) +\(elapsedMS)ms \(stage) \(detailText) \(snapshot)"
+        sheetDismissTraceEvents.append(line)
+        if sheetDismissTraceEvents.count > 320 {
+            sheetDismissTraceEvents.removeFirst(sheetDismissTraceEvents.count - 320)
+        }
+
+        setLine(&dismissLine, line)
+        recordEvent("sheet-dismiss.\(stage)")
+    }
+
     func recordEditorState(
         _ stage: String,
         details: @autoclosure () -> String = ""
@@ -461,6 +504,7 @@ final class ZoneEditorDebugStore {
         let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
         let toolbarEvents = toolbarLifecycleEvents.isEmpty ? "<none>" : toolbarLifecycleEvents.joined(separator: "\n")
         let dismissEvents = dismissFlowEvents.isEmpty ? "<none>" : dismissFlowEvents.joined(separator: "\n")
+        let sheetDismissEvents = sheetDismissTraceEvents.isEmpty ? "<none>" : sheetDismissTraceEvents.joined(separator: "\n")
         let stateEvents = editorStateEvents.isEmpty ? "<none>" : editorStateEvents.joined(separator: "\n")
         return """
         LIVE SNAPSHOT
@@ -471,6 +515,9 @@ final class ZoneEditorDebugStore {
 
         EDITOR DISMISS FLOW
         \(dismissEvents)
+
+        SHEET DISMISS TRACE
+        \(sheetDismissEvents)
 
         EDITOR STATE FLOW
         \(stateEvents)
@@ -493,7 +540,7 @@ final class ZoneEditorDebugStore {
     }
 
     var eventCount: Int {
-        layoutEvents.count + toolbarLifecycleEvents.count + dismissFlowEvents.count + editorStateEvents.count
+        layoutEvents.count + toolbarLifecycleEvents.count + dismissFlowEvents.count + sheetDismissTraceEvents.count + editorStateEvents.count
     }
 
     var latestLayoutLines: [String] {

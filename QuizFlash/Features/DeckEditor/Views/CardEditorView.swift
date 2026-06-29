@@ -38,11 +38,39 @@ struct CardEditorView: View {
 
     var body: some View {
         let _ = recordCardEditorLifecycle("card-editor-body")
-        switch destination.kind {
-        case .flashcard:
-            flashcardEditor
-        case .quiz:
-            quizEditor
+        Group {
+            switch destination.kind {
+            case .flashcard:
+                flashcardEditor
+            case .quiz:
+                quizEditor
+            }
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: CardEditorRootFramePreferenceKey.self,
+                    value: proxy.frame(in: .global)
+                )
+            }
+        }
+        .onPreferenceChange(CardEditorRootFramePreferenceKey.self) { frame in
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                "card-editor.root-frame",
+                details: "destination=\(destination.id) kind=\(destination.kind.rawValue) frame=\(debugRect(frame))"
+            )
+        }
+        .onAppear {
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                "card-editor.appear",
+                details: "destination=\(destination.id) kind=\(destination.kind.rawValue)"
+            )
+        }
+        .onDisappear {
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                "card-editor.disappear",
+                details: "destination=\(destination.id) kind=\(destination.kind.rawValue)"
+            )
         }
     }
 
@@ -128,6 +156,21 @@ struct CardEditorView: View {
         )
     }
 
+    private func debugRect(_ rect: CGRect) -> String {
+        String(
+            format: "%.1f,%.1f %.1fx%.1f",
+            Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height)
+        )
+    }
+
+}
+
+private struct CardEditorRootFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
 }
 
 enum CardEditorTextSizeResolver {

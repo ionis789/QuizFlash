@@ -760,9 +760,17 @@ struct DeckWorkspaceView: View {
                     "workspace.cover.appear",
                     details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
                 )
+                ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                    "workspace.cover.appear",
+                    details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
+                )
             }
             .onDisappear {
                 ZoneEditorDebugStore.shared.recordDismissFlow(
+                    "workspace.cover.disappear",
+                    details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
+                )
+                ZoneEditorDebugStore.shared.recordSheetDismissTrace(
                     "workspace.cover.disappear",
                     details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
                 )
@@ -770,6 +778,10 @@ struct DeckWorkspaceView: View {
         }
         .onChange(of: viewModel.cardEditorDestination?.id) { oldValue, newValue in
             ZoneEditorDebugStore.shared.recordDismissFlow(
+                "workspace.destination-change",
+                details: "old=\(oldValue ?? "nil") new=\(newValue ?? "nil") drafts=\(viewModel.draftCards.count)"
+            )
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
                 "workspace.destination-change",
                 details: "old=\(oldValue ?? "nil") new=\(newValue ?? "nil") drafts=\(viewModel.draftCards.count)"
             )

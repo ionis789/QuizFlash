@@ -223,6 +223,10 @@ struct FlashcardEditorView: View {
     var body: some View {
         GeometryReader { proxy in
             let _ = recordEditorLifecycle("editor-body", details: "safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))")
+            let _ = recordEditorSheetDismissTrace(
+                "flashcard.body",
+                details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
+            )
             let safeTopInset = proxy.safeAreaInsets.top
             let safeBottomInset = proxy.safeAreaInsets.bottom
 
@@ -317,6 +321,7 @@ struct FlashcardEditorView: View {
         .onAppear {
             configureZoneEditorDebugRecording()
             recordDismissFlow("flashcard.appear", details: "render=\(debugFlag(showsRenderedContent))")
+            recordEditorSheetDismissTrace("flashcard.appear", details: "render=\(debugFlag(showsRenderedContent))")
             recordEditorLifecycle("editor-appear", details: "destination=flashcard")
             if selectedPath == nil {
                 selectedPath = Self.initialSelectedPath(in: currentContent.rootZone)
@@ -325,6 +330,7 @@ struct FlashcardEditorView: View {
         }
         .onDisappear {
             recordDismissFlow("flashcard.disappear", details: "render=\(debugFlag(showsRenderedContent))")
+            recordEditorSheetDismissTrace("flashcard.disappear", details: "render=\(debugFlag(showsRenderedContent))")
             recordEditorLifecycle("editor-disappear", details: "destination=flashcard")
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
@@ -664,6 +670,13 @@ struct FlashcardEditorView: View {
         value.map(debugValue) ?? "nil"
     }
 
+    private func debugRect(_ rect: CGRect) -> String {
+        String(
+            format: "%.1f,%.1f %.1fx%.1f",
+            Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height)
+        )
+    }
+
     private func debugDuration(_ duration: Duration) -> String {
         let components = duration.components
         let milliseconds = components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
@@ -684,6 +697,39 @@ struct FlashcardEditorView: View {
             stage,
             details: "session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) selected=\(selectedPath?.id ?? "nil") front=\(zoneDebugSummary(frontZoneContent.rootZone)) back=\(zoneDebugSummary(backZoneContent.rootZone)) \(details)"
         )
+    }
+
+    private func beginEditorSheetDismissTrace(_ action: String, details: String) {
+        ZoneEditorDebugStore.shared.beginSheetDismissTrace(
+            "flashcard.\(action).begin",
+            details: editorSheetDismissTraceDetails(details)
+        )
+    }
+
+    private func recordEditorSheetDismissTrace(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+            stage,
+            details: editorSheetDismissTraceDetails(details)
+        )
+    }
+
+    private func editorSheetDismissTraceDetails(_ details: String) -> String {
+        "surface=flashcard session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) selected=\(selectedPath?.id ?? "nil") render=\(debugFlag(showsRenderedContent)) scroll=\(debugValue(scrollTransition.currentNormalizedOffsetY)) keyboard=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugFlag(isFloatingFormatBarVisible)) front=\(zoneDebugSummary(frontZoneContent.rootZone)) back=\(zoneDebugSummary(backZoneContent.rootZone)) \(details)"
+    }
+
+    private func scheduleEditorSheetDismissTraceSamples(action: String) {
+        let sessionID = editorSessionID
+        let activeSideAtStart = activeSide
+        let selectedPathID = selectedPath?.id ?? "nil"
+        for delayMS in [16, 80, 160, 260, 420] {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(delayMS))
+                ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                    "flashcard.\(action).sample-\(delayMS)ms",
+                    details: "surface=flashcard session=\(shortDebugID(sessionID)) startSide=\(activeSideAtStart) startSelected=\(selectedPathID) activeSide=\(activeSide) selected=\(selectedPath?.id ?? "nil") render=\(debugFlag(showsRenderedContent)) scroll=\(debugValue(scrollTransition.currentNormalizedOffsetY)) keyboard=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugFlag(isFloatingFormatBarVisible))"
+                )
+            }
+        }
     }
 
     private func contentObjectDebugID(_ content: ZoneCardContent) -> String {
@@ -1314,6 +1360,7 @@ struct FlashcardEditorView: View {
 
     private func closeEditorDiscardingChanges() {
         let start = CFAbsoluteTimeGetCurrent()
+        beginEditorSheetDismissTrace("discard", details: "phase=start")
         recordDismissFlow("flashcard.discard.start", details: "render=\(debugFlag(showsRenderedContent))")
         focusManager.forceReleaseKeyboard()
         recordDismissFlow("flashcard.discard.after-focus-release", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1322,8 +1369,11 @@ struct FlashcardEditorView: View {
         lineTracker.clearAll()
         zoneController.clearHeightCache()
         recordDismissFlow("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordEditorSheetDismissTrace("flashcard.discard.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
         dismiss()
+        scheduleEditorSheetDismissTraceSamples(action: "discard")
         recordDismissFlow("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordEditorSheetDismissTrace("flashcard.discard.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
     }
 
     private func blurEditingBeforeSideSwitch() {
@@ -1553,6 +1603,7 @@ struct FlashcardEditorView: View {
 
     private func saveCard() {
         let start = CFAbsoluteTimeGetCurrent()
+        beginEditorSheetDismissTrace("save", details: "phase=start")
         recordDismissFlow("flashcard.save.start", details: "render=\(debugFlag(showsRenderedContent))")
         frontZoneContent.cleanup()
         recordDismissFlow("flashcard.save.after-front-cleanup", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1566,8 +1617,11 @@ struct FlashcardEditorView: View {
         lineTracker.clearAll()
         zoneController.clearHeightCache()
         recordDismissFlow("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordEditorSheetDismissTrace("flashcard.save.before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
         dismiss()
+        scheduleEditorSheetDismissTraceSamples(action: "save")
         recordDismissFlow("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
+        recordEditorSheetDismissTrace("flashcard.save.after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
     }
 
     // MARK: - Helpers
