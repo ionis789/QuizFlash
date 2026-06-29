@@ -2274,6 +2274,7 @@ struct QuizCardEditorView: View {
 
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
+        let baselineContentHeight = quizScrollDriver.currentContentHeight()
 
         prepareForAddChoiceWithoutFocus(newChoiceID: newChoice.id)
         emitAddChoiceHaptic()
@@ -2287,7 +2288,10 @@ struct QuizCardEditorView: View {
             pathID: nil,
             details: "newChoice=\(shortDebugID(newChoice.id)) count=\(choices.count) \(quizScrollDetails(proposedDelta: nil))"
         )
-        scheduleAddChoiceScrollNudge(newChoiceID: newChoice.id)
+        scheduleAddChoiceScrollNudge(
+            newChoiceID: newChoice.id,
+            baselineContentHeight: baselineContentHeight
+        )
     }
 
     private func prepareForAddChoiceWithoutFocus(newChoiceID: UUID) {
@@ -2322,20 +2326,42 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func scheduleAddChoiceScrollNudge(newChoiceID: UUID) {
+    private func scheduleAddChoiceScrollNudge(newChoiceID: UUID, baselineContentHeight: CGFloat?) {
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(48))
-            let didScroll = quizScrollDriver.scrollDownBy(
-                quizAddChoiceScrollNudge,
-                duration: 0.18,
-                options: [.curveEaseOut],
-                zoneID: nil,
-                reason: "quiz-add-choice"
-            )
+            guard let baselineContentHeight else {
+                try? await Task.sleep(for: .milliseconds(120))
+                let didScroll = quizScrollDriver.scrollDownBy(
+                    quizAddChoiceScrollCompensationLimit,
+                    duration: 0.18,
+                    options: [.curveEaseOut],
+                    zoneID: nil,
+                    reason: "quiz-add-choice-fallback"
+                )
+                recordQuizScroll(
+                    "quiz.add-choice-scroll-nudge",
+                    pathID: nil,
+                    details: "newChoice=\(shortDebugID(newChoiceID)) fallback=1 delta=\(debugValue(quizAddChoiceScrollCompensationLimit)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
+                )
+                return
+            }
+
+            var appliedDelta: CGFloat = 0
+            for delay in quizAddChoiceScrollCompensationDelays {
+                try? await Task.sleep(for: delay)
+                appliedDelta = quizScrollDriver.scrollDownForContentHeightGrowth(
+                    from: baselineContentHeight,
+                    alreadyAppliedDelta: appliedDelta,
+                    maximumDelta: quizAddChoiceScrollCompensationLimit,
+                    duration: 0.12,
+                    options: [.curveEaseOut],
+                    zoneID: nil,
+                    reason: "quiz-add-choice"
+                )
+            }
             recordQuizScroll(
                 "quiz.add-choice-scroll-nudge",
                 pathID: nil,
-                details: "newChoice=\(shortDebugID(newChoiceID)) delta=\(debugValue(quizAddChoiceScrollNudge)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
+                details: "newChoice=\(shortDebugID(newChoiceID)) baseline=\(debugValue(baselineContentHeight)) applied=\(debugValue(appliedDelta)) limit=\(debugValue(quizAddChoiceScrollCompensationLimit)) \(quizScrollDetails(proposedDelta: nil))"
             )
         }
     }
@@ -3070,8 +3096,12 @@ struct QuizCardEditorView: View {
         .smooth(duration: 0.17, extraBounce: 0)
     }
 
-    private var quizAddChoiceScrollNudge: CGFloat {
-        72
+    private var quizAddChoiceScrollCompensationLimit: CGFloat {
+        132
+    }
+
+    private var quizAddChoiceScrollCompensationDelays: [Duration] {
+        [.milliseconds(48), .milliseconds(72), .milliseconds(100)]
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {
