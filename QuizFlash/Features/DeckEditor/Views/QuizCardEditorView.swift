@@ -2269,12 +2269,49 @@ struct QuizCardEditorView: View {
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
 
+        prepareForAddChoiceWithoutFocus(newChoiceID: newChoice.id)
+
         withAnimation(zoneListMutationAnimation) {
             choices.append(newChoice)
-            activateEditor(.choice(newChoice.id))
         }
 
-        requestFocus(for: newChoice.content.rootZone.id, delaySeconds: 0.07)
+        recordQuizScroll(
+            "quiz.add-choice-appended",
+            pathID: nil,
+            details: "newChoice=\(shortDebugID(newChoice.id)) count=\(choices.count) \(quizScrollDetails(proposedDelta: nil))"
+        )
+    }
+
+    private func prepareForAddChoiceWithoutFocus(newChoiceID: UUID) {
+        recordQuizScroll(
+            "quiz.add-choice-start",
+            pathID: currentSelectedPath?.id,
+            details: "newChoice=\(shortDebugID(newChoiceID)) countBefore=\(choices.count) \(quizScrollDetails(proposedDelta: nil))"
+        )
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = nil
+        floatingFormatBarPresentationTask?.cancel()
+        floatingFormatBarPresentationTask = nil
+        focusManager.suppressFocusRequests(for: 0.9)
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+
+        withTransaction(Transaction(animation: nil)) {
+            currentSelectedPath = nil
+            previewDirection = nil
+            isFloatingFormatBarPresented = false
+            floatingFormatBarKeyboardHeight = 0
+            keyboardDismissPadding = 0
+            activeQuizCaretPathID = nil
+            activeQuizCaretWindowRect = nil
+            activeQuizCaretSource = nil
+            activeQuizCaretTraceID = nil
+            activeQuizCaretAnchorY = nil
+            activeQuizCaretEditorHeight = nil
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
+        }
     }
 
     private func deleteChoice(_ choiceID: UUID) {
