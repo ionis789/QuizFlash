@@ -347,12 +347,16 @@ struct DeckActionOverlay: View {
     let deck: DeckModel
     /// `true` when the view is in multi-card selection mode.
     let isSelecting: Bool
+    /// Number of selected cards, used to enable selection-only top actions.
+    let selectedCount: Int
     /// Current deck sort order shown in the native overflow menu.
     @Binding var sortOrder: SortOrder
     /// Current deck grouping mode shown in the native overflow menu.
     @Binding var groupingMode: DeckCardGroupingMode
     /// Called when the user taps the "+" button.
     let onAdd: () -> Void
+    /// Called when the user taps the top pin action while selecting.
+    let onPinSelected: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
     /// Called when the user taps the top checkmark while selecting.
@@ -381,11 +385,15 @@ struct DeckActionOverlay: View {
 
     private var addButton: some View {
         ChromeSoftCircleSymbolButton(
-            systemName: "plus",
-            accessibilityLabel: localized("Add card"),
-            action: onAdd,
-            tint: themeManager.roleColor(.buttonDangerForeground)
+            systemName: isSelecting ? "pin.fill" : "plus",
+            accessibilityLabel: isSelecting ? localized("Pin selected cards") : localized("Add card"),
+            action: isSelecting ? onPinSelected : onAdd,
+            tint: isSelecting ? themeManager.accentColor.color : themeManager.roleColor(.buttonDangerForeground)
         )
+        .disabled(isSelecting && selectedCount == 0)
+        .opacity(isSelecting && selectedCount == 0 ? 0.42 : 1)
+        .animation(.snappy(duration: 0.18, extraBounce: 0), value: isSelecting)
+        .animation(.snappy(duration: 0.18, extraBounce: 0), value: selectedCount)
     }
 
     // MARK: - Menu Button
@@ -448,8 +456,8 @@ struct DeckActionOverlay: View {
 
 /// A floating bottom bar presented during multi-card selection mode.
 ///
-/// Shows a "Done" button on the leading side and a destructive
-/// "Delete(N)" button on the trailing side. Both actions are delegated
+/// Shows a "Select All" button on the leading side and a destructive
+/// delete icon on the trailing side. Both actions are delegated
 /// via closures — this view holds no state.
 struct DeckSelectionBottomBar: View {
     @Environment(AppPreferences.self) private var appPreferences
@@ -482,7 +490,6 @@ struct DeckSelectionBottomBar: View {
                 .icon(
                     id: "delete",
                     systemName: "trash",
-                    title: AppLocalization.string("Delete", locale: locale),
                     accessibilityLabel: deleteAccessibilityLabel,
                     isEnabled: selectedCount > 0,
                     tint: .destructive,

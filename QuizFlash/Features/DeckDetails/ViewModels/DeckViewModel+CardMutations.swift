@@ -51,6 +51,51 @@ extension DeckViewModel {
         selectedCards.formUnion(visibleCardIDs)
     }
 
+    /// Pins every currently selected card and refreshes the grouped grid.
+    func pinSelectedCards(in deck: DeckModel, context: ModelContext) {
+        let idsToPin = selectedCards
+        guard !idsToPin.isEmpty else { return }
+
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { idsToPin.contains($0.persistentModelID) }
+        )
+
+        do {
+            let cards = try context.fetch(descriptor)
+            let now = Date()
+            var didChange = false
+
+            for card in cards where !card.isPinned {
+                card.isPinned = true
+                card.editedAt = now
+                didChange = true
+            }
+
+            guard didChange else { return }
+
+            deck.editedAt = now
+            try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
+
+            for index in allCardInfos.indices where idsToPin.contains(allCardInfos[index].id) {
+                allCardInfos[index] = allCardInfos[index].updating(
+                    isPinned: true,
+                    editedAt: now
+                )
+            }
+            performGrouping(on: allCardInfos)
+
+            let deckID = deck.persistentModelID
+            let container = context.container
+            Task { [weak self] in
+                await self?.loadSnapshot(deckID: deckID, container: container)
+            }
+        } catch {
+            logger.error("Failed to pin selected cards: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
+        }
+    }
+
     // MARK: - Single Card Actions
 
     /// Toggles the pinned state of a single card and refreshes the grouped grid.

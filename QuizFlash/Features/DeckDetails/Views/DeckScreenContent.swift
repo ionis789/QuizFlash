@@ -246,6 +246,7 @@ extension DeckContentView {
             backLabel: backLabel,
             searchQuery: searchQuery,
             isSelecting: viewModel.isSelecting,
+            selectedCount: viewModel.selectedCards.count,
             coordinateSpaceName: kDeckChromeSpace,
             sortOrder: $viewModel.sortOrder,
             groupingMode: Binding(
@@ -261,6 +262,9 @@ extension DeckContentView {
             onAdd: {
                 exitSelectionModeForExternalAction()
                 showAddCardTypeDialog = true
+            },
+            onPinSelected: {
+                viewModel.pinSelectedCards(in: deck, context: context)
             },
             onStartSelection: {
                 withBottomChromeAnimation {
