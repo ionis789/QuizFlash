@@ -50,7 +50,6 @@ struct LibrarySelectionBarView: View {
                 .icon(
                     id: "folder",
                     systemName: "folder",
-                    title: localized("Folder"),
                     accessibilityLabel: localized("Move selected decks"),
                     isEnabled: hasSelection,
                     action: { onMoveTap?() }
@@ -58,7 +57,6 @@ struct LibrarySelectionBarView: View {
                 .icon(
                     id: "export",
                     systemName: "square.and.arrow.up",
-                    title: localized("Export"),
                     accessibilityLabel: localized("Export selected decks"),
                     isEnabled: hasSelection && !viewModel.isExporting,
                     showsProgress: viewModel.isExporting,
@@ -67,7 +65,6 @@ struct LibrarySelectionBarView: View {
                 .icon(
                     id: "delete",
                     systemName: "trash",
-                    title: localized("Delete"),
                     accessibilityLabel: deleteAccessibilityLabel,
                     isEnabled: hasSelection,
                     tint: .destructive,

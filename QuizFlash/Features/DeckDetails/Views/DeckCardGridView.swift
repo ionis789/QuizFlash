@@ -560,8 +560,10 @@ private struct MiniCardPreview: View, Equatable {
             }
         }
         .overlay {
-            cardShape
-                .strokeBorder(borderColor, lineWidth: borderWidth)
+            if isSelected {
+                cardShape
+                    .strokeBorder(borderColor, lineWidth: borderWidth)
+            }
         }
         .clipShape(cardShape)
         .opacity(isSuspended ? 0.72 : 1)

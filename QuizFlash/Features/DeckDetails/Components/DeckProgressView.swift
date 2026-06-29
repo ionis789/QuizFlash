@@ -47,7 +47,7 @@ struct DeckProgressView: View {
     private var progressSummaryBlock: some View {
         HStack(alignment: .center, spacing: 28) {
             accuracySummary
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
             DeckIntegratedMasteryRing(
                 mastery: stats.deckMastery,
                 deckTint: deckTint,
@@ -62,7 +62,7 @@ struct DeckProgressView: View {
     }
 
     private var accuracySummary: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .center, spacing: 6) {
             Text(localized("Accuracy"))
                 .font(.system(size: 26, weight: .heavy))
                 .foregroundStyle(themeManager.textSecondary)
@@ -76,7 +76,7 @@ struct DeckProgressView: View {
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText(value: Double(stats.accuracy)))
         }
-        .multilineTextAlignment(.leading)
+        .multilineTextAlignment(.center)
     }
 }
 

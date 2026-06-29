@@ -451,7 +451,7 @@ extension DeckContentView {
                     onTogglePinned: handleTogglePinned(_:),
                     onDeleteCard: handleDeleteCard(_:)
                 )
-                .padding(.top, 4)
+                .padding(.top, searchQuery == nil || searchQuery?.isEmpty == true ? 28 : 4)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .tabBarAutoHideOnScroll(enabled: !viewModel.isSelecting)
