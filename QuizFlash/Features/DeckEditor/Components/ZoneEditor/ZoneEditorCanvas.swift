@@ -108,6 +108,8 @@ struct ZoneEditorCanvas: View {
     @State private var activeCaretPathID: String?
     @State private var activeCaretWindowRect: CGRect?
     @State private var lastKeyboardVisibleHeight: CGFloat = 0
+    @State private var keyboardDismissBottomInsetHold: CGFloat = 0
+    @State private var keyboardDismissInsetReleaseTask: Task<Void, Never>?
     @State private var lastTapDebugLine: String = ""
     private let debugStore = ZoneEditorDebugStore.shared
     @State private var scrollDriver = ZoneEditorScrollDriver()
@@ -207,13 +209,26 @@ struct ZoneEditorCanvas: View {
                 1
             )
             let contentHeight = contentViewportHeight
-            let rawBottomAccessoryInset = bottomAccessoryHeight > 0
-                ? max(bottomAccessoryHeight, 0)
+            let rawContentGrowthInset = rawContentGrowthBottomInset(
+                editorViewportHeight: editorViewportHeight
+            )
+            let rawHiddenKeyboardInset = rawHiddenBottomScrollInset(
+                editorViewportHeight: editorViewportHeight
+            )
+            let rawVisibleKeyboardInset = rawKeyboardVisibleBottomScrollInset(
+                keyboardHeight: keyboardMonitor.visibleHeight
+            )
+            let rawTransitionKeyboardInset = !keyboardMonitor.isVisible
+                && keyboardMonitor.visibleHeight <= 1
+                && lastKeyboardVisibleHeight > 1
+                ? rawKeyboardVisibleBottomScrollInset(keyboardHeight: lastKeyboardVisibleHeight)
                 : 0
-            let rawContentGrowthInset = max(editorViewportHeight * 0.45, 260)
             let rawKeyboardCreationInset = keyboardMonitor.isVisible
-                ? max(keyboardMonitor.visibleHeight, 0) + max(bottomAccessoryHeight, 0) + caretBottomChromeBuffer
-                : max(rawBottomAccessoryInset, rawContentGrowthInset)
+                ? rawVisibleKeyboardInset
+                : max(
+                    rawHiddenKeyboardInset,
+                    max(keyboardDismissBottomInsetHold, rawTransitionKeyboardInset)
+                )
             let renderRequestedBottomScrollInset = dynamicBottomScrollInset > 0
                 ? dynamicBottomScrollInset
                 : rawContentGrowthInset
@@ -314,11 +329,18 @@ struct ZoneEditorCanvas: View {
                 }
                 .onChange(of: keyboardMonitor.visibleHeight) { _, newHeight in
                     let oldHeight = lastKeyboardVisibleHeight
-                    lastKeyboardVisibleHeight = newHeight
                     recordKeyboardStateFlow(
                         "keyboard.height-change.start",
                         details: "old=\(debugNumber(oldHeight)) new=\(debugNumber(newHeight))"
                     )
+                    if !rendersRichText, newHeight <= 1, !keyboardMonitor.isVisible {
+                        beginRawKeyboardDismissInsetRelease(
+                            previousKeyboardHeight: oldHeight,
+                            editorViewportHeight: editorViewportHeight,
+                            reason: "height-change-to-zero"
+                        )
+                    }
+                    lastKeyboardVisibleHeight = newHeight
                     if rendersRichText {
                         refreshBottomScrollInset(
                             animationDuration: newHeight <= 1 && !keyboardMonitor.isVisible
@@ -361,10 +383,18 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+                    let oldHeight = lastKeyboardVisibleHeight
                     recordKeyboardStateFlow(
                         "keyboard.visible-change.start",
                         details: "visible=\(isVisible ? 1 : 0)"
                     )
+                    if !rendersRichText, !isVisible {
+                        beginRawKeyboardDismissInsetRelease(
+                            previousKeyboardHeight: oldHeight,
+                            editorViewportHeight: editorViewportHeight,
+                            reason: "visible-change-false"
+                        )
+                    }
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
                     if rendersRichText {
                         refreshBottomScrollInset(
@@ -578,6 +608,8 @@ struct ZoneEditorCanvas: View {
                 .onDisappear {
                     scheduledBottomChromeScrollTask?.cancel()
                     scheduledBottomChromeScrollTask = nil
+                    keyboardDismissInsetReleaseTask?.cancel()
+                    keyboardDismissInsetReleaseTask = nil
                     alignmentWiggleTask?.cancel()
                     alignmentWiggleTask = nil
                     thawFrameUpdates()
@@ -1990,6 +2022,84 @@ struct ZoneEditorCanvas: View {
             keyboardClearance + max(bottomAccessoryHeight, 0),
             max(bottomAccessoryHeight, 0)
         ) + caretBottomChromeBuffer
+    }
+
+    private func rawContentGrowthBottomInset(editorViewportHeight: CGFloat) -> CGFloat {
+        max(editorViewportHeight * 0.45, 260)
+    }
+
+    private func rawHiddenBottomScrollInset(editorViewportHeight: CGFloat) -> CGFloat {
+        let rawBottomAccessoryInset = bottomAccessoryHeight > 0
+            ? max(bottomAccessoryHeight, 0)
+            : 0
+        return max(rawBottomAccessoryInset, rawContentGrowthBottomInset(editorViewportHeight: editorViewportHeight))
+    }
+
+    private func rawKeyboardVisibleBottomScrollInset(keyboardHeight: CGFloat) -> CGFloat {
+        max(keyboardHeight, 0) + max(bottomAccessoryHeight, 0) + caretBottomChromeBuffer
+    }
+
+    private func beginRawKeyboardDismissInsetRelease(
+        previousKeyboardHeight: CGFloat,
+        editorViewportHeight: CGFloat,
+        reason: String
+    ) {
+        guard !rendersRichText else { return }
+
+        let hiddenInset = rawHiddenBottomScrollInset(editorViewportHeight: editorViewportHeight)
+        let visibleInset = rawKeyboardVisibleBottomScrollInset(keyboardHeight: previousKeyboardHeight)
+        let startInset = max(keyboardDismissBottomInsetHold, visibleInset)
+        guard startInset > hiddenInset + 1 else {
+            keyboardDismissInsetReleaseTask?.cancel()
+            keyboardDismissInsetReleaseTask = nil
+            keyboardDismissBottomInsetHold = 0
+            recordKeyboardStateFlow(
+                "keyboard-dismiss.inset-release.skip",
+                details: "reason=\(reason) start=\(debugNumber(startInset)) hidden=\(debugNumber(hiddenInset))"
+            )
+            return
+        }
+
+        keyboardDismissInsetReleaseTask?.cancel()
+        keyboardDismissBottomInsetHold = startInset
+        let duration = keyboardDismissScrollAnimationDuration
+        let options = keyboardMonitor.animationOptions
+        recordKeyboardStateFlow(
+            "keyboard-dismiss.inset-release.start",
+            details: "reason=\(reason) start=\(debugNumber(startInset)) hidden=\(debugNumber(hiddenInset)) duration=\(debugNumber(duration))"
+        )
+
+        keyboardDismissInsetReleaseTask = Task { @MainActor in
+            let steps = max(8, Int(ceil(duration / 0.016)))
+            let frameDelay = UInt64(max(duration / Double(steps), 0.008) * 1_000_000_000)
+            var didReportMidpoint = false
+
+            for step in 1...steps {
+                try? await Task.sleep(nanoseconds: frameDelay)
+                guard !Task.isCancelled else { return }
+
+                let progress = min(max(Double(step) / Double(steps), 0), 1)
+                let easedProgress = progress * progress * (3 - (2 * progress))
+                keyboardDismissBottomInsetHold = startInset + ((hiddenInset - startInset) * easedProgress)
+
+                if !didReportMidpoint, progress >= 0.5 {
+                    didReportMidpoint = true
+                    recordKeyboardStateFlow(
+                        "keyboard-dismiss.inset-release.mid",
+                        details: "reason=\(reason) hold=\(debugNumber(keyboardDismissBottomInsetHold)) hidden=\(debugNumber(hiddenInset))"
+                    )
+                }
+            }
+
+            guard !Task.isCancelled else { return }
+            keyboardDismissBottomInsetHold = 0
+            keyboardDismissInsetReleaseTask = nil
+            scrollDriver.smoothClampOffsetIfNeeded(duration: 0.12, options: options)
+            recordKeyboardStateFlow(
+                "keyboard-dismiss.inset-release.end",
+                details: "reason=\(reason) hidden=\(debugNumber(hiddenInset))"
+            )
+        }
     }
 
     private func fallbackBottomChromeTopY(viewportBottomY: CGFloat) -> CGFloat? {
