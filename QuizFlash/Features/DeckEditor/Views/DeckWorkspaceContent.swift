@@ -224,6 +224,7 @@ extension DeckWorkspaceView {
         _ card: DraftCard,
         index: Int
     ) -> some View {
+        let _ = recordDraftCardPreviewRender(card, index: index)
         let row = DetailedCardRowView(
             card: card,
             index: index,
@@ -253,6 +254,13 @@ extension DeckWorkspaceView {
                 : .identity
         )
         .id(card.id)
+        .modifier(
+            DraftCardRowFrameTraceModifier(
+                cardID: card.id,
+                index: index,
+                isEnabled: shouldTraceDraftCardPreviewFrame(for: card)
+            )
+        )
 
         row
     }
@@ -501,19 +509,18 @@ extension DeckWorkspaceView {
             "workspace.handle-save.start",
             details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
         )
-        switch destination {
-        case .create, .createFromDraft:
-            viewModel.addCard(content: content)
-        case .edit(let draftCard):
-            viewModel.updateCard(draftCard, content: content)
-        }
+        pendingCardEditorSave = DeckWorkspacePendingCardEditorSave(
+            destination: destination,
+            content: content,
+            enqueuedAt: start
+        )
         ZoneEditorDebugStore.shared.recordDismissFlow(
-            "workspace.handle-save.after-mutation",
-            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms drafts=\(viewModel.draftCards.count)"
+            "workspace.handle-save.deferred-mutation",
+            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms pending=\(destination.id) drafts=\(viewModel.draftCards.count)"
         )
         ZoneEditorDebugStore.shared.recordSheetDismissTrace(
-            "workspace.handle-save.after-mutation",
-            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms drafts=\(viewModel.draftCards.count)"
+            "workspace.handle-save.deferred-mutation",
+            details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms pending=\(destination.id) drafts=\(viewModel.draftCards.count)"
         )
 
         viewModel.dismissCardEditor()
@@ -525,6 +532,71 @@ extension DeckWorkspaceView {
             "workspace.handle-save.after-dismiss-request",
             details: "elapsed=\(Int((CFAbsoluteTimeGetCurrent() - start) * 1_000))ms destination=\(viewModel.cardEditorDestination?.id ?? "nil")"
         )
+    }
+
+    func applyPendingCardEditorSave(afterDisappearing destination: CardEditorDestination) {
+        guard let pending = pendingCardEditorSave else {
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                "workspace.apply-save.no-pending",
+                details: "destination=\(destination.id) drafts=\(viewModel.draftCards.count)"
+            )
+            return
+        }
+
+        guard pending.destination.id == destination.id else {
+            ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                "workspace.apply-save.destination-mismatch",
+                details: "pending=\(pending.destination.id) disappeared=\(destination.id) drafts=\(viewModel.draftCards.count)"
+            )
+            return
+        }
+
+        pendingCardEditorSave = nil
+        let elapsedMS = Int((CFAbsoluteTimeGetCurrent() - pending.enqueuedAt) * 1_000)
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "workspace.apply-save.start",
+            details: "destination=\(destination.id) kind=\(destination.kind.rawValue) elapsed=\(elapsedMS)ms drafts=\(viewModel.draftCards.count)"
+        )
+        ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+            "workspace.apply-save.start",
+            details: "destination=\(destination.id) kind=\(destination.kind.rawValue) elapsed=\(elapsedMS)ms drafts=\(viewModel.draftCards.count)"
+        )
+
+        switch pending.destination {
+        case .create, .createFromDraft:
+            viewModel.addCard(content: pending.content)
+        case .edit(let draftCard):
+            viewModel.updateCard(draftCard, content: pending.content)
+        }
+
+        ZoneEditorDebugStore.shared.recordDismissFlow(
+            "workspace.apply-save.end",
+            details: "destination=\(destination.id) drafts=\(viewModel.draftCards.count)"
+        )
+        ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+            "workspace.apply-save.end",
+            details: "destination=\(destination.id) drafts=\(viewModel.draftCards.count)"
+        )
+    }
+
+    func recordDraftCardPreviewRender(_ card: DraftCard, index: Int) {
+        guard pendingCardEditorSave?.destination.draftCard?.id == card.id else { return }
+        ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+            "workspace.preview-row.render",
+            details: "card=\(shortDebugID(card.id)) index=\(index) kind=\(card.kind.rawValue) pending=\(pendingCardEditorSave?.destination.id ?? "nil") destination=\(viewModel.cardEditorDestination?.id ?? "nil")"
+        )
+    }
+
+    func shouldTraceDraftCardPreviewFrame(for card: DraftCard) -> Bool {
+        guard AppFeatures.current.showsVisualDebugOverlays,
+              ZoneEditorDebugStore.shared.isSheetDismissTraceActive else {
+            return false
+        }
+        return pendingCardEditorSave?.destination.draftCard?.id == card.id
+    }
+
+    func shortDebugID(_ id: UUID) -> String {
+        String(id.uuidString.prefix(6))
     }
 
     func requestDismiss() {
@@ -829,6 +901,49 @@ private extension CardKind {
 private extension CreateDeckSortOrder {
     var usesNewestFallback: Bool {
         self == .newest
+    }
+}
+
+private struct DraftCardRowFrameTraceModifier: ViewModifier {
+    let cardID: UUID
+    let index: Int
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: DraftCardRowFramePreferenceKey.self,
+                            value: proxy.frame(in: .global)
+                        )
+                    }
+                }
+                .onPreferenceChange(DraftCardRowFramePreferenceKey.self) { frame in
+                    ZoneEditorDebugStore.shared.recordSheetDismissTrace(
+                        "workspace.preview-row.frame",
+                        details: "card=\(String(cardID.uuidString.prefix(6))) index=\(index) frame=\(debugRect(frame))"
+                    )
+                }
+        } else {
+            content
+        }
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        String(
+            format: "%.1f,%.1f %.1fx%.1f",
+            Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height)
+        )
+    }
+}
+
+private struct DraftCardRowFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .null
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
     }
 }
 

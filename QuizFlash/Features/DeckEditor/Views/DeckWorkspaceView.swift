@@ -25,6 +25,12 @@ enum GenerationCompletionDisplayState: Equatable {
     case done
 }
 
+struct DeckWorkspacePendingCardEditorSave {
+    let destination: CardEditorDestination
+    let content: DraftCardContent
+    let enqueuedAt: CFAbsoluteTime
+}
+
 struct DeckWorkspaceView: View {
     // MARK: - Environment
     @Environment(\.modelContext) var context
@@ -67,6 +73,7 @@ struct DeckWorkspaceView: View {
     @State var completionStatusGeneratedCount = 0
     @State var completionStatusTargetCount = 0
     @State var generationCompletionDoneTask: Task<Void, Never>?
+    @State var pendingCardEditorSave: DeckWorkspacePendingCardEditorSave?
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -774,6 +781,7 @@ struct DeckWorkspaceView: View {
                     "workspace.cover.disappear",
                     details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
                 )
+                applyPendingCardEditorSave(afterDisappearing: destination)
             }
         }
         .onChange(of: viewModel.cardEditorDestination?.id) { oldValue, newValue in
