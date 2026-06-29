@@ -14,7 +14,6 @@ import UIKit
 
 struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
@@ -25,7 +24,6 @@ struct FlashcardEditorView: View {
     var onContentChange: ((ZoneModel, ZoneModel) -> Void)?
     private let contentAlignment: FlashcardContentAlignment
     private let textSize: FlashcardTextSize
-    private let presentationSafeAreaInsets: UIEdgeInsets
 
     // MARK: - State
 
@@ -167,7 +165,6 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
-        safeAreaInsets: UIEdgeInsets = .zero,
         onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
@@ -175,7 +172,6 @@ struct FlashcardEditorView: View {
         self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
-        self.presentationSafeAreaInsets = safeAreaInsets
         let frontContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
         let backContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
         _frontZoneContent = State(initialValue: frontContent)
@@ -199,7 +195,6 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
-        safeAreaInsets: UIEdgeInsets = .zero,
         onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
@@ -208,7 +203,6 @@ struct FlashcardEditorView: View {
         self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
-        self.presentationSafeAreaInsets = safeAreaInsets
         let frontContent = ZoneCardContent(rootZone: frontZone, stableAuthoringRoot: true)
         let backContent = ZoneCardContent(rootZone: backZone, stableAuthoringRoot: true)
         _frontZoneContent = State(initialValue: frontContent)
@@ -235,8 +229,8 @@ struct FlashcardEditorView: View {
                 "flashcard.body",
                 details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
             )
-            let safeTopInset = max(proxy.safeAreaInsets.top, presentationSafeAreaInsets.top)
-            let safeBottomInset = max(proxy.safeAreaInsets.bottom, presentationSafeAreaInsets.bottom)
+            let safeTopInset = proxy.safeAreaInsets.top
+            let safeBottomInset = proxy.safeAreaInsets.bottom
 
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
@@ -1651,7 +1645,7 @@ struct FlashcardEditorView: View {
 
             recordDismissFlow("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
             recordEditorSheetDismissTrace("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-            dismissEditorSheet()
+            dismiss()
             scheduleEditorSheetDismissTraceSamples(action: action)
             recordDismissFlow("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
             recordEditorSheetDismissTrace("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1659,14 +1653,6 @@ struct FlashcardEditorView: View {
     }
 
     // MARK: - Helpers
-
-    private func dismissEditorSheet() {
-        if let fullScreenSheetDismiss {
-            fullScreenSheetDismiss()
-        } else {
-            dismiss()
-        }
-    }
 
     private func findPath(for id: UUID, in zone: ZoneModel, currentIndices: [Int] = []) -> ZonePath? {
         if zone.id == id { return ZonePath(indices: currentIndices) }

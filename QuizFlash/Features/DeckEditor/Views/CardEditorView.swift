@@ -11,7 +11,6 @@ struct CardEditorView: View {
     @Environment(AppPreferences.self) private var appPreferences
 
     let destination: CardEditorDestination
-    var safeAreaInsets: UIEdgeInsets = .zero
     var searchQuery: String? = nil
     var textSizeOverride: FlashcardTextSize? = nil
     var onSave: (DraftCardContent) -> Void
@@ -19,13 +18,11 @@ struct CardEditorView: View {
 
     init(
         destination: CardEditorDestination,
-        safeAreaInsets: UIEdgeInsets = .zero,
         searchQuery: String? = nil,
         textSizeOverride: FlashcardTextSize? = nil,
         onSave: @escaping (DraftCardContent) -> Void
     ) {
         self.destination = destination
-        self.safeAreaInsets = safeAreaInsets
         self.searchQuery = searchQuery
         self.textSizeOverride = textSizeOverride
         self.onSave = onSave
@@ -85,7 +82,6 @@ struct CardEditorView: View {
             backZone: content.backZone,
             searchQuery: searchQuery,
             textSize: resolvedTextSize,
-            safeAreaInsets: safeAreaInsets,
             onContentChange: { frontZone, backZone in
                 flashcardDraftContent = FlashcardCardContent(
                     frontZone: frontZone,
@@ -131,8 +127,7 @@ struct CardEditorView: View {
         QuizCardEditorView(
             initialContent: resolvedQuizContent,
             searchQuery: searchQuery,
-            textSize: resolvedTextSize,
-            safeAreaInsets: safeAreaInsets
+            textSize: resolvedTextSize
         ) { content in
             onSave(.quiz(content))
         }

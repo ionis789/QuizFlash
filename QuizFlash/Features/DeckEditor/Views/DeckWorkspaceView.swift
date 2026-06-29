@@ -748,21 +748,9 @@ struct DeckWorkspaceView: View {
         } message: {
             Text(localized("This permanently deletes the deck and all its cards."))
         }
-        .fullScreenSheet(
-            item: $viewModel.cardEditorDestination,
-            configuration: .sheet(
-                heightMode: .fullScreen,
-                dragActivationArea: .fullSurface,
-                backgroundReceivesDragProgress: false,
-                showsBackdropBlur: false,
-                showsDefaultTopProgressiveBlur: false,
-                hidesTabBar: true,
-                coversTabBar: false
-            )
-        ) { destination, safeArea in
+        .fullScreenCover(item: $viewModel.cardEditorDestination) { destination in
             CardEditorView(
                 destination: destination,
-                safeAreaInsets: safeArea,
                 textSizeOverride: resolvedEditorTextSize(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
@@ -787,8 +775,6 @@ struct DeckWorkspaceView: View {
                     details: "destination=\(destination.id) kind=\(destination.kind.rawValue) drafts=\(viewModel.draftCards.count)"
                 )
             }
-        } background: {
-            themeManager.groupedScreenBackground
         }
         .onChange(of: viewModel.cardEditorDestination?.id) { oldValue, newValue in
             ZoneEditorDebugStore.shared.recordDismissFlow(

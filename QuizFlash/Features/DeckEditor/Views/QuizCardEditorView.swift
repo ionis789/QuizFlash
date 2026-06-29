@@ -13,7 +13,6 @@ import Combine
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
@@ -67,7 +66,6 @@ struct QuizCardEditorView: View {
     @State private var quizCaretScrollScheduleSequence = 0
 
     private let textSize: FlashcardTextSize
-    private let presentationSafeAreaInsets: UIEdgeInsets
     private let onSave: (QuizCardContent) -> Void
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -111,11 +109,9 @@ struct QuizCardEditorView: View {
         initialContent: QuizCardContent,
         searchQuery: String? = nil,
         textSize: FlashcardTextSize,
-        safeAreaInsets: UIEdgeInsets = .zero,
         onSave: @escaping (QuizCardContent) -> Void
     ) {
         self.textSize = textSize
-        self.presentationSafeAreaInsets = safeAreaInsets
         let editorSession = QuizEditorSession(initialContent: initialContent)
         _session = StateObject(wrappedValue: editorSession)
         _initialQuizContent = State(initialValue: Self.snapshotContent(from: editorSession))
@@ -253,7 +249,7 @@ struct QuizCardEditorView: View {
                 "quiz.body",
                 details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
             )
-            let safeTopInset = max(proxy.safeAreaInsets.top, presentationSafeAreaInsets.top)
+            let safeTopInset = proxy.safeAreaInsets.top
             let contentWidth = max(proxy.size.width - 16, 1)
 
             ZStack(alignment: .top) {
@@ -2852,7 +2848,7 @@ struct QuizCardEditorView: View {
         beginQuizSheetDismissTrace("discard", details: "phase=start")
         dismissEditorAfterKeyboardSettles {
             recordQuizSheetDismissTrace("quiz.discard.before-dismiss", details: "phase=completion")
-            dismissEditorSheet()
+            dismiss()
             scheduleQuizSheetDismissTraceSamples(action: "discard")
             recordQuizSheetDismissTrace("quiz.discard.after-dismiss-call", details: "phase=completion")
         }
@@ -2868,17 +2864,9 @@ struct QuizCardEditorView: View {
             recordQuizSheetDismissTrace("quiz.save.before-onsave", details: "phase=completion")
             onSave(contentToSave)
             recordQuizSheetDismissTrace("quiz.save.before-dismiss", details: "phase=completion")
-            dismissEditorSheet()
+            dismiss()
             scheduleQuizSheetDismissTraceSamples(action: "save")
             recordQuizSheetDismissTrace("quiz.save.after-dismiss-call", details: "phase=completion")
-        }
-    }
-
-    private func dismissEditorSheet() {
-        if let fullScreenSheetDismiss {
-            fullScreenSheetDismiss()
-        } else {
-            dismiss()
         }
     }
 
