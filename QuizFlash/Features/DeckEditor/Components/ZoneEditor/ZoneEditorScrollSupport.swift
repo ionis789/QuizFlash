@@ -182,6 +182,10 @@ final class ZoneEditorScrollDriver {
     private var keyboardDismissTraceSequence = 0
     private var activeKeyboardDismissTrace: KeyboardDismissTrace?
     private var keyboardDismissTraceTask: Task<Void, Never>?
+    private var isScrollFrozen = false
+    private var frozenScrollOffset: CGPoint?
+    private var frozenScrollEnabledBeforeFreeze = true
+    private var frozenPanEnabledBeforeFreeze = true
     private var tapProbe: ZoneEditorTapProbe?
     private var debugTraceContext: String?
     private(set) var tapProbeStatus = "not-configured"
@@ -220,9 +224,11 @@ final class ZoneEditorScrollDriver {
         observeOffset(in: scrollView)
         reportScrollOffset(in: scrollView, force: true)
         applyContentInsetsIfNeeded()
+        applyScrollFreezeIfNeeded(in: scrollView)
     }
 
     func detach() {
+        setScrollFrozen(false)
         invalidateObservations()
 #if DEBUG
         ZoneEditorScrollMutationTracer.stopWatching(scrollView)
@@ -250,6 +256,60 @@ final class ZoneEditorScrollDriver {
         activeDebugOffsetCommand = nil
         debugTraceContext = nil
         scrollView = nil
+    }
+
+    func setScrollFrozen(_ isFrozen: Bool) {
+        guard isScrollFrozen != isFrozen else {
+            if isFrozen, let scrollView {
+                applyScrollFreezeIfNeeded(in: scrollView)
+            }
+            return
+        }
+
+        isScrollFrozen = isFrozen
+        guard let scrollView else { return }
+
+        if isFrozen {
+            frozenScrollEnabledBeforeFreeze = scrollView.isScrollEnabled
+            frozenPanEnabledBeforeFreeze = scrollView.panGestureRecognizer.isEnabled
+            let presentationY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
+            let frozenOffset = CGPoint(
+                x: scrollView.contentOffset.x,
+                y: clampedOffsetY(presentationY, in: scrollView)
+            )
+            frozenScrollOffset = frozenOffset
+            lockedOffset = frozenOffset
+            offsetLockTask?.cancel()
+            offsetLockTask = nil
+            offsetAnimationTask?.cancel()
+            offsetAnimationTask = nil
+
+            UIView.performWithoutAnimation {
+                scrollView.layer.removeAllAnimations()
+                scrollView.setContentOffset(frozenOffset, animated: false)
+                scrollView.isScrollEnabled = false
+                scrollView.panGestureRecognizer.isEnabled = false
+                scrollView.layoutIfNeeded()
+            }
+#if DEBUG
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-freeze-start",
+                zoneID: lastDebugScrollRequestZoneID,
+                details: "target=\(debugPoint(frozenOffset)) \(scrollSnapshotDetails(in: scrollView))"
+            )
+#endif
+        } else {
+            frozenScrollOffset = nil
+            scrollView.isScrollEnabled = frozenScrollEnabledBeforeFreeze
+            scrollView.panGestureRecognizer.isEnabled = frozenPanEnabledBeforeFreeze
+#if DEBUG
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-freeze-end",
+                zoneID: lastDebugScrollRequestZoneID,
+                details: scrollSnapshotDetails(in: scrollView)
+            )
+#endif
+        }
     }
 
     func setDebugTraceContext(_ context: String?) {
@@ -1174,6 +1234,34 @@ final class ZoneEditorScrollDriver {
         )
     }
 
+    private func applyScrollFreezeIfNeeded(in scrollView: UIScrollView) {
+        guard isScrollFrozen else { return }
+
+        let targetOffset: CGPoint
+        if let frozenScrollOffset {
+            targetOffset = CGPoint(
+                x: frozenScrollOffset.x,
+                y: clampedOffsetY(frozenScrollOffset.y, in: scrollView)
+            )
+        } else {
+            let presentationY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
+            targetOffset = CGPoint(
+                x: scrollView.contentOffset.x,
+                y: clampedOffsetY(presentationY, in: scrollView)
+            )
+            self.frozenScrollOffset = targetOffset
+        }
+
+        lockedOffset = targetOffset
+        UIView.performWithoutAnimation {
+            scrollView.layer.removeAllAnimations()
+            scrollView.setContentOffset(targetOffset, animated: false)
+            scrollView.isScrollEnabled = false
+            scrollView.panGestureRecognizer.isEnabled = false
+            scrollView.layoutIfNeeded()
+        }
+    }
+
     private func clearOffsetLock() {
         lockedOffset = nil
         offsetLockTask?.cancel()
@@ -1733,20 +1821,28 @@ private final class ZoneEditorPassiveTouchRecognizer: UIGestureRecognizer {
 }
 
 struct ZoneEditorScrollViewLocator: UIViewRepresentable {
+    var resolveToken = 0
     var onResolve: (UIScrollView?) -> Void
 
     func makeUIView(context: Context) -> ResolverView {
         let view = ResolverView()
+        view.resolveToken = resolveToken
         view.onResolve = onResolve
         return view
     }
 
     func updateUIView(_ uiView: ResolverView, context: Context) {
+        if uiView.resolveToken != resolveToken {
+            uiView.forceNextResolve = true
+            uiView.resolveToken = resolveToken
+        }
         uiView.onResolve = onResolve
         uiView.resolveSoon()
     }
 
     final class ResolverView: UIView {
+        var resolveToken = 0
+        var forceNextResolve = false
         var onResolve: ((UIScrollView?) -> Void)?
         private weak var resolvedScrollView: UIScrollView?
         private var isResolveScheduled = false
@@ -1779,7 +1875,9 @@ struct ZoneEditorScrollViewLocator: UIViewRepresentable {
                 guard let self else { return }
                 self.isResolveScheduled = false
                 let scrollView = self.resolveScrollView()
-                guard self.resolvedScrollView !== scrollView else { return }
+                let shouldForceResolve = self.forceNextResolve
+                self.forceNextResolve = false
+                guard shouldForceResolve || self.resolvedScrollView !== scrollView else { return }
                 self.resolvedScrollView = scrollView
                 self.onResolve?(scrollView)
             }

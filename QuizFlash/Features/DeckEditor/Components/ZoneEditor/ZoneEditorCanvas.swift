@@ -95,6 +95,7 @@ struct ZoneEditorCanvas: View {
     let rendersRichText: Bool
     let showsZoneHeightGuides: Bool
     let showsDebugOverlays: Bool
+    let freezesScrolling: Bool
     let onScrollOffsetChange: (CGFloat) -> Void
     let onEmptySpaceTap: (ZoneEditorCanvasTapContext) -> Void
     let onScrollRestorationApplied: () -> Void
@@ -174,6 +175,7 @@ struct ZoneEditorCanvas: View {
         rendersRichText: Bool = false,
         showsZoneHeightGuides: Bool = false,
         showsDebugOverlays: Bool = true,
+        freezesScrolling: Bool = false,
         onScrollOffsetChange: @escaping (CGFloat) -> Void,
         onEmptySpaceTap: @escaping (ZoneEditorCanvasTapContext) -> Void,
         onScrollRestorationApplied: @escaping () -> Void = {}
@@ -192,6 +194,7 @@ struct ZoneEditorCanvas: View {
         self.rendersRichText = rendersRichText
         self.showsZoneHeightGuides = showsZoneHeightGuides
         self.showsDebugOverlays = showsDebugOverlays
+        self.freezesScrolling = freezesScrolling
         self.onScrollOffsetChange = onScrollOffsetChange
         self.onEmptySpaceTap = onEmptySpaceTap
         self.onScrollRestorationApplied = onScrollRestorationApplied
@@ -261,7 +264,7 @@ struct ZoneEditorCanvas: View {
                     .frame(minHeight: minimumScrollContentHeight, alignment: .topLeading)
                 }
                 .background {
-                    ZoneEditorScrollViewLocator { scrollView in
+                    ZoneEditorScrollViewLocator(resolveToken: freezesScrolling ? 1 : 0) { scrollView in
                         scrollDriver.attach(scrollView)
                         scrollDriver.setTopInset(0)
                         if rendersRichText {
@@ -274,6 +277,7 @@ struct ZoneEditorCanvas: View {
                             scrollDriver.restoreNormalizedOffset(scrollRestorationRequest.normalizedOffsetY)
                         }
                         scrollDriver.setScrollOffsetHandler(handleScrollOffsetChange)
+                        scrollDriver.setScrollFrozen(freezesScrolling)
                         configureTapProbe()
                     }
                 }
