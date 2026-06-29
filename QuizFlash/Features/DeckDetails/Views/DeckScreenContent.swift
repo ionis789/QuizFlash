@@ -49,13 +49,6 @@ extension DeckContentView {
                 && deckEditorPresentation == nil
                 && cardEditorDestination == nil
         ) { dismiss() }
-        .overlay {
-            if shouldShowFullScreenSheetBacking {
-                CardPreviewModeBackground()
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-            }
-        }
         .fullScreenSheet(
             item: $selectedPlayMode,
             configuration: .sheet(
@@ -115,14 +108,13 @@ extension DeckContentView {
             DeckCardPreviewSheetView(
                 card: card,
                 flashcardSettings: resolvedFlashcardSettings,
-                safeAreaInsets: safeArea
+                safeAreaInsets: safeArea,
+                onEdit: {
+                    presentCardEditor(for: card)
+                }
             )
         } background: {
-            if case .flashcard = previewedCard?.cardContent {
-                Color.clear
-            } else {
-                CardPreviewModeBackground()
-            }
+            CardPreviewModeBackground()
         }
         .fullScreenSheet(
             item: $viewModel.activitySheetPresentation,
@@ -179,10 +171,6 @@ extension DeckContentView {
 
     var shouldShowDeckNavigationBar: Bool {
         cardEditorDestination == nil
-    }
-
-    var shouldShowFullScreenSheetBacking: Bool {
-        previewedCard != nil
     }
 
     var playModeSettingsSheetHeightMode: FullScreenSheetHeightMode {
@@ -266,6 +254,9 @@ extension DeckContentView {
             },
             onSetSelectedPinnedState: { isPinned in
                 viewModel.setSelectedCardsPinned(isPinned, in: deck, context: context)
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
+                }
             },
             onStartSelection: {
                 withBottomChromeAnimation {

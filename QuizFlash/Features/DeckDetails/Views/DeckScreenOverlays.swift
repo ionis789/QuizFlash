@@ -239,9 +239,13 @@ extension DeckContentView {
     }
 
     struct DeckCardPreviewSheetView: View {
+        @Environment(AppPreferences.self) private var appPreferences
+        @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+
         let card: CardModel
         let flashcardSettings: FlashcardModeSettings
         let safeAreaInsets: UIEdgeInsets
+        let onEdit: () -> Void
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -268,7 +272,13 @@ extension DeckContentView {
                         showsLeadingAccessory: true,
                         leadingAccessory: AnyView(statsButton),
                         contentAlignment: flashcardSettings.contentAlignment,
-                        textSize: flashcardSettings.textSize
+                        textSize: flashcardSettings.textSize,
+                        showsQuizCloseButton: false
+                    )
+
+                    previewTopChrome(
+                        safeTopInset: max(safeAreaInsets.top, geo.safeAreaInsets.top),
+                        horizontalInset: horizontalInset
                     )
 
                     if showStats {
@@ -282,6 +292,40 @@ extension DeckContentView {
                 }
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showStats)
             }
+        }
+
+        private var locale: Locale { appPreferences.resolvedLocale }
+
+        private func localized(_ value: String.LocalizationValue) -> String {
+            AppLocalization.string(value, locale: locale)
+        }
+
+        private func previewTopChrome(safeTopInset: CGFloat, horizontalInset: CGFloat) -> some View {
+            HStack {
+                ChromeSoftCircleSymbolButton(
+                    systemName: "xmark",
+                    accessibilityLabel: localized("Close"),
+                    action: {
+                        if let fullScreenSheetDismiss {
+                            fullScreenSheetDismiss()
+                        }
+                    },
+                    size: UIConstants.Size.actionButton
+                )
+
+                Spacer(minLength: 0)
+
+                ChromeSoftCircleSymbolButton(
+                    systemName: "square.and.pencil",
+                    accessibilityLabel: localized("Edit"),
+                    action: onEdit,
+                    size: UIConstants.Size.actionButton
+                )
+            }
+            .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding)
+            .padding(.horizontal, horizontalInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .zIndex(3)
         }
 
         private var statsButton: some View {

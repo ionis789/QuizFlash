@@ -17,6 +17,7 @@ struct CardPreviewModeView: View {
     let leadingAccessory: AnyView
     let contentAlignment: FlashcardContentAlignment
     let textSize: FlashcardTextSize
+    let showsQuizCloseButton: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -95,6 +96,7 @@ struct CardPreviewModeView: View {
         leadingAccessory: AnyView = AnyView(EmptyView()),
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        showsQuizCloseButton: Bool = true,
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
@@ -102,6 +104,7 @@ struct CardPreviewModeView: View {
         self.leadingAccessory = leadingAccessory
         self.contentAlignment = contentAlignment
         self.textSize = textSize
+        self.showsQuizCloseButton = showsQuizCloseButton
     }
 
     init(
@@ -156,7 +159,7 @@ struct CardPreviewModeView: View {
                     )
                 }
 
-                if isQuizPreview {
+                if isQuizPreview && showsQuizCloseButton {
                     quizPreviewCloseButton
                         .padding(.top, resolvedSafeTopInset + UIConstants.Layout.deckNavigationTopPadding)
                         .padding(.trailing, headerHorizontalInset)
