@@ -24,6 +24,7 @@ final class CloudSyncConflictResolutionTests: XCTestCase {
         XCTAssertTrue(CloudSyncCoordinator.localEditIsMeaningfullyNewer(local, than: remote))
     }
 
+    @MainActor
     func testRemoteImportActorAppliesSnapshotWithoutMainContextCardScan() async throws {
         let uid = "user-1"
         let deckID = "deck-1"
@@ -135,6 +136,7 @@ final class CloudSyncConflictResolutionTests: XCTestCase {
         XCTAssertEqual(cardsByCloudID["card-new"]?.frontText, "Brand new")
     }
 
+    @MainActor
     func testRemoteImportActorRequestsUploadWhenLocalDeckIsNewer() async throws {
         let uid = "user-1"
         let deckID = "deck-1"

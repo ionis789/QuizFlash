@@ -394,14 +394,19 @@ nonisolated struct CloudSyncRemoteDeckSnapshot: Sendable {
 actor CloudSyncRemoteImportActor {
     private let container: ModelContainer
     private let outbox: CloudSyncOutbox
-    private var activeContext: ModelContext
+    private var _context: ModelContext?
+
+    private var activeContext: ModelContext {
+        if let existing = _context { return existing }
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        _context = context
+        return context
+    }
 
     init(container: ModelContainer, outbox: CloudSyncOutbox) {
         self.container = container
         self.outbox = outbox
-        let context = ModelContext(container)
-        context.autosaveEnabled = false
-        self.activeContext = context
     }
 
     func applyRemoteDeck(
@@ -543,9 +548,7 @@ actor CloudSyncRemoteImportActor {
     }
 
     private func flushContext() {
-        let freshContext = ModelContext(container)
-        freshContext.autosaveEnabled = false
-        activeContext = freshContext
+        _context = nil
     }
 }
 
