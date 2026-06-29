@@ -2274,7 +2274,6 @@ struct QuizCardEditorView: View {
 
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
-        let baselineContentHeight = quizScrollDriver.currentContentHeight()
 
         prepareForAddChoiceWithoutFocus(newChoiceID: newChoice.id)
         emitAddChoiceHaptic()
@@ -2288,10 +2287,7 @@ struct QuizCardEditorView: View {
             pathID: nil,
             details: "newChoice=\(shortDebugID(newChoice.id)) count=\(choices.count) \(quizScrollDetails(proposedDelta: nil))"
         )
-        scheduleAddChoiceScrollNudge(
-            newChoiceID: newChoice.id,
-            baselineContentHeight: baselineContentHeight
-        )
+        scheduleAddChoiceScrollNudge(newChoiceID: newChoice.id)
     }
 
     private func prepareForAddChoiceWithoutFocus(newChoiceID: UUID) {
@@ -2326,42 +2322,20 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func scheduleAddChoiceScrollNudge(newChoiceID: UUID, baselineContentHeight: CGFloat?) {
+    private func scheduleAddChoiceScrollNudge(newChoiceID: UUID) {
         Task { @MainActor in
-            guard let baselineContentHeight else {
-                try? await Task.sleep(for: .milliseconds(120))
-                let didScroll = quizScrollDriver.scrollDownBy(
-                    quizAddChoiceScrollCompensationLimit,
-                    duration: 0.18,
-                    options: [.curveEaseOut],
-                    zoneID: nil,
-                    reason: "quiz-add-choice-fallback"
-                )
-                recordQuizScroll(
-                    "quiz.add-choice-scroll-nudge",
-                    pathID: nil,
-                    details: "newChoice=\(shortDebugID(newChoiceID)) fallback=1 delta=\(debugValue(quizAddChoiceScrollCompensationLimit)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
-                )
-                return
-            }
-
-            var appliedDelta: CGFloat = 0
-            for delay in quizAddChoiceScrollCompensationDelays {
-                try? await Task.sleep(for: delay)
-                appliedDelta = quizScrollDriver.scrollDownForContentHeightGrowth(
-                    from: baselineContentHeight,
-                    alreadyAppliedDelta: appliedDelta,
-                    maximumDelta: quizAddChoiceScrollCompensationLimit,
-                    duration: 0.12,
-                    options: [.curveEaseOut],
-                    zoneID: nil,
-                    reason: "quiz-add-choice"
-                )
-            }
+            try? await Task.sleep(for: quizAddChoiceScrollCompensationDelay)
+            let didScroll = quizScrollDriver.scrollDownBy(
+                quizEmptyChoiceInsertedHeight,
+                duration: 0.16,
+                options: [.curveEaseOut],
+                zoneID: nil,
+                reason: "quiz-add-choice"
+            )
             recordQuizScroll(
                 "quiz.add-choice-scroll-nudge",
                 pathID: nil,
-                details: "newChoice=\(shortDebugID(newChoiceID)) baseline=\(debugValue(baselineContentHeight)) applied=\(debugValue(appliedDelta)) limit=\(debugValue(quizAddChoiceScrollCompensationLimit)) \(quizScrollDetails(proposedDelta: nil))"
+                details: "newChoice=\(shortDebugID(newChoiceID)) delta=\(debugValue(quizEmptyChoiceInsertedHeight)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
             )
         }
     }
@@ -3096,12 +3070,12 @@ struct QuizCardEditorView: View {
         .smooth(duration: 0.17, extraBounce: 0)
     }
 
-    private var quizAddChoiceScrollCompensationLimit: CGFloat {
-        132
+    private var quizEmptyChoiceInsertedHeight: CGFloat {
+        127
     }
 
-    private var quizAddChoiceScrollCompensationDelays: [Duration] {
-        [.milliseconds(48), .milliseconds(72), .milliseconds(100)]
+    private var quizAddChoiceScrollCompensationDelay: Duration {
+        .milliseconds(220)
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {

@@ -537,63 +537,6 @@ final class ZoneEditorScrollDriver {
         )
     }
 
-    func currentContentHeight() -> CGFloat? {
-        guard let scrollView else { return nil }
-        scrollView.layoutIfNeeded()
-        return scrollView.contentSize.height
-    }
-
-    @discardableResult
-    func scrollDownForContentHeightGrowth(
-        from baselineContentHeight: CGFloat,
-        alreadyAppliedDelta: CGFloat,
-        maximumDelta: CGFloat,
-        duration: TimeInterval,
-        options: UIView.AnimationOptions = [.curveEaseOut],
-        zoneID: UUID?,
-        reason: String
-    ) -> CGFloat {
-        guard let scrollView,
-              scrollView.window != nil,
-              scrollView.bounds.height > 0
-        else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-growth-skip",
-                zoneID: zoneID,
-                details: "reason=\(reason)-invalid baseline=\(debugValue(baselineContentHeight))"
-            )
-            return alreadyAppliedDelta
-        }
-
-        scrollView.layoutIfNeeded()
-        let contentGrowth = max(scrollView.contentSize.height - baselineContentHeight, 0)
-        let targetAppliedDelta = min(contentGrowth, maximumDelta)
-        let remainingDelta = targetAppliedDelta - alreadyAppliedDelta
-
-        guard remainingDelta > 0.5 else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-growth-skip",
-                zoneID: zoneID,
-                details: "reason=\(reason)-settled growth=\(debugValue(contentGrowth)) applied=\(debugValue(alreadyAppliedDelta)) target=\(debugValue(targetAppliedDelta)) max=\(debugValue(maximumDelta)) \(scrollSnapshotDetails(in: scrollView))"
-            )
-            return alreadyAppliedDelta
-        }
-
-        let didScroll = scrollDownBy(
-            remainingDelta,
-            duration: duration,
-            options: options,
-            zoneID: zoneID,
-            reason: reason
-        )
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            didScroll ? "scroll-growth-apply" : "scroll-growth-skip",
-            zoneID: zoneID,
-            details: "reason=\(reason) growth=\(debugValue(contentGrowth)) remaining=\(debugValue(remainingDelta)) applied=\(debugValue(alreadyAppliedDelta)) target=\(debugValue(targetAppliedDelta)) max=\(debugValue(maximumDelta)) didScroll=\(didScroll ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
-        )
-        return didScroll ? targetAppliedDelta : alreadyAppliedDelta
-    }
-
     @discardableResult
     func scrollDownBy(
         _ deltaY: CGFloat,
