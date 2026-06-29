@@ -319,11 +319,7 @@ private struct QuizModeSessionView: View {
     private func content(safeBottomInset: CGFloat) -> some View {
         switch viewModel.loadState {
         case .idle, .loading:
-            centeredMessageCard(
-                icon: "hourglass",
-                title: "Preparing Quiz",
-                message: "Validating questions and choices before the first question appears."
-            )
+            preparingQuizIndicator
         case .empty:
             centeredMessageCard(
                 icon: "questionmark.square.dashed",
@@ -356,6 +352,26 @@ private struct QuizModeSessionView: View {
                     message: "The next quiz question is being prepared."
                 )
             }
+        }
+    }
+
+    private var preparingQuizIndicator: some View {
+        VStack {
+            Spacer(minLength: 0)
+
+            VStack(spacing: UIConstants.Spacing.large) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 44, weight: .black))
+                    .foregroundStyle(Color.white.opacity(0.72))
+                    .symbolRenderingMode(.hierarchical)
+
+                ProgressActivityDots(color: Color.white.opacity(0.76))
+            }
+            .accessibilityLabel(
+                AppLocalization.string("Preparing Quiz", locale: appPreferences.resolvedLocale)
+            )
+
+            Spacer(minLength: 0)
         }
     }
 

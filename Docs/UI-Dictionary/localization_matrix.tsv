@@ -48,15 +48,14 @@ key	en	ro	ru
 %d cards moved today	%d cards moved today	%d carduri mutate azi	%d карточек пройдено сегодня
 %d cards reviewed	%d cards reviewed	%d carduri revizuite	%d карточек пройдено
 %d cards reviewed today.	%d cards reviewed today.	%d carduri revizuite azi.	%d карточек пройдено сегодня.
-%d-day streak	%d-day streak	Serie de %d zile	Серия: %d дней
-%d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d chars	%d chars	%d caractere	%d символов
 %d CORRECT CHOICES	%d CORRECT CHOICES	%d RĂSPUNSURI CORECTE	%d ПРАВИЛЬНЫХ ВАРИАНТОВ
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d Deck	%d Deck	%d deck	%d колода
+%d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d deck	%d deck	%d pachet	%d колода
+%d Deck	%d Deck	%d deck	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -82,6 +81,7 @@ key	en	ro	ru
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
 %d%% good cards	%d%% good cards	%d%% carduri bune	%d%% хороших карточек
+%d-day streak	%d-day streak	Serie de %d zile	Серия: %d дней
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -96,10 +96,10 @@ key	en	ro	ru
 1 card left today	1 card left today	1 card rămas azi	Сегодня осталась 1 карточка
 1 CORRECT CHOICE	1 CORRECT CHOICE	1 RĂSPUNS CORECT	1 ПРАВИЛЬНЫЙ ВАРИАНТ
 1 day	1 day	1 zi	1 день
-1-day streak	1-day streak	Serie de 1 zi	Серия: 1 день
 1 day hit goal	1 day hit goal	1 zi cu ținta atinsă	1 день с выполненной целью
 1 goal day	1 goal day	1 zi cu țintă	1 день с целью
 1 still needs another pass.	1 still needs another pass.	1 încă are nevoie de o trecere.	1 ещё нужен повторный проход.
+1-day streak	1-day streak	Serie de 1 zi	Серия: 1 день
 100	100	100	100
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
@@ -144,8 +144,8 @@ Almost ready	Almost ready	Aproape gata	Почти готово
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -236,7 +236,6 @@ Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned
 Copied!	Copied!	Copiat!	Скопировано!
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
 Correct	Correct	Corect	Верно
-Custom Color	Custom Color	Culoare custom	Свой цвет
 Could not extract text from this source. Try another source.	Could not extract text from this source. Try another source.	Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.	Не удалось извлечь текст из этого источника. Попробуйте другой источник.
 Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
 Create	Create	Creează	Создать
@@ -399,6 +398,7 @@ just now	just now	chiar acum	только что
 Keep %d received cards	Keep %d received cards	Păstrează %d carduri primite	Оставить %d полученных карточек
 Keep Editing	Keep Editing	Continuă editarea	Продолжить редактирование
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
+Label Color	Label Color	Culoare etichetă	Цвет метки
 Labs	Labs	Laborator	Лабы
 Landed	Landed	Reușite	Уверенно
 Language	Language	Limbă	Язык
@@ -409,7 +409,6 @@ Last week	Last week	Săptămâna trecută	Прошлая неделя
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
-Label Color	Label Color	Culoare etichetă	Цвет метки
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
@@ -519,8 +518,8 @@ Pace	Pace	Ritm	Темп
 Password	Password	Parolă	Пароль
 Password reset link sent.	Password reset link sent.	Linkul de resetare a fost trimis.	Ссылка для сброса пароля отправлена.
 Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Пароли не совпадают.
-Paused	Paused	Pe pauză	На паузе
 Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
+Paused	Paused	Pe pauză	На паузе
 Performance	Performance	Performanță	Прогресс
 Photos or PDF	Photos or PDF	Poze sau PDF	Фото или PDF
 Pick a deck	Pick a deck	Alege un deck	Выберите колоду
@@ -543,11 +542,12 @@ Please wait a moment and try again.	Please wait a moment and try again.	Așteapt
 Premium access	Premium access	Acces Premium	Доступ Premium
 Premium active	Premium active	Premium activ	Premium активен
 Premium is managed manually until App Store Connect is ready.	Premium is managed manually until App Store Connect is ready.	Premium este administrat manual până când App Store Connect este gata.	Premium управляется вручную, пока App Store Connect не готов.
+Preparing Quiz	Preparing Quiz	Se pregătește quizul	Подготовка квиза
 Preparing request	Preparing request	Se pregătește cererea	Подготовка запроса
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
@@ -556,8 +556,8 @@ Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -572,9 +572,9 @@ Reading Docs...	Reading Docs...	Se citesc documentele...	Чтение докум
 Reading the source and setting up the generation pipeline.	Reading the source and setting up the generation pipeline.	Citirea sursei și configurarea conductei de generare.	Чтение исходников и настройка конвейера генерации.
 Ready	Ready	Pregătit	Готовность
 Ready when you are.	Ready when you are.	Gata când ești tu.	Готово, когда вы готовы.
+Recent decks	Recent decks	Deckuri recente	Недавние колоды
 Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
 Recents	Recents	Recente	Недавние
-Recent decks	Recent decks	Deckuri recente	Недавние колоды
 Red	Red	Roșu	Красный
 Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d sau mai puține.	Уменьшите число карточек до %d или меньше.
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
@@ -590,8 +590,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -712,9 +712,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This week	This week	Săptămâna aceasta	Эта неделя
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
+This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
