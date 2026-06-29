@@ -1,0 +1,1587 @@
+{
+  "Docs/UI-Dictionary/localization_matrix.py": {
+    "mtime": 1781696455.3712683,
+    "ast_hash": "df4cff20ce75c1e97f767368b04a57b0",
+    "semantic_hash": "df4cff20ce75c1e97f767368b04a57b0"
+  },
+  "QuizFlash/App/AppBuildConfiguration.swift": {
+    "mtime": 1781696455.3756387,
+    "ast_hash": "2660d116122b39d14cac41f849394897",
+    "semantic_hash": "2660d116122b39d14cac41f849394897"
+  },
+  "QuizFlash/App/AppFeatures.swift": {
+    "mtime": 1782347903.5607424,
+    "ast_hash": "a209f98e6ca01add15044440c58e467e",
+    "semantic_hash": "a209f98e6ca01add15044440c58e467e"
+  },
+  "QuizFlash/App/CloudSessionBootstrapper.swift": {
+    "mtime": 1782023474.690631,
+    "ast_hash": "210fbb1220b19245c6760586abc88940",
+    "semantic_hash": "210fbb1220b19245c6760586abc88940"
+  },
+  "QuizFlash/App/QuizFlashApp.swift": {
+    "mtime": 1782515311.9477813,
+    "ast_hash": "d7adb30225a6820613c701aad12d5da0",
+    "semantic_hash": "d7adb30225a6820613c701aad12d5da0"
+  },
+  "QuizFlash/Core/DesignSystem/Components/AnimatedProgressRing.swift": {
+    "mtime": 1782516224.1569612,
+    "ast_hash": "913594b484afbe3fe6733dcff05d461e",
+    "semantic_hash": "913594b484afbe3fe6733dcff05d461e"
+  },
+  "QuizFlash/Core/DesignSystem/Components/AppSectionSeparator.swift": {
+    "mtime": 1781696455.387372,
+    "ast_hash": "8618279a833c27b347211123cb34453b",
+    "semantic_hash": "8618279a833c27b347211123cb34453b"
+  },
+  "QuizFlash/Core/DesignSystem/Components/AvatarView.swift": {
+    "mtime": 1781696455.3874834,
+    "ast_hash": "76b765eaed118c1b03876385393905b0",
+    "semantic_hash": "76b765eaed118c1b03876385393905b0"
+  },
+  "QuizFlash/Core/DesignSystem/Components/BottomChromeContainer.swift": {
+    "mtime": 1781696455.3875806,
+    "ast_hash": "3076a958567b3ba800710d7855ca3d40",
+    "semantic_hash": "3076a958567b3ba800710d7855ca3d40"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CodeBlockPreviewView.swift": {
+    "mtime": 1781696455.3877113,
+    "ast_hash": "a877ad92c050318076171b902db5b0bf",
+    "semantic_hash": "a877ad92c050318076171b902db5b0bf"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CollapsibleTitleChrome.swift": {
+    "mtime": 1782549856.7473733,
+    "ast_hash": "2821e530bb762cc93f3ae448a6760e3c",
+    "semantic_hash": "2821e530bb762cc93f3ae448a6760e3c"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenu.swift": {
+    "mtime": 1781696455.3882492,
+    "ast_hash": "cbf78378ce0b9bdcb93bd40beb8d6d28",
+    "semantic_hash": "cbf78378ce0b9bdcb93bd40beb8d6d28"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenuCoordinator.swift": {
+    "mtime": 1781696455.388564,
+    "ast_hash": "0a2250694ff514f6c0ed322266a72009",
+    "semantic_hash": "0a2250694ff514f6c0ed322266a72009"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenuInteractions.swift": {
+    "mtime": 1781696455.3886983,
+    "ast_hash": "18c2c653ee9947a10af98a87a9c8a7b6",
+    "semantic_hash": "18c2c653ee9947a10af98a87a9c8a7b6"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenuLayout.swift": {
+    "mtime": 1781696455.388798,
+    "ast_hash": "9bf1aedc887b8715619ee6c55f364df6",
+    "semantic_hash": "9bf1aedc887b8715619ee6c55f364df6"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenuOverlay.swift": {
+    "mtime": 1782516224.152078,
+    "ast_hash": "7e1c1bded343005c08df19e713db593f",
+    "semantic_hash": "7e1c1bded343005c08df19e713db593f"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomContextMenuSupport.swift": {
+    "mtime": 1781696455.3890316,
+    "ast_hash": "6dbb0641f671cda322adfaf1b788072d",
+    "semantic_hash": "6dbb0641f671cda322adfaf1b788072d"
+  },
+  "QuizFlash/Core/DesignSystem/Components/CustomSheetDebugFloatingPanel.swift": {
+    "mtime": 1782516224.1559122,
+    "ast_hash": "85df17112d93e25f33b733697d58aaf2",
+    "semantic_hash": "85df17112d93e25f33b733697d58aaf2"
+  },
+  "QuizFlash/Core/DesignSystem/Components/EdgeShadowDebugFloatingPanel.swift": {
+    "mtime": 1782516224.1564305,
+    "ast_hash": "23778910bf467520fe68650ce0bd6712",
+    "semantic_hash": "23778910bf467520fe68650ce0bd6712"
+  },
+  "QuizFlash/Core/DesignSystem/Components/EdgeShadowOverlay.swift": {
+    "mtime": 1781696455.389643,
+    "ast_hash": "7f65819d22f9c97fa755649b63bc9160",
+    "semantic_hash": "7f65819d22f9c97fa755649b63bc9160"
+  },
+  "QuizFlash/Core/DesignSystem/Components/HighlightedText.swift": {
+    "mtime": 1781696455.3897622,
+    "ast_hash": "bff1322402ceac73d5ba56b03997164e",
+    "semantic_hash": "bff1322402ceac73d5ba56b03997164e"
+  },
+  "QuizFlash/Core/DesignSystem/Components/ProgressActivityDots.swift": {
+    "mtime": 1781996962.2307863,
+    "ast_hash": "690e18c3d2b63f78026e0de43a88c67b",
+    "semantic_hash": "690e18c3d2b63f78026e0de43a88c67b"
+  },
+  "QuizFlash/Core/DesignSystem/Components/SelectionActionToolbar.swift": {
+    "mtime": 1782516224.1528525,
+    "ast_hash": "3ac2f93a24b9033a2d506ef9c4366ba3",
+    "semantic_hash": "3ac2f93a24b9033a2d506ef9c4366ba3"
+  },
+  "QuizFlash/Core/DesignSystem/Components/SelectionToolbarControls.swift": {
+    "mtime": 1781696455.390119,
+    "ast_hash": "222bb8120c6bc7ced23acf29aa5e13d9",
+    "semantic_hash": "222bb8120c6bc7ced23acf29aa5e13d9"
+  },
+  "QuizFlash/Core/DesignSystem/Components/TopProgressiveBlurOverlay.swift": {
+    "mtime": 1781696455.3906093,
+    "ast_hash": "32263937d4ab8d6f37402d0addf64ebd",
+    "semantic_hash": "32263937d4ab8d6f37402d0addf64ebd"
+  },
+  "QuizFlash/Core/DesignSystem/Layout/AdaptiveLayoutContext.swift": {
+    "mtime": 1781696455.3910456,
+    "ast_hash": "f98a793f54c34cffe3dbac47674dbd1c",
+    "semantic_hash": "f98a793f54c34cffe3dbac47674dbd1c"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/KeyboardDismissModifier.swift": {
+    "mtime": 1781988048.1192966,
+    "ast_hash": "c48ea2a77e26f8792458cb3cad89f2ea",
+    "semantic_hash": "c48ea2a77e26f8792458cb3cad89f2ea"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/SelectionDismissModifier.swift": {
+    "mtime": 1781696455.3913183,
+    "ast_hash": "cc79687908d84dc2758a2a6235cf1bdd",
+    "semantic_hash": "cc79687908d84dc2758a2a6235cf1bdd"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/SwipeBackModifier.swift": {
+    "mtime": 1782537293.062714,
+    "ast_hash": "4a5c6d6f08cb63b3e2814f736ebc09f6",
+    "semantic_hash": "4a5c6d6f08cb63b3e2814f736ebc09f6"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/View+FullScreenSheet.swift": {
+    "mtime": 1782435697.5945208,
+    "ast_hash": "cab39d4ed69be655eb816525ff4a18cc",
+    "semantic_hash": "cab39d4ed69be655eb816525ff4a18cc"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/View+KeepsScreenAwake.swift": {
+    "mtime": 1781696455.3923988,
+    "ast_hash": "a1a102dd2192ee489610a4b61463cff3",
+    "semantic_hash": "a1a102dd2192ee489610a4b61463cff3"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/View+ScreenTopEdgeShadow.swift": {
+    "mtime": 1781696455.3925195,
+    "ast_hash": "f226fc36c8c01ec2e94e0e7f21230767",
+    "semantic_hash": "f226fc36c8c01ec2e94e0e7f21230767"
+  },
+  "QuizFlash/Core/DesignSystem/Modifiers/View+Styles.swift": {
+    "mtime": 1782548517.4253318,
+    "ast_hash": "52743d6b3ae8831e10f27a74bfabcd06",
+    "semantic_hash": "52743d6b3ae8831e10f27a74bfabcd06"
+  },
+  "QuizFlash/Core/DesignSystem/Theme/ThemeManager+ThemeStudio.swift": {
+    "mtime": 1781696455.392845,
+    "ast_hash": "e0ede9360a44c28bad24acaa4edcf807",
+    "semantic_hash": "e0ede9360a44c28bad24acaa4edcf807"
+  },
+  "QuizFlash/Core/DesignSystem/Theme/ThemeManager.swift": {
+    "mtime": 1782438412.4630747,
+    "ast_hash": "8db8bcb8e06f03d27f1f279f060d8a30",
+    "semantic_hash": "8db8bcb8e06f03d27f1f279f060d8a30"
+  },
+  "QuizFlash/Core/DesignSystem/Theme/ThemeStudioCatalog.swift": {
+    "mtime": 1782438504.5122743,
+    "ast_hash": "dd45c87891b956017f1d70b4b959fed9",
+    "semantic_hash": "dd45c87891b956017f1d70b4b959fed9"
+  },
+  "QuizFlash/Core/DesignSystem/Theme/UIConstants.swift": {
+    "mtime": 1782532291.209464,
+    "ast_hash": "a473df861132e419939968fad53f7cf8",
+    "semantic_hash": "a473df861132e419939968fad53f7cf8"
+  },
+  "QuizFlash/Core/Extensions/Date+Extensions.swift": {
+    "mtime": 1781696455.3944306,
+    "ast_hash": "28bc1fdff49fb3ad09850ead0ce19897",
+    "semantic_hash": "28bc1fdff49fb3ad09850ead0ce19897"
+  },
+  "QuizFlash/Core/Extensions/LibraryExtension.swift": {
+    "mtime": 1781696455.3945842,
+    "ast_hash": "db103875933e14cbb39b6c79210a6d7c",
+    "semantic_hash": "db103875933e14cbb39b6c79210a6d7c"
+  },
+  "QuizFlash/Core/Extensions/ModelContext+SafeFetch.swift": {
+    "mtime": 1781696455.3947403,
+    "ast_hash": "6da8b34719bd937aa56998ef79fb7ff6",
+    "semantic_hash": "6da8b34719bd937aa56998ef79fb7ff6"
+  },
+  "QuizFlash/Core/Helpers/ImageCache.swift": {
+    "mtime": 1781696455.3955576,
+    "ast_hash": "b63116fa9fe7aec80ca1f3e4b8d4aa41",
+    "semantic_hash": "b63116fa9fe7aec80ca1f3e4b8d4aa41"
+  },
+  "QuizFlash/Core/Helpers/MathTextSanitizer.swift": {
+    "mtime": 1781696455.396474,
+    "ast_hash": "29aae3b01e151b03fde4b8910307eef5",
+    "semantic_hash": "29aae3b01e151b03fde4b8910307eef5"
+  },
+  "QuizFlash/Core/Helpers/QuizFlashLog.swift": {
+    "mtime": 1781696455.3966005,
+    "ast_hash": "50947de3b673a158600df3b19a165dd0",
+    "semantic_hash": "50947de3b673a158600df3b19a165dd0"
+  },
+  "QuizFlash/Core/Helpers/ScrollPositionRestorer.swift": {
+    "mtime": 1781696455.3967435,
+    "ast_hash": "5614cc7cb22e8158c399a4491ee41469",
+    "semantic_hash": "5614cc7cb22e8158c399a4491ee41469"
+  },
+  "QuizFlash/Core/Helpers/ScrollProximityEffect.swift": {
+    "mtime": 1781696455.3968637,
+    "ast_hash": "a2cd1a6142255b02a4a8ebc98a11701d",
+    "semantic_hash": "a2cd1a6142255b02a4a8ebc98a11701d"
+  },
+  "QuizFlash/Core/Helpers/ScrollViewEmptySpaceTap.swift": {
+    "mtime": 1781696455.39711,
+    "ast_hash": "b2e77e5aee69cc0510a0aad494f7a048",
+    "semantic_hash": "b2e77e5aee69cc0510a0aad494f7a048"
+  },
+  "QuizFlash/Core/Interaction/KeyboardMonitor.swift": {
+    "mtime": 1781696455.397298,
+    "ast_hash": "dfb64f6d5da03d5e4a00a3139497490d",
+    "semantic_hash": "dfb64f6d5da03d5e4a00a3139497490d"
+  },
+  "QuizFlash/Core/Localization/AppLocalization.swift": {
+    "mtime": 1781696455.397497,
+    "ast_hash": "d2490235add9e1bc306eb25cebd38687",
+    "semantic_hash": "d2490235add9e1bc306eb25cebd38687"
+  },
+  "QuizFlash/Core/Navigation/DeckNavigationValue.swift": {
+    "mtime": 1781696455.3976743,
+    "ast_hash": "9fbeb465f355424efa5138a74afc31d0",
+    "semantic_hash": "9fbeb465f355424efa5138a74afc31d0"
+  },
+  "QuizFlash/Core/Navigation/MainAppView.swift": {
+    "mtime": 1782532203.5146232,
+    "ast_hash": "c5a41f324be8a5b823bba48320915e8b",
+    "semantic_hash": "c5a41f324be8a5b823bba48320915e8b"
+  },
+  "QuizFlash/Core/Navigation/NavigationManager.swift": {
+    "mtime": 1782551677.7808173,
+    "ast_hash": "203d859452eac8a4ee06e56708bfe553",
+    "semantic_hash": "203d859452eac8a4ee06e56708bfe553"
+  },
+  "QuizFlash/Core/Navigation/RootView.swift": {
+    "mtime": 1782000860.2591977,
+    "ast_hash": "173db1e8d3cd4a03db2f8d48e285a0ea",
+    "semantic_hash": "173db1e8d3cd4a03db2f8d48e285a0ea"
+  },
+  "QuizFlash/Core/Navigation/TabBar/AppTabBar.swift": {
+    "mtime": 1782658714.3533611,
+    "ast_hash": "700ad3ea2f836e097b367ebbca99f79b",
+    "semantic_hash": "700ad3ea2f836e097b367ebbca99f79b"
+  },
+  "QuizFlash/Core/Navigation/TabBar/CapsuleSelectionControl.swift": {
+    "mtime": 1781696455.398687,
+    "ast_hash": "e8537b4e73e38898d6f3301b4165887f",
+    "semantic_hash": "e8537b4e73e38898d6f3301b4165887f"
+  },
+  "QuizFlash/Core/Navigation/TabBar/CustomTabBar.swift": {
+    "mtime": 1782516224.1476407,
+    "ast_hash": "bd359e7c41df59d5f6172b3f835a716a",
+    "semantic_hash": "bd359e7c41df59d5f6172b3f835a716a"
+  },
+  "QuizFlash/Core/Navigation/TabBar/NativeTabBarConfigurator.swift": {
+    "mtime": 1781696455.398945,
+    "ast_hash": "e10edd2c4a21df1525a77c7adbb4cb25",
+    "semantic_hash": "e10edd2c4a21df1525a77c7adbb4cb25"
+  },
+  "QuizFlash/Core/Navigation/TabBar/TabBarScrollAutoHide.swift": {
+    "mtime": 1782533110.6211672,
+    "ast_hash": "c81306c99bebd73d3f2d9dcf533535d1",
+    "semantic_hash": "c81306c99bebd73d3f2d9dcf533535d1"
+  },
+  "QuizFlash/Core/Navigation/TabBar/TabBarVisibility.swift": {
+    "mtime": 1781696455.399237,
+    "ast_hash": "4e5e5769c8828ff8fa10de81005b472e",
+    "semantic_hash": "4e5e5769c8828ff8fa10de81005b472e"
+  },
+  "QuizFlash/Core/Navigation/TabBar/UIKitTabBarControl.swift": {
+    "mtime": 1781696455.399374,
+    "ast_hash": "fdfea72d9f0710f00fd3235c2b860a59",
+    "semantic_hash": "fdfea72d9f0710f00fd3235c2b860a59"
+  },
+  "QuizFlash/Domain/Models/CardModel.swift": {
+    "mtime": 1782007670.615269,
+    "ast_hash": "3fe57e51ff92ef411ff50ba1878fece1",
+    "semantic_hash": "3fe57e51ff92ef411ff50ba1878fece1"
+  },
+  "QuizFlash/Domain/Models/DeckModel.swift": {
+    "mtime": 1782007670.6140988,
+    "ast_hash": "38328693e2e14fec0ba73517e8c25af3",
+    "semantic_hash": "38328693e2e14fec0ba73517e8c25af3"
+  },
+  "QuizFlash/Domain/Models/DeckPlayModeSettingsModel.swift": {
+    "mtime": 1781696455.4000137,
+    "ast_hash": "e4875cfdebd343c110b40af0079a7c40",
+    "semantic_hash": "e4875cfdebd343c110b40af0079a7c40"
+  },
+  "QuizFlash/Domain/Models/FolderModel.swift": {
+    "mtime": 1781696455.4001153,
+    "ast_hash": "d30cee7a6866729a034e764e50665c40",
+    "semantic_hash": "d30cee7a6866729a034e764e50665c40"
+  },
+  "QuizFlash/Domain/Models/HomeStudyAnalyticsModels.swift": {
+    "mtime": 1781696455.4002144,
+    "ast_hash": "e10401453132b826c9a10601012e6e2e",
+    "semantic_hash": "e10401453132b826c9a10601012e6e2e"
+  },
+  "QuizFlash/Domain/Models/ZoneModel.swift": {
+    "mtime": 1781696455.400572,
+    "ast_hash": "5056d7e8838be50cb771915e5de76bd0",
+    "semantic_hash": "5056d7e8838be50cb771915e5de76bd0"
+  },
+  "QuizFlash/Domain/Repositories/CardFetchActor.swift": {
+    "mtime": 1782541896.8579967,
+    "ast_hash": "5c231745b69d0601f54a7b3f8db40383",
+    "semantic_hash": "5c231745b69d0601f54a7b3f8db40383"
+  },
+  "QuizFlash/Domain/Repositories/HomeAnalyticsRepository.swift": {
+    "mtime": 1782426002.3451595,
+    "ast_hash": "03ec019011f86498cf3745a68f845a53",
+    "semantic_hash": "03ec019011f86498cf3745a68f845a53"
+  },
+  "QuizFlash/Domain/Repositories/PlayModeCardRepository.swift": {
+    "mtime": 1781696455.4012814,
+    "ast_hash": "bfd5ed4bfe46797b5357594f2682b6f8",
+    "semantic_hash": "bfd5ed4bfe46797b5357594f2682b6f8"
+  },
+  "QuizFlash/Features/Auth/Components/AuthComponents.swift": {
+    "mtime": 1782439034.2556324,
+    "ast_hash": "c98e26ff3d9cbfde50ebe46bb40d1492",
+    "semantic_hash": "c98e26ff3d9cbfde50ebe46bb40d1492"
+  },
+  "QuizFlash/Features/Auth/Views/LoginView.swift": {
+    "mtime": 1782645737.9110825,
+    "ast_hash": "efed574d086a2918233f2011db4416de",
+    "semantic_hash": "efed574d086a2918233f2011db4416de"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckComponents.swift": {
+    "mtime": 1782551677.781838,
+    "ast_hash": "bf31679fec184770882127468b40c2ae",
+    "semantic_hash": "bf31679fec184770882127468b40c2ae"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckCustomNavigationBar.swift": {
+    "mtime": 1781944757.920307,
+    "ast_hash": "ea07acfdd115d27d94460d1a9d042a23",
+    "semantic_hash": "ea07acfdd115d27d94460d1a9d042a23"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckGridRichPreviewRenderer.swift": {
+    "mtime": 1781696455.4025025,
+    "ast_hash": "160dd188ad1a69ce101b6417564ab0fd",
+    "semantic_hash": "160dd188ad1a69ce101b6417564ab0fd"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckHeroView.swift": {
+    "mtime": 1782551677.7823026,
+    "ast_hash": "cee5cc0bbb16218070f076ed1079ef23",
+    "semantic_hash": "cee5cc0bbb16218070f076ed1079ef23"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckProgressView.swift": {
+    "mtime": 1782542705.1525137,
+    "ast_hash": "3bb5649ca50f80583ae1297921876ab3",
+    "semantic_hash": "3bb5649ca50f80583ae1297921876ab3"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckRowView.swift": {
+    "mtime": 1782537293.059906,
+    "ast_hash": "1f99a0330cc88398b56df521180d9a29",
+    "semantic_hash": "1f99a0330cc88398b56df521180d9a29"
+  },
+  "QuizFlash/Features/DeckDetails/Components/DeckSharingViews.swift": {
+    "mtime": 1781996917.6673338,
+    "ast_hash": "e5b902e5aa0df66b76379df6cd344c5b",
+    "semantic_hash": "e5b902e5aa0df66b76379df6cd344c5b"
+  },
+  "QuizFlash/Features/DeckDetails/Components/FolderDeckListView.swift": {
+    "mtime": 1781696455.4034088,
+    "ast_hash": "a00ee372ba345ae3b49360b6f380265c",
+    "semantic_hash": "a00ee372ba345ae3b49360b6f380265c"
+  },
+  "QuizFlash/Features/DeckDetails/Components/LearningHabitView.swift": {
+    "mtime": 1781696455.4035523,
+    "ast_hash": "9e8a2f524b3201de64dd7736ccaa8f83",
+    "semantic_hash": "9e8a2f524b3201de64dd7736ccaa8f83"
+  },
+  "QuizFlash/Features/DeckDetails/ViewModels/DeckScrollState.swift": {
+    "mtime": 1781696455.4037244,
+    "ast_hash": "9170e8e76bf8f840c4db24be7f9c7e3a",
+    "semantic_hash": "9170e8e76bf8f840c4db24be7f9c7e3a"
+  },
+  "QuizFlash/Features/DeckDetails/ViewModels/DeckViewModel+CardMutations.swift": {
+    "mtime": 1782023544.2224863,
+    "ast_hash": "3d852e5311e133bf3f8faf69ce214885",
+    "semantic_hash": "3d852e5311e133bf3f8faf69ce214885"
+  },
+  "QuizFlash/Features/DeckDetails/ViewModels/DeckViewModel+SnapshotLoading.swift": {
+    "mtime": 1782023544.22293,
+    "ast_hash": "57d636cae91a8995251dfabd0dc9cb50",
+    "semantic_hash": "57d636cae91a8995251dfabd0dc9cb50"
+  },
+  "QuizFlash/Features/DeckDetails/ViewModels/DeckViewModel.swift": {
+    "mtime": 1781696455.4042826,
+    "ast_hash": "f2e20a914831360c44c2de18d1a258d1",
+    "semantic_hash": "f2e20a914831360c44c2de18d1a258d1"
+  },
+  "QuizFlash/Features/DeckDetails/Views/DeckActivityDetailSheetView.swift": {
+    "mtime": 1782516224.1052613,
+    "ast_hash": "e7a0587a132b39a8edd801596cc0aac1",
+    "semantic_hash": "e7a0587a132b39a8edd801596cc0aac1"
+  },
+  "QuizFlash/Features/DeckDetails/Views/DeckCardGridView.swift": {
+    "mtime": 1782551677.7828264,
+    "ast_hash": "a15fcfa7203daaf13f7866c1b8f7e57d",
+    "semantic_hash": "a15fcfa7203daaf13f7866c1b8f7e57d"
+  },
+  "QuizFlash/Features/DeckDetails/Views/DeckScreenContent.swift": {
+    "mtime": 1782542719.153474,
+    "ast_hash": "97bbfb52d30a50aa4041c2d54732b306",
+    "semantic_hash": "97bbfb52d30a50aa4041c2d54732b306"
+  },
+  "QuizFlash/Features/DeckDetails/Views/DeckScreenOverlays.swift": {
+    "mtime": 1782535383.1212523,
+    "ast_hash": "3f0cef1e5607572aa8e56961375da5b4",
+    "semantic_hash": "3f0cef1e5607572aa8e56961375da5b4"
+  },
+  "QuizFlash/Features/DeckDetails/Views/DeckView.swift": {
+    "mtime": 1782434452.7115393,
+    "ast_hash": "1864420dd5d2ebcecb7c51d243b17740",
+    "semantic_hash": "1864420dd5d2ebcecb7c51d243b17740"
+  },
+  "QuizFlash/Features/DeckDetails/Views/MiniCardPreviewLayoutCalculator.swift": {
+    "mtime": 1781696455.4063568,
+    "ast_hash": "6d0f7c385f685f7c618bb1f431b960bc",
+    "semantic_hash": "6d0f7c385f685f7c618bb1f431b960bc"
+  },
+  "QuizFlash/Features/DeckEditor/Components/AILoadingOverlay.swift": {
+    "mtime": 1781696455.4067774,
+    "ast_hash": "2f763e5666144f0e737437bf4d7e8051",
+    "semantic_hash": "2f763e5666144f0e737437bf4d7e8051"
+  },
+  "QuizFlash/Features/DeckEditor/Components/AIWorkspaceStatusViews.swift": {
+    "mtime": 1782516224.1084993,
+    "ast_hash": "25c4cacde3b8d1a2c07fe119b4eac9e5",
+    "semantic_hash": "25c4cacde3b8d1a2c07fe119b4eac9e5"
+  },
+  "QuizFlash/Features/DeckEditor/Components/CanvasModalView.swift": {
+    "mtime": 1781696455.4075851,
+    "ast_hash": "55f09304651fd8f047629b3048ce107b",
+    "semantic_hash": "55f09304651fd8f047629b3048ce107b"
+  },
+  "QuizFlash/Features/DeckEditor/Components/CanvasView.swift": {
+    "mtime": 1781696455.4078257,
+    "ast_hash": "1d5f58db8ad60c0d18a67c3372273541",
+    "semantic_hash": "1d5f58db8ad60c0d18a67c3372273541"
+  },
+  "QuizFlash/Features/DeckEditor/Components/CodeSnippetView.swift": {
+    "mtime": 1782516224.1111393,
+    "ast_hash": "ada149832c06234c42ca2d4dedfc53ac",
+    "semantic_hash": "ada149832c06234c42ca2d4dedfc53ac"
+  },
+  "QuizFlash/Features/DeckEditor/Components/ContentBlock.swift": {
+    "mtime": 1781696455.4086344,
+    "ast_hash": "ebe605945f12e7edf5a1d6c9df920fc8",
+    "semantic_hash": "ebe605945f12e7edf5a1d6c9df920fc8"
+  },
+  "QuizFlash/Features/DeckEditor/Components/DetailedCardRowView.swift": {
+    "mtime": 1782516224.1107244,
+    "ast_hash": "29ff1b825a5668b6ff00570e39dd057d",
+    "semantic_hash": "29ff1b825a5668b6ff00570e39dd057d"
+  },
+  "QuizFlash/Features/DeckEditor/Components/DraftCardContentSummary.swift": {
+    "mtime": 1781696455.4091265,
+    "ast_hash": "059166a9c6df9ddb6c41f2fb296ae726",
+    "semantic_hash": "059166a9c6df9ddb6c41f2fb296ae726"
+  },
+  "QuizFlash/Features/DeckEditor/Components/EditorFormatMenuBar.swift": {
+    "mtime": 1782516224.1116862,
+    "ast_hash": "abb1967debec26183b622fecc7293a72",
+    "semantic_hash": "abb1967debec26183b622fecc7293a72"
+  },
+  "QuizFlash/Features/DeckEditor/Components/FABMenuItemView.swift": {
+    "mtime": 1781696455.410164,
+    "ast_hash": "48b172a3d6c9f1e7ec1d606a53196d6d",
+    "semantic_hash": "48b172a3d6c9f1e7ec1d606a53196d6d"
+  },
+  "QuizFlash/Features/DeckEditor/Components/ImageCropEditorView.swift": {
+    "mtime": 1781696455.410341,
+    "ast_hash": "febb2cd892439ef23740665e76cd4380",
+    "semantic_hash": "febb2cd892439ef23740665e76cd4380"
+  },
+  "QuizFlash/Features/DeckEditor/Components/MixedMathTextView.swift": {
+    "mtime": 1782516224.1130195,
+    "ast_hash": "e5a9dd84d901cd50a66b9b73b66331ac",
+    "semantic_hash": "e5a9dd84d901cd50a66b9b73b66331ac"
+  },
+  "QuizFlash/Features/DeckEditor/Components/ZoneEditor/ZoneContentLayoutEngine.swift": {
+    "mtime": 1781894615.1000605,
+    "ast_hash": "6af5cff45d64c2c0d3bf5d93f5fd6b7f",
+    "semantic_hash": "6af5cff45d64c2c0d3bf5d93f5fd6b7f"
+  },
+  "QuizFlash/Features/DeckEditor/Components/ZoneEditor/ZoneEditorCanvas.swift": {
+    "mtime": 1782729820.2492096,
+    "ast_hash": "e10b6c2cf620a9287d7041c61b72f926",
+    "semantic_hash": "e10b6c2cf620a9287d7041c61b72f926"
+  },
+  "QuizFlash/Features/DeckEditor/Components/ZoneEditor/ZoneEditorScrollSupport.swift": {
+    "mtime": 1782736361.9892645,
+    "ast_hash": "94bdce011e34a53871108e6ddf4a0c54",
+    "semantic_hash": "94bdce011e34a53871108e6ddf4a0c54"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspaceAIGenerationSession.swift": {
+    "mtime": 1782617178.6191475,
+    "ast_hash": "b00c9f23d688f79a1d1ece3f8ab10a27",
+    "semantic_hash": "b00c9f23d688f79a1d1ece3f8ab10a27"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspaceAISourcePreparation.swift": {
+    "mtime": 1782617185.6245503,
+    "ast_hash": "cfc20f54b32a1d4b1d4c35df69fb3bcc",
+    "semantic_hash": "cfc20f54b32a1d4b1d4c35df69fb3bcc"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspaceDerivedStateBuilder.swift": {
+    "mtime": 1781696455.4136374,
+    "ast_hash": "7746671da9ded2e1cefa8e5bf3da01e6",
+    "semantic_hash": "7746671da9ded2e1cefa8e5bf3da01e6"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspacePersistence.swift": {
+    "mtime": 1782639044.5488646,
+    "ast_hash": "2c5d9e1f72dec05c6cc3793285f3e2ba",
+    "semantic_hash": "2c5d9e1f72dec05c6cc3793285f3e2ba"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift": {
+    "mtime": 1782617158.7366636,
+    "ast_hash": "6ce36e6e38f9a70060f73033ea14f225",
+    "semantic_hash": "6ce36e6e38f9a70060f73033ea14f225"
+  },
+  "QuizFlash/Features/DeckEditor/ViewModels/ZoneCardContent.swift": {
+    "mtime": 1781696455.4147015,
+    "ast_hash": "ee24c3da6f02f8afdbc86d7bb128a6a8",
+    "semantic_hash": "ee24c3da6f02f8afdbc86d7bb128a6a8"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationSheetControls.swift": {
+    "mtime": 1782516224.1205559,
+    "ast_hash": "1c3a6d75edb53b80bdd93c49c651fc91",
+    "semantic_hash": "1c3a6d75edb53b80bdd93c49c651fc91"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationSheetOptionViews.swift": {
+    "mtime": 1782516224.1152892,
+    "ast_hash": "ed076b999ddc2d0e1a773be4d5152f6a",
+    "semantic_hash": "ed076b999ddc2d0e1a773be4d5152f6a"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationSheetSourceViews.swift": {
+    "mtime": 1782617265.8202682,
+    "ast_hash": "4a0f2dfc36335340b9d542dafd1f84e6",
+    "semantic_hash": "4a0f2dfc36335340b9d542dafd1f84e6"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationSheetView.swift": {
+    "mtime": 1782548044.7504175,
+    "ast_hash": "59ecc6f53c2439c73c1885a9cbb7c6d1",
+    "semantic_hash": "59ecc6f53c2439c73c1885a9cbb7c6d1"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationSourcePickerSheetView.swift": {
+    "mtime": 1782546600.564728,
+    "ast_hash": "898989f7c5f1acecac2ddc566c621132",
+    "semantic_hash": "898989f7c5f1acecac2ddc566c621132"
+  },
+  "QuizFlash/Features/DeckEditor/Views/AIGenerationView.swift": {
+    "mtime": 1782547569.5659075,
+    "ast_hash": "a3dc164309f9605e891b8f2d7dbf0ebe",
+    "semantic_hash": "a3dc164309f9605e891b8f2d7dbf0ebe"
+  },
+  "QuizFlash/Features/DeckEditor/Views/CardEditorView.swift": {
+    "mtime": 1782714831.4071615,
+    "ast_hash": "2b43b7f6acd31fddbfef7a3fa2bb50ac",
+    "semantic_hash": "2b43b7f6acd31fddbfef7a3fa2bb50ac"
+  },
+  "QuizFlash/Features/DeckEditor/Views/CardPreviewModeView.swift": {
+    "mtime": 1782516224.1194363,
+    "ast_hash": "b215784b4c3a4ca13ef6e0c14df59ee3",
+    "semantic_hash": "b215784b4c3a4ca13ef6e0c14df59ee3"
+  },
+  "QuizFlash/Features/DeckEditor/Views/DeckWorkspaceChrome.swift": {
+    "mtime": 1782621652.2734923,
+    "ast_hash": "b9a1aea9588ef9fe5ce57f506b55a09e",
+    "semantic_hash": "b9a1aea9588ef9fe5ce57f506b55a09e"
+  },
+  "QuizFlash/Features/DeckEditor/Views/DeckWorkspaceContent.swift": {
+    "mtime": 1782723667.7007995,
+    "ast_hash": "7a3126f04ca3988e30b022f03ba48e30",
+    "semantic_hash": "7a3126f04ca3988e30b022f03ba48e30"
+  },
+  "QuizFlash/Features/DeckEditor/Views/DeckWorkspaceDialogs.swift": {
+    "mtime": 1782516224.1197784,
+    "ast_hash": "4212d80747c9f2743066bf8ffc9a7987",
+    "semantic_hash": "4212d80747c9f2743066bf8ffc9a7987"
+  },
+  "QuizFlash/Features/DeckEditor/Views/DeckWorkspaceView.swift": {
+    "mtime": 1782723667.7014935,
+    "ast_hash": "8668d07938c02793e26f2dc280747cb7",
+    "semantic_hash": "8668d07938c02793e26f2dc280747cb7"
+  },
+  "QuizFlash/Features/DeckEditor/Views/FlashcardEditorView.swift": {
+    "mtime": 1782730265.2185376,
+    "ast_hash": "2eae9f36aec9f462440415da7b23104d",
+    "semantic_hash": "2eae9f36aec9f462440415da7b23104d"
+  },
+  "QuizFlash/Features/DeckEditor/Views/QuizCardEditorView.swift": {
+    "mtime": 1782736390.7524645,
+    "ast_hash": "9ab9d5d0a04db4f6c9a68dd45c060964",
+    "semantic_hash": "9ab9d5d0a04db4f6c9a68dd45c060964"
+  },
+  "QuizFlash/Features/DeckEditor/Views/ZoneView.swift": {
+    "mtime": 1782643619.0553694,
+    "ast_hash": "25eb40033bd51f24cee2603ce8b81767",
+    "semantic_hash": "25eb40033bd51f24cee2603ce8b81767"
+  },
+  "QuizFlash/Features/DeckEditor/ZoneLogic/ZoneController.swift": {
+    "mtime": 1781696455.4202213,
+    "ast_hash": "b1562c01260899e2f009405c7d098c41",
+    "semantic_hash": "b1562c01260899e2f009405c7d098c41"
+  },
+  "QuizFlash/Features/DeckEditor/ZoneLogic/ZoneFocusManager.swift": {
+    "mtime": 1781910191.5717986,
+    "ast_hash": "314d1b18536bcc8bfe9ba303dfeffd77",
+    "semantic_hash": "314d1b18536bcc8bfe9ba303dfeffd77"
+  },
+  "QuizFlash/Features/DeckEditor/ZoneLogic/ZoneTextView.swift": {
+    "mtime": 1782705460.717194,
+    "ast_hash": "b0d87812036ccc456c7dcce974ed4387",
+    "semantic_hash": "b0d87812036ccc456c7dcce974ed4387"
+  },
+  "QuizFlash/Features/FeatureLab/Resources/Lottie/swipe_arrow.json": {
+    "mtime": 1781696455.421523,
+    "ast_hash": "8d98f9522abe2ab7524af8a681ef208a",
+    "semantic_hash": "8d98f9522abe2ab7524af8a681ef208a"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AIDebugTraceHistoryView.swift": {
+    "mtime": 1782537293.0554712,
+    "ast_hash": "3fabed1225bc04ca96a1aeefa7c1a0f3",
+    "semantic_hash": "3fabed1225bc04ca96a1aeefa7c1a0f3"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AIDebugTraceRunDetailView.swift": {
+    "mtime": 1782537293.0581763,
+    "ast_hash": "be266b08a2dd119602f04273597dcd44",
+    "semantic_hash": "be266b08a2dd119602f04273597dcd44"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AIProviderEditorView.swift": {
+    "mtime": 1781696455.422151,
+    "ast_hash": "fff7548283b9e76e293828cf343836a9",
+    "semantic_hash": "fff7548283b9e76e293828cf343836a9"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AIProviderRowView.swift": {
+    "mtime": 1781696455.4222512,
+    "ast_hash": "6f7d35c9659657864d1df6f3afd512b7",
+    "semantic_hash": "6f7d35c9659657864d1df6f3afd512b7"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AIProviderSettingsView.swift": {
+    "mtime": 1782537293.0574656,
+    "ast_hash": "26c7358e7d67e1a8906f775e1d53a53b",
+    "semantic_hash": "26c7358e7d67e1a8906f775e1d53a53b"
+  },
+  "QuizFlash/Features/FeatureLab/Views/AnimatedObjectsLabView.swift": {
+    "mtime": 1781696455.4231923,
+    "ast_hash": "31a14f5f616f26cf83de6ddc489ddd2e",
+    "semantic_hash": "31a14f5f616f26cf83de6ddc489ddd2e"
+  },
+  "QuizFlash/Features/FeatureLab/Views/ContextMenuLabView.swift": {
+    "mtime": 1782537293.0560467,
+    "ast_hash": "6caf0f1fdd754d3f8dff05781668fb8b",
+    "semantic_hash": "6caf0f1fdd754d3f8dff05781668fb8b"
+  },
+  "QuizFlash/Features/FeatureLab/Views/DevelopmentSettingsView.swift": {
+    "mtime": 1782705496.8911223,
+    "ast_hash": "e82f923a4b69b78df762fbeb30e64cf1",
+    "semantic_hash": "e82f923a4b69b78df762fbeb30e64cf1"
+  },
+  "QuizFlash/Features/FeatureLab/Views/DevelopmentThemeStudioView.swift": {
+    "mtime": 1781696455.4239514,
+    "ast_hash": "eec6af427e511d1e10f0eb9ca69ea23e",
+    "semantic_hash": "eec6af427e511d1e10f0eb9ca69ea23e"
+  },
+  "QuizFlash/Features/FeatureLab/Views/FeatureLabFixtures.swift": {
+    "mtime": 1782512126.218112,
+    "ast_hash": "a3ee74bb22988c20631da3946430d881",
+    "semantic_hash": "a3ee74bb22988c20631da3946430d881"
+  },
+  "QuizFlash/Features/FeatureLab/Views/FeatureLabView.swift": {
+    "mtime": 1782537293.0603335,
+    "ast_hash": "62aeef683700204ab5c4e53ba8f5f083",
+    "semantic_hash": "62aeef683700204ab5c4e53ba8f5f083"
+  },
+  "QuizFlash/Features/FeatureLab/Views/FlashCardsPlayModeSimulationView.swift": {
+    "mtime": 1782516224.094255,
+    "ast_hash": "54ece3edd5e4871d18a1f25b37a2d1e8",
+    "semantic_hash": "54ece3edd5e4871d18a1f25b37a2d1e8"
+  },
+  "QuizFlash/Features/FeatureLab/Views/LatexSymbolLabView.swift": {
+    "mtime": 1782537293.0569677,
+    "ast_hash": "4944cc79fbd89577a721fd3bba5b68bd",
+    "semantic_hash": "4944cc79fbd89577a721fd3bba5b68bd"
+  },
+  "QuizFlash/Features/FeatureLab/Views/ProgressiveBlurHeaderLabView.swift": {
+    "mtime": 1782537293.0551388,
+    "ast_hash": "609ae6252fd0ca2364a24f74e31f5055",
+    "semantic_hash": "609ae6252fd0ca2364a24f74e31f5055"
+  },
+  "QuizFlash/Features/FeatureLab/Views/SharedUICatalogView.swift": {
+    "mtime": 1782542719.1544373,
+    "ast_hash": "c6661f7aa9040675269616045d8da067",
+    "semantic_hash": "c6661f7aa9040675269616045d8da067"
+  },
+  "QuizFlash/Features/FeatureLab/Views/SwipeArrowAnimatedObjectView.swift": {
+    "mtime": 1782516224.0929587,
+    "ast_hash": "e9352036114b04f8414e7606bf14fd97",
+    "semantic_hash": "e9352036114b04f8414e7606bf14fd97"
+  },
+  "QuizFlash/Features/Home/Components/FolderCardView.swift": {
+    "mtime": 1782537293.0548072,
+    "ast_hash": "1a48f402d186c8d2f7c915a2e91ffaff",
+    "semantic_hash": "1a48f402d186c8d2f7c915a2e91ffaff"
+  },
+  "QuizFlash/Features/Home/Components/HomeAdaptiveLayoutContext.swift": {
+    "mtime": 1781696455.4253542,
+    "ast_hash": "76cf56e2c739069f166bf01577c12ea6",
+    "semantic_hash": "76cf56e2c739069f166bf01577c12ea6"
+  },
+  "QuizFlash/Features/Home/Components/HomeCalendarAdaptiveLayout.swift": {
+    "mtime": 1781696455.4256382,
+    "ast_hash": "4d56084861b61f1c9a86339e43d0dd05",
+    "semantic_hash": "4d56084861b61f1c9a86339e43d0dd05"
+  },
+  "QuizFlash/Features/Home/Components/HomeCalendarMonthPager.swift": {
+    "mtime": 1781696455.425798,
+    "ast_hash": "df2d5a3047d2f6f00f863d2a89e8ee18",
+    "semantic_hash": "df2d5a3047d2f6f00f863d2a89e8ee18"
+  },
+  "QuizFlash/Features/Home/Components/HomeCalendarSectionView.swift": {
+    "mtime": 1782557628.4117286,
+    "ast_hash": "9d96f9c9e44c65a4bd5f71688674b7f0",
+    "semantic_hash": "9d96f9c9e44c65a4bd5f71688674b7f0"
+  },
+  "QuizFlash/Features/Home/Components/HomeCompactCalendarWeekStrip.swift": {
+    "mtime": 1781696455.4266584,
+    "ast_hash": "0f6f364835d927a7b1321382a863d7aa",
+    "semantic_hash": "0f6f364835d927a7b1321382a863d7aa"
+  },
+  "QuizFlash/Features/Home/Components/HomeDashboardAdaptiveMetrics.swift": {
+    "mtime": 1781696455.4270601,
+    "ast_hash": "d4ead66da1db83c579a564c50c55f792",
+    "semantic_hash": "d4ead66da1db83c579a564c50c55f792"
+  },
+  "QuizFlash/Features/Home/Components/HomeDeckHealthCards.swift": {
+    "mtime": 1782537293.0557601,
+    "ast_hash": "29605cc483ef7cd99f747dc172a66632",
+    "semantic_hash": "29605cc483ef7cd99f747dc172a66632"
+  },
+  "QuizFlash/Features/Home/Components/HomeFoldersQuickStripView.swift": {
+    "mtime": 1782537293.056635,
+    "ast_hash": "3b528b58868c17769ea57926da580d4b",
+    "semantic_hash": "3b528b58868c17769ea57926da580d4b"
+  },
+  "QuizFlash/Features/Home/Components/HomeGreetingCardView.swift": {
+    "mtime": 1782516224.1285477,
+    "ast_hash": "30499e4c644e56245b423922624544cb",
+    "semantic_hash": "30499e4c644e56245b423922624544cb"
+  },
+  "QuizFlash/Features/Home/Components/HomeRecentDeckCardView.swift": {
+    "mtime": 1782516224.130525,
+    "ast_hash": "f5db18af68c58012dd58368dad91bb63",
+    "semantic_hash": "f5db18af68c58012dd58368dad91bb63"
+  },
+  "QuizFlash/Features/Home/Components/HomeStatsView.swift": {
+    "mtime": 1782551677.784319,
+    "ast_hash": "2b6ce6873b287e4605fc56a2c5d8aeba",
+    "semantic_hash": "2b6ce6873b287e4605fc56a2c5d8aeba"
+  },
+  "QuizFlash/Features/Home/Components/HomeTopHeaderSectionView.swift": {
+    "mtime": 1782537293.0607362,
+    "ast_hash": "e71de649b9abd7ec61651be5715bceec",
+    "semantic_hash": "e71de649b9abd7ec61651be5715bceec"
+  },
+  "QuizFlash/Features/Home/ViewModels/CalendarViewModel.swift": {
+    "mtime": 1781696455.4283373,
+    "ast_hash": "68e9b31d5b46ef43d02914b2b9f44d72",
+    "semantic_hash": "68e9b31d5b46ef43d02914b2b9f44d72"
+  },
+  "QuizFlash/Features/Home/ViewModels/HomeDashboardCalculator.swift": {
+    "mtime": 1782428875.1770842,
+    "ast_hash": "bfb019a89483cfd3326c332934f332ae",
+    "semantic_hash": "bfb019a89483cfd3326c332934f332ae"
+  },
+  "QuizFlash/Features/Home/ViewModels/HomeDashboardSnapshot.swift": {
+    "mtime": 1782411200.9875367,
+    "ast_hash": "60a7d7c9d92e626c65d2a33055374a8a",
+    "semantic_hash": "60a7d7c9d92e626c65d2a33055374a8a"
+  },
+  "QuizFlash/Features/Home/ViewModels/HomeViewModel.swift": {
+    "mtime": 1782428855.6081383,
+    "ast_hash": "b7b4f1406cc0d32d2d88801f8cc88e71",
+    "semantic_hash": "b7b4f1406cc0d32d2d88801f8cc88e71"
+  },
+  "QuizFlash/Features/Home/Views/FolderView.swift": {
+    "mtime": 1782516224.137939,
+    "ast_hash": "f12702136f881f7912b6f4deb627087d",
+    "semantic_hash": "f12702136f881f7912b6f4deb627087d"
+  },
+  "QuizFlash/Features/Home/Views/HomeDashboardView.swift": {
+    "mtime": 1782557628.414517,
+    "ast_hash": "7d692fc4dc6a29ba67fa2bfd98c9296a",
+    "semantic_hash": "7d692fc4dc6a29ba67fa2bfd98c9296a"
+  },
+  "QuizFlash/Features/Home/Views/HomePerformanceDetailSheetView.swift": {
+    "mtime": 1782522334.124768,
+    "ast_hash": "eb801becb5474cf9a4540d204907d2b7",
+    "semantic_hash": "eb801becb5474cf9a4540d204907d2b7"
+  },
+  "QuizFlash/Features/Home/Views/HomeView.swift": {
+    "mtime": 1782516224.1357229,
+    "ast_hash": "cee5f01cd7d51ba7f8c63233d0b0253f",
+    "semantic_hash": "cee5f01cd7d51ba7f8c63233d0b0253f"
+  },
+  "QuizFlash/Features/Library/Components/LibraryDeckListRow.swift": {
+    "mtime": 1782535383.106903,
+    "ast_hash": "b84769a88da0c2db0d559201914cc982",
+    "semantic_hash": "b84769a88da0c2db0d559201914cc982"
+  },
+  "QuizFlash/Features/Library/Components/LibraryDeckListViews.swift": {
+    "mtime": 1781696455.4303381,
+    "ast_hash": "5ec90bf53a52eec746fdf22f4958a4ca",
+    "semantic_hash": "5ec90bf53a52eec746fdf22f4958a4ca"
+  },
+  "QuizFlash/Features/Library/Components/LibraryGrouping.swift": {
+    "mtime": 1782512257.567776,
+    "ast_hash": "991e805bb75672fac55fd53d09b9f108",
+    "semantic_hash": "991e805bb75672fac55fd53d09b9f108"
+  },
+  "QuizFlash/Features/Library/Components/LibraryLayout+CollapsedTitle.swift": {
+    "mtime": 1781696455.4305649,
+    "ast_hash": "aad83234cc581670e36a064ea615678c",
+    "semantic_hash": "aad83234cc581670e36a064ea615678c"
+  },
+  "QuizFlash/Features/Library/Components/LibraryLayout+MainScrollArea.swift": {
+    "mtime": 1782527328.1831403,
+    "ast_hash": "7863bbb4437b16fcea058ab14265a3f5",
+    "semantic_hash": "7863bbb4437b16fcea058ab14265a3f5"
+  },
+  "QuizFlash/Features/Library/Components/LibraryLayout.swift": {
+    "mtime": 1782060605.7818127,
+    "ast_hash": "e481545030284788ad091c96fd370c72",
+    "semantic_hash": "e481545030284788ad091c96fd370c72"
+  },
+  "QuizFlash/Features/Library/Components/LibrarySectionHeaders.swift": {
+    "mtime": 1782516224.0888505,
+    "ast_hash": "f46bee67c30b402727b8c7ecf76cddfa",
+    "semantic_hash": "f46bee67c30b402727b8c7ecf76cddfa"
+  },
+  "QuizFlash/Features/Library/Components/LibrarySelectionBarView.swift": {
+    "mtime": 1781696455.4312057,
+    "ast_hash": "797e7408dd7b60a9f8ac72b329344a5f",
+    "semantic_hash": "797e7408dd7b60a9f8ac72b329344a5f"
+  },
+  "QuizFlash/Features/Library/Components/LibraryStickyBehavior.swift": {
+    "mtime": 1781696455.4316835,
+    "ast_hash": "4f886cefd449147dd1d3e44ac0dbc3d1",
+    "semantic_hash": "4f886cefd449147dd1d3e44ac0dbc3d1"
+  },
+  "QuizFlash/Features/Library/Components/LibrarySupportViews.swift": {
+    "mtime": 1782551677.7855387,
+    "ast_hash": "ed2aca38b25be04ec3b140edc569a97c",
+    "semantic_hash": "ed2aca38b25be04ec3b140edc569a97c"
+  },
+  "QuizFlash/Features/Library/Components/LibraryTopBarControls.swift": {
+    "mtime": 1782555633.9121943,
+    "ast_hash": "769939b70adffdcd9c253a912dfd17a3",
+    "semantic_hash": "769939b70adffdcd9c253a912dfd17a3"
+  },
+  "QuizFlash/Features/Library/Components/LibraryTopBarMenuContent.swift": {
+    "mtime": 1781696455.4321272,
+    "ast_hash": "1db90775ce1659b7238eeb91451ff744",
+    "semantic_hash": "1db90775ce1659b7238eeb91451ff744"
+  },
+  "QuizFlash/Features/Library/Components/LibraryTopBarView+Chrome.swift": {
+    "mtime": 1781696455.4322593,
+    "ast_hash": "e351a0a412f56134127bfc67e865dc3e",
+    "semantic_hash": "e351a0a412f56134127bfc67e865dc3e"
+  },
+  "QuizFlash/Features/Library/Components/LibraryTopBarView+Search.swift": {
+    "mtime": 1782516224.0854614,
+    "ast_hash": "21bd20a34dff17ad120af4f01eb190aa",
+    "semantic_hash": "21bd20a34dff17ad120af4f01eb190aa"
+  },
+  "QuizFlash/Features/Library/Components/LibraryTopBarView.swift": {
+    "mtime": 1781696455.432524,
+    "ast_hash": "269ab856382e85ea077bd206beaa4642",
+    "semantic_hash": "269ab856382e85ea077bd206beaa4642"
+  },
+  "QuizFlash/Features/Library/Components/LibraryViewModifiers.swift": {
+    "mtime": 1782023577.8408868,
+    "ast_hash": "cfa8b84e24e0c05453c9fc56f6debe54",
+    "semantic_hash": "cfa8b84e24e0c05453c9fc56f6debe54"
+  },
+  "QuizFlash/Features/Library/ViewModels/HighlightContext.swift": {
+    "mtime": 1781696455.4329772,
+    "ast_hash": "3491e839766ed55fd3437cb52e6b16f4",
+    "semantic_hash": "3491e839766ed55fd3437cb52e6b16f4"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel+DeckTransfers.swift": {
+    "mtime": 1782023591.3402808,
+    "ast_hash": "c310573a56fae84176784904d0157209",
+    "semantic_hash": "c310573a56fae84176784904d0157209"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel+Grouping.swift": {
+    "mtime": 1782060593.954831,
+    "ast_hash": "be63563d311a84f101e79bd6fc9f1c6e",
+    "semantic_hash": "be63563d311a84f101e79bd6fc9f1c6e"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel+Search.swift": {
+    "mtime": 1781696455.4334252,
+    "ast_hash": "8fc704a1cd317756d8d50b8a155c62cc",
+    "semantic_hash": "8fc704a1cd317756d8d50b8a155c62cc"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel+SearchCache.swift": {
+    "mtime": 1781696455.4335496,
+    "ast_hash": "eac6b4f75372ed21d793cc3312770678",
+    "semantic_hash": "eac6b4f75372ed21d793cc3312770678"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel+Selection.swift": {
+    "mtime": 1781696455.4336631,
+    "ast_hash": "d50d354753609f17cac55b090c6be581",
+    "semantic_hash": "d50d354753609f17cac55b090c6be581"
+  },
+  "QuizFlash/Features/Library/ViewModels/LibraryViewModel.swift": {
+    "mtime": 1782060589.2963164,
+    "ast_hash": "b9b103f6ba755d5c2c7cef8065b36a73",
+    "semantic_hash": "b9b103f6ba755d5c2c7cef8065b36a73"
+  },
+  "QuizFlash/Features/Library/ViewModels/SearchModels.swift": {
+    "mtime": 1781696455.4339323,
+    "ast_hash": "e15b846b0b83db1be574e314e42677d8",
+    "semantic_hash": "e15b846b0b83db1be574e314e42677d8"
+  },
+  "QuizFlash/Features/Library/Views/LibraryView.swift": {
+    "mtime": 1781696455.4341238,
+    "ast_hash": "90555a55baa5940c39cff1c9bbd3e7f4",
+    "semantic_hash": "90555a55baa5940c39cff1c9bbd3e7f4"
+  },
+  "QuizFlash/Features/Library/Views/SearchResultsView.swift": {
+    "mtime": 1782551677.7861626,
+    "ast_hash": "49e6f44fa4589c2d83fd394004cca66e",
+    "semantic_hash": "49e6f44fa4589c2d83fd394004cca66e"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Components/FlipCard.swift": {
+    "mtime": 1782516224.0809174,
+    "ast_hash": "a96769dca6c264f156618a28c482d388",
+    "semantic_hash": "a96769dca6c264f156618a28c482d388"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Components/GameplayCard.swift": {
+    "mtime": 1781696455.4356604,
+    "ast_hash": "29054429c9d76fdb401c9d3b4ad784de",
+    "semantic_hash": "29054429c9d76fdb401c9d3b4ad784de"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Components/SwipeableCard.swift": {
+    "mtime": 1781696455.4359353,
+    "ast_hash": "1ad4eba19e1c5308f9ad4c089601fc31",
+    "semantic_hash": "1ad4eba19e1c5308f9ad4c089601fc31"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Components/SwipeableCardDebugViews.swift": {
+    "mtime": 1781696455.4360526,
+    "ast_hash": "ec1d174a020ac4ff02da314401e5b44e",
+    "semantic_hash": "ec1d174a020ac4ff02da314401e5b44e"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Components/SwipeableCardUIKitBridge.swift": {
+    "mtime": 1781696455.4362714,
+    "ast_hash": "b492eeaeb41fa833fdbae112ff0f25b3",
+    "semantic_hash": "b492eeaeb41fa833fdbae112ff0f25b3"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/ViewModels/FlashCardsPlayModeViewModel.swift": {
+    "mtime": 1781696455.4368327,
+    "ast_hash": "fa9fa18e740ec01fd90b191207d63035",
+    "semantic_hash": "fa9fa18e740ec01fd90b191207d63035"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/ViewModels/GamificationModels.swift": {
+    "mtime": 1781696455.4369419,
+    "ast_hash": "c0baac99ca1486357704bff51f008a42",
+    "semantic_hash": "c0baac99ca1486357704bff51f008a42"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/ViewModels/ReviewModels.swift": {
+    "mtime": 1781696455.4370348,
+    "ast_hash": "ae9bb67b5505ef7695e6542872a1e792",
+    "semantic_hash": "ae9bb67b5505ef7695e6542872a1e792"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsModeSettingsView.swift": {
+    "mtime": 1782434593.8548,
+    "ast_hash": "4bf96cbe44b049dd6e1aeb110ed7a219",
+    "semantic_hash": "4bf96cbe44b049dd6e1aeb110ed7a219"
+  },
+  "QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift": {
+    "mtime": 1782549856.749585,
+    "ast_hash": "5d19dde10856f86ecc353e56ec1eec02",
+    "semantic_hash": "5d19dde10856f86ecc353e56ec1eec02"
+  },
+  "QuizFlash/Features/PlayMode/QuizMode/ViewModels/QuizModeViewModel.swift": {
+    "mtime": 1781935003.446973,
+    "ast_hash": "be438a8e201fcecc413dfcf86e779084",
+    "semantic_hash": "be438a8e201fcecc413dfcf86e779084"
+  },
+  "QuizFlash/Features/PlayMode/QuizMode/Views/QuizModeView.swift": {
+    "mtime": 1782730694.1719246,
+    "ast_hash": "d0445f31da9ebad802f38c2a4beb5236",
+    "semantic_hash": "d0445f31da9ebad802f38c2a4beb5236"
+  },
+  "QuizFlash/Features/PlayMode/Shared/Components/PlayModeSessionComponents.swift": {
+    "mtime": 1782516224.0771158,
+    "ast_hash": "f08693ad2a477f9d683d230b3e91ca17",
+    "semantic_hash": "f08693ad2a477f9d683d230b3e91ca17"
+  },
+  "QuizFlash/Features/PlayMode/Shared/Components/ZoneContentLayout.swift": {
+    "mtime": 1782628881.7622364,
+    "ast_hash": "d5d0fa1d619d3afaa6f6d738ae9c17be",
+    "semantic_hash": "d5d0fa1d619d3afaa6f6d738ae9c17be"
+  },
+  "QuizFlash/Features/PlayMode/Shared/DeckPlayModeDestination.swift": {
+    "mtime": 1782535383.1018581,
+    "ast_hash": "be51b60fbacb133b85c474ac8aac807b",
+    "semantic_hash": "be51b60fbacb133b85c474ac8aac807b"
+  },
+  "QuizFlash/Features/PlayMode/Shared/PlayModeSessionModels.swift": {
+    "mtime": 1781696455.43987,
+    "ast_hash": "fcd6f7bec71ab60001575b5bed02c817",
+    "semantic_hash": "fcd6f7bec71ab60001575b5bed02c817"
+  },
+  "QuizFlash/Features/PlayMode/Shared/PlayModeSettingsCards.swift": {
+    "mtime": 1782535383.1265585,
+    "ast_hash": "06a25142920577c60748aa70a2fecf1f",
+    "semantic_hash": "06a25142920577c60748aa70a2fecf1f"
+  },
+  "QuizFlash/Features/PlayMode/Shared/PlayModeSettingsRows.swift": {
+    "mtime": 1782516224.0733292,
+    "ast_hash": "4cb789ba433acc0f585f673b5d825997",
+    "semantic_hash": "4cb789ba433acc0f585f673b5d825997"
+  },
+  "QuizFlash/Features/PlayMode/Shared/PlayModeSettingsScreen.swift": {
+    "mtime": 1782516224.0728037,
+    "ast_hash": "35864ecb04d2708689975833bf471000",
+    "semantic_hash": "35864ecb04d2708689975833bf471000"
+  },
+  "QuizFlash/Features/PlayMode/Shared/PlaySessionPersistenceService.swift": {
+    "mtime": 1781696455.4407544,
+    "ast_hash": "59916a1bd116cfab2ea86229b9c347b6",
+    "semantic_hash": "59916a1bd116cfab2ea86229b9c347b6"
+  },
+  "QuizFlash/Features/Settings/Views/SettingsComponents.swift": {
+    "mtime": 1782645737.9129047,
+    "ast_hash": "18af623f5f8869996206a047b2b6a596",
+    "semantic_hash": "18af623f5f8869996206a047b2b6a596"
+  },
+  "QuizFlash/Features/Settings/Views/SettingsView.swift": {
+    "mtime": 1782645737.9132245,
+    "ast_hash": "31acd06f409a70f67b36e2f7fa88c19b",
+    "semantic_hash": "31acd06f409a70f67b36e2f7fa88c19b"
+  },
+  "QuizFlash/Services/AI/AIDebugTraceStore.swift": {
+    "mtime": 1782076953.4130175,
+    "ast_hash": "ad092dd20a10e09770ab89580fcdefcb",
+    "semantic_hash": "ad092dd20a10e09770ab89580fcdefcb"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+Decoding.swift": {
+    "mtime": 1782343203.8678603,
+    "ast_hash": "ccccd82fc73c100991340fe511745dc3",
+    "semantic_hash": "ccccd82fc73c100991340fe511745dc3"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+GenerationExecution.swift": {
+    "mtime": 1782607449.5833228,
+    "ast_hash": "a3f9552008cdae0e4809ac337efb97ea",
+    "semantic_hash": "a3f9552008cdae0e4809ac337efb97ea"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+GenerationPipeline.swift": {
+    "mtime": 1782613536.0097988,
+    "ast_hash": "1c98f88752bb8a05910b1cfa98b58ba3",
+    "semantic_hash": "1c98f88752bb8a05910b1cfa98b58ba3"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+GenerationPlans.swift": {
+    "mtime": 1782607675.3877907,
+    "ast_hash": "2dc0184a3c5a60c0bbf0e0d7a660b257",
+    "semantic_hash": "2dc0184a3c5a60c0bbf0e0d7a660b257"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+Networking.swift": {
+    "mtime": 1782614058.3569403,
+    "ast_hash": "025f9bda96ecd78eefea14a5019408c4",
+    "semantic_hash": "025f9bda96ecd78eefea14a5019408c4"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService+Prompting.swift": {
+    "mtime": 1782614042.5105078,
+    "ast_hash": "d8fa4001320179276a5f7a660c0ade7e",
+    "semantic_hash": "d8fa4001320179276a5f7a660c0ade7e"
+  },
+  "QuizFlash/Services/AI/AIFlashcardService.swift": {
+    "mtime": 1782613569.0212605,
+    "ast_hash": "600013fa5eede62fd68740571a4f7f4c",
+    "semantic_hash": "600013fa5eede62fd68740571a4f7f4c"
+  },
+  "QuizFlash/Services/AI/AIGeneratedCardContentMapper.swift": {
+    "mtime": 1781696455.4451025,
+    "ast_hash": "eb44a72e7ee6dcd5bb992ccaf0298cce",
+    "semantic_hash": "eb44a72e7ee6dcd5bb992ccaf0298cce"
+  },
+  "QuizFlash/Services/AI/AIGenerationBackgroundCoordinator.swift": {
+    "mtime": 1781696455.445252,
+    "ast_hash": "5681c9c5fb7e516fad02a20803cd829f",
+    "semantic_hash": "5681c9c5fb7e516fad02a20803cd829f"
+  },
+  "QuizFlash/Services/AI/AIGenerationSessionStore.swift": {
+    "mtime": 1782331986.8596194,
+    "ast_hash": "12a76ea72f3f7548a25b371a9e61db9b",
+    "semantic_hash": "12a76ea72f3f7548a25b371a9e61db9b"
+  },
+  "QuizFlash/Services/AI/AIGenerationState.swift": {
+    "mtime": 1782607050.4262075,
+    "ast_hash": "479456a3ea602d7d3e76cff099af9adf",
+    "semantic_hash": "479456a3ea602d7d3e76cff099af9adf"
+  },
+  "QuizFlash/Services/AI/AIJobSessionStore.swift": {
+    "mtime": 1782335139.2712107,
+    "ast_hash": "b3975c81cb9476167b5b33ed0a950acd",
+    "semantic_hash": "b3975c81cb9476167b5b33ed0a950acd"
+  },
+  "QuizFlash/Services/AI/AIPromptBundle.swift": {
+    "mtime": 1782613897.454222,
+    "ast_hash": "550a4333348442186d1a5ae26f36d8d5",
+    "semantic_hash": "550a4333348442186d1a5ae26f36d8d5"
+  },
+  "QuizFlash/Services/AI/AIProviderStore.swift": {
+    "mtime": 1782054026.6603138,
+    "ast_hash": "26f040cc970405c2be2ae5bf347ef356",
+    "semantic_hash": "26f040cc970405c2be2ae5bf347ef356"
+  },
+  "QuizFlash/Services/AI/AIWorkspaceCoordinator.swift": {
+    "mtime": 1781696455.4462323,
+    "ast_hash": "61296429ffb2722dac33aa13b2dd3be0",
+    "semantic_hash": "61296429ffb2722dac33aa13b2dd3be0"
+  },
+  "QuizFlash/Services/AI/AIZoneParser.swift": {
+    "mtime": 1781696455.4463556,
+    "ast_hash": "9e16b1a7ad2f16962c168bc3be65cc4f",
+    "semantic_hash": "9e16b1a7ad2f16962c168bc3be65cc4f"
+  },
+  "QuizFlash/Services/AI/DocumentTextExtractor.swift": {
+    "mtime": 1782550304.944267,
+    "ast_hash": "afb0ec587c6d8e069d74e0952ec9eeb7",
+    "semantic_hash": "afb0ec587c6d8e069d74e0952ec9eeb7"
+  },
+  "QuizFlash/Services/AI/PDFImportDebugStore.swift": {
+    "mtime": 1782335139.2700744,
+    "ast_hash": "8cf99e5ba58085870f9918bde2d83044",
+    "semantic_hash": "8cf99e5ba58085870f9918bde2d83044"
+  },
+  "QuizFlash/Services/Auth/AuthErrorPresentation.swift": {
+    "mtime": 1781997944.3603776,
+    "ast_hash": "6cd84b510b1f963e0f203c09d7e02797",
+    "semantic_hash": "6cd84b510b1f963e0f203c09d7e02797"
+  },
+  "QuizFlash/Services/Auth/AuthManager.swift": {
+    "mtime": 1782048376.8492615,
+    "ast_hash": "13a8ac4553868f1ecfb4f9684fc1f493",
+    "semantic_hash": "13a8ac4553868f1ecfb4f9684fc1f493"
+  },
+  "QuizFlash/Services/Cloud/CloudAIGenerationService.swift": {
+    "mtime": 1782096129.2674816,
+    "ast_hash": "3b0aeb6bd75c23a036d029d6a9bb291d",
+    "semantic_hash": "3b0aeb6bd75c23a036d029d6a9bb291d"
+  },
+  "QuizFlash/Services/Cloud/CloudAIProxyClient.swift": {
+    "mtime": 1782615514.7474632,
+    "ast_hash": "146465feacf33c4be7363cd32136a6f3",
+    "semantic_hash": "146465feacf33c4be7363cd32136a6f3"
+  },
+  "QuizFlash/Services/Cloud/CloudSyncCoordinator.swift": {
+    "mtime": 1782710247.1078348,
+    "ast_hash": "4ef88d434ebd2a8dd64a47541b8a0786",
+    "semantic_hash": "4ef88d434ebd2a8dd64a47541b8a0786"
+  },
+  "QuizFlash/Services/Cloud/CloudSyncOutbox.swift": {
+    "mtime": 1782023276.2819157,
+    "ast_hash": "cf165194552bef0d6fc4d3f2f6e61fc5",
+    "semantic_hash": "cf165194552bef0d6fc4d3f2f6e61fc5"
+  },
+  "QuizFlash/Services/Cloud/CloudSyncService.swift": {
+    "mtime": 1782023846.7335827,
+    "ast_hash": "a54b09d27fc61c3c0ceb96760b5f59b3",
+    "semantic_hash": "a54b09d27fc61c3c0ceb96760b5f59b3"
+  },
+  "QuizFlash/Services/Cloud/CloudUserProfileService.swift": {
+    "mtime": 1782561874.0634084,
+    "ast_hash": "a30285e8c9ad7fd00a629fbf1a638330",
+    "semantic_hash": "a30285e8c9ad7fd00a629fbf1a638330"
+  },
+  "QuizFlash/Services/Search/LibrarySearchActor.swift": {
+    "mtime": 1781696455.4474494,
+    "ast_hash": "84e20fb15e10fceed6f50af657559172",
+    "semantic_hash": "84e20fb15e10fceed6f50af657559172"
+  },
+  "QuizFlash/Services/Search/SearchEngine.swift": {
+    "mtime": 1781696455.4478366,
+    "ast_hash": "35cb2fb156a516e91546ab8f5c70edb6",
+    "semantic_hash": "35cb2fb156a516e91546ab8f5c70edb6"
+  },
+  "QuizFlash/Services/Settings/AppMigrationStore.swift": {
+    "mtime": 1781696455.4480407,
+    "ast_hash": "f6b10485e523626baf6070c2c3fb6fa4",
+    "semantic_hash": "f6b10485e523626baf6070c2c3fb6fa4"
+  },
+  "QuizFlash/Services/Settings/AppPreferences.swift": {
+    "mtime": 1782410666.3148549,
+    "ast_hash": "6c720e5dc5c06494ae6ba291a74ba2f7",
+    "semantic_hash": "6c720e5dc5c06494ae6ba291a74ba2f7"
+  },
+  "QuizFlash/Services/Settings/DevelopmentPreferences.swift": {
+    "mtime": 1782347883.4279137,
+    "ast_hash": "69fc65f10ca1f1c27624a14af1974cf2",
+    "semantic_hash": "69fc65f10ca1f1c27624a14af1974cf2"
+  },
+  "QuizFlash/Services/Storage/DeckJSONDocument.swift": {
+    "mtime": 1781696455.449318,
+    "ast_hash": "395c360720e882d42f9be4aa4a20d4b1",
+    "semantic_hash": "395c360720e882d42f9be4aa4a20d4b1"
+  },
+  "QuizFlash/Services/Storage/DeckSharingManager.swift": {
+    "mtime": 1781696455.4496417,
+    "ast_hash": "626b5801a3583ece2456549ebe5bfd55",
+    "semantic_hash": "626b5801a3583ece2456549ebe5bfd55"
+  },
+  "QuizFlash/Services/Subscriptions/SubscriptionManager.swift": {
+    "mtime": 1782600106.4047616,
+    "ast_hash": "02cba48bf7a01bb67bb62438a90069a9",
+    "semantic_hash": "02cba48bf7a01bb67bb62438a90069a9"
+  },
+  "QuizFlashTests/AI/AICardJSONDecodingTests.swift": {
+    "mtime": 1782613803.983451,
+    "ast_hash": "a2d63f85f07c73bc7d57f0ceacf18dbc",
+    "semantic_hash": "a2d63f85f07c73bc7d57f0ceacf18dbc"
+  },
+  "QuizFlashTests/AI/AIGenerationSessionStoreTests.swift": {
+    "mtime": 1781696455.451745,
+    "ast_hash": "918f8a12f9f4932785a7aa4a8d08a0e2",
+    "semantic_hash": "918f8a12f9f4932785a7aa4a8d08a0e2"
+  },
+  "QuizFlashTests/AI/AIJobSessionStoreTests.swift": {
+    "mtime": 1781696455.4518428,
+    "ast_hash": "63c994502a34eb205a3b77d6efce831d",
+    "semantic_hash": "63c994502a34eb205a3b77d6efce831d"
+  },
+  "QuizFlashTests/AI/AIPromptBundleFixture.swift": {
+    "mtime": 1782613950.0648222,
+    "ast_hash": "04f16d4608fd050435a91a9356ed446b",
+    "semantic_hash": "04f16d4608fd050435a91a9356ed446b"
+  },
+  "QuizFlashTests/AI/AIPromptBundleTests.swift": {
+    "mtime": 1782293651.6068952,
+    "ast_hash": "e7deb021df30ee60ff24e193c4895cf6",
+    "semantic_hash": "e7deb021df30ee60ff24e193c4895cf6"
+  },
+  "QuizFlashTests/AI/AIProviderStoreTests.swift": {
+    "mtime": 1782054101.9448211,
+    "ast_hash": "d67e371cf9f9ff3e4a2b067411420add",
+    "semantic_hash": "d67e371cf9f9ff3e4a2b067411420add"
+  },
+  "QuizFlashTests/AI/AIWorkspaceCoordinatorTests.swift": {
+    "mtime": 1781696455.4522421,
+    "ast_hash": "e9c6a77c8082070d8abc8bf44037e3a1",
+    "semantic_hash": "e9c6a77c8082070d8abc8bf44037e3a1"
+  },
+  "QuizFlashTests/Authoring/CardEditorTextSizeResolverTests.swift": {
+    "mtime": 1781696455.4530685,
+    "ast_hash": "cd3b9cf1419faf55f7c2bea4d9dd936e",
+    "semantic_hash": "cd3b9cf1419faf55f7c2bea4d9dd936e"
+  },
+  "QuizFlashTests/Authoring/DeckWorkspaceViewModelTests.swift": {
+    "mtime": 1782614203.4575167,
+    "ast_hash": "2edf49131876b045eca5f08a06215416",
+    "semantic_hash": "2edf49131876b045eca5f08a06215416"
+  },
+  "QuizFlashTests/Authoring/ZoneEditorInitialBlockWidthResolverTests.swift": {
+    "mtime": 1781696455.4536774,
+    "ast_hash": "b21007f5f2bd7da98e8ae375284a7cf7",
+    "semantic_hash": "b21007f5f2bd7da98e8ae375284a7cf7"
+  },
+  "QuizFlashTests/Authoring/ZoneModelLayoutMigrationTests.swift": {
+    "mtime": 1781979624.9117646,
+    "ast_hash": "59570a707eea0501183e1d85bc5735f8",
+    "semantic_hash": "59570a707eea0501183e1d85bc5735f8"
+  },
+  "QuizFlashTests/Cloud/CloudAIProxyClientContractTests.swift": {
+    "mtime": 1782343224.6343603,
+    "ast_hash": "c139c3617153232a4e9580799b7391a8",
+    "semantic_hash": "c139c3617153232a4e9580799b7391a8"
+  },
+  "QuizFlashTests/Cloud/CloudSyncConflictResolutionTests.swift": {
+    "mtime": 1782710262.9847786,
+    "ast_hash": "523abebad41040d631869d696d8a5d05",
+    "semantic_hash": "523abebad41040d631869d696d8a5d05"
+  },
+  "QuizFlashTests/Cloud/CloudSyncOutboxTests.swift": {
+    "mtime": 1782024074.1401687,
+    "ast_hash": "6158d115ee1bf16a26280fdbbc105a38",
+    "semantic_hash": "6158d115ee1bf16a26280fdbbc105a38"
+  },
+  "QuizFlashTests/DeckDetails/DeckViewModelMutationTests.swift": {
+    "mtime": 1781696455.4541912,
+    "ast_hash": "6b710cce7ef25e21c558b59f1b8a2c14",
+    "semantic_hash": "6b710cce7ef25e21c558b59f1b8a2c14"
+  },
+  "QuizFlashTests/DeckDetails/DeckViewModelSnapshotTests.swift": {
+    "mtime": 1781696455.4543211,
+    "ast_hash": "70d04e660104fee26c3e50298bf8fccb",
+    "semantic_hash": "70d04e660104fee26c3e50298bf8fccb"
+  },
+  "QuizFlashTests/DeckDetails/MiniCardPreviewLayoutCalculatorTests.swift": {
+    "mtime": 1781696455.4544616,
+    "ast_hash": "7ec408c0061c3696b07ddb198cb0510c",
+    "semantic_hash": "7ec408c0061c3696b07ddb198cb0510c"
+  },
+  "QuizFlashTests/DesignSystem/AnimatedProgressRingTests.swift": {
+    "mtime": 1781696455.4547668,
+    "ast_hash": "437e2eeb87d773528817e68fc0b28e42",
+    "semantic_hash": "437e2eeb87d773528817e68fc0b28e42"
+  },
+  "QuizFlashTests/DesignSystem/CustomContextMenuCoordinatorTests.swift": {
+    "mtime": 1781696455.4548805,
+    "ast_hash": "b5206771e119f3969a5ebf383dcfd27c",
+    "semantic_hash": "b5206771e119f3969a5ebf383dcfd27c"
+  },
+  "QuizFlashTests/DesignSystem/CustomContextMenuLayoutResolverTests.swift": {
+    "mtime": 1781696455.4552424,
+    "ast_hash": "35c82f89c17aadadce370e33dfa8548d",
+    "semantic_hash": "35c82f89c17aadadce370e33dfa8548d"
+  },
+  "QuizFlashTests/DesignSystem/MathTextSanitizerTests.swift": {
+    "mtime": 1781696455.4558854,
+    "ast_hash": "13ea4aa2956bfcbb79b579c1b5f7d038",
+    "semantic_hash": "13ea4aa2956bfcbb79b579c1b5f7d038"
+  },
+  "QuizFlashTests/DesignSystem/TabBarScrollAutoHideResolverTests.swift": {
+    "mtime": 1782533152.4449675,
+    "ast_hash": "9f7609ae91153775ade63cabace1b3ec",
+    "semantic_hash": "9f7609ae91153775ade63cabace1b3ec"
+  },
+  "QuizFlashTests/Home/CalendarViewModelTests.swift": {
+    "mtime": 1781696455.4562116,
+    "ast_hash": "3406d0e9dc23e540ba73cd91fa4f24e0",
+    "semantic_hash": "3406d0e9dc23e540ba73cd91fa4f24e0"
+  },
+  "QuizFlashTests/Home/HomeAnalyticsRepositoryTests.swift": {
+    "mtime": 1782426071.870729,
+    "ast_hash": "93bf642f1ff6c2aed9a85c1f0af0ef90",
+    "semantic_hash": "93bf642f1ff6c2aed9a85c1f0af0ef90"
+  },
+  "QuizFlashTests/Home/HomeCalendarDayMetricsTests.swift": {
+    "mtime": 1781696455.45665,
+    "ast_hash": "0064245198dd05ddd92c7ec9da076e44",
+    "semantic_hash": "0064245198dd05ddd92c7ec9da076e44"
+  },
+  "QuizFlashTests/Home/HomeCompactCalendarLayoutTests.swift": {
+    "mtime": 1781696455.4568117,
+    "ast_hash": "5f69fb19e107ae8521e3b720e1dd5e26",
+    "semantic_hash": "5f69fb19e107ae8521e3b720e1dd5e26"
+  },
+  "QuizFlashTests/Home/HomeDashboardAdaptiveMetricsTests.swift": {
+    "mtime": 1781696455.4569218,
+    "ast_hash": "afc6511271dc12649306401df5d53814",
+    "semantic_hash": "afc6511271dc12649306401df5d53814"
+  },
+  "QuizFlashTests/Home/HomeViewModelTests.swift": {
+    "mtime": 1782429443.4498086,
+    "ast_hash": "f3e5e13a2632d567a5d9560218dcfb9c",
+    "semantic_hash": "f3e5e13a2632d567a5d9560218dcfb9c"
+  },
+  "QuizFlashTests/Library/LibraryGroupingTests.swift": {
+    "mtime": 1781696455.4572372,
+    "ast_hash": "00afe4c835976d503705901850c54bf8",
+    "semantic_hash": "00afe4c835976d503705901850c54bf8"
+  },
+  "QuizFlashTests/Library/LibraryViewModelMutationTests.swift": {
+    "mtime": 1781696455.457342,
+    "ast_hash": "4d05e9f011bfd7be24e71f5c58a09459",
+    "semantic_hash": "4d05e9f011bfd7be24e71f5c58a09459"
+  },
+  "QuizFlashTests/Library/LibraryViewModelSearchTests.swift": {
+    "mtime": 1781696455.4574568,
+    "ast_hash": "c52163db2120d5ff7dd93d531a954ec4",
+    "semantic_hash": "c52163db2120d5ff7dd93d531a954ec4"
+  },
+  "QuizFlashTests/Navigation/AppFeaturesTests.swift": {
+    "mtime": 1782075589.5830436,
+    "ast_hash": "59416ab36858b79fbcca6e1f2278b07f",
+    "semantic_hash": "59416ab36858b79fbcca6e1f2278b07f"
+  },
+  "QuizFlashTests/PlayMode/DeckPlayModeSettingsStoreTests.swift": {
+    "mtime": 1781696455.4578018,
+    "ast_hash": "f351aad1a868750d2a1401dcc8d9f55f",
+    "semantic_hash": "f351aad1a868750d2a1401dcc8d9f55f"
+  },
+  "QuizFlashTests/PlayMode/FlashCardsPlayModeViewModelRetryTests.swift": {
+    "mtime": 1781696455.4579105,
+    "ast_hash": "b4973ad5ebbe2ceea48703addda6e195",
+    "semantic_hash": "b4973ad5ebbe2ceea48703addda6e195"
+  },
+  "QuizFlashTests/PlayMode/PlayModeCardRepositoryTests.swift": {
+    "mtime": 1781696455.458004,
+    "ast_hash": "12e6655b715687fb985829e24c08cfc6",
+    "semantic_hash": "12e6655b715687fb985829e24c08cfc6"
+  },
+  "QuizFlashTests/PlayMode/PlaySessionPersistenceServiceTests.swift": {
+    "mtime": 1781696455.4581096,
+    "ast_hash": "f2aff0d3180f218ca76804a3f622c222",
+    "semantic_hash": "f2aff0d3180f218ca76804a3f622c222"
+  },
+  "QuizFlashTests/PlayMode/QuizModeViewModelEvaluationTests.swift": {
+    "mtime": 1781935042.7334988,
+    "ast_hash": "57cfe603d14cd2d92dd260c4348ef855",
+    "semantic_hash": "57cfe603d14cd2d92dd260c4348ef855"
+  },
+  "QuizFlashTests/Settings/AppMigrationStoreTests.swift": {
+    "mtime": 1781696455.4584641,
+    "ast_hash": "5b472e14a90c3292bc7890bd2bdc0417",
+    "semantic_hash": "5b472e14a90c3292bc7890bd2bdc0417"
+  },
+  "QuizFlashTests/Settings/AppPreferencesTests.swift": {
+    "mtime": 1782411395.729974,
+    "ast_hash": "c8a59c25315a9852869f1ce3d85b7077",
+    "semantic_hash": "c8a59c25315a9852869f1ce3d85b7077"
+  },
+  "QuizFlashTests/Settings/AuthManagerTests.swift": {
+    "mtime": 1782048311.7811863,
+    "ast_hash": "a9c419aa0faf5e4ca8ad0e9891e277f0",
+    "semantic_hash": "a9c419aa0faf5e4ca8ad0e9891e277f0"
+  },
+  "QuizFlashTests/Settings/CardAppearancePreferencesTests.swift": {
+    "mtime": 1781979513.5470986,
+    "ast_hash": "446195bd17b0e9cd401d5663f1c0b47a",
+    "semantic_hash": "446195bd17b0e9cd401d5663f1c0b47a"
+  },
+  "QuizFlashTests/Settings/DevelopmentPreferencesTests.swift": {
+    "mtime": 1781979574.3619673,
+    "ast_hash": "94dbbc30f0df129aa45dc8b5ec1535c7",
+    "semantic_hash": "94dbbc30f0df129aa45dc8b5ec1535c7"
+  },
+  "QuizFlashTests/Settings/ThemeManagerTests.swift": {
+    "mtime": 1781696455.459234,
+    "ast_hash": "e2811bbfd9755f8573990f175207d835",
+    "semantic_hash": "e2811bbfd9755f8573990f175207d835"
+  },
+  "QuizFlashTests/Storage/DeckSharingManagerTests.swift": {
+    "mtime": 1781696455.4594307,
+    "ast_hash": "27e1862963ab007fc4f9d0fc9c95ef1d",
+    "semantic_hash": "27e1862963ab007fc4f9d0fc9c95ef1d"
+  },
+  "QuizFlashTests/Storage/StorageAndCleanupTests.swift": {
+    "mtime": 1781696455.4597235,
+    "ast_hash": "cce86b33a9133de3817bf786ccbd4858",
+    "semantic_hash": "cce86b33a9133de3817bf786ccbd4858"
+  },
+  "QuizFlashTests/Subscriptions/SubscriptionManagerQuotaTests.swift": {
+    "mtime": 1782561942.7964983,
+    "ast_hash": "b05f2f1926858ca9da23435d11e833a5",
+    "semantic_hash": "b05f2f1926858ca9da23435d11e833a5"
+  },
+  "QuizFlashTests/TestSupport/TestModelContainer.swift": {
+    "mtime": 1781696455.459945,
+    "ast_hash": "8f3b6265652dbd5b59ff6732f9302b92",
+    "semantic_hash": "8f3b6265652dbd5b59ff6732f9302b92"
+  },
+  "Scripts/analyze_ai_trace.js": {
+    "mtime": 1782083341.75659,
+    "ast_hash": "1b27119d7476c32fc041b3b1f8589cf9",
+    "semantic_hash": "1b27119d7476c32fc041b3b1f8589cf9"
+  },
+  "Scripts/build_livecontainer_ipa.sh": {
+    "mtime": 1782338499.427205,
+    "ast_hash": "0e40947529721a708e0a2c34374b6067",
+    "semantic_hash": "0e40947529721a708e0a2c34374b6067"
+  },
+  "auto-render.min.js": {
+    "mtime": 1781696455.4601834,
+    "ast_hash": "deba59a48dbf0bdd912d0d2c8b08c1eb",
+    "semantic_hash": "deba59a48dbf0bdd912d0d2c8b08c1eb"
+  },
+  "firebase.json": {
+    "mtime": 1782008531.307983,
+    "ast_hash": "626ee981bc56776fc634c0a93619263c",
+    "semantic_hash": "626ee981bc56776fc634c0a93619263c"
+  },
+  "functions/package.json": {
+    "mtime": 1782008531.3086112,
+    "ast_hash": "fc44567c167862235e3739dfe6188f6f",
+    "semantic_hash": "fc44567c167862235e3739dfe6188f6f"
+  },
+  "functions/src/index.ts": {
+    "mtime": 1782600008.1509917,
+    "ast_hash": "e5f60ce996e5cab56b57722ba2f79763",
+    "semantic_hash": "e5f60ce996e5cab56b57722ba2f79763"
+  },
+  "functions/tsconfig.json": {
+    "mtime": 1782008531.3087683,
+    "ast_hash": "0d7f562c8289cdb133ba894469a69b17",
+    "semantic_hash": "0d7f562c8289cdb133ba894469a69b17"
+  },
+  "katex.min.js": {
+    "mtime": 1781696455.4724357,
+    "ast_hash": "15c1bf7dc295f5edacb4dd77f123b603",
+    "semantic_hash": "15c1bf7dc295f5edacb4dd77f123b603"
+  },
+  "run_data_tests.sh": {
+    "mtime": 1781696455.4725928,
+    "ast_hash": "eb7412ce741efba6ef7a2977c7558b95",
+    "semantic_hash": "eb7412ce741efba6ef7a2977c7558b95"
+  },
+  "worker/migrations/0001_ai_usage.sql": {
+    "mtime": 1782343115.9600372,
+    "ast_hash": "60b39d299d27eb2a549ebdfc2ded295e",
+    "semantic_hash": "60b39d299d27eb2a549ebdfc2ded295e"
+  },
+  "worker/migrations/0002_ai_prompt_configs.sql": {
+    "mtime": 1782253627.7044249,
+    "ast_hash": "a463582edd7d5e8258b93cc4d08d954b",
+    "semantic_hash": "a463582edd7d5e8258b93cc4d08d954b"
+  },
+  "worker/migrations/0003_provider_latency.sql": {
+    "mtime": 1782607001.5110643,
+    "ast_hash": "79c0453d6c29b3ba0271a81fbe875f46",
+    "semantic_hash": "79c0453d6c29b3ba0271a81fbe875f46"
+  },
+  "worker/package.json": {
+    "mtime": 1782343133.3214118,
+    "ast_hash": "f33718bb50c164410f8347b444104e39",
+    "semantic_hash": "f33718bb50c164410f8347b444104e39"
+  },
+  "worker/scripts/publishPromptBundle.mjs": {
+    "mtime": 1782613931.981322,
+    "ast_hash": "f87bb9162c8e6dcb462e49777a9883ac",
+    "semantic_hash": "f87bb9162c8e6dcb462e49777a9883ac"
+  },
+  "worker/scripts/setPlanLimit.mjs": {
+    "mtime": 1782346066.2482538,
+    "ast_hash": "8b7b073aa32bbc510d3bfe1f2f10271e",
+    "semantic_hash": "8b7b073aa32bbc510d3bfe1f2f10271e"
+  },
+  "worker/src/firestoreUsage.ts": {
+    "mtime": 1782600296.1546052,
+    "ast_hash": "3c16d70e06921e116b1fe708fc7a9925",
+    "semantic_hash": "3c16d70e06921e116b1fe708fc7a9925"
+  },
+  "worker/src/index.ts": {
+    "mtime": 1782615543.3534236,
+    "ast_hash": "a61f9b969f74abffc02bace00460e356",
+    "semantic_hash": "a61f9b969f74abffc02bace00460e356"
+  },
+  "worker/src/promptBundle.ts": {
+    "mtime": 1782613914.808626,
+    "ast_hash": "01808e18cc17333f5bf30e2e27346c9f",
+    "semantic_hash": "01808e18cc17333f5bf30e2e27346c9f"
+  },
+  "worker/test/proxy.test.ts": {
+    "mtime": 1782607001.5119176,
+    "ast_hash": "df7b9aedac802207e1c59e6fbc65d86d",
+    "semantic_hash": "df7b9aedac802207e1c59e6fbc65d86d"
+  },
+  "worker/tsconfig.json": {
+    "mtime": 1782174804.6537225,
+    "ast_hash": "2c24470302e0b51c2b9408cf6402578d",
+    "semantic_hash": "2c24470302e0b51c2b9408cf6402578d"
+  },
+  "worker/vitest.config.ts": {
+    "mtime": 1782174785.8690796,
+    "ast_hash": "336288db941c9d5ad4de507c8454e156",
+    "semantic_hash": "336288db941c9d5ad4de507c8454e156"
+  }
+}

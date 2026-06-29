@@ -11,9 +11,12 @@ worker/.dev.vars
 worker/.env
 .wrangler/
 functions/lib/
+graphify-out/cache/
+graphify-out/cost.json
 
 # Codex local artifacts
 /.codex/*
+!/.codex/hooks.json
 !/.codex/skills/
 !/.codex/skills/**
 /.codex/skills/**/.DS_Store

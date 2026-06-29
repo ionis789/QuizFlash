@@ -109,6 +109,8 @@ Use these priority levels consistently:
 
 Use progressive disclosure for every task, even when the user gives only a bug report, screenshot, or video and does not name files.
 
+When `graphify-out/graph.json` exists, use Graphify before broad repo exploration for architecture, ownership, dependency, or codebase-navigation questions. Prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over raw grep/report reads when the graph can answer the question with a scoped subgraph. If `graphify` is not on `PATH`, use `/Users/ionsocol/Library/Python/3.14/bin/graphify`. After code changes, run `graphify update .` or the absolute-path equivalent so the AST graph stays current. This supplements, but does not replace, the smallest-owner-file rule below.
+
 1. `MUST` infer the smallest likely owner area from user language and visible UI before reading code.
    - Examples: "flashcard editor zones", "match play", "preview sheet", "deck grid", "settings text size".
 2. `MUST` start with `rg` discovery, not broad file reads, when exact files are not named.

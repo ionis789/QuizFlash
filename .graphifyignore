@@ -1,0 +1,34 @@
+# Generated build and tool output
+.build/
+build/
+DerivedData/
+graphify-out/cache/
+graphify-out/cost.json
+
+# Local Codex session artifacts, screenshots, videos, and derived data.
+.codex/DerivedData*/
+.codex/tmp/
+.codex-temp/
+.codex/**/*.png
+.codex/**/*.jpg
+.codex/**/*.jpeg
+.codex/**/*.gif
+.codex/**/*.webp
+.codex/**/*.mp4
+.codex/**/*.mov
+.codex/**/*.m4v
+**/*.xcassets/
+
+# Apple and editor metadata
+.DS_Store
+*.xcactivitylog
+*.xcuserstate
+*.xccheckout
+
+# Dependency and backend build output
+node_modules/
+functions/node_modules/
+worker/node_modules/
+dist/
+.vercel/
+.wrangler/
