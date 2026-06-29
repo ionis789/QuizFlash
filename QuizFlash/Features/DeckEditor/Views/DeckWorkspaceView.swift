@@ -752,16 +752,17 @@ struct DeckWorkspaceView: View {
             item: $viewModel.cardEditorDestination,
             configuration: .sheet(
                 heightMode: .fullScreen,
-                dragActivationArea: .fixed(132),
+                dragActivationArea: .fullSurface,
                 backgroundReceivesDragProgress: false,
                 showsBackdropBlur: false,
                 showsDefaultTopProgressiveBlur: false,
                 hidesTabBar: true,
                 coversTabBar: false
             )
-        ) { destination, _ in
+        ) { destination, safeArea in
             CardEditorView(
                 destination: destination,
+                safeAreaInsets: safeArea,
                 textSizeOverride: resolvedEditorTextSize(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)

@@ -67,6 +67,7 @@ struct QuizCardEditorView: View {
     @State private var quizCaretScrollScheduleSequence = 0
 
     private let textSize: FlashcardTextSize
+    private let presentationSafeAreaInsets: UIEdgeInsets
     private let onSave: (QuizCardContent) -> Void
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -110,9 +111,11 @@ struct QuizCardEditorView: View {
         initialContent: QuizCardContent,
         searchQuery: String? = nil,
         textSize: FlashcardTextSize,
+        safeAreaInsets: UIEdgeInsets = .zero,
         onSave: @escaping (QuizCardContent) -> Void
     ) {
         self.textSize = textSize
+        self.presentationSafeAreaInsets = safeAreaInsets
         let editorSession = QuizEditorSession(initialContent: initialContent)
         _session = StateObject(wrappedValue: editorSession)
         _initialQuizContent = State(initialValue: Self.snapshotContent(from: editorSession))
@@ -250,7 +253,7 @@ struct QuizCardEditorView: View {
                 "quiz.body",
                 details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
             )
-            let safeTopInset = proxy.safeAreaInsets.top
+            let safeTopInset = max(proxy.safeAreaInsets.top, presentationSafeAreaInsets.top)
             let contentWidth = max(proxy.size.width - 16, 1)
 
             ZStack(alignment: .top) {

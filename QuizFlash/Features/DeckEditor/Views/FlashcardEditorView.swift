@@ -25,6 +25,7 @@ struct FlashcardEditorView: View {
     var onContentChange: ((ZoneModel, ZoneModel) -> Void)?
     private let contentAlignment: FlashcardContentAlignment
     private let textSize: FlashcardTextSize
+    private let presentationSafeAreaInsets: UIEdgeInsets
 
     // MARK: - State
 
@@ -166,6 +167,7 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        safeAreaInsets: UIEdgeInsets = .zero,
         onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
@@ -173,6 +175,7 @@ struct FlashcardEditorView: View {
         self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
+        self.presentationSafeAreaInsets = safeAreaInsets
         let frontContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
         let backContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
         _frontZoneContent = State(initialValue: frontContent)
@@ -196,6 +199,7 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        safeAreaInsets: UIEdgeInsets = .zero,
         onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
@@ -204,6 +208,7 @@ struct FlashcardEditorView: View {
         self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
+        self.presentationSafeAreaInsets = safeAreaInsets
         let frontContent = ZoneCardContent(rootZone: frontZone, stableAuthoringRoot: true)
         let backContent = ZoneCardContent(rootZone: backZone, stableAuthoringRoot: true)
         _frontZoneContent = State(initialValue: frontContent)
@@ -230,8 +235,8 @@ struct FlashcardEditorView: View {
                 "flashcard.body",
                 details: "frame=\(debugRect(proxy.frame(in: .global))) safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))"
             )
-            let safeTopInset = proxy.safeAreaInsets.top
-            let safeBottomInset = proxy.safeAreaInsets.bottom
+            let safeTopInset = max(proxy.safeAreaInsets.top, presentationSafeAreaInsets.top)
+            let safeBottomInset = max(proxy.safeAreaInsets.bottom, presentationSafeAreaInsets.bottom)
 
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
