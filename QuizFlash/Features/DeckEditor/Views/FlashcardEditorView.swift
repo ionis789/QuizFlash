@@ -14,6 +14,7 @@ import UIKit
 
 struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
@@ -1645,7 +1646,7 @@ struct FlashcardEditorView: View {
 
             recordDismissFlow("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
             recordEditorSheetDismissTrace("flashcard.\(action).before-dismiss", details: "elapsed=\(formatMilliseconds(since: start))")
-            dismiss()
+            dismissEditorSheet()
             scheduleEditorSheetDismissTraceSamples(action: action)
             recordDismissFlow("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
             recordEditorSheetDismissTrace("flashcard.\(action).after-dismiss-call", details: "elapsed=\(formatMilliseconds(since: start))")
@@ -1653,6 +1654,14 @@ struct FlashcardEditorView: View {
     }
 
     // MARK: - Helpers
+
+    private func dismissEditorSheet() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            dismiss()
+        }
+    }
 
     private func findPath(for id: UUID, in zone: ZoneModel, currentIndices: [Int] = []) -> ZonePath? {
         if zone.id == id { return ZonePath(indices: currentIndices) }

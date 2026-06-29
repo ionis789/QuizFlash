@@ -13,6 +13,7 @@ import Combine
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
@@ -2848,7 +2849,7 @@ struct QuizCardEditorView: View {
         beginQuizSheetDismissTrace("discard", details: "phase=start")
         dismissEditorAfterKeyboardSettles {
             recordQuizSheetDismissTrace("quiz.discard.before-dismiss", details: "phase=completion")
-            dismiss()
+            dismissEditorSheet()
             scheduleQuizSheetDismissTraceSamples(action: "discard")
             recordQuizSheetDismissTrace("quiz.discard.after-dismiss-call", details: "phase=completion")
         }
@@ -2864,9 +2865,17 @@ struct QuizCardEditorView: View {
             recordQuizSheetDismissTrace("quiz.save.before-onsave", details: "phase=completion")
             onSave(contentToSave)
             recordQuizSheetDismissTrace("quiz.save.before-dismiss", details: "phase=completion")
-            dismiss()
+            dismissEditorSheet()
             scheduleQuizSheetDismissTraceSamples(action: "save")
             recordQuizSheetDismissTrace("quiz.save.after-dismiss-call", details: "phase=completion")
+        }
+    }
+
+    private func dismissEditorSheet() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            dismiss()
         }
     }
 
