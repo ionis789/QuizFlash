@@ -273,7 +273,8 @@ extension DeckContentView {
                         leadingAccessory: AnyView(statsButton),
                         contentAlignment: flashcardSettings.contentAlignment,
                         textSize: flashcardSettings.textSize,
-                        showsQuizCloseButton: false
+                        showsQuizCloseButton: false,
+                        allowsFlashcardBackgroundTapDismiss: false
                     )
 
                     previewTopChrome(
@@ -303,6 +304,15 @@ extension DeckContentView {
         private func previewTopChrome(safeTopInset: CGFloat, horizontalInset: CGFloat) -> some View {
             HStack {
                 ChromeSoftCircleSymbolButton(
+                    systemName: "pencil",
+                    accessibilityLabel: localized("Edit"),
+                    action: onEdit,
+                    size: UIConstants.Size.actionButton
+                )
+
+                Spacer(minLength: 0)
+
+                ChromeSoftCircleSymbolButton(
                     systemName: "xmark",
                     accessibilityLabel: localized("Close"),
                     action: {
@@ -310,15 +320,6 @@ extension DeckContentView {
                             fullScreenSheetDismiss()
                         }
                     },
-                    size: UIConstants.Size.actionButton
-                )
-
-                Spacer(minLength: 0)
-
-                ChromeSoftCircleSymbolButton(
-                    systemName: "square.and.pencil",
-                    accessibilityLabel: localized("Edit"),
-                    action: onEdit,
                     size: UIConstants.Size.actionButton
                 )
             }

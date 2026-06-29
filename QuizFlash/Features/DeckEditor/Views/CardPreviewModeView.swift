@@ -18,6 +18,7 @@ struct CardPreviewModeView: View {
     let contentAlignment: FlashcardContentAlignment
     let textSize: FlashcardTextSize
     let showsQuizCloseButton: Bool
+    let allowsFlashcardBackgroundTapDismiss: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -97,6 +98,7 @@ struct CardPreviewModeView: View {
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
         showsQuizCloseButton: Bool = true,
+        allowsFlashcardBackgroundTapDismiss: Bool = true,
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
@@ -105,6 +107,7 @@ struct CardPreviewModeView: View {
         self.contentAlignment = contentAlignment
         self.textSize = textSize
         self.showsQuizCloseButton = showsQuizCloseButton
+        self.allowsFlashcardBackgroundTapDismiss = allowsFlashcardBackgroundTapDismiss
     }
 
     init(
@@ -142,7 +145,7 @@ struct CardPreviewModeView: View {
                     CardPreviewModeBackground().ignoresSafeArea()
                 }
 
-                if isFlashcardSheetPresentation {
+                if isFlashcardSheetPresentation && allowsFlashcardBackgroundTapDismiss {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture {
