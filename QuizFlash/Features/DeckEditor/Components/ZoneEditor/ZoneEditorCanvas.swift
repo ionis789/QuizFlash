@@ -284,6 +284,7 @@ struct ZoneEditorCanvas: View {
                 .scrollDismissesKeyboard(.never)
                 .scrollClipDisabled(!freezesScrolling)
                 .frame(width: cardWidth, height: editorViewportHeight, alignment: .topLeading)
+                .modifier(ZoneEditorDismissScrollClipModifier(isEnabled: freezesScrolling))
                 .background(windowTouchProbeBackground)
                 .overlay(alignment: .topLeading) {
                     viewportDebugOverlay
@@ -2952,5 +2953,27 @@ struct ZoneEditorCanvas: View {
         AppFeatures.current.showsVisualDebugOverlays
             && showsDebugOverlays
             && developmentPreferences.zoneContentLayoutDebugEnabled
+    }
+}
+
+private struct ZoneEditorDismissScrollClipModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.clipShape(
+                UnevenRoundedRectangle(
+                    cornerRadii: .init(
+                        topLeading: UIConstants.Radius.large,
+                        bottomLeading: 0,
+                        bottomTrailing: 0,
+                        topTrailing: UIConstants.Radius.large
+                    ),
+                    style: .continuous
+                )
+            )
+        } else {
+            content
+        }
     }
 }
