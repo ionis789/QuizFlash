@@ -2088,7 +2088,7 @@ struct ZoneEditorCanvas: View {
 
         keyboardDismissInsetReleaseTask?.cancel()
         keyboardDismissBottomInsetHold = startInset
-        let duration = keyboardDismissScrollAnimationDuration
+        let duration = keyboardResponsiveScrollAnimationDuration
         let options = keyboardMonitor.animationOptions
         recordKeyboardStateFlow(
             "keyboard-dismiss.inset-release.start",
@@ -2121,7 +2121,7 @@ struct ZoneEditorCanvas: View {
             keyboardDismissBottomInsetHold = 0
             lastRawKeyboardVisibleBottomInset = 0
             keyboardDismissInsetReleaseTask = nil
-            scrollDriver.smoothClampOffsetIfNeeded(duration: 0.12, options: options)
+            scrollDriver.smoothClampOffsetIfNeeded(duration: duration, options: options)
             recordKeyboardStateFlow(
                 "keyboard-dismiss.inset-release.end",
                 details: "reason=\(reason) hidden=\(debugNumber(hiddenInset))"
@@ -2137,8 +2137,11 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretScrollAnimationDuration: TimeInterval {
-        guard keyboardMonitor.isVisible else { return 0.12 }
-        return min(max(keyboardMonitor.animationDuration * 0.42, 0.12), 0.18)
+        keyboardMonitor.isVisible ? keyboardResponsiveScrollAnimationDuration : 0.12
+    }
+
+    private var keyboardResponsiveScrollAnimationDuration: TimeInterval {
+        min(max(keyboardMonitor.animationDuration * 0.42, 0.12), 0.18)
     }
 
     private var keyboardDismissScrollAnimationDuration: TimeInterval {
