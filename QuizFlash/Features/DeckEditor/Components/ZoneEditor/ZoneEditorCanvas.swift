@@ -282,7 +282,7 @@ struct ZoneEditorCanvas: View {
                     }
                 }
                 .scrollDismissesKeyboard(.never)
-                .scrollClipDisabled()
+                .scrollClipDisabled(!freezesScrolling)
                 .frame(width: cardWidth, height: editorViewportHeight, alignment: .topLeading)
                 .background(windowTouchProbeBackground)
                 .overlay(alignment: .topLeading) {
