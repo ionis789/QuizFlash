@@ -236,9 +236,7 @@ struct FlashcardEditorView: View {
                 editorBackground.ignoresSafeArea()
 
                 editorInteractiveLayer(safeTopInset: safeTopInset, safeBottomInset: safeBottomInset)
-                    .opacity(isEditorDismissInFlight ? 0 : 1)
                     .allowsHitTesting(!isEditorDismissInFlight)
-                    .animation(.easeOut(duration: 0.055), value: isEditorDismissInFlight)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -1632,7 +1630,7 @@ struct FlashcardEditorView: View {
 
         recordDismissFlow("flashcard.\(action).teardown-start", details: "elapsed=\(formatMilliseconds(since: start))")
         recordEditorSheetDismissTrace("flashcard.\(action).teardown-start", details: "elapsed=\(formatMilliseconds(since: start))")
-        withAnimation(.easeOut(duration: 0.055)) {
+        withTransaction(Transaction(animation: nil)) {
             isEditorDismissInFlight = true
             isFloatingFormatBarPresented = false
             floatingFormatBarKeyboardHeight = 0
