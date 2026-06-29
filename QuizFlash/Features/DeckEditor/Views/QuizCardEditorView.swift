@@ -1720,6 +1720,12 @@ struct QuizCardEditorView: View {
 
         if let caretRect,
            quizCaretScrollGate.shouldIgnoreCaretUpdate(pathID: notificationPathID, rect: caretRect) {
+            activeQuizCaretPathID = notificationPathID
+            activeQuizCaretWindowRect = caretRect
+            activeQuizCaretSource = scrollSource
+            activeQuizCaretTraceID = traceID
+            activeQuizCaretAnchorY = caretAnchorY
+            activeQuizCaretEditorHeight = caretEditorHeight
             recordQuizScroll(
                 "quiz.scroll-skip-duplicate-caret",
                 pathID: notificationPathID,
