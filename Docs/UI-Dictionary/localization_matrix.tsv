@@ -220,7 +220,6 @@ Clear	Clear	Șterge	Очистить
 Clear search text	Clear search text	Șterge textul căutării	Очистить текст поиска
 Close	Close	Închide	Закрыть
 Close search	Close search	Închide căutarea	Закрыть поиск
-Close spaced repetition stats	Close spaced repetition stats	Închide statisticile de repetare spațiată	Закрыть статистику интервального повторения
 Code	Code	Cod	Код
 Code: %@	Code: %@	Cod: %@	Код: %@
 Collapse	Collapse	Restrânge	Свернуть
@@ -416,7 +415,6 @@ Less	Less	Mai puțin	Меньше
 Library	Library	Bibliotecă	Библиотека
 Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
 List	List	Listă	Список
-Live card memory and schedule snapshot	Live card memory and schedule snapshot	Instantaneu live al memoriei cardului și al programului	Живой снимок памяти карточки и расписания
 Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
 Location: %@	Location: %@	Locație: %@	Расположение: %@
@@ -658,7 +656,6 @@ Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточк�
 Source	Source	Sursă	Источник
 Source Coverage	Source Coverage	Acoperirea sursei	Покрытие источника
 Source Range	Source Range	Interval sursă	Исходный диапазон
-Spaced Repetition Stats	Spaced Repetition Stats	Statistici repetare spațiată	Статистика интервального повторения
 Split Zone	Split Zone	Împarte zona	Разделить зону
 Stable this week	Stable this week	Stabil săptămâna asta	Стабильно на этой неделе
 Start	Start	Începe	Старт

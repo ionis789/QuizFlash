@@ -205,7 +205,6 @@
 "Clear search text" = "Очистить текст поиска";
 "Close" = "Закрыть";
 "Close search" = "Закрыть поиск";
-"Close spaced repetition stats" = "Закрыть статистику интервального повторения";
 "Code" = "Код";
 "Code: %@" = "Код: %@";
 "Collapse" = "Свернуть";
@@ -401,7 +400,6 @@
 "Library" = "Библиотека";
 "Library (All Decks)" = "Библиотека (все колоды)";
 "List" = "Список";
-"Live card memory and schedule snapshot" = "Живой снимок памяти карточки и расписания";
 "Live Preview" = "Живой предпросмотр";
 "Live Swipe HUD" = "Живой HUD смахивания";
 "Location: %@" = "Расположение: %@";
@@ -638,7 +636,6 @@
 "Source" = "Источник";
 "Source Coverage" = "Покрытие источника";
 "Source Range" = "Исходный диапазон";
-"Spaced Repetition Stats" = "Статистика интервального повторения";
 "Split Zone" = "Разделить зону";
 "Stable this week" = "Стабильно на этой неделе";
 "Start" = "Старт";

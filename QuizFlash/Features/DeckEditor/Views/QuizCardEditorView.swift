@@ -386,13 +386,13 @@ struct QuizCardEditorView: View {
                 showsDefaultTopProgressiveBlur: false
             )
         ) { safeArea in
-            CardPreviewModeView(
+            CardPreviewSheetView(
                 content: .quiz(currentQuizContent),
                 safeAreaInsets: safeArea,
                 textSize: textSize
             )
         } background: {
-            Color.clear
+            CardPreviewModeBackground()
         }
         .confirmationDialog(
             localized("Replace current zone?"),

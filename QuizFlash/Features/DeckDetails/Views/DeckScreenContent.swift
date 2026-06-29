@@ -105,10 +105,12 @@ extension DeckContentView {
                 showsDefaultTopProgressiveBlur: false
             )
         ) { card, safeArea in
-            DeckCardPreviewSheetView(
-                card: card,
-                flashcardSettings: resolvedFlashcardSettings,
+            CardPreviewSheetView(
+                content: card.cardContent,
                 safeAreaInsets: safeArea,
+                contentAlignment: resolvedFlashcardSettings.contentAlignment,
+                textSize: resolvedFlashcardSettings.textSize,
+                showsEditButton: true,
                 onEdit: {
                     presentCardEditor(for: card)
                 }

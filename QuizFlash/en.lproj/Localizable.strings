@@ -205,7 +205,6 @@
 "Clear search text" = "Clear search text";
 "Close" = "Close";
 "Close search" = "Close search";
-"Close spaced repetition stats" = "Close spaced repetition stats";
 "Code" = "Code";
 "Code: %@" = "Code: %@";
 "Collapse" = "Collapse";
@@ -401,7 +400,6 @@
 "Library" = "Library";
 "Library (All Decks)" = "Library (All Decks)";
 "List" = "List";
-"Live card memory and schedule snapshot" = "Live card memory and schedule snapshot";
 "Live Preview" = "Live Preview";
 "Live Swipe HUD" = "Live Swipe HUD";
 "Location: %@" = "Location: %@";
@@ -638,7 +636,6 @@
 "Source" = "Source";
 "Source Coverage" = "Source Coverage";
 "Source Range" = "Source Range";
-"Spaced Repetition Stats" = "Spaced Repetition Stats";
 "Split Zone" = "Split Zone";
 "Stable this week" = "Stable this week";
 "Start" = "Start";

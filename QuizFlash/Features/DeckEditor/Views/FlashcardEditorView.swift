@@ -285,19 +285,24 @@ struct FlashcardEditorView: View {
             isPresented: $showPreview,
             configuration: .sheet(
                 heightMode: .fullScreen,
-                showsBackdropBlur: false,
                 showsDefaultTopProgressiveBlur: false
             )
         ) { safeArea in
-            CardPreviewModeView(
-                front: frontZoneContent,
-                back: backZoneContent,
+            CardPreviewSheetView(
+                content: .flashcard(
+                    FlashcardCardContent(
+                        frontZone: frontZoneContent.rootZone,
+                        backZone: backZoneContent.rootZone,
+                        frontType: .text,
+                        backType: .text
+                    )
+                ),
                 safeAreaInsets: safeArea,
                 contentAlignment: contentAlignment,
                 textSize: textSize
             )
         } background: {
-            Color.clear
+            CardPreviewModeBackground()
         }
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
         .confirmationDialog(

@@ -18,7 +18,6 @@ struct CardPreviewModeView: View {
     let contentAlignment: FlashcardContentAlignment
     let textSize: FlashcardTextSize
     let showsQuizCloseButton: Bool
-    let allowsFlashcardBackgroundTapDismiss: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -27,9 +26,6 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
-    @State private var previewDismissOffsetY: CGFloat = 0
-    @State private var isPreviewDismissInFlight = false
-    @State private var previewDismissTask: Task<Void, Never>?
     @State private var previewMeasuredChoiceZoneWidths: [UUID: CGFloat] = [:]
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -67,14 +63,6 @@ struct CardPreviewModeView: View {
     private var playCardBottomReserve: CGFloat { playFlipPerspectiveBottomClearance }
     private var playBottomChromeHeight: CGFloat { playScoreZoneHeight + playScoreZoneBottomPadding + 6 }
     private var playHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
-    private var previewDismissDuration: Double { UIConstants.Animation.medium * 1.24 }
-    private var previewDismissAnimation: Animation {
-        .smooth(duration: previewDismissDuration, extraBounce: 0)
-    }
-    private var previewDismissDelayMilliseconds: Int {
-        Int((previewDismissDuration * 1_000).rounded(.up)) + 24
-    }
-
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
     }
@@ -98,7 +86,6 @@ struct CardPreviewModeView: View {
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
         showsQuizCloseButton: Bool = true,
-        allowsFlashcardBackgroundTapDismiss: Bool = true,
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
@@ -107,7 +94,6 @@ struct CardPreviewModeView: View {
         self.contentAlignment = contentAlignment
         self.textSize = textSize
         self.showsQuizCloseButton = showsQuizCloseButton
-        self.allowsFlashcardBackgroundTapDismiss = allowsFlashcardBackgroundTapDismiss
     }
 
     init(
@@ -138,18 +124,16 @@ struct CardPreviewModeView: View {
             let headerHorizontalInset = isCompact
                 ? UIConstants.Layout.compactScreenEdgeInset
                 : UIConstants.Layout.screenEdgeInset
-            let dismissDistance = max(geo.size.height, 1)
-
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
                     CardPreviewModeBackground().ignoresSafeArea()
                 }
 
-                if isFlashcardSheetPresentation && allowsFlashcardBackgroundTapDismiss {
+                if isFlashcardSheetPresentation {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            handleDone(previewDismissDistance: dismissDistance)
+                            handleDone()
                         }
                 }
 
@@ -170,7 +154,6 @@ struct CardPreviewModeView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .offset(y: previewDismissOffsetY)
         }
         .onAppear {
             if isFlashcardSheetPresentation {
@@ -178,9 +161,6 @@ struct CardPreviewModeView: View {
                 ZoneController.shared.forceReleaseKeyboard()
                 ZoneController.shared.updateFocusedZone(nil)
             }
-        }
-        .onDisappear {
-            previewDismissTask?.cancel()
         }
     }
 
@@ -470,36 +450,10 @@ struct CardPreviewModeView: View {
         )
     }
 
-    private func handleDone(previewDismissDistance: CGFloat? = nil) {
+    private func handleDone() {
         if let fullScreenSheetDismiss {
-            if isFlashcardSheetPresentation {
-                animatePreviewDismiss(
-                    distance: previewDismissDistance ?? 900,
-                    dismiss: fullScreenSheetDismiss
-                )
-                return
-            }
             fullScreenSheetDismiss()
         } else {
-            dismiss()
-        }
-    }
-
-    private func animatePreviewDismiss(
-        distance: CGFloat,
-        dismiss: FullScreenSheetDismissAction
-    ) {
-        guard !isPreviewDismissInFlight else { return }
-        isPreviewDismissInFlight = true
-        previewDismissTask?.cancel()
-
-        withAnimation(previewDismissAnimation) {
-            previewDismissOffsetY = max(distance, 1)
-        }
-
-        previewDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(previewDismissDelayMilliseconds))
-            guard !Task.isCancelled else { return }
             dismiss()
         }
     }

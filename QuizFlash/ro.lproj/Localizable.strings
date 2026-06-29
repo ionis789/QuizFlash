@@ -205,7 +205,6 @@
 "Clear search text" = "Șterge textul căutării";
 "Close" = "Închide";
 "Close search" = "Închide căutarea";
-"Close spaced repetition stats" = "Închide statisticile de repetare spațiată";
 "Code" = "Cod";
 "Code: %@" = "Cod: %@";
 "Collapse" = "Restrânge";
@@ -401,7 +400,6 @@
 "Library" = "Bibliotecă";
 "Library (All Decks)" = "Bibliotecă (toate deckurile)";
 "List" = "Listă";
-"Live card memory and schedule snapshot" = "Instantaneu live al memoriei cardului și al programului";
 "Live Preview" = "Previzualizare live";
 "Live Swipe HUD" = "Live Swipe HUD";
 "Location: %@" = "Locație: %@";
@@ -638,7 +636,6 @@
 "Source" = "Sursă";
 "Source Coverage" = "Acoperirea sursei";
 "Source Range" = "Interval sursă";
-"Spaced Repetition Stats" = "Statistici repetare spațiată";
 "Split Zone" = "Împarte zona";
 "Stable this week" = "Stabil săptămâna asta";
 "Start" = "Începe";
