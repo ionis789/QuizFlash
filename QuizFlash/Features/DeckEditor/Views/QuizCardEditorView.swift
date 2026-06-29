@@ -875,7 +875,7 @@ struct QuizCardEditorView: View {
 
     private var topChrome: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            closeTopButton
+            saveTopButton
 
             Spacer(minLength: 0)
 
@@ -885,17 +885,7 @@ struct QuizCardEditorView: View {
 
             Spacer(minLength: 0)
 
-            Button(action: saveCard) {
-                ChromeSoftCircleSymbol(
-                    systemName: "checkmark",
-                    size: UIConstants.Size.actionButton,
-                    tint: canSave ? successAccent : .secondary,
-                    backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
-            .accessibilityLabel(localized("Save"))
+            closeTopButton
         }
         .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
     }
@@ -1008,6 +998,20 @@ struct QuizCardEditorView: View {
             tint: topChromeUtilityForeground,
             backgroundTint: topChromeUtilityFill
         )
+    }
+
+    private var saveTopButton: some View {
+        Button(action: saveCard) {
+            ChromeSoftCircleSymbol(
+                systemName: "checkmark",
+                size: UIConstants.Size.actionButton,
+                tint: canSave ? successAccent : .secondary,
+                backgroundTint: canSave ? topChromeUtilityFill : topChromeDisabledFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSave)
+        .accessibilityLabel(localized("Save"))
     }
 
     private var previewTopButton: some View {

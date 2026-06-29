@@ -1180,7 +1180,7 @@ struct FlashcardEditorView: View {
 
     private var topChrome: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            closeTopButton
+            saveTopButton
 
             Spacer(minLength: 0)
 
@@ -1196,7 +1196,7 @@ struct FlashcardEditorView: View {
 
             Spacer(minLength: 0)
 
-            saveTopButton
+            closeTopButton
         }
         .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
     }
