@@ -51,13 +51,23 @@ extension DeckViewModel {
         selectedCards.formUnion(visibleCardIDs)
     }
 
-    /// Pins every currently selected card and refreshes the grouped grid.
-    func pinSelectedCards(in deck: DeckModel, context: ModelContext) {
-        let idsToPin = selectedCards
-        guard !idsToPin.isEmpty else { return }
+    var areSelectedCardsAllPinned: Bool {
+        guard !selectedCards.isEmpty else { return false }
+        let selectedInfos = allCardInfos.filter { selectedCards.contains($0.id) }
+        return !selectedInfos.isEmpty && selectedInfos.allSatisfy(\.isPinned)
+    }
+
+    /// Applies one pinned state to every currently selected card and refreshes the grouped grid.
+    func setSelectedCardsPinned(
+        _ isPinned: Bool,
+        in deck: DeckModel,
+        context: ModelContext
+    ) {
+        let selectedIDs = selectedCards
+        guard !selectedIDs.isEmpty else { return }
 
         let descriptor = FetchDescriptor<CardModel>(
-            predicate: #Predicate { idsToPin.contains($0.persistentModelID) }
+            predicate: #Predicate { selectedIDs.contains($0.persistentModelID) }
         )
 
         do {
@@ -65,8 +75,8 @@ extension DeckViewModel {
             let now = Date()
             var didChange = false
 
-            for card in cards where !card.isPinned {
-                card.isPinned = true
+            for card in cards where card.isPinned != isPinned {
+                card.isPinned = isPinned
                 card.editedAt = now
                 didChange = true
             }
@@ -77,9 +87,9 @@ extension DeckViewModel {
             try context.save()
             CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
 
-            for index in allCardInfos.indices where idsToPin.contains(allCardInfos[index].id) {
+            for index in allCardInfos.indices where selectedIDs.contains(allCardInfos[index].id) {
                 allCardInfos[index] = allCardInfos[index].updating(
-                    isPinned: true,
+                    isPinned: isPinned,
                     editedAt: now
                 )
             }
@@ -91,7 +101,7 @@ extension DeckViewModel {
                 await self?.loadSnapshot(deckID: deckID, container: container)
             }
         } catch {
-            logger.error("Failed to pin selected cards: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to update selected card pin state: \(error.localizedDescription, privacy: .public)")
             presentMutationError(error)
         }
     }

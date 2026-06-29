@@ -512,6 +512,7 @@
 "Pick the type of card you want to add to this deck." = "Выберите тип карточки, которую хотите добавить в эту колоду.";
 "Pin" = "Закрепить";
 "Pin selected cards" = "Закрепить выбранные карточки";
+"Unpin selected cards" = "Открепить выбранные карточки";
 "Pink" = "Розовый";
 "Pinned" = "Закреплена";
 "Plan" = "План";

@@ -349,6 +349,8 @@ struct DeckActionOverlay: View {
     let isSelecting: Bool
     /// Number of selected cards, used to enable selection-only top actions.
     let selectedCount: Int
+    /// `true` when every selected card is already pinned.
+    let selectedCardsAreAllPinned: Bool
     /// Current deck sort order shown in the native overflow menu.
     @Binding var sortOrder: SortOrder
     /// Current deck grouping mode shown in the native overflow menu.
@@ -356,7 +358,7 @@ struct DeckActionOverlay: View {
     /// Called when the user taps the "+" button.
     let onAdd: () -> Void
     /// Called when the user taps the top pin action while selecting.
-    let onPinSelected: () -> Void
+    let onSetSelectedPinnedState: (Bool) -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
     /// Called when the user taps the top checkmark while selecting.
@@ -381,13 +383,25 @@ struct DeckActionOverlay: View {
         AppLocalization.string(value, locale: locale)
     }
 
+    private var selectionPinTargetState: Bool {
+        !(selectedCount > 0 && selectedCardsAreAllPinned)
+    }
+
+    private var selectionPinSymbolName: String {
+        selectionPinTargetState ? "pin.fill" : "pin.slash.fill"
+    }
+
+    private var selectionPinAccessibilityLabel: String {
+        localized(selectionPinTargetState ? "Pin selected cards" : "Unpin selected cards")
+    }
+
     // MARK: - Add Button
 
     private var addButton: some View {
         ChromeSoftCircleSymbolButton(
-            systemName: isSelecting ? "pin.fill" : "plus",
-            accessibilityLabel: isSelecting ? localized("Pin selected cards") : localized("Add card"),
-            action: isSelecting ? onPinSelected : onAdd,
+            systemName: isSelecting ? selectionPinSymbolName : "plus",
+            accessibilityLabel: isSelecting ? selectionPinAccessibilityLabel : localized("Add card"),
+            action: isSelecting ? { onSetSelectedPinnedState(selectionPinTargetState) } : onAdd,
             tint: isSelecting ? themeManager.accentColor.color : themeManager.roleColor(.buttonDangerForeground)
         )
         .disabled(isSelecting && selectedCount == 0)

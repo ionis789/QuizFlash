@@ -26,6 +26,8 @@ struct DeckCustomNavigationBar: View {
     let isSelecting: Bool
     /// Number of cards currently selected in multi-select mode.
     let selectedCount: Int
+    /// `true` when every selected card is already pinned.
+    let selectedCardsAreAllPinned: Bool
     /// Coordinate space used by shared chrome geometry callbacks.
     let coordinateSpaceName: String
     /// Active sort order shown in the native overflow menu.
@@ -39,8 +41,8 @@ struct DeckCustomNavigationBar: View {
     let onBack: () -> Void
     /// Called when the user taps the "+" add button.
     let onAdd: () -> Void
-    /// Called when the user taps the pin button while selecting.
-    let onPinSelected: () -> Void
+    /// Called when the user taps the pin/unpin button while selecting.
+    let onSetSelectedPinnedState: (Bool) -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
     /// Called when the user taps the top checkmark while selecting.
@@ -86,10 +88,11 @@ struct DeckCustomNavigationBar: View {
                 deck: deck,
                 isSelecting: isSelecting,
                 selectedCount: selectedCount,
+                selectedCardsAreAllPinned: selectedCardsAreAllPinned,
                 sortOrder: $sortOrder,
                 groupingMode: $groupingMode,
                 onAdd: onAdd,
-                onPinSelected: onPinSelected,
+                onSetSelectedPinnedState: onSetSelectedPinnedState,
                 onStartSelection: onStartSelection,
                 onDoneSelection: onDoneSelection,
                 onExport: onExport

@@ -512,6 +512,7 @@
 "Pick the type of card you want to add to this deck." = "Alegeți tipul de card pe care doriți să îl adăugați la acest deck.";
 "Pin" = "Fixează";
 "Pin selected cards" = "Fixează cardurile selectate";
+"Unpin selected cards" = "Anulează fixarea cardurilor selectate";
 "Pink" = "Roz";
 "Pinned" = "Fixat";
 "Plan" = "Plan";
