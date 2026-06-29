@@ -104,7 +104,6 @@ struct DeckHeaderView: View {
 
 /// Compact deck play-mode actions shown without horizontal scrolling.
 struct DeckPlayModesView: View {
-    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -161,11 +160,6 @@ struct DeckPlayModesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text(AppLocalization.string("PLAY MODES", locale: appPreferences.resolvedLocale))
-                .font(.caption.weight(.heavy))
-                .foregroundStyle(themeManager.textSecondary.opacity(0.72))
-                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
-
             HStack(spacing: UIConstants.Spacing.small) {
                 ForEach(orderedModes) { mode in
                     PlayModeCard(

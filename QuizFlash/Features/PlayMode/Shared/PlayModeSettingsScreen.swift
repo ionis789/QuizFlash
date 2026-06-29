@@ -197,17 +197,12 @@ struct PlayModeSettingsScreen: View {
     private func header(safeTopInset: CGFloat) -> some View {
         VStack(spacing: UIConstants.Spacing.small) {
             ZStack {
-                VStack(spacing: 2) {
-                    Text("\(mode.localizedTitle(locale: appPreferences.resolvedLocale)) \(AppLocalization.string("Settings", locale: appPreferences.resolvedLocale))")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Text(deck.title.uppercased())
-                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(deck.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+                    .padding(.horizontal, UIConstants.Size.actionButton + UIConstants.Spacing.medium)
 
                 HStack {
                     Spacer(minLength: 0)

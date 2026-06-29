@@ -253,20 +253,20 @@ struct DeckCardGridView: View {
     }
 
     private func sectionHeader(_ section: CardSection) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                Text(section.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-
-                Text("\(section.cards.count)")
-                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            Text(section.title)
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(.primary)
+                .textCase(.uppercase)
+                .lineLimit(1)
 
             AppSectionSeparator()
+
+            Text("\(section.cards.count)")
+                .font(.system(size: 13, weight: .black).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
+                .fixedSize()
         }
     }
 

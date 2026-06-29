@@ -520,12 +520,24 @@ private struct HomeDashboardSectionHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(themeManager.textPrimary.opacity(0.92))
-                    .textCase(.uppercase)
-                    .tracking(0.8)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .center, spacing: 10) {
+                    Text(title)
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                        .textCase(.uppercase)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    AppSectionSeparator()
+
+                    if let count {
+                        Text("\(count)")
+                            .font(.system(size: 15, weight: .black).monospacedDigit())
+                            .foregroundStyle(themeManager.textSecondary)
+                            .contentTransition(.numericText())
+                            .fixedSize()
+                    }
+                }
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
@@ -535,14 +547,6 @@ private struct HomeDashboardSectionHeader: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let count {
-                Text("\(count)")
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .contentTransition(.numericText())
-                    .fixedSize()
-            }
 
             if let trailingAccessory {
                 trailingAccessory
