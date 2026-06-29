@@ -537,6 +537,74 @@ final class ZoneEditorScrollDriver {
         )
     }
 
+    @discardableResult
+    func scrollDownBy(
+        _ deltaY: CGFloat,
+        duration: TimeInterval,
+        options: UIView.AnimationOptions = [.curveEaseOut],
+        zoneID: UUID?,
+        reason: String
+    ) -> Bool {
+        guard deltaY > 1,
+              let scrollView,
+              scrollView.window != nil,
+              scrollView.bounds.height > 0
+        else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-down-skip",
+                zoneID: zoneID,
+                details: "reason=\(reason)-invalid delta=\(debugValue(deltaY)) scrollView=\(scrollView == nil ? "nil" : "present")"
+            )
+            return false
+        }
+
+        guard !scrollView.isTracking,
+              !scrollView.isDragging,
+              !scrollView.isDecelerating else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-down-skip",
+                zoneID: zoneID,
+                details: "reason=\(reason)-user-scroll delta=\(debugValue(deltaY)) \(scrollSnapshotDetails(in: scrollView))"
+            )
+            return false
+        }
+
+        let visualOffsetY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.contentOffset.y
+        let startOffset = CGPoint(x: scrollView.contentOffset.x, y: visualOffsetY)
+        let targetY = clampedOffsetY(visualOffsetY + deltaY, in: scrollView)
+        guard targetY - visualOffsetY > 0.5 else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-down-skip",
+                zoneID: zoneID,
+                details: "reason=\(reason)-clamped delta=\(debugValue(deltaY)) visual=\(debugValue(visualOffsetY)) target=\(debugValue(targetY)) \(scrollSnapshotDetails(in: scrollView))"
+            )
+            return false
+        }
+
+        clearOffsetLock()
+        UIView.performWithoutAnimation {
+            scrollView.setContentOffset(startOffset, animated: false)
+            scrollView.layoutIfNeeded()
+        }
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-down-apply",
+            zoneID: zoneID,
+            details: "reason=\(reason) delta=\(debugValue(deltaY)) from=\(debugPoint(startOffset)) to=\(debugValue(targetY)) duration=\(debugValue(duration)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        setContentOffset(
+            CGPoint(x: startOffset.x, y: targetY),
+            in: scrollView,
+            duration: duration,
+            options: options,
+            debugRequestID: nil,
+            debugZoneID: zoneID,
+            keepsOffsetLocked: false
+        )
+        reportScrollOffset(in: scrollView, force: true)
+        return true
+    }
+
     func debugSnapshotDetails() -> String {
         guard let scrollView else { return "scrollView=nil" }
         return scrollSnapshotDetails(in: scrollView)

@@ -2276,6 +2276,7 @@ struct QuizCardEditorView: View {
         let newChoice = QuizChoiceEditorItem()
 
         prepareForAddChoiceWithoutFocus(newChoiceID: newChoice.id)
+        emitAddChoiceHaptic()
 
         withAnimation(zoneListMutationAnimation) {
             choices.append(newChoice)
@@ -2286,6 +2287,7 @@ struct QuizCardEditorView: View {
             pathID: nil,
             details: "newChoice=\(shortDebugID(newChoice.id)) count=\(choices.count) \(quizScrollDetails(proposedDelta: nil))"
         )
+        scheduleAddChoiceScrollNudge(newChoiceID: newChoice.id)
     }
 
     private func prepareForAddChoiceWithoutFocus(newChoiceID: UUID) {
@@ -2317,6 +2319,24 @@ struct QuizCardEditorView: View {
             activeQuizCaretEditorHeight = nil
             newlineCaretSettlingPathID = nil
             newlineCaretSettlingDeadline = nil
+        }
+    }
+
+    private func scheduleAddChoiceScrollNudge(newChoiceID: UUID) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(48))
+            let didScroll = quizScrollDriver.scrollDownBy(
+                quizAddChoiceScrollNudge,
+                duration: 0.18,
+                options: [.curveEaseOut],
+                zoneID: nil,
+                reason: "quiz-add-choice"
+            )
+            recordQuizScroll(
+                "quiz.add-choice-scroll-nudge",
+                pathID: nil,
+                details: "newChoice=\(shortDebugID(newChoiceID)) delta=\(debugValue(quizAddChoiceScrollNudge)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
+            )
         }
     }
 
@@ -2986,6 +3006,12 @@ struct QuizCardEditorView: View {
         generator.impactOccurred(intensity: 0.58)
     }
 
+    private func emitAddChoiceHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.5)
+    }
+
     private func emitTrashHaptic(confirming: Bool) {
         if confirming {
             let generator = UINotificationFeedbackGenerator()
@@ -3042,6 +3068,10 @@ struct QuizCardEditorView: View {
 
     private var zoneListMutationAnimation: Animation {
         .smooth(duration: 0.17, extraBounce: 0)
+    }
+
+    private var quizAddChoiceScrollNudge: CGFloat {
+        72
     }
 
     private func focusTargetAfterDeletingZone(at path: ZonePath, in content: ZoneCardContent) -> UUID? {
