@@ -13,6 +13,8 @@ struct DevelopmentSettingsView: View {
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var didCopyPDFImportDebug = false
     @State private var didCopyZoneEditorDebug = false
+    @State private var didCopyLastSheetDismissTrace = false
+    @State private var didCopySheetDismissTraceHistory = false
     @State private var pdfImportDebugEventCount = PDFImportDebugStore.eventCount()
 
     var body: some View {
@@ -126,6 +128,36 @@ struct DevelopmentSettingsView: View {
                 detail: nil,
                 isOn: zoneEditorDebugHUDBinding
             )
+
+            SettingsCardDivider()
+
+            Button {
+                copyLastSheetDismissTraceReport()
+            } label: {
+                SettingsNavigationRow(
+                    icon: didCopyLastSheetDismissTrace ? "checkmark" : "doc.text.magnifyingglass",
+                    tint: .mint,
+                    title: "Last Sheet Dismiss",
+                    detail: "Copy only the newest sheet close trace.",
+                    value: ZoneEditorDebugStore.shared.latestSheetDismissTraceSummary
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            Button {
+                copySheetDismissTraceHistoryReport()
+            } label: {
+                SettingsNavigationRow(
+                    icon: didCopySheetDismissTraceHistory ? "checkmark" : "clock.arrow.circlepath",
+                    tint: .orange,
+                    title: "Dismiss Trace History",
+                    detail: "Copy the recent sheet close sessions.",
+                    value: ZoneEditorDebugStore.shared.hasSheetDismissTraceHistory ? "ready" : "none"
+                )
+            }
+            .buttonStyle(.plain)
 
             SettingsCardDivider()
 
@@ -451,6 +483,26 @@ struct DevelopmentSettingsView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.2))
             didCopyZoneEditorDebug = false
+        }
+    }
+
+    private func copyLastSheetDismissTraceReport() {
+        UIPasteboard.general.string = ZoneEditorDebugStore.shared.latestSheetDismissTraceReport
+        didCopyLastSheetDismissTrace = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopyLastSheetDismissTrace = false
+        }
+    }
+
+    private func copySheetDismissTraceHistoryReport() {
+        UIPasteboard.general.string = ZoneEditorDebugStore.shared.sheetDismissTraceHistoryReport
+        didCopySheetDismissTraceHistory = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopySheetDismissTraceHistory = false
         }
     }
 

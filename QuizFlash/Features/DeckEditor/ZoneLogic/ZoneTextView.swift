@@ -315,6 +315,18 @@ final class FullHitTextView: UITextView {
 final class ZoneEditorDebugStore {
     static let shared = ZoneEditorDebugStore()
 
+    private struct SheetDismissTraceSession {
+        let id: Int
+        let title: String
+        let startedAt: Date
+        let startedAtElapsedMS: Int
+        var events: [String]
+
+        var summary: String {
+            "#\(id) \(title) events=\(events.count) +\(startedAtElapsedMS)ms"
+        }
+    }
+
     private(set) var eventIndex: Int = 0
     private(set) var lastEvent: String = "idle"
     private(set) var focusLine: String = "focus idle"
@@ -338,6 +350,9 @@ final class ZoneEditorDebugStore {
     private var sheetDismissTraceEventIndex = 0
     private var editorStateEventIndex = 0
     private var sheetDismissTraceActiveUntil: Date?
+    private var activeSheetDismissTraceSessionID: Int?
+    private var sheetDismissTraceSessionIndex = 0
+    private var sheetDismissTraceSessions: [SheetDismissTraceSession] = []
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
     private var cachedCounterSummary = "none"
@@ -447,6 +462,20 @@ final class ZoneEditorDebugStore {
     ) {
         guard AppFeatures.current.showsVisualDebugOverlays else { return }
         sheetDismissTraceActiveUntil = Date().addingTimeInterval(8)
+        sheetDismissTraceSessionIndex += 1
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let session = SheetDismissTraceSession(
+            id: sheetDismissTraceSessionIndex,
+            title: stage,
+            startedAt: Date(),
+            startedAtElapsedMS: elapsedMS,
+            events: []
+        )
+        sheetDismissTraceSessions.append(session)
+        if sheetDismissTraceSessions.count > 8 {
+            sheetDismissTraceSessions.removeFirst(sheetDismissTraceSessions.count - 8)
+        }
+        activeSheetDismissTraceSessionID = session.id
         recordSheetDismissTrace(stage, details: details())
     }
 
@@ -471,9 +500,62 @@ final class ZoneEditorDebugStore {
         if sheetDismissTraceEvents.count > 320 {
             sheetDismissTraceEvents.removeFirst(sheetDismissTraceEvents.count - 320)
         }
+        appendToActiveSheetDismissTraceSession(line)
 
         setLine(&dismissLine, line)
         recordEvent("sheet-dismiss.\(stage)")
+    }
+
+    var hasSheetDismissTraceHistory: Bool {
+        !sheetDismissTraceSessions.isEmpty
+    }
+
+    var latestSheetDismissTraceSummary: String {
+        sheetDismissTraceSessions.last?.summary ?? "none"
+    }
+
+    var latestSheetDismissTraceReport: String {
+        guard let latest = sheetDismissTraceSessions.last else {
+            return sheetDismissTraceReportHeader(title: "QuizFlash Last Sheet Dismiss Trace") + "\n\n<none>"
+        }
+
+        return """
+        \(sheetDismissTraceReportHeader(title: "QuizFlash Last Sheet Dismiss Trace"))
+        latest: \(latest.summary)
+        startedAt: \(ISO8601DateFormatter().string(from: latest.startedAt))
+
+        SESSION #\(latest.id)
+        \(latest.events.isEmpty ? "<none>" : latest.events.joined(separator: "\n"))
+        """
+    }
+
+    var sheetDismissTraceHistoryReport: String {
+        guard !sheetDismissTraceSessions.isEmpty else {
+            return sheetDismissTraceReportHeader(title: "QuizFlash Sheet Dismiss Trace History") + "\n\n<none>"
+        }
+
+        let summary = sheetDismissTraceSessions
+            .reversed()
+            .map { "\($0.summary) started=\(ISO8601DateFormatter().string(from: $0.startedAt))" }
+            .joined(separator: "\n")
+        let sessions = sheetDismissTraceSessions
+            .reversed()
+            .map { session in
+                """
+                SESSION #\(session.id) \(session.title)
+                \(session.events.isEmpty ? "<none>" : session.events.joined(separator: "\n"))
+                """
+            }
+            .joined(separator: "\n\n")
+
+        return """
+        \(sheetDismissTraceReportHeader(title: "QuizFlash Sheet Dismiss Trace History"))
+
+        RECENT SESSIONS
+        \(summary)
+
+        \(sessions)
+        """
     }
 
     func recordEditorState(
@@ -504,7 +586,7 @@ final class ZoneEditorDebugStore {
         let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
         let toolbarEvents = toolbarLifecycleEvents.isEmpty ? "<none>" : toolbarLifecycleEvents.joined(separator: "\n")
         let dismissEvents = dismissFlowEvents.isEmpty ? "<none>" : dismissFlowEvents.joined(separator: "\n")
-        let sheetDismissEvents = sheetDismissTraceEvents.isEmpty ? "<none>" : sheetDismissTraceEvents.joined(separator: "\n")
+        let sheetDismissEvents = sheetDismissTraceSessions.isEmpty ? "<none>" : sheetDismissTraceHistoryReport
         let stateEvents = editorStateEvents.isEmpty ? "<none>" : editorStateEvents.joined(separator: "\n")
         return """
         LIVE SNAPSHOT
@@ -563,6 +645,27 @@ final class ZoneEditorDebugStore {
                 return skipped > 0 ? "\(key): \(value) skipped=\(skipped)" : "\(key): \(value)"
             }
             .joined(separator: "\n")
+    }
+
+    private func appendToActiveSheetDismissTraceSession(_ line: String) {
+        guard let activeSheetDismissTraceSessionID,
+              let index = sheetDismissTraceSessions.lastIndex(where: { $0.id == activeSheetDismissTraceSessionID }) else {
+            return
+        }
+
+        sheetDismissTraceSessions[index].events.append(line)
+        if sheetDismissTraceSessions[index].events.count > 120 {
+            sheetDismissTraceSessions[index].events.removeFirst(sheetDismissTraceSessions[index].events.count - 120)
+        }
+    }
+
+    private func sheetDismissTraceReportHeader(title: String) -> String {
+        """
+        \(title)
+        timestamp: \(ISO8601DateFormatter().string(from: Date()))
+        totalSessions: \(sheetDismissTraceSessions.count)
+        active: \(isSheetDismissTraceActive ? "1" : "0")
+        """
     }
 
     private func layoutEventSampleInterval(for stage: String) -> Int? {

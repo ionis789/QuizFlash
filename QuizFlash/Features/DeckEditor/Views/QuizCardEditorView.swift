@@ -915,6 +915,19 @@ struct QuizCardEditorView: View {
                         .background(Color.orange, in: Capsule(style: .continuous))
 
                     Button {
+                        UIPasteboard.general.string = ZoneEditorDebugStore.shared.latestSheetDismissTraceReport
+                    } label: {
+                        Text("COPY DISMISS")
+                            .font(.caption2.monospaced().weight(.bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(Color.mint, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Copy latest sheet dismiss debug")
+
+                    Button {
                         UIPasteboard.general.string = quizDebugReport
                     } label: {
                         Text("COPY DEBUG")

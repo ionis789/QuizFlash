@@ -2635,17 +2635,31 @@ struct ZoneEditorCanvas: View {
                         .padding(.vertical, 4)
                         .background(Color.orange, in: Capsule(style: .continuous))
 
-                    Button {
-                        UIPasteboard.general.string = interactionTraceReport
-                    } label: {
-                        Text("COPY DEBUG")
-                            .font(.caption2.monospaced().weight(.bold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 4)
-                            .background(Color.orange, in: Capsule(style: .continuous))
+                    HStack(spacing: 6) {
+                        Button {
+                            UIPasteboard.general.string = debugStore.latestSheetDismissTraceReport
+                        } label: {
+                            Text("COPY DISMISS")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(Color.mint, in: Capsule(style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            UIPasteboard.general.string = interactionTraceReport
+                        } label: {
+                            Text("COPY DEBUG")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(Color.orange, in: Capsule(style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(selectedDebugLine)
