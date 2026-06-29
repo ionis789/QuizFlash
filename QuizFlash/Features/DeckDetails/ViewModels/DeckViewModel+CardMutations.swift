@@ -61,7 +61,8 @@ extension DeckViewModel {
     func setSelectedCardsPinned(
         _ isPinned: Bool,
         in deck: DeckModel,
-        context: ModelContext
+        context: ModelContext,
+        groupingAnimation: Animation? = nil
     ) {
         let selectedIDs = selectedCards
         guard !selectedIDs.isEmpty else { return }
@@ -93,7 +94,7 @@ extension DeckViewModel {
                     editedAt: now
                 )
             }
-            performGrouping(on: allCardInfos)
+            performGroupingAfterPinChange(animation: groupingAnimation)
 
             let deckID = deck.persistentModelID
             let container = context.container
@@ -112,7 +113,8 @@ extension DeckViewModel {
     func togglePinnedState(
         for id: PersistentIdentifier,
         in deck: DeckModel,
-        context: ModelContext
+        context: ModelContext,
+        groupingAnimation: Animation? = nil
     ) {
         let descriptor = FetchDescriptor<CardModel>(
             predicate: #Predicate { $0.persistentModelID == id }
@@ -134,7 +136,7 @@ extension DeckViewModel {
                     isPinned: newPinnedState,
                     editedAt: now
                 )
-                performGrouping(on: allCardInfos)
+                performGroupingAfterPinChange(animation: groupingAnimation)
             }
 
             let deckID = deck.persistentModelID
@@ -145,6 +147,16 @@ extension DeckViewModel {
         } catch {
             logger.error("Failed to toggle pin state: \(error.localizedDescription, privacy: .public)")
             presentMutationError(error)
+        }
+    }
+
+    private func performGroupingAfterPinChange(animation: Animation?) {
+        if let animation {
+            withAnimation(animation) {
+                performGrouping(on: allCardInfos)
+            }
+        } else {
+            performGrouping(on: allCardInfos)
         }
     }
 

@@ -53,6 +53,7 @@ extension DeckContentView {
             item: $selectedPlayMode,
             configuration: .sheet(
                 heightMode: .fullScreen,
+                dragActivationArea: .fixed(0),
                 backgroundReceivesDragProgress: true,
                 showsBackdropBlur: true,
                 showsDefaultTopProgressiveBlur: false,
@@ -255,9 +256,18 @@ extension DeckContentView {
                 showAddCardTypeDialog = true
             },
             onSetSelectedPinnedState: { isPinned in
-                viewModel.setSelectedCardsPinned(isPinned, in: deck, context: context)
-                withBottomChromeAnimation {
-                    viewModel.exitSelectionMode()
+                viewModel.setSelectedCardsPinned(
+                    isPinned,
+                    in: deck,
+                    context: context,
+                    groupingAnimation: .deckCardReorder
+                )
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(80))
+                    guard viewModel.isSelecting else { return }
+                    withAnimation(.deckSelectionExit) {
+                        viewModel.exitSelectionMode()
+                    }
                 }
             },
             onStartSelection: {
@@ -266,7 +276,7 @@ extension DeckContentView {
                 }
             },
             onDoneSelection: {
-                withBottomChromeAnimation {
+                withAnimation(.deckSelectionExit) {
                     viewModel.exitSelectionMode()
                 }
             },

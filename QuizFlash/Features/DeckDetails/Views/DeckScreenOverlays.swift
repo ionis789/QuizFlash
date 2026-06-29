@@ -17,7 +17,12 @@ extension DeckContentView {
     }
 
     func handleTogglePinned(_ gridCard: GridCardInfo) {
-        viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
+        viewModel.togglePinnedState(
+            for: gridCard.id,
+            in: deck,
+            context: context,
+            groupingAnimation: .deckCardReorder
+        )
     }
 
     func openPlayMode(_ mode: DeckPlayModeDestination) {
@@ -103,7 +108,7 @@ extension DeckContentView {
 
     func exitSelectionModeForExternalAction() {
         guard viewModel.isSelecting else { return }
-        withBottomChromeAnimation {
+        withAnimation(.deckSelectionExit) {
             viewModel.exitSelectionMode()
         }
     }

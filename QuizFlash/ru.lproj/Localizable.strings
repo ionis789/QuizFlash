@@ -204,7 +204,9 @@
 "Clear" = "Очистить";
 "Clear search text" = "Очистить текст поиска";
 "Close" = "Закрыть";
+"Close and keep progress" = "Закрыть и сохранить прогресс";
 "Close search" = "Закрыть поиск";
+"Continue playing" = "Продолжить игру";
 "Code" = "Код";
 "Code: %@" = "Код: %@";
 "Collapse" = "Свернуть";

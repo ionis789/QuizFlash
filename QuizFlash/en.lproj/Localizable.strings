@@ -204,7 +204,9 @@
 "Clear" = "Clear";
 "Clear search text" = "Clear search text";
 "Close" = "Close";
+"Close and keep progress" = "Close and keep progress";
 "Close search" = "Close search";
+"Continue playing" = "Continue playing";
 "Code" = "Code";
 "Code: %@" = "Code: %@";
 "Collapse" = "Collapse";

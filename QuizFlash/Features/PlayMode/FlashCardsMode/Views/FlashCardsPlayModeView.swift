@@ -55,6 +55,7 @@ struct FlashCardsPlayModeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Properties
@@ -120,6 +121,7 @@ struct FlashCardsPlayModeView: View {
         let trimmedTitle = viewModel.deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
     }
+    private var locale: Locale { appPreferences.resolvedLocale }
     private var currentHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
     private var currentPlayableCard: PlayableCard? {
         guard viewModel.currentIndex < viewModel.cards.count else { return nil }
@@ -575,7 +577,8 @@ struct FlashCardsPlayModeView: View {
                 closeTint: UIColor(themeManager.roleColor(.circularToolbarForeground)),
                 backgroundTint: UIColor(themeManager.roleColor(.circularToolbarFill)),
                 onEdit: openCurrentCardEditor,
-                onClose: handleDismiss
+                onClose: handleDismiss,
+                closeMenu: closeProgressMenu
             )
             .frame(height: chromeButtonSize)
             .zIndex(2)
@@ -1031,6 +1034,31 @@ struct FlashCardsPlayModeView: View {
         } else {
             dismiss()
         }
+    }
+
+    private var shouldConfirmDismiss: Bool {
+        viewModel.totalSessionSwipes > 0 && !viewModel.isComplete
+    }
+
+    private var closeProgressMenu: UIMenu? {
+        guard shouldConfirmDismiss else { return nil }
+
+        return UIMenu(children: [
+            UIAction(
+                title: localized("Close and keep progress"),
+                image: UIImage(systemName: "checkmark.circle")
+            ) { _ in
+                handleDismiss()
+            },
+            UIAction(
+                title: localized("Continue playing"),
+                image: UIImage(systemName: "play.fill")
+            ) { _ in }
+        ])
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     private var playModeDeveloperPanelTransition: AnyTransition {
@@ -2303,6 +2331,7 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
     let backgroundTint: UIColor
     let onEdit: () -> Void
     let onClose: () -> Void
+    let closeMenu: UIMenu?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onEdit: onEdit, onClose: onClose)
@@ -2364,6 +2393,8 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
         }
         if let closeButton = context.coordinator.closeButton {
             applyStyle(to: closeButton, systemName: "xmark", tint: closeTint)
+            closeButton.menu = closeMenu
+            closeButton.showsMenuAsPrimaryAction = closeMenu != nil
         }
     }
 
@@ -2380,6 +2411,8 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
         button.layer.cornerCurve = .continuous
         button.layer.cornerRadius = buttonSize / 2
         button.clipsToBounds = true
+        button.menu = systemName == "xmark" ? closeMenu : nil
+        button.showsMenuAsPrimaryAction = systemName == "xmark" && closeMenu != nil
         applyStyle(to: button, systemName: systemName, tint: tint)
         return button
     }

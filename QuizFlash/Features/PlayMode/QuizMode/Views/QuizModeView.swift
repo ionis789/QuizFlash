@@ -71,7 +71,6 @@ private struct QuizModeSessionView: View {
 
     @Bindable var viewModel: QuizModeViewModel
 
-    @State private var headerHeight: CGFloat = 0
     @State private var measuredChoiceZoneWidths: [UUID: CGFloat] = [:]
     @State private var questionLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
     @State private var choiceLeafDebugSnapshots: [UUID: [ZoneContentLeafLayoutDebugSnapshot]] = [:]
@@ -166,7 +165,6 @@ private struct QuizModeSessionView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
             .clipped()
-            .fullScreenSheetDragActivationHeight(headerHeight)
             .keepsScreenAwake()
             .task {
                 await viewModel.startSession(container: context.container)
@@ -234,13 +232,6 @@ private struct QuizModeSessionView: View {
         }
         .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
         .padding(.horizontal, horizontalPadding)
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { newHeight in
-            if abs(headerHeight - newHeight) > 0.5 {
-                headerHeight = newHeight
-            }
-        }
     }
 
     private var editCurrentQuizButton: some View {
@@ -782,13 +773,36 @@ private struct QuizModeSessionView: View {
         return lines.joined(separator: "\n")
     }
 
+    @ViewBuilder
     private var dismissButton: some View {
-        ChromeSoftCircleSymbolButton(
-            systemName: "xmark",
-            accessibilityLabel: "Close",
-            action: dismissSheet,
-            size: UIConstants.Size.actionButton
-        )
+        if shouldConfirmDismiss {
+            Menu {
+                Button {
+                    dismissSheet()
+                } label: {
+                    Label(localized("Close and keep progress"), systemImage: "checkmark.circle")
+                }
+
+                Button {
+                } label: {
+                    Label(localized("Continue playing"), systemImage: "play.fill")
+                }
+            } label: {
+                ChromeSoftCircleSymbol(
+                    systemName: "xmark",
+                    size: UIConstants.Size.actionButton
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("Close"))
+        } else {
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: localized("Close"),
+                action: dismissSheet,
+                size: UIConstants.Size.actionButton
+            )
+        }
     }
 
     private func headerMetric(value: Int, symbol: String, tint: Color) -> some View {
@@ -1219,6 +1233,18 @@ private struct QuizModeSessionView: View {
         } else {
             dismiss()
         }
+    }
+
+    private var shouldConfirmDismiss: Bool {
+        viewModel.currentIndex > 0
+            || viewModel.isEvaluated
+            || !viewModel.selectedChoiceIDs.isEmpty
+            || viewModel.correctCount > 0
+            || viewModel.wrongCount > 0
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
 
     private func emitQuizEvaluationHaptic(isCorrect: Bool) {
