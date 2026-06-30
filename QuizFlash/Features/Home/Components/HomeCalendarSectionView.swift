@@ -466,6 +466,8 @@ struct CalendarDayCellView: View {
                     .frame(width: tileSize, height: tileSize)
             }
         }
+            .shadow(color: .black.opacity(usesCompactCapsulePresentation ? 0.28 : 0), radius: 5, x: 0, y: 2)
+            .shadow(color: .black.opacity(usesCompactCapsulePresentation ? 0.16 : 0), radius: 2, x: 0, y: 1)
             .contentShape(Rectangle())
             .zIndex(day.isSelected ? 1 : 0)
     }
