@@ -81,7 +81,6 @@ key	en	ro	ru
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
 %d%% good cards	%d%% good cards	%d%% carduri bune	%d%% хороших карточек
-%d-day streak	%d-day streak	Serie de %d zile	Серия: %d дней
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -99,7 +98,6 @@ key	en	ro	ru
 1 day hit goal	1 day hit goal	1 zi cu ținta atinsă	1 день с выполненной целью
 1 goal day	1 goal day	1 zi cu țintă	1 день с целью
 1 still needs another pass.	1 still needs another pass.	1 încă are nevoie de o trecere.	1 ещё нужен повторный проход.
-1-day streak	1-day streak	Serie de 1 zi	Серия: 1 день
 100	100	100	100
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
@@ -107,7 +105,7 @@ A distributed-system model where replicas converge over time instead of synchron
 A sign-in window is already open.	A sign-in window is already open.	O fereastră de conectare este deja deschisă.	Окно входа уже открыто.
 Accent	Accent	Accent	Акцент
 Accuracy	Accuracy	Acuratețe	Точность
-Accuracy: %d%%	Accuracy: %d%%	Acuratețe: %d%%	Точность: %d%%
+Accuracy %d%%	Accuracy %d%%	Acuratețe %d%%	Точность %d%%
 Active	Active	Activ	Активный
 Active Configuration	Active Configuration	Configurație activă	Активная конфигурация
 Active days	Active days	Zile active	Активные дни

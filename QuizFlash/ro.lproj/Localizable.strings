@@ -222,7 +222,7 @@
 "Copied!" = "Copiat!";
 "Copy and share with Codex" = "Copiați și partajați cu Codex";
 "Correct" = "Corect";
-"Accuracy: %d%%" = "Acuratețe: %d%%";
+"Accuracy %d%%" = "Acuratețe %d%%";
 "Correct reviewed formula" = "Reușite / carduri revizuite";
 "Custom Color" = "Culoare custom";
 "Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
@@ -761,13 +761,11 @@
 "%d cards reviewed" = "%d carduri revizuite";
 "%d cards reviewed today." = "%d carduri revizuite azi.";
 "%d reviewed" = "%d revizuite";
-"%d-day streak" = "Serie de %d zile";
 "%d days hit goal" = "%d zile cu ținta atinsă";
 "%d of %d reviewed" = "%d din %d revizuite";
 "%d%% good cards" = "%d%% carduri bune";
 "Attempts" = "Încercări";
 "1 day hit goal" = "1 zi cu ținta atinsă";
-"1-day streak" = "Serie de 1 zi";
 "Attempts %d" = "Încercări %d";
 "Cards Goal" = "Țintă carduri";
 "Empty" = "Empty";

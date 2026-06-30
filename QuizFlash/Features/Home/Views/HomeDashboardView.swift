@@ -239,14 +239,6 @@ struct HomeDashboardView: View {
         return localizedFormat("%d reviewed", overview.cardsReviewed)
     }
 
-    private func activeDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
-        if summary.activeDays == 1 {
-            return localized("1-day streak")
-        }
-
-        return localizedFormat("%d-day streak", summary.activeDays)
-    }
-
     private func goalDaysText(for summary: HomePastWeekPerformanceSummary) -> String {
         if summary.goalHitDays == 1 {
             return localized("1 day hit goal")
@@ -294,19 +286,17 @@ struct HomeDashboardView: View {
             return localized("No reviews this week")
         }
 
-        return localizedFormat("Accuracy: %d%%", summary.goodRatePercent)
+        return localizedFormat("Accuracy %d%%", summary.goodRatePercent)
     }
 
     @ViewBuilder
     private func weeklyMetricsRow(for summary: HomePastWeekPerformanceSummary) -> some View {
-        HStack(spacing: usesRegularMetrics ? 16 : 12) {
-            metricPill(activeDaysText(for: summary))
-
-            if summary.hasGoal {
+        if summary.hasGoal {
+            HStack(spacing: usesRegularMetrics ? 16 : 12) {
                 metricPill(goalDaysText(for: summary))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func metricPill(_ text: String, tint: Color? = nil) -> some View {
@@ -522,8 +512,12 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         CGFloat(retryCount) / CGFloat(total)
     }
 
+    private var outcomeScoreText: String {
+        "\(correctCount)-\(retryCount)"
+    }
+
     private var lineWidth: CGFloat {
-        usesRegularMetrics ? 6.5 : 6
+        usesRegularMetrics ? 8.5 : 8
     }
 
     private var correctColor: Color {
@@ -552,20 +546,19 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
                     }
                 }
 
-            Text("\(reviewedCount)")
-                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+            Text(outcomeScoreText)
+                .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.64)
-                .contentTransition(reviewedCount == 0 ? .identity : .numericText(value: Double(reviewedCount)))
-                .padding(.horizontal, 12)
+                .minimumScaleFactor(0.58)
+                .contentTransition(hasOutcome ? .numericText() : .identity)
+                .padding(.horizontal, 10)
         }
         .animation(hasOutcome ? ringAnimation : nil, value: correctCount)
         .animation(hasOutcome ? ringAnimation : nil, value: retryCount)
-        .animation(reviewedCount == 0 ? nil : ringAnimation, value: reviewedCount)
         .accessibilityLabel("Daily progress")
-        .accessibilityValue("\(correctCount) correct, \(retryCount) retry, \(reviewedCount) reviewed")
+        .accessibilityValue("\(correctCount) correct, \(retryCount) wrong, \(reviewedCount) reviewed")
     }
 
     @ViewBuilder
@@ -601,7 +594,7 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
     }
 
     private var greenCapOverlayFraction: CGFloat {
-        usesRegularMetrics ? 0.035 : 0.04
+        usesRegularMetrics ? 0.045 : 0.05
     }
 
     private func outcomeSegment(

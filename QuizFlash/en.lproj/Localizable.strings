@@ -222,7 +222,7 @@
 "Copied!" = "Copied!";
 "Copy and share with Codex" = "Copy and share with Codex";
 "Correct" = "Correct";
-"Accuracy: %d%%" = "Accuracy: %d%%";
+"Accuracy %d%%" = "Accuracy %d%%";
 "Correct reviewed formula" = "Landed / reviewed cards";
 "Custom Color" = "Custom Color";
 "Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
@@ -761,13 +761,11 @@
 "%d cards reviewed" = "%d cards reviewed";
 "%d cards reviewed today." = "%d cards reviewed today.";
 "%d reviewed" = "%d reviewed";
-"%d-day streak" = "%d-day streak";
 "%d days hit goal" = "%d days hit goal";
 "%d of %d reviewed" = "%d of %d reviewed";
 "%d%% good cards" = "%d%% good cards";
 "Attempts" = "Attempts";
 "1 day hit goal" = "1 day hit goal";
-"1-day streak" = "1-day streak";
 "Attempts %d" = "Attempts %d";
 "Cards Goal" = "Cards Goal";
 "Empty" = "Empty";

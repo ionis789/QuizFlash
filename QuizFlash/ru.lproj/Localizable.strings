@@ -222,7 +222,7 @@
 "Copied!" = "Скопировано!";
 "Copy and share with Codex" = "Скопируйте и поделитесь с Кодексом";
 "Correct" = "Верно";
-"Accuracy: %d%%" = "Точность: %d%%";
+"Accuracy %d%%" = "Точность %d%%";
 "Correct reviewed formula" = "Успешные / повторённые карточки";
 "Custom Color" = "Свой цвет";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
@@ -761,13 +761,11 @@
 "%d cards reviewed" = "%d карточек пройдено";
 "%d cards reviewed today." = "%d карточек пройдено сегодня.";
 "%d reviewed" = "%d пройдено";
-"%d-day streak" = "Серия: %d дней";
 "%d days hit goal" = "%d дней с выполненной целью";
 "%d of %d reviewed" = "%d из %d пройдено";
 "%d%% good cards" = "%d%% хороших карточек";
 "Attempts" = "Попытки";
 "1 day hit goal" = "1 день с выполненной целью";
-"1-day streak" = "Серия: 1 день";
 "Attempts %d" = "Попытки %d";
 "Cards Goal" = "Цель по карточкам";
 "Empty" = "Empty";
