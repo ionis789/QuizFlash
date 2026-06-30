@@ -56,7 +56,6 @@ struct FlashcardEditorView: View {
     @State private var editorSessionID = UUID()
     @State private var isEditorDismissInFlight = false
     @State private var editorCoverDismissTask: Task<Void, Never>?
-    @State private var interactiveDismissTranslationY: CGFloat = 0
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -240,13 +239,6 @@ struct FlashcardEditorView: View {
                     .allowsHitTesting(!isEditorDismissInFlight)
             }
         }
-        .offset(y: interactiveDismissTranslationY)
-        .modifier(
-            FlashcardEditorPresentationClipModifier(
-                isEnabled: isEditorDismissInFlight || interactiveDismissTranslationY > 0.5
-            )
-        )
-        .simultaneousGesture(editorDismissDragGesture)
         .toolbar(.hidden, for: .navigationBar)
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
         .onChange(of: selectedPhoto) { _, item in
@@ -1396,54 +1388,6 @@ struct FlashcardEditorView: View {
         startEditorCoverDismiss(action: "discard", start: start)
     }
 
-    private var editorDismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .global)
-            .onChanged { value in
-                guard shouldTrackEditorDismissDrag(value) else { return }
-                interactiveDismissTranslationY = min(value.translation.height, 360)
-            }
-            .onEnded { value in
-                guard interactiveDismissTranslationY > 0 else { return }
-                let shouldDismiss = value.translation.height > 130
-                    || value.predictedEndTranslation.height > 240
-
-                if shouldDismiss {
-                    recordDismissFlow(
-                        "flashcard.drag-dismiss.accept",
-                        details: "translation=\(debugValue(value.translation.height)) predicted=\(debugValue(value.predictedEndTranslation.height))"
-                    )
-                    closeEditor()
-                    if hasUnsavedChanges {
-                        resetInteractiveDismissTranslation()
-                    }
-                } else {
-                    recordDismissFlow(
-                        "flashcard.drag-dismiss.cancel",
-                        details: "translation=\(debugValue(value.translation.height)) predicted=\(debugValue(value.predictedEndTranslation.height))"
-                    )
-                    resetInteractiveDismissTranslation()
-                }
-            }
-    }
-
-    private func shouldTrackEditorDismissDrag(_ value: DragGesture.Value) -> Bool {
-        guard !isEditorDismissInFlight else { return false }
-        guard value.translation.height > 0 else { return false }
-
-        let horizontalSignal = abs(value.translation.width)
-        guard value.translation.height >= horizontalSignal * 1.2 else { return false }
-
-        let startsInChrome = value.startLocation.y <= 180
-        let scrollIsAtTop = scrollTransition.currentNormalizedOffsetY <= 4
-        return startsInChrome || scrollIsAtTop
-    }
-
-    private func resetInteractiveDismissTranslation() {
-        withAnimation(.smooth(duration: 0.22, extraBounce: 0)) {
-            interactiveDismissTranslationY = 0
-        }
-    }
-
     private func blurEditingBeforeSideSwitch() {
         scheduledFocusTask?.cancel()
         scheduledFocusTask = nil
@@ -1918,28 +1862,6 @@ private final class EditorToolbarPerformanceOverlayView: UIView {
 struct ZoneEditorScrollRestorationRequest: Equatable {
     let normalizedOffsetY: CGFloat
     let targetRenderedMode: Bool
-}
-
-private struct FlashcardEditorPresentationClipModifier: ViewModifier {
-    let isEnabled: Bool
-
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: UIConstants.Radius.maximum,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: UIConstants.Radius.maximum
-                    ),
-                    style: .continuous
-                )
-            )
-        } else {
-            content
-        }
-    }
 }
 
 private final class FlashcardEditorScrollTransitionState {
