@@ -15,6 +15,7 @@ import SwiftData
 /// from `HomeViewModel` and `HomeDashboardSnapshot`.
 struct HomeDashboardView: View {
     private let topSectionInset: CGFloat = 12
+    @State private var isWeeklyStatsExpanded = false
 
     // MARK: - Dependencies
 
@@ -119,6 +120,10 @@ struct HomeDashboardView: View {
 
     private var studyHeroMinHeight: CGFloat {
         usesRegularMetrics ? 282 : 256
+    }
+
+    private var weeklyStatsExpandAnimation: Animation {
+        .easeInOut(duration: 0.18)
     }
 
     // MARK: - Body
@@ -248,37 +253,53 @@ struct HomeDashboardView: View {
     }
 
     private func weeklyStatsButton(for summary: HomePastWeekPerformanceSummary) -> some View {
-        Button {
-            viewModel.presentPerformanceDetail()
+        let canExpand = !summary.currentDaySummaries.isEmpty
+        let isExpanded = isWeeklyStatsExpanded && canExpand
+
+        return Button {
+            guard canExpand else { return }
+            withAnimation(weeklyStatsExpandAnimation) {
+                isWeeklyStatsExpanded.toggle()
+            }
         } label: {
-            HStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
-                VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
-                    Text(localized("This week"))
-                        .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+            VStack(alignment: .leading, spacing: isExpanded ? UIConstants.Spacing.medium : 0) {
+                HStack(alignment: .center, spacing: usesRegularMetrics ? 16 : 14) {
+                    VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
+                        Text(localized("This week"))
+                            .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+                            .foregroundStyle(accentColor)
+                            .lineLimit(1)
+
+                        Text(weeklyPerformanceHeadline(for: summary))
+                            .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
+                            .foregroundStyle(themeManager.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .contentTransition(.numericText())
+
+                        weeklyMetricsRow(for: summary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: isExpanded ? "chevron.compact.up" : "chevron.compact.down")
+                        .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black))
                         .foregroundStyle(accentColor)
-                        .lineLimit(1)
-
-                    Text(weeklyPerformanceHeadline(for: summary))
-                        .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .contentTransition(.numericText())
-
-                    weeklyMetricsRow(for: summary)
+                        .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Image(systemName: "chevron.compact.right")
-                    .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black))
-                    .foregroundStyle(accentColor)
-                    .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
+                if isExpanded {
+                    HomePerformanceBarRow(daySummaries: summary.currentDaySummaries)
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.16), value: isWeeklyStatsExpanded)
     }
 
     private func weeklyPerformanceHeadline(for summary: HomePastWeekPerformanceSummary) -> String {

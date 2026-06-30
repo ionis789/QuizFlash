@@ -171,7 +171,7 @@ private struct HomePerformanceBarSection: View {
     }
 }
 
-private struct HomePerformanceBarRow: View {
+struct HomePerformanceBarRow: View {
     let daySummaries: [HomePastWeekPerformanceDaySummary]
 
     private let columnSpacing: CGFloat = UIConstants.Spacing.small
