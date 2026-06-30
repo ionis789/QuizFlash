@@ -235,12 +235,18 @@ struct HomeCalendarDayInsight: Equatable {
     let date: Date
     let dateString: String
     let cardsReviewed: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
     let xpEarned: Int
     let dailyGoal: Int?
     let activityFraction: Double
     let didStudy: Bool
     let isPerfectDay: Bool
     let isStreakDay: Bool
+
+    var outcomeCount: Int {
+        correctCardCount + retryCardCount
+    }
 
     var hasGoal: Bool {
         dailyGoal != nil

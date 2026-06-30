@@ -144,7 +144,7 @@ struct HomeView: View {
                 .fullScreenSheet(
                     isPresented: $viewModel.showPerformanceDetailSheet,
                     configuration: .sheet(
-                        heightMode: .custom(0.75),
+                        heightMode: .adaptiveAbsolute(500, maxFraction: 0.64),
                         showsCloseButton: true
                     )
                 ) { safeAreaInsets in
@@ -159,6 +159,7 @@ struct HomeView: View {
                     isPresented: $viewModel.showCreateFolder,
                     configuration: .sheet(
                         heightMode: .custom(0.52),
+                        showsDefaultTopProgressiveBlur: false,
                         showsCloseButton: true
                     )
                 ) { safeAreaInsets in

@@ -237,6 +237,13 @@ struct CreateFolderSheet: View {
         !colorOptions.contains(viewModel.newFolderColorHex)
     }
 
+    private var contentTopPadding: CGFloat {
+        max(
+            topChromeClearance + 34,
+            safeAreaInsets.top + UIConstants.Size.actionButton + UIConstants.Spacing.extraLarge
+        )
+    }
+
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
     }
@@ -315,7 +322,7 @@ struct CreateFolderSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, UIConstants.Spacing.large)
-        .padding(.top, max(topChromeClearance + 34, UIConstants.Spacing.extraLarge))
+        .padding(.top, contentTopPadding)
         .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onDisappear {

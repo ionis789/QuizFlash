@@ -37,7 +37,7 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     private var contentTopPadding: CGFloat {
-        max(topChromeClearance + 44, UIConstants.Spacing.extraLarge)
+        max(topChromeClearance + 30, UIConstants.Spacing.extraLarge)
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -66,27 +66,22 @@ struct HomePerformanceDetailSheetView: View {
         .padding(.horizontal, UIConstants.Spacing.large)
         .padding(.top, contentTopPadding)
         .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(localized("Study week"))
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-
-            Text(weekRangeLine)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(themeManager.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text(weekRangeLine)
+            .font(.system(size: 17, weight: .black))
+            .foregroundStyle(themeManager.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .padding(.trailing, headerTrailingReserve)
     }
 
     private var overviewMetricsSection: some View {
         LazyVGrid(columns: gridColumns, alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HomePerformancePlainMetric(
-                title: localized("Remembered"),
+                title: localized("Correct rate"),
                 value: "\(summary.accuracyPercent)%",
                 caption: localized("Correct reviewed formula")
             )

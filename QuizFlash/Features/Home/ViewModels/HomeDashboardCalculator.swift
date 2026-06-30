@@ -848,6 +848,8 @@ extension HomeViewModel {
             date: date,
             dateString: key,
             cardsReviewed: cardsReviewed,
+            correctCardCount: aggregate?.landedCount ?? 0,
+            retryCardCount: aggregate?.retryCount ?? 0,
             xpEarned: xpEarned,
             dailyGoal: dailyGoal,
             activityFraction: activityFraction,

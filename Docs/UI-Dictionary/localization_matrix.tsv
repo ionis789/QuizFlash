@@ -582,8 +582,8 @@ Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d s
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
-Remembered	Remembered	Ținute minte	Запомнено
-Remembered: %d%%	Remembered: %d%%	Ținute minte: %d%%	Запомнено: %d%%
+Correct rate	Correct rate	Rată corectă	Процент верных
+Correct: %d%%	Correct: %d%%	Corecte: %d%%	Верно: %d%%
 Render	Render	Randare	Рендер
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
 Replace Zone	Replace Zone	Înlocuiește zona	Заменить зону
@@ -672,7 +672,6 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
-Study week	Study week	Săptămână studiu	Неделя учёбы
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу

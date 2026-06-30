@@ -774,8 +774,7 @@
 "No goal" = "Без цели";
 "No reviews this week" = "На этой неделе нет повторений";
 "Ready when you are." = "Готово, когда вы готовы.";
-"Remembered" = "Запомнено";
-"Remembered: %d%%" = "Запомнено: %d%%";
-"Study week" = "Неделя учёбы";
+"Correct rate" = "Процент верных";
+"Correct: %d%%" = "Верно: %d%%";
 "This week" = "Эта неделя";
 "Update Goal" = "Обновить цель";
