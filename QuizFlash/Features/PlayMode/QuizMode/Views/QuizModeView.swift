@@ -95,6 +95,9 @@ private struct QuizModeSessionView: View {
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
     private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
+    private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
+    private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
+    private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
     private var questionContentHiddenScale: CGFloat { 0.952 }
     private var questionContentTransition: Animation {
         .spring(response: 0.36, dampingFraction: 0.84)
@@ -571,9 +574,9 @@ private struct QuizModeSessionView: View {
     private var quizMissedCorrectFloatingButton: some View {
         Button(action: viewModel.revealMissedCorrectChoices) {
             Image(systemName: "lightbulb.max.fill")
-                .font(.system(size: 24, weight: .black))
+                .font(.system(size: quizSecondaryFloatingIconFontSize, weight: .black))
                 .foregroundStyle(viewModel.canRevealMissedCorrectChoices ? Color.orange : Color.orange.opacity(0.62))
-                .frame(width: 44, height: 44)
+                .frame(width: quizSecondaryFloatingIconFrame, height: quizSecondaryFloatingIconFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -584,9 +587,9 @@ private struct QuizModeSessionView: View {
     private var quizExplanationFloatingButton: some View {
         Button(action: openExplanationSheet) {
             Image(systemName: "book.closed.fill")
-                .font(.system(size: 24, weight: .black))
+                .font(.system(size: quizSecondaryFloatingIconFontSize, weight: .black))
                 .foregroundStyle(.orange)
-                .frame(width: 44, height: 44)
+                .frame(width: quizSecondaryFloatingIconFrame, height: quizSecondaryFloatingIconFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -599,25 +602,28 @@ private struct QuizModeSessionView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 13)
-                .contentTransition(.identity)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(primaryFloatingBackground(isDisabled: isDisabled))
-                }
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
-                }
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(primaryFloatingBackground(isDisabled: isDisabled))
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
+                    }
+
+                Text(title)
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
+                    .lineLimit(1)
+                    .contentTransition(.identity)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+            }
+            .frame(
+                width: primaryFloatingButtonWidth(for: title),
+                height: quizPrimaryFloatingButtonHeight
+            )
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -631,6 +637,10 @@ private struct QuizModeSessionView: View {
         }
 
         return primaryFloatingTint
+    }
+
+    private func primaryFloatingButtonWidth(for title: String) -> CGFloat {
+        min(max(CGFloat(title.count) * 11 + 46, 92), 172)
     }
 
     private var quizLayoutDebugButton: some View {
