@@ -530,50 +530,46 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         Color(red: 0.92, green: 0.34, blue: 0.32)
     }
 
-    private var hasMixedOutcome: Bool {
-        correctCount > 0 && retryCount > 0
-    }
-
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Circle()
-                    .stroke(themeManager.textSecondary.opacity(0.16), lineWidth: lineWidth)
+        ZStack {
+            Circle()
+                .stroke(themeManager.textSecondary.opacity(0.16), lineWidth: lineWidth)
 
-                if correctCount > 0 {
-                    Circle()
-                        .trim(from: 0, to: correctFraction)
-                        .stroke(
-                            correctColor,
-                            style: StrokeStyle(lineWidth: lineWidth, lineCap: hasMixedOutcome ? .butt : .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                }
-
-                if retryCount > 0 {
-                    Circle()
-                        .trim(from: correctFraction, to: min(correctFraction + retryFraction, 1))
-                        .stroke(
-                            retryColor,
-                            style: StrokeStyle(lineWidth: lineWidth, lineCap: hasMixedOutcome ? .butt : .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                }
-
-                if hasMixedOutcome {
-                    endpointCap(color: retryColor, fraction: 0, size: proxy.size)
-                    endpointCap(color: correctColor, fraction: correctFraction, size: proxy.size)
-                }
-
-                Text("\(reviewedCount)")
-                    .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.64)
-                    .contentTransition(.numericText(value: Double(reviewedCount)))
-                    .padding(.horizontal, 12)
+            if correctCount > 0 {
+                outcomeSegment(
+                    from: 0,
+                    to: correctFraction,
+                    color: correctColor,
+                    lineCap: retryCount > 0 ? .butt : .round
+                )
             }
+
+            if retryCount > 0 {
+                outcomeSegment(
+                    from: correctFraction,
+                    to: min(correctFraction + retryFraction, 1),
+                    color: retryColor,
+                    lineCap: .round
+                )
+            }
+
+            if correctCount > 0 && retryCount > 0 {
+                outcomeSegment(
+                    from: max(correctFraction - greenCapOverlayFraction, 0),
+                    to: correctFraction,
+                    color: correctColor,
+                    lineCap: .round
+                )
+            }
+
+            Text("\(reviewedCount)")
+                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+                .contentTransition(.numericText(value: Double(reviewedCount)))
+                .padding(.horizontal, 12)
         }
         .animation(.smooth(duration: 0.35, extraBounce: 0), value: correctCount)
         .animation(.smooth(duration: 0.35, extraBounce: 0), value: retryCount)
@@ -582,20 +578,23 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         .accessibilityValue("\(correctCount) correct, \(retryCount) retry, \(reviewedCount) reviewed")
     }
 
-    private func endpointCap(color: Color, fraction: CGFloat, size: CGSize) -> some View {
-        Circle()
-            .fill(color)
-            .frame(width: lineWidth, height: lineWidth)
-            .offset(endpointOffset(fraction: fraction, size: size))
+    private var greenCapOverlayFraction: CGFloat {
+        usesRegularMetrics ? 0.035 : 0.04
     }
 
-    private func endpointOffset(fraction: CGFloat, size: CGSize) -> CGSize {
-        let radius = (min(size.width, size.height) - lineWidth) / 2
-        let angle = ((fraction * 360) - 90) * .pi / 180
-        return CGSize(
-            width: cos(angle) * radius,
-            height: sin(angle) * radius
-        )
+    private func outcomeSegment(
+        from start: CGFloat,
+        to end: CGFloat,
+        color: Color,
+        lineCap: CGLineCap
+    ) -> some View {
+        Circle()
+            .trim(from: start, to: end)
+            .stroke(
+                color,
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: lineCap)
+            )
+            .rotationEffect(.degrees(-90))
     }
 }
 
