@@ -54,6 +54,8 @@ final class CloudSyncService {
         var skippedOversizedCard = false
         var currentCardIDs = Set<String>()
         let batch = firestore.batch()
+        let optionalBatch = firestore.batch()
+        var hasOptionalWrites = false
         batch.setData(deckPayload(for: deck), forDocument: deckRef, merge: true)
 
         for card in cards {
@@ -80,11 +82,12 @@ final class CloudSyncService {
                 event.ownerUID = uid
                 event.lastSyncedAt = now
 
-                batch.setData(
+                optionalBatch.setData(
                     reviewEventPayload(for: event),
                     forDocument: cardRef.collection("reviewEvents").document(eventID),
                     merge: true
                 )
+                hasOptionalWrites = true
             }
         }
 
@@ -102,30 +105,41 @@ final class CloudSyncService {
         }
 
         for aggregate in dailyStudyAggregates {
-            batch.setData(
+            optionalBatch.setData(
                 dailyStudyPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyStudy").document(aggregate.dayKey),
                 merge: true
             )
+            hasOptionalWrites = true
         }
 
         for aggregate in dailyDeckAggregates {
-            batch.setData(
+            optionalBatch.setData(
                 dailyDeckPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyDecks").document(aggregate.aggregateKey),
                 merge: true
             )
+            hasOptionalWrites = true
         }
 
         for aggregate in dailyCardAggregates {
-            batch.setData(
+            optionalBatch.setData(
                 dailyCardPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyCards").document(aggregate.aggregateKey),
                 merge: true
             )
+            hasOptionalWrites = true
         }
 
         try await batch.commit()
+        guard hasOptionalWrites else { return }
+
+        do {
+            try await optionalBatch.commit()
+        } catch where Self.isPermissionDenied(error) {
+            // New analytics/review-event collections are optional for older deployed rules.
+            // Deck/card sync must keep working even before those rules are rolled out.
+        }
     }
 
     /// Uploads a folder document.
@@ -245,6 +259,12 @@ final class CloudSyncService {
         let firestore = Firestore.firestore()
         cachedFirestore = firestore
         return firestore
+    }
+
+    private static func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == FirestoreErrorDomain
+            && nsError.code == FirestoreErrorCode.permissionDenied.rawValue
     }
 
     private func deckPayload(for deck: DeckModel) -> [String: Any] {

@@ -210,6 +210,7 @@ final class CloudSyncCoordinator {
                 guard !Task.isCancelled else { return }
 
                 do {
+                    var shouldRemoveOperation = true
                     switch operation.kind {
                     case .upsertDeck:
                         // Cloud IDs are optional in the SwiftData schema, but required for synced decks.
@@ -240,13 +241,23 @@ final class CloudSyncCoordinator {
                             try await outbox.remove(operation)
                             continue
                         }
-                        try await service.upsertFolder(folder, uid: uid)
-                        try context.save()
+                        do {
+                            try await service.upsertFolder(folder, uid: uid)
+                            try context.save()
+                        } catch where Self.isPermissionDenied(error) {
+                            shouldRemoveOperation = false
+                        }
                     case .deleteFolder:
-                        try await service.softDeleteFolder(folderID: operation.entityID, uid: uid)
+                        do {
+                            try await service.softDeleteFolder(folderID: operation.entityID, uid: uid)
+                        } catch where Self.isPermissionDenied(error) {
+                            shouldRemoveOperation = false
+                        }
                     }
 
-                    try await outbox.remove(operation)
+                    if shouldRemoveOperation {
+                        try await outbox.remove(operation)
+                    }
                     lastErrorMessage = nil
                 } catch {
                     lastErrorMessage = error.localizedDescription
@@ -291,6 +302,10 @@ final class CloudSyncCoordinator {
 
     private func handleRemoteFolderSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
         if let error {
+            if Self.isPermissionDenied(error) {
+                lastErrorMessage = nil
+                return
+            }
             lastErrorMessage = error.localizedDescription
             return
         }
@@ -378,6 +393,12 @@ final class CloudSyncCoordinator {
 
     private func record(_ error: Error) {
         lastErrorMessage = error.localizedDescription
+    }
+
+    nonisolated private static func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == FirestoreErrorDomain
+            && nsError.code == FirestoreErrorCode.permissionDenied.rawValue
     }
 
     /// Ignores sub-millisecond timestamp drift introduced by Firestore serialization.
@@ -675,7 +696,12 @@ actor CloudSyncRemoteImportActor {
 
         let cards = header.isDeleted ? [] : try await remoteCards(uid: uid, deckID: header.deckID)
         if !header.isDeleted {
-            try await applyRemoteHomeAnalytics(uid: uid)
+            do {
+                try await applyRemoteHomeAnalytics(uid: uid)
+            } catch where Self.isPermissionDenied(error) {
+                // Home analytics collections were added after deck sync. If deployed
+                // rules are still older, keep importing the deck/card payload.
+            }
         }
         return try apply(CloudSyncRemoteDeckSnapshot(header: header, cards: cards), uid: uid)
     }
@@ -792,16 +818,21 @@ actor CloudSyncRemoteImportActor {
         snapshots.reserveCapacity(documents.count)
 
         for document in documents {
-            let reviewDocuments = try await Firestore.firestore()
-                .collection("users")
-                .document(uid)
-                .collection("decks")
-                .document(deckID)
-                .collection("cards")
-                .document(document.documentID)
-                .collection("reviewEvents")
-                .getDocuments()
-                .documents
+            let reviewDocuments: [QueryDocumentSnapshot]
+            do {
+                reviewDocuments = try await Firestore.firestore()
+                    .collection("users")
+                    .document(uid)
+                    .collection("decks")
+                    .document(deckID)
+                    .collection("cards")
+                    .document(document.documentID)
+                    .collection("reviewEvents")
+                    .getDocuments()
+                    .documents
+            } catch where Self.isPermissionDenied(error) {
+                reviewDocuments = []
+            }
             let reviewEvents = reviewDocuments.map(CloudSyncRemoteReviewEventSnapshot.init(document:))
             snapshots.append(try CloudSyncRemoteCardSnapshot(document: document, reviewEvents: reviewEvents))
         }
@@ -990,6 +1021,12 @@ actor CloudSyncRemoteImportActor {
     private func date(in data: [String: Any], key: String) -> Date? {
         if let timestamp = data[key] as? Timestamp { return timestamp.dateValue() }
         return data[key] as? Date
+    }
+
+    private static func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == FirestoreErrorDomain
+            && nsError.code == FirestoreErrorCode.permissionDenied.rawValue
     }
 
     private func flushContext() {
