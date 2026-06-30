@@ -407,11 +407,6 @@ struct CalendarDayCellView: View {
         insight?.activityFraction ?? 0
     }
 
-    private var showsOutcomeRing: Bool {
-        guard !day.ignored, !usesCompactCapsulePresentation else { return false }
-        return (insight?.outcomeCount ?? 0) > 0
-    }
-
     private var metrics: HomeCalendarDayMetrics {
         HomeCalendarDayMetrics(
             collapseProgress: collapseProgress,
@@ -473,63 +468,7 @@ struct CalendarDayCellView: View {
         }
             .shadow(color: .black.opacity(usesCompactCapsulePresentation ? 0.28 : 0), radius: 5, x: 0, y: 2)
             .shadow(color: .black.opacity(usesCompactCapsulePresentation ? 0.16 : 0), radius: 2, x: 0, y: 1)
-            .overlay(alignment: .trailing) {
-                if showsOutcomeRing, let insight {
-                    CalendarDayOutcomeRing(
-                        correctCount: insight.correctCardCount,
-                        retryCount: insight.retryCardCount
-                    )
-                    .frame(width: 18, height: 18)
-                    .padding(.trailing, max(dayColumnWidth * 0.12, 2))
-                    .transition(.scale(scale: 0.72).combined(with: .opacity))
-                }
-            }
             .contentShape(Rectangle())
             .zIndex(day.isSelected ? 1 : 0)
-    }
-}
-
-private struct CalendarDayOutcomeRing: View {
-    let correctCount: Int
-    let retryCount: Int
-
-    private var total: Int {
-        max(correctCount + retryCount, 1)
-    }
-
-    private var correctFraction: CGFloat {
-        CGFloat(correctCount) / CGFloat(total)
-    }
-
-    private var retryFraction: CGFloat {
-        CGFloat(retryCount) / CGFloat(total)
-    }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.12), lineWidth: 2.4)
-
-            Circle()
-                .trim(from: 0, to: correctFraction)
-                .stroke(
-                    Color.green,
-                    style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-
-            if retryCount > 0 {
-                Circle()
-                    .trim(from: correctFraction, to: min(correctFraction + retryFraction, 1))
-                    .stroke(
-                        Color.red,
-                        style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-            }
-        }
-        .drawingGroup()
-        .animation(.smooth(duration: 0.32, extraBounce: 0), value: correctCount)
-        .animation(.smooth(duration: 0.32, extraBounce: 0), value: retryCount)
     }
 }

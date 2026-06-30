@@ -186,20 +186,34 @@ struct HomeDashboardView: View {
     }
 
     private func selectedDayStatsContent(for overview: HomeSelectedDayOverviewSummary) -> some View {
-        VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
-            Text(selectedDayTitle(for: overview))
-                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
-                .foregroundStyle(accentColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+        HStack(alignment: .center, spacing: usesRegularMetrics ? 18 : 14) {
+            VStack(alignment: .leading, spacing: usesRegularMetrics ? 9 : 8) {
+                Text(selectedDayTitle(for: overview))
+                    .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+                    .foregroundStyle(accentColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
 
-            Text(selectedDayReviewedLine(for: overview))
-                .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.68)
-                .multilineTextAlignment(.leading)
-                .contentTransition(.numericText())
+                Text(selectedDayReviewedLine(for: overview))
+                    .font(.system(size: usesRegularMetrics ? 28 : 25, weight: .black))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.68)
+                    .multilineTextAlignment(.leading)
+                    .contentTransition(.numericText())
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HomeDashboardSelectedDayOutcomeRing(
+                correctCount: overview.correctCardCount,
+                retryCount: overview.retryCardCount,
+                reviewedCount: overview.cardsReviewed,
+                usesRegularMetrics: usesRegularMetrics
+            )
+            .frame(
+                width: usesRegularMetrics ? 82 : 74,
+                height: usesRegularMetrics ? 82 : 74
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -477,6 +491,76 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
                     }
             }
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+private struct HomeDashboardSelectedDayOutcomeRing: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let correctCount: Int
+    let retryCount: Int
+    let reviewedCount: Int
+    let usesRegularMetrics: Bool
+
+    private var outcomeCount: Int {
+        correctCount + retryCount
+    }
+
+    private var total: Int {
+        max(outcomeCount, 1)
+    }
+
+    private var correctFraction: CGFloat {
+        CGFloat(correctCount) / CGFloat(total)
+    }
+
+    private var retryFraction: CGFloat {
+        CGFloat(retryCount) / CGFloat(total)
+    }
+
+    private var lineWidth: CGFloat {
+        usesRegularMetrics ? 6.5 : 6
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(themeManager.textSecondary.opacity(0.16), lineWidth: lineWidth)
+
+            if correctCount > 0 {
+                Circle()
+                    .trim(from: 0, to: correctFraction)
+                    .stroke(
+                        Color.green,
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+            }
+
+            if retryCount > 0 {
+                Circle()
+                    .trim(from: correctFraction, to: min(correctFraction + retryFraction, 1))
+                    .stroke(
+                        Color.red,
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+            }
+
+            Text("\(reviewedCount)")
+                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+                .contentTransition(.numericText(value: Double(reviewedCount)))
+                .padding(.horizontal, 12)
+        }
+        .animation(.smooth(duration: 0.35, extraBounce: 0), value: correctCount)
+        .animation(.smooth(duration: 0.35, extraBounce: 0), value: retryCount)
+        .animation(.smooth(duration: 0.35, extraBounce: 0), value: reviewedCount)
+        .accessibilityLabel("Daily progress")
+        .accessibilityValue("\(correctCount) correct, \(retryCount) retry, \(reviewedCount) reviewed")
     }
 }
 
