@@ -310,7 +310,7 @@ private struct HomePadCalendarColumnView: View {
     let headerState: HomeTopHeaderLayoutState
 
     private var monthTransitionAnimation: Animation {
-        .snappy(duration: 0.28, extraBounce: 0.02)
+        .easeInOut(duration: 0.24)
     }
 
     private var monthGridTransition: AnyTransition {
@@ -318,8 +318,8 @@ private struct HomePadCalendarColumnView: View {
         let removalEdge: Edge = monthTransitionDirection >= 0 ? .leading : .trailing
 
         return .asymmetric(
-            insertion: .move(edge: insertionEdge).combined(with: .opacity),
-            removal: .move(edge: removalEdge).combined(with: .opacity)
+            insertion: .move(edge: insertionEdge),
+            removal: .move(edge: removalEdge)
         )
     }
 
@@ -344,7 +344,6 @@ private struct HomePadCalendarColumnView: View {
 
         return HStack(alignment: .center, spacing: headerState.calendarState.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .id(calendarVM.selectedMonth)
                 .font(.system(size: headerState.calendarState.titleFontSize, weight: .black))
                 .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .textCase(.uppercase)
@@ -352,7 +351,6 @@ private struct HomePadCalendarColumnView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .transition(monthGridTransition)
 
             HStack(spacing: headerState.calendarState.monthControlSpacing) {
                 chevronButton(increment: false, size: headerState.calendarState.monthControlSize)
@@ -370,6 +368,7 @@ private struct HomePadCalendarColumnView: View {
         let totalGridHeight = CGFloat(calendarVM.monthRows.count) * headerState.calendarState.rowHeight
         let isCompactStripActive = headerState.progress >= 0.999
         let visibleGridWidth = headerState.calendarState.dayColumnWidth * 7
+        let visibleGridHeight = headerState.calendarState.rowHeight + (totalGridHeight - headerState.calendarState.rowHeight) * (1 - headerState.progress)
 
         return VStack(spacing: 0) {
             weekdayLabels
@@ -377,6 +376,8 @@ private struct HomePadCalendarColumnView: View {
 
             ZStack(alignment: .top) {
                 dayGrid(totalGridHeight: totalGridHeight)
+                    .id(calendarVM.selectedMonth)
+                    .transition(monthGridTransition)
                     .opacity(isCompactStripActive ? 0 : 1)
                     .frame(width: visibleGridWidth, alignment: .leading)
 
@@ -396,7 +397,7 @@ private struct HomePadCalendarColumnView: View {
                 }
             }
             .frame(
-                height: headerState.calendarState.rowHeight + (totalGridHeight - headerState.calendarState.rowHeight) * (1 - headerState.progress),
+                height: visibleGridHeight,
                 alignment: .top
             )
             .clipped()
@@ -465,8 +466,6 @@ private struct HomePadCalendarColumnView: View {
         }
         .frame(height: totalGridHeight, alignment: .top)
         .offset(y: -(calendarVM.monthProgress * headerState.calendarState.rowHeight) * headerState.progress)
-        .id(calendarVM.selectedMonth)
-        .transition(monthGridTransition)
     }
 
     private func chevronButton(increment: Bool, size: CGFloat) -> some View {

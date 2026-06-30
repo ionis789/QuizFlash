@@ -62,7 +62,7 @@ struct HomeCalendarSectionView: View {
     // MARK: - Private Constants
 
     private var monthTransitionAnimation: Animation {
-        .snappy(duration: 0.28, extraBounce: 0.02)
+        .easeInOut(duration: 0.24)
     }
 
     private var monthGridTransition: AnyTransition {
@@ -70,8 +70,8 @@ struct HomeCalendarSectionView: View {
         let removalEdge: Edge = monthTransitionDirection >= 0 ? .leading : .trailing
 
         return .asymmetric(
-            insertion: .move(edge: insertionEdge).combined(with: .opacity),
-            removal: .move(edge: removalEdge).combined(with: .opacity)
+            insertion: .move(edge: insertionEdge),
+            removal: .move(edge: removalEdge)
         )
     }
 
@@ -111,7 +111,6 @@ struct HomeCalendarSectionView: View {
     private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .id(calendarVM.selectedMonth)
                 .font(.system(size: state.titleFontSize, weight: .black))
                 .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .textCase(.uppercase)
@@ -119,7 +118,6 @@ struct HomeCalendarSectionView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .transition(monthGridTransition)
 
             monthNavigationControl(
                 size: state.monthControlSize,
@@ -222,15 +220,20 @@ struct HomeCalendarSectionView: View {
         let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
         let isMonthSwipeEnabled = progress < 0.001
         let visibleGridWidth = state.dayColumnWidth * 7
+        let visibleGridHeight = state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress)
         let capsuleWidth = layout.capsuleWidth(for: progress)
-        let calendarTrack = dayGrid(
-            totalGridHeight: totalGridHeight,
-            progress: progress,
-            state: state
-        )
+        let calendarTrack = ZStack(alignment: .top) {
+            dayGrid(
+                totalGridHeight: totalGridHeight,
+                progress: progress,
+                state: state
+            )
+            .id(calendarVM.selectedMonth)
+            .transition(monthGridTransition)
+        }
             .frame(width: visibleGridWidth, alignment: .leading)
             .frame(
-            height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
+            height: visibleGridHeight,
             alignment: .top
         )
             .clipped()
@@ -286,8 +289,6 @@ struct HomeCalendarSectionView: View {
             state: state
         )
         .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
-        .id(calendarVM.selectedMonth)
-        .transition(monthGridTransition)
         .transaction { transaction in
             if !isMonthTransitionAnimating {
                 transaction.animation = nil
