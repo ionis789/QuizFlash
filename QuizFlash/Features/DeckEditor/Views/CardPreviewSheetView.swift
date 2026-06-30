@@ -53,19 +53,20 @@ struct CardPreviewSheetView: View {
                 ? UIConstants.Layout.compactScreenEdgeInset
                 : UIConstants.Layout.screenEdgeInset
 
-            ZStack {
-                CardPreviewModeView(
-                    content: content,
-                    safeAreaInsets: safeAreaInsets,
-                    contentAlignment: contentAlignment,
-                    textSize: textSize,
-                    showsQuizCloseButton: false
-                )
-
+            CardPreviewModeView(
+                content: content,
+                safeAreaInsets: safeAreaInsets,
+                contentAlignment: contentAlignment,
+                textSize: textSize,
+                showsQuizCloseButton: false
+            )
+            .frame(width: geo.size.width, height: geo.size.height)
+            .overlay(alignment: .top) {
                 previewTopChrome(
                     safeTopInset: max(safeAreaInsets.top, geo.safeAreaInsets.top),
                     horizontalInset: horizontalInset
                 )
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             }
         }
     }
@@ -88,7 +89,8 @@ struct CardPreviewSheetView: View {
             if isQuizPreview {
                 Button(action: dismissPreview) {
                     Color.clear
-                        .frame(maxWidth: .infinity, minHeight: UIConstants.Size.actionButton)
+                        .frame(height: UIConstants.Size.actionButton)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
@@ -104,9 +106,9 @@ struct CardPreviewSheetView: View {
                 size: UIConstants.Size.actionButton
             )
         }
+        .frame(height: UIConstants.Size.actionButton)
         .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding)
         .padding(.horizontal, horizontalInset)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .zIndex(3)
     }
 
