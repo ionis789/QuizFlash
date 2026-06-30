@@ -24,6 +24,12 @@ struct CardPreviewSheetView: View {
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var isQuizPreview: Bool {
+        if case .quiz = content {
+            return true
+        }
+        return false
+    }
 
     init(
         content: DraftCardContent,
@@ -79,16 +85,22 @@ struct CardPreviewSheetView: View {
                 )
             }
 
-            Spacer(minLength: 0)
+            if isQuizPreview {
+                Button(action: dismissPreview) {
+                    Color.clear
+                        .frame(maxWidth: .infinity, minHeight: UIConstants.Size.actionButton)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .accessibilityLabel(localized("Close"))
+            } else {
+                Spacer(minLength: 0)
+            }
 
             ChromeSoftCircleSymbolButton(
                 systemName: "xmark",
                 accessibilityLabel: localized("Close"),
-                action: {
-                    if let fullScreenSheetDismiss {
-                        fullScreenSheetDismiss()
-                    }
-                },
+                action: dismissPreview,
                 size: UIConstants.Size.actionButton
             )
         }
@@ -96,5 +108,9 @@ struct CardPreviewSheetView: View {
         .padding(.horizontal, horizontalInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .zIndex(3)
+    }
+
+    private func dismissPreview() {
+        fullScreenSheetDismiss?()
     }
 }

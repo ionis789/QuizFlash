@@ -372,24 +372,27 @@ private struct QuizModeSessionView: View {
             let screenHeight = max(proxy.size.height, 1)
             let contentWidth = max(screenWidth - (contentHorizontalPadding * 2), 1)
             let contentHeight = max(screenHeight - contentTopPadding - contentBottomPadding, 1)
+            let questionViewportHeight = max(screenHeight * 0.30, 1)
             let answerGroupWidth = choiceGroupWidth(availableWidth: contentWidth)
             let answerBottomOverlayInset = quizAnswerBottomOverlayInset(safeBottomInset: safeBottomInset)
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    QuizPlaybackZoneContent(
-                        zone: card.questionZone,
-                        fontScale: playModeTextScale,
-                        availableWidth: contentWidth,
-                        centersLeafBlocks: true,
-                        alignLeafBlocksToGroupLeading: false,
-                        showsZoneSurfaces: false,
-                        textVerticalPadding: 0,
-                        textHorizontalPaddingOverride: 0,
-                        showsLayoutDebug: showsQuizLayoutDebug,
-                        onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
-                        onBlockBoundsChange: updateQuestionBlockDebugBounds
-                    )
+                    QuizQuestionScrollViewport(maxHeight: questionViewportHeight) {
+                        QuizPlaybackZoneContent(
+                            zone: card.questionZone,
+                            fontScale: playModeTextScale,
+                            availableWidth: contentWidth,
+                            centersLeafBlocks: true,
+                            alignLeafBlocksToGroupLeading: false,
+                            showsZoneSurfaces: false,
+                            textVerticalPadding: 0,
+                            textHorizontalPaddingOverride: 0,
+                            showsLayoutDebug: showsQuizLayoutDebug,
+                            onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
+                            onBlockBoundsChange: updateQuestionBlockDebugBounds
+                        )
+                    }
 
                     quizQuestionSeparator
                 }
@@ -1745,6 +1748,43 @@ struct QuizChoiceRow: View {
 }
 
 // MARK: - QuizPlaybackZoneContent
+
+struct QuizQuestionScrollViewport<Content: View>: View {
+    let maxHeight: CGFloat
+    let content: Content
+    @State private var measuredContentHeight: CGFloat = 0
+
+    init(maxHeight: CGFloat, @ViewBuilder content: () -> Content) {
+        self.maxHeight = maxHeight
+        self.content = content()
+    }
+
+    private var contentOverflows: Bool {
+        measuredContentHeight > maxHeight + 0.5
+    }
+
+    private var viewportHeight: CGFloat {
+        guard measuredContentHeight > 0 else { return maxHeight }
+        return min(max(measuredContentHeight, 1), maxHeight)
+    }
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    ceil(proxy.size.height)
+                } action: { newHeight in
+                    guard newHeight > 0 else { return }
+                    if abs(measuredContentHeight - newHeight) > 0.5 {
+                        measuredContentHeight = newHeight
+                    }
+                }
+        }
+        .scrollIndicators(contentOverflows ? .visible : .hidden)
+        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+        .frame(height: viewportHeight, alignment: .top)
+    }
+}
 
 /// Quiz-mode wrapper around the shared zone-content renderer so questions and choices
 /// use the same rich text, math, code, and local-overflow behavior as flashcards.

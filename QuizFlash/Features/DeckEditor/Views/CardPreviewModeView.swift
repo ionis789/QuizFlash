@@ -188,21 +188,24 @@ struct CardPreviewModeView: View {
             let bottomPadding = max(safeBottomInset, quizContentBottomPadding)
             let contentWidth = max(screenWidth - (quizContentHorizontalPadding * 2), 1)
             let contentHeight = max(screenHeight - topPadding - bottomPadding, 1)
+            let questionViewportHeight = max(screenHeight * 0.30, 1)
             let answerGroupWidth = quizChoiceGroupWidth(availableWidth: contentWidth)
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    QuizPlaybackZoneContent(
-                        zone: quizContent.questionZone,
-                        fontScale: quizPreviewTextScale,
-                        availableWidth: contentWidth,
-                        centersLeafBlocks: true,
-                        alignLeafBlocksToGroupLeading: false,
-                        showsZoneSurfaces: false,
-                        textVerticalPadding: 0,
-                        textHorizontalPaddingOverride: 0,
-                        showsLayoutDebug: false
-                    )
+                    QuizQuestionScrollViewport(maxHeight: questionViewportHeight) {
+                        QuizPlaybackZoneContent(
+                            zone: quizContent.questionZone,
+                            fontScale: quizPreviewTextScale,
+                            availableWidth: contentWidth,
+                            centersLeafBlocks: true,
+                            alignLeafBlocksToGroupLeading: false,
+                            showsZoneSurfaces: false,
+                            textVerticalPadding: 0,
+                            textHorizontalPaddingOverride: 0,
+                            showsLayoutDebug: false
+                        )
+                    }
 
                     quizPlaybackQuestionSeparator
                 }
