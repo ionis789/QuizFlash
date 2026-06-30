@@ -298,7 +298,7 @@ struct HomeDashboardView: View {
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HomeDashboardNoPressEffectButtonStyle())
         .animation(.easeInOut(duration: 0.16), value: isWeeklyStatsExpanded)
     }
 
@@ -738,6 +738,12 @@ private struct HomeDashboardCreateFolderPlaceholder: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+    }
+}
+
+private struct HomeDashboardNoPressEffectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
 
