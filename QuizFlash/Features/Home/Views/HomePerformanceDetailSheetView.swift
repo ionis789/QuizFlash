@@ -328,14 +328,6 @@ private struct HomePerformanceStackedBar: View {
             .frame(height: activeHeight, alignment: .bottom)
             .frame(maxWidth: .infinity)
             .clipShape(Capsule(style: .continuous))
-
-            if totalCount == 0 {
-                Text("0")
-                    .font(.system(size: 13, weight: .black))
-                    .monospacedDigit()
-                    .foregroundStyle(themeManager.textSecondary.opacity(0.55))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            }
         }
         .frame(height: barHeight)
         .frame(maxWidth: .infinity)

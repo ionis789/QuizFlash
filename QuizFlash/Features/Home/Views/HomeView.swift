@@ -85,7 +85,7 @@ struct HomeView: View {
                         calendarHeader(layout: calendarLayout)
                             .zIndex(100)
 
-                        calendarTransitionBand(horizontalInset: calendarLayout.outerHorizontalInset)
+                        calendarTransitionBand()
 
                         HomeDashboardView(
                             viewModel: viewModel,
@@ -225,25 +225,12 @@ struct HomeView: View {
         router.activeTab = .create
     }
 
-    private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: UIConstants.Layout.homeCalendarTransitionTopPadding)
-
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, Color.white.opacity(0.12), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 1)
-                .padding(.horizontal, horizontalInset)
-
-            Color.clear
-                .frame(height: UIConstants.Layout.homeCalendarTransitionBottomPadding)
-        }
+    private func calendarTransitionBand() -> some View {
+        Color.clear
+            .frame(
+                height: UIConstants.Layout.homeCalendarTransitionTopPadding
+                    + UIConstants.Layout.homeCalendarTransitionBottomPadding
+            )
     }
 
     @ViewBuilder
