@@ -94,7 +94,7 @@ private struct QuizModeSessionView: View {
     private var contentHorizontalPadding: CGFloat { 8 }
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
-    private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
+    private var minimumReservedFloatingControlsHeight: CGFloat { 48 }
     private var questionContentHiddenScale: CGFloat { 0.952 }
     private var questionContentTransition: Animation {
         .spring(response: 0.36, dampingFraction: 0.84)
@@ -570,13 +570,10 @@ private struct QuizModeSessionView: View {
     private var quizMissedCorrectFloatingButton: some View {
         Button(action: viewModel.revealMissedCorrectChoices) {
             Image(systemName: "lightbulb.max.fill")
-                .font(.system(size: 19, weight: .black))
+                .font(.system(size: 24, weight: .black))
                 .foregroundStyle(viewModel.canRevealMissedCorrectChoices ? Color.orange : Color.orange.opacity(0.62))
-                .frame(width: 54, height: 54)
-                .background {
-                    Circle()
-                        .fill(Color(white: 0.15))
-                }
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!viewModel.canRevealMissedCorrectChoices)
@@ -586,13 +583,10 @@ private struct QuizModeSessionView: View {
     private var quizExplanationFloatingButton: some View {
         Button(action: openExplanationSheet) {
             Image(systemName: "book.closed.fill")
-                .font(.system(size: 19, weight: .black))
+                .font(.system(size: 24, weight: .black))
                 .foregroundStyle(.orange)
-                .frame(width: 54, height: 54)
-                .background {
-                    Circle()
-                        .fill(Color(white: 0.15))
-                }
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Explain")
@@ -604,24 +598,31 @@ private struct QuizModeSessionView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 13)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(primaryFloatingBackground(isDisabled: isDisabled))
-                }
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
-                }
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(primaryFloatingBackground(isDisabled: isDisabled))
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
+                    }
+
+                Text(title)
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 13)
+                    .contentTransition(.identity)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+            }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
+        .animation(nil, value: title)
+        .animation(nil, value: isDisabled)
     }
 
     private func primaryFloatingBackground(isDisabled: Bool) -> Color {
