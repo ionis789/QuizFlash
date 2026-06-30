@@ -572,7 +572,7 @@ private struct QuizModeSessionView: View {
                     .transition(
                         .asymmetric(
                             insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .opacity
+                            removal: .move(edge: .bottom).combined(with: .opacity)
                         )
                     )
                 }
@@ -661,10 +661,9 @@ private struct QuizModeSessionView: View {
     private var primaryFloatingButtonPresentationID: String {
         [
             viewModel.primaryActionTitle,
-            isPrimaryActionDisabled ? "disabled" : "enabled",
             viewModel.isEvaluated ? "evaluated" : "pending",
             viewModel.lastEvaluationWasCorrect.map { $0 ? "correct" : "wrong" } ?? "unknown",
-            "\(viewModel.selectedChoiceIDs.count)",
+            viewModel.isShowingRetryPrompt ? "retry" : "question",
         ].joined(separator: "-")
     }
 
