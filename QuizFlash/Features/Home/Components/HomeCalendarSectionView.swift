@@ -5,7 +5,6 @@
 // Transitions from a fully expanded month grid to a compact single-week row
 // as the user scrolls the underlying content upward.
 import SwiftUI
-import UIKit
 
 // MARK: - Home Calendar Section View
 
@@ -21,6 +20,8 @@ import UIKit
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @State private var isMonthTransitionAnimating = false
+    @State private var monthTransitionDirection = 1
 
     // MARK: - Dependencies
 
@@ -60,6 +61,20 @@ struct HomeCalendarSectionView: View {
 
     // MARK: - Private Constants
 
+    private var monthTransitionAnimation: Animation {
+        .snappy(duration: 0.28, extraBounce: 0.02)
+    }
+
+    private var monthGridTransition: AnyTransition {
+        let insertionEdge: Edge = monthTransitionDirection >= 0 ? .trailing : .leading
+        let removalEdge: Edge = monthTransitionDirection >= 0 ? .leading : .trailing
+
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -96,6 +111,7 @@ struct HomeCalendarSectionView: View {
     private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
+                .id(calendarVM.selectedMonth)
                 .font(.system(size: state.titleFontSize, weight: .black))
                 .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .textCase(.uppercase)
@@ -103,6 +119,7 @@ struct HomeCalendarSectionView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .transition(monthGridTransition)
 
             monthNavigationControl(
                 size: state.monthControlSize,
@@ -203,39 +220,28 @@ struct HomeCalendarSectionView: View {
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
         let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
-        let usesMonthSwipe = progress < 0.001
+        let isMonthSwipeEnabled = progress < 0.001
         let visibleGridWidth = state.dayColumnWidth * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
-        let calendarTrack = Group {
-            if usesMonthSwipe {
-                ExpandedMonthPagerHost(
-                    snapshots: calendarVM.adjacentMonthSnapshots(),
-                    progress: progress,
-                    state: state,
-                    calendarInsightsCache: calendarInsightsCache,
-                    insightsRevision: calendarInsightsRevision,
-                    onSelectDay: { day in
-                        calendarVM.selectDate(day.date)
-                    },
-                    onMonthOffset: { offset in
-                        calendarVM.applyMonthOffset(offset)
-                    }
-                )
-            } else {
-                dayGrid(
-                    totalGridHeight: totalGridHeight,
-                    progress: progress,
-                    state: state
-                )
-            }
-        }
+        let calendarTrack = dayGrid(
+            totalGridHeight: totalGridHeight,
+            progress: progress,
+            state: state
+        )
             .frame(width: visibleGridWidth, alignment: .leading)
             .frame(
             height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
             alignment: .top
         )
             .clipped()
-            .transaction { $0.animation = nil }
+            .simultaneousGesture(
+                monthSwipeGesture(visibleGridWidth: visibleGridWidth, isEnabled: isMonthSwipeEnabled)
+            )
+            .transaction { transaction in
+                if !isMonthTransitionAnimating {
+                    transaction.animation = nil
+                }
+            }
 
         let gridContent = VStack(spacing: 0) {
             weekdayLabels(state: state)
@@ -280,7 +286,13 @@ struct HomeCalendarSectionView: View {
             state: state
         )
         .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
-        .transaction { $0.animation = nil }
+        .id(calendarVM.selectedMonth)
+        .transition(monthGridTransition)
+        .transaction { transaction in
+            if !isMonthTransitionAnimating {
+                transaction.animation = nil
+            }
+        }
     }
 
     private func monthGridPage(
@@ -332,13 +344,13 @@ struct HomeCalendarSectionView: View {
                 monthChevronButton(
                     systemName: "chevron.compact.left",
                     size: buttonDiameter,
-                    action: { calendarVM.monthUpdate(increment: false) }
+                    action: { changeMonth(increment: false) }
                 )
 
                 monthChevronButton(
                     systemName: "chevron.compact.right",
                     size: buttonDiameter,
-                    action: { calendarVM.monthUpdate(increment: true) }
+                    action: { changeMonth(increment: true) }
                 )
             }
             .frame(width: totalWidth, height: buttonDiameter)
@@ -362,6 +374,37 @@ struct HomeCalendarSectionView: View {
             .buttonStyle(.plain)
     }
 
+    private func monthSwipeGesture(visibleGridWidth: CGFloat, isEnabled: Bool) -> some Gesture {
+        DragGesture(minimumDistance: 28, coordinateSpace: .local)
+            .onEnded { value in
+                guard isEnabled else { return }
+
+                let translation = value.translation
+                let predictedTranslation = value.predictedEndTranslation
+                let horizontalDistance = abs(translation.width)
+                let predictedHorizontalDistance = abs(predictedTranslation.width)
+                let threshold = max(48, visibleGridWidth * 0.18)
+                let hasHorizontalIntent = horizontalDistance > abs(translation.height) * 1.25
+                let passedDistance = horizontalDistance >= threshold || predictedHorizontalDistance >= threshold * 1.35
+
+                guard hasHorizontalIntent, passedDistance else { return }
+
+                changeMonth(increment: predictedTranslation.width < 0)
+            }
+    }
+
+    private func changeMonth(increment: Bool) {
+        monthTransitionDirection = increment ? 1 : -1
+
+        withAnimation(monthTransitionAnimation) {
+            isMonthTransitionAnimating = true
+            calendarVM.monthUpdate(increment: increment)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            isMonthTransitionAnimating = false
+        }
+    }
 }
 // MARK: - Calendar Day Cell View
 

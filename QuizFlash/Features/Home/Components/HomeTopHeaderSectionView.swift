@@ -301,11 +301,27 @@ private struct HomeTopHeaderStatLine: View {
 /// Left-side calendar column used by the coordinated iPad Home header.
 private struct HomePadCalendarColumnView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @State private var isMonthTransitionAnimating = false
+    @State private var monthTransitionDirection = 1
 
     let calendarVM: CalendarViewModel
     let layout: HomeCalendarAdaptiveLayout
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
     let headerState: HomeTopHeaderLayoutState
+
+    private var monthTransitionAnimation: Animation {
+        .snappy(duration: 0.28, extraBounce: 0.02)
+    }
+
+    private var monthGridTransition: AnyTransition {
+        let insertionEdge: Edge = monthTransitionDirection >= 0 ? .trailing : .leading
+        let removalEdge: Edge = monthTransitionDirection >= 0 ? .leading : .trailing
+
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
 
     private var compactWeekPages: [[Day]] {
         calendarVM.monthRows
@@ -328,6 +344,7 @@ private struct HomePadCalendarColumnView: View {
 
         return HStack(alignment: .center, spacing: headerState.calendarState.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
+                .id(calendarVM.selectedMonth)
                 .font(.system(size: headerState.calendarState.titleFontSize, weight: .black))
                 .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                 .textCase(.uppercase)
@@ -335,6 +352,7 @@ private struct HomePadCalendarColumnView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .transition(monthGridTransition)
 
             HStack(spacing: headerState.calendarState.monthControlSpacing) {
                 chevronButton(increment: false, size: headerState.calendarState.monthControlSize)
@@ -382,7 +400,11 @@ private struct HomePadCalendarColumnView: View {
                 alignment: .top
             )
             .clipped()
-            .transaction { $0.animation = nil }
+            .transaction { transaction in
+                if !isMonthTransitionAnimating {
+                    transaction.animation = nil
+                }
+            }
         }
         .padding(.horizontal, headerState.calendarState.horizontalPadding)
         .padding(.vertical, headerState.calendarState.verticalPadding)
@@ -443,11 +465,13 @@ private struct HomePadCalendarColumnView: View {
         }
         .frame(height: totalGridHeight, alignment: .top)
         .offset(y: -(calendarVM.monthProgress * headerState.calendarState.rowHeight) * headerState.progress)
+        .id(calendarVM.selectedMonth)
+        .transition(monthGridTransition)
     }
 
     private func chevronButton(increment: Bool, size: CGFloat) -> some View {
         Button {
-            calendarVM.monthUpdate(increment: increment)
+            changeMonth(increment: increment)
         } label: {
             Image(systemName: increment ? "chevron.compact.right" : "chevron.compact.left")
                 .font(.system(size: size * 0.48, weight: .black))
@@ -456,5 +480,18 @@ private struct HomePadCalendarColumnView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func changeMonth(increment: Bool) {
+        monthTransitionDirection = increment ? 1 : -1
+
+        withAnimation(monthTransitionAnimation) {
+            isMonthTransitionAnimating = true
+            calendarVM.monthUpdate(increment: increment)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            isMonthTransitionAnimating = false
+        }
     }
 }
