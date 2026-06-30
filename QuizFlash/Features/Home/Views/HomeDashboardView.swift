@@ -513,7 +513,7 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
     }
 
     private var outcomeScoreText: String {
-        "\(correctCount)-\(retryCount)"
+        "\(retryCount)-\(correctCount)"
     }
 
     private var lineWidth: CGFloat {
@@ -558,7 +558,7 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         .animation(hasOutcome ? ringAnimation : nil, value: correctCount)
         .animation(hasOutcome ? ringAnimation : nil, value: retryCount)
         .accessibilityLabel("Daily progress")
-        .accessibilityValue("\(correctCount) correct, \(retryCount) wrong, \(reviewedCount) reviewed")
+        .accessibilityValue("\(retryCount) wrong, \(correctCount) correct, \(reviewedCount) reviewed")
     }
 
     @ViewBuilder
