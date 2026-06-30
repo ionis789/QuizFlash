@@ -561,12 +561,29 @@ private struct QuizModeSessionView: View {
 
             Spacer(minLength: UIConstants.Spacing.standard)
 
-            quizPrimaryFloatingButton(
-                title: viewModel.primaryActionTitle,
-                isDisabled: isPrimaryActionDisabled,
-                action: handlePrimaryAction
+            ZStack(alignment: .bottomTrailing) {
+                if isPrimaryFloatingButtonVisible {
+                    quizPrimaryFloatingButton(
+                        title: viewModel.primaryActionTitle,
+                        isDisabled: isPrimaryActionDisabled,
+                        action: handlePrimaryAction
+                    )
+                    .id(primaryFloatingButtonPresentationID)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        )
+                    )
+                }
+            }
+            .frame(
+                width: primaryFloatingButtonWidth(for: viewModel.primaryActionTitle),
+                height: minimumReservedFloatingControlsHeight,
+                alignment: .bottomTrailing
             )
-            .bottomChromeVisibility(isPrimaryFloatingButtonVisible)
+            .animation(.bottomChromeSpring, value: isPrimaryFloatingButtonVisible)
+            .animation(.bottomChromeSpring, value: primaryFloatingButtonPresentationID)
             .accessibilityHidden(!isPrimaryFloatingButtonVisible)
         }
     }
@@ -601,34 +618,32 @@ private struct QuizModeSessionView: View {
         isDisabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            ZStack {
-                Capsule(style: .continuous)
-                    .fill(primaryFloatingBackground(isDisabled: isDisabled))
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
-                    }
+        ZStack {
+            Capsule(style: .continuous)
+                .fill(primaryFloatingBackground(isDisabled: isDisabled))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
+                }
 
-                Text(title)
-                    .font(.system(size: 16, weight: .black))
-                    .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
-                    .lineLimit(1)
-                    .contentTransition(.identity)
-                    .transaction { transaction in
-                        transaction.animation = nil
-                    }
-            }
-            .frame(
-                width: primaryFloatingButtonWidth(for: title),
-                height: quizPrimaryFloatingButtonHeight
-            )
-            .contentShape(Capsule(style: .continuous))
+            Text(title)
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
+                .lineLimit(1)
         }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .animation(nil, value: title)
-        .animation(nil, value: isDisabled)
+        .frame(
+            width: primaryFloatingButtonWidth(for: title),
+            height: quizPrimaryFloatingButtonHeight
+        )
+        .contentShape(Capsule(style: .continuous))
+        .allowsHitTesting(!isDisabled)
+        .onTapGesture {
+            guard !isDisabled else { return }
+            action()
+        }
+        .accessibilityElement()
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
     }
 
     private func primaryFloatingBackground(isDisabled: Bool) -> Color {
@@ -641,6 +656,16 @@ private struct QuizModeSessionView: View {
 
     private func primaryFloatingButtonWidth(for title: String) -> CGFloat {
         min(max(CGFloat(title.count) * 11 + 46, 92), 172)
+    }
+
+    private var primaryFloatingButtonPresentationID: String {
+        [
+            viewModel.primaryActionTitle,
+            isPrimaryActionDisabled ? "disabled" : "enabled",
+            viewModel.isEvaluated ? "evaluated" : "pending",
+            viewModel.lastEvaluationWasCorrect.map { $0 ? "correct" : "wrong" } ?? "unknown",
+            "\(viewModel.selectedChoiceIDs.count)",
+        ].joined(separator: "-")
     }
 
     private var quizLayoutDebugButton: some View {
