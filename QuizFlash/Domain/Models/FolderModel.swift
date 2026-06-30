@@ -39,6 +39,21 @@ class FolderModel {
     /// The date this folder was first created.
     var createdAt: Date
 
+    /// The date this folder was last modified.
+    var editedAt: Date = Date()
+
+    /// Stable Firestore document ID for cloud sync. Nil until the folder is uploaded.
+    var cloudID: String?
+
+    /// Firebase Auth UID that owns the cloud copy of this folder.
+    var ownerUID: String?
+
+    /// Last successful cloud sync timestamp.
+    var lastSyncedAt: Date?
+
+    /// Monotonic local sync revision used by v1 last-write-wins sync.
+    var syncRevision: Int = 0
+
     // MARK: - Relationships
 
     /// All decks contained in this folder.
@@ -59,6 +74,9 @@ class FolderModel {
         self.title = title
         self.colorHex = colorHex
         self.deckCount = 0
-        self.createdAt = Date()
+        let now = Date()
+        self.createdAt = now
+        self.editedAt = now
+        self.syncRevision = 0
     }
 }

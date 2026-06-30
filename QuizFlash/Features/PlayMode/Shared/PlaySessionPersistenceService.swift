@@ -34,6 +34,11 @@ actor PlaySessionPersistenceService {
         let cardID: PersistentIdentifier
     }
 
+    private struct CloudDeckSyncKey: Hashable {
+        let ownerUID: String
+        let deckID: String
+    }
+
     private struct HomeAnalyticsMutationCache {
         var dayAggregates: [String: HomeDailyStudyAggregate] = [:]
         var deckAggregates: [DeckAggregateCacheKey: HomeDailyDeckAggregate] = [:]
@@ -65,6 +70,7 @@ actor PlaySessionPersistenceService {
         var totalXP = 0
         var newCardsLearnedCount = 0
         var analyticsCache = HomeAnalyticsMutationCache()
+        var affectedCloudDecks = Set<CloudDeckSyncKey>()
 
         for review in reviews {
             guard let card = fetchCard(id: review.cardID, in: bgContext) else {
@@ -72,13 +78,18 @@ actor PlaySessionPersistenceService {
             }
 
             let wasNewCard = card.reviewHistory.isEmpty
+            let deck = card.deck
             let reviewEvent = ReviewEvent(
                 timeSpent: review.timeSpent,
                 difficulty: review.difficulty,
                 xpAwarded: review.xpAwarded
             )
+            reviewEvent.ownerUID = deck?.ownerUID ?? card.ownerUID
+            reviewEvent.cloudID = UUID().uuidString
             card.reviewHistory.append(reviewEvent)
             applySpacedRepetition(review.difficulty, to: card)
+            card.editedAt = reviewEvent.timestamp
+            deck?.editedAt = reviewEvent.timestamp
             updateHomeAnalytics(
                 for: reviewEvent,
                 card: card,
@@ -86,6 +97,11 @@ actor PlaySessionPersistenceService {
                 in: bgContext,
                 cache: &analyticsCache
             )
+
+            if let ownerUID = deck?.ownerUID ?? card.ownerUID,
+               let deckID = deck?.cloudID {
+                affectedCloudDecks.insert(CloudDeckSyncKey(ownerUID: ownerUID, deckID: deckID))
+            }
 
             savedReviewCount += 1
             totalXP += review.xpAwarded
@@ -111,6 +127,11 @@ actor PlaySessionPersistenceService {
 
         do {
             try bgContext.save()
+            await MainActor.run {
+                for key in affectedCloudDecks {
+                    CloudSyncCoordinator.shared.enqueueUpsert(ownerUID: key.ownerUID, deckID: key.deckID)
+                }
+            }
         } catch {
             logger.error("Detached session save failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -211,8 +232,8 @@ actor PlaySessionPersistenceService {
             dayKey: dayKey,
             cardID: card.persistentModelID
         )
-        let deckIdentifier = encode(deck?.persistentModelID)
-        let cardIdentifier = encode(card.persistentModelID)
+        let deckIdentifier = deck?.cloudID ?? encode(deck?.persistentModelID)
+        let cardIdentifier = card.cloudID ?? encode(card.persistentModelID)
         let deckAggregate = fetchOrCreateDailyDeckAggregate(
             dayDate: dayDate,
             dayKey: dayKey,

@@ -7,17 +7,21 @@ import Foundation
 
 // MARK: - Cloud Sync Operation
 
-/// A durable local request to synchronize or soft-delete one cloud deck.
+/// A durable local request to synchronize or soft-delete one cloud entity.
 nonisolated struct CloudSyncOperation: Codable, Equatable, Sendable {
     enum Kind: String, Codable, Sendable {
         case upsertDeck
         case deleteDeck
+        case upsertFolder
+        case deleteFolder
     }
 
     let ownerUID: String
     let deckID: String
     let kind: Kind
     let requestedAt: Date
+
+    var entityID: String { deckID }
 }
 
 // MARK: - Cloud Sync Outbox
@@ -64,6 +68,14 @@ actor CloudSyncOutbox {
             $0.ownerUID == ownerUID
                 && $0.deckID == deckID
                 && $0.kind == .deleteDeck
+        }
+    }
+
+    func containsFolderDelete(ownerUID: String, folderID: String) throws -> Bool {
+        try load().contains {
+            $0.ownerUID == ownerUID
+                && $0.deckID == folderID
+                && $0.kind == .deleteFolder
         }
     }
 

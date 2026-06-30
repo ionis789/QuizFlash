@@ -47,7 +47,32 @@ service cloud.firestore {
         match /cards/{cardId} {
           allow read, create, update: if owns(uid);
           allow delete: if false;
+
+          match /reviewEvents/{eventId} {
+            allow read, create, update: if owns(uid);
+            allow delete: if false;
+          }
         }
+      }
+
+      match /folders/{folderId} {
+        allow read, create, update: if owns(uid);
+        allow delete: if false;
+      }
+
+      match /homeDailyStudy/{dayKey} {
+        allow read, create, update: if owns(uid);
+        allow delete: if false;
+      }
+
+      match /homeDailyDecks/{rowId} {
+        allow read, create, update: if owns(uid);
+        allow delete: if false;
+      }
+
+      match /homeDailyCards/{rowId} {
+        allow read, create, update: if owns(uid);
+        allow delete: if false;
       }
 
       match /usage/{period} {

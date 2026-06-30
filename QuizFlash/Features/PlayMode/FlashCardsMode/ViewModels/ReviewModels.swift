@@ -53,6 +53,15 @@ class ReviewEvent {
     /// XP awarded for this review (base XP ± speed bonus).
     var xpAwarded: Int
 
+    /// Stable Firestore document ID for cloud sync. Nil until the review event is uploaded.
+    var cloudID: String?
+
+    /// Firebase Auth UID that owns the cloud copy of this review event.
+    var ownerUID: String?
+
+    /// Last successful cloud sync timestamp.
+    var lastSyncedAt: Date?
+
     /// Inverse relationship back to the card that was reviewed.
     var card: CardModel?
 

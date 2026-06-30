@@ -417,9 +417,11 @@ final class HomeViewModel {
 
         let folder = FolderModel(title: title, colorHex: newFolderColorHex)
         context.insert(folder)
+        CloudSyncCoordinator.shared.assignCloudIdentityIfPossible(to: folder)
 
         do {
             try context.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: context)
             newFolderTitle = ""
             showCreateFolder = false
         } catch {

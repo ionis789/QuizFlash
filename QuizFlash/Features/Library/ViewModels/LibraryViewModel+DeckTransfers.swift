@@ -25,9 +25,12 @@ extension LibraryViewModel {
     func confirmSingleDeletion(context: ModelContext) {
         if let target = deckToDelete,
            let deck = context.safeModel(for: target.id, as: DeckModel.self) {
-            deck.folder?.deckCount -= 1
+            let sourceFolder = deck.folder
+            sourceFolder?.deckCount -= 1
+            sourceFolder?.editedAt = Date()
             CloudSyncCoordinator.shared.enqueueDelete(for: deck)
             context.delete(deck)
+            syncChangedFolders([sourceFolder], context: context)
         }
         deckToDelete = nil
     }
@@ -162,11 +165,18 @@ private extension LibraryViewModel {
         from allDecks: [DeckModel],
         context: ModelContext
     ) {
+        var changedFolders: [FolderModel] = []
         for deck in allDecks where ids.contains(deck.id) {
-            deck.folder?.deckCount -= 1
+            let sourceFolder = deck.folder
+            sourceFolder?.deckCount -= 1
+            sourceFolder?.editedAt = Date()
+            if let sourceFolder {
+                changedFolders.append(sourceFolder)
+            }
             CloudSyncCoordinator.shared.enqueueDelete(for: deck)
             context.delete(deck)
         }
+        syncChangedFolders(changedFolders, context: context)
     }
 
     func moveDecks(
@@ -195,10 +205,13 @@ private extension LibraryViewModel {
                 continue
             }
 
+            let now = Date()
             deck.folder?.deckCount -= 1
+            deck.folder?.editedAt = now
             destinationFolder?.deckCount += 1
+            destinationFolder?.editedAt = now
             deck.folder = destinationFolder
-            deck.editedAt = Date()
+            deck.editedAt = now
             movedDecks.append(deck)
         }
 
@@ -214,6 +227,7 @@ private extension LibraryViewModel {
             for deck in movedDecks {
                 CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
             }
+            syncChangedFolders(affectedFolders, context: context)
             if exitsSelectionModeOnSuccess {
                 exitSelectionMode()
             }
@@ -248,5 +262,11 @@ private extension LibraryViewModel {
         }
 
         return unique
+    }
+
+    func syncChangedFolders(_ folders: [FolderModel?], context: ModelContext) {
+        for folder in uniqueFolders(from: folders.compactMap(\.self)) {
+            CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: context)
+        }
     }
 }

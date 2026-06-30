@@ -197,15 +197,27 @@ extension DeckWorkspaceViewModel {
         }
 
         let savedDeck: DeckModel
+        var changedFolders: [FolderModel] = []
         if let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) {
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
+            var folderChanged = false
             deck.title = trimmedTitle
 
             if deck.folder != selectedFolder {
+                let now = Date()
                 deck.folder?.deckCount -= 1
+                deck.folder?.editedAt = now
+                if let folder = deck.folder {
+                    changedFolders.append(folder)
+                }
                 selectedFolder?.deckCount += 1
+                selectedFolder?.editedAt = now
+                if let selectedFolder {
+                    changedFolders.append(selectedFolder)
+                }
                 deck.folder = selectedFolder
+                folderChanged = true
             }
 
             var cardsChanged = false
@@ -256,7 +268,7 @@ extension DeckWorkspaceViewModel {
                 deck.lastAssignedCardNumber,
                 draftCards.map(\.cardNumber).max() ?? 0
             )
-            if titleChanged || cardsChanged { deck.editedAt = Date() }
+            if titleChanged || cardsChanged || folderChanged { deck.editedAt = Date() }
             deck.cardCount = draftCards.count
             savedDeck = deck
 
@@ -266,6 +278,10 @@ extension DeckWorkspaceViewModel {
             context.insert(newDeck)
             newDeck.folder = selectedFolder
             selectedFolder?.deckCount += 1
+            selectedFolder?.editedAt = Date()
+            if let selectedFolder {
+                changedFolders.append(selectedFolder)
+            }
 
             for draft in draftCards {
                 let newCard = CardModel(
@@ -299,6 +315,9 @@ extension DeckWorkspaceViewModel {
         }
 
         CloudSyncCoordinator.shared.enqueueUpsert(for: savedDeck, context: context)
+        for folder in uniqueFoldersForSync(changedFolders) {
+            CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: context)
+        }
 
         withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
             showSuccessOverlay = true
@@ -340,7 +359,9 @@ extension DeckWorkspaceViewModel {
         showSuccessOverlay = false
         resetAIState()
 
-        deck.folder?.deckCount -= 1
+        let sourceFolder = deck.folder
+        sourceFolder?.deckCount -= 1
+        sourceFolder?.editedAt = Date()
         CloudSyncCoordinator.shared.enqueueDelete(for: deck)
         context.delete(deck)
 
@@ -349,6 +370,10 @@ extension DeckWorkspaceViewModel {
         } catch {
             presentPersistenceError(error)
             return false
+        }
+
+        if let sourceFolder {
+            CloudSyncCoordinator.shared.enqueueUpsert(for: sourceFolder, context: context)
         }
 
         Task { @MainActor in
@@ -360,4 +385,18 @@ extension DeckWorkspaceViewModel {
         return true
     }
 
+}
+
+private func uniqueFoldersForSync(_ folders: [FolderModel]) -> [FolderModel] {
+    var seen = Set<PersistentIdentifier>()
+    var unique: [FolderModel] = []
+
+    for folder in folders {
+        let id = folder.persistentModelID
+        if seen.insert(id).inserted {
+            unique.append(folder)
+        }
+    }
+
+    return unique
 }

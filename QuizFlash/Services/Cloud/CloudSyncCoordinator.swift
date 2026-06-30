@@ -21,13 +21,15 @@ final class CloudSyncCoordinator {
 
     @ObservationIgnored private let service: CloudSyncService
     @ObservationIgnored private let outbox: CloudSyncOutbox
-    @ObservationIgnored private var listener: ListenerRegistration?
+    @ObservationIgnored private var deckListener: ListenerRegistration?
+    @ObservationIgnored private var folderListener: ListenerRegistration?
     @ObservationIgnored private var modelContainer: ModelContainer?
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var remoteImportActor: CloudSyncRemoteImportActor?
     @ObservationIgnored private var remoteImportTask: Task<Void, Never>?
     @ObservationIgnored private var pendingRemoteDecks: [CloudSyncRemoteDeckHeader] = []
+    @ObservationIgnored private var pendingRemoteFolders: [CloudSyncRemoteFolderHeader] = []
 
     private(set) var activeUID: String?
     private(set) var lastErrorMessage: String?
@@ -50,17 +52,24 @@ final class CloudSyncCoordinator {
         activeUID = user.uid
         self.modelContainer = modelContainer
         remoteImportActor = CloudSyncRemoteImportActor(container: modelContainer, outbox: outbox)
-        listener = service.addDeckListener(uid: user.uid) { [weak self] snapshot, error in
+        deckListener = service.addDeckListener(uid: user.uid) { [weak self] snapshot, error in
             Task { @MainActor [weak self] in
                 self?.handleRemoteSnapshot(snapshot, error: error)
+            }
+        }
+        folderListener = service.addFolderListener(uid: user.uid) { [weak self] snapshot, error in
+            Task { @MainActor [weak self] in
+                self?.handleRemoteFolderSnapshot(snapshot, error: error)
             }
         }
         scheduleOutboxProcessing()
     }
 
     func stop() {
-        listener?.remove()
-        listener = nil
+        deckListener?.remove()
+        deckListener = nil
+        folderListener?.remove()
+        folderListener = nil
         processingTask?.cancel()
         processingTask = nil
         retryTask?.cancel()
@@ -69,6 +78,7 @@ final class CloudSyncCoordinator {
         remoteImportTask = nil
         remoteImportActor = nil
         pendingRemoteDecks.removeAll()
+        pendingRemoteFolders.removeAll()
         activeUID = nil
         modelContainer = nil
         lastErrorMessage = nil
@@ -80,6 +90,12 @@ final class CloudSyncCoordinator {
     func assignCloudIdentityIfPossible(to deck: DeckModel) {
         guard let uid = currentUserID() else { return }
         assignCloudIdentity(to: deck, uid: uid)
+    }
+
+    /// Assigns stable cloud IDs before a newly created folder is first saved.
+    func assignCloudIdentityIfPossible(to folder: FolderModel) {
+        guard let uid = currentUserID() else { return }
+        assignCloudIdentity(to: folder, uid: uid)
     }
 
     /// Queues an upsert after local persistence has completed successfully.
@@ -112,6 +128,57 @@ final class CloudSyncCoordinator {
         Task { [weak self, outbox] in
             do {
                 try await outbox.enqueue(ownerUID: uid, deckID: deckID, kind: .deleteDeck)
+                self?.scheduleOutboxProcessing()
+            } catch {
+                self?.record(error)
+            }
+        }
+    }
+
+    /// Queues a folder upsert after local persistence has completed successfully.
+    func enqueueUpsert(for folder: FolderModel, context: ModelContext) {
+        guard let uid = currentUserID() else { return }
+        assignCloudIdentity(to: folder, uid: uid)
+
+        do {
+            try context.save()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            return
+        }
+
+        guard let folderID = folder.cloudID else { return }
+        Task { [weak self, outbox] in
+            do {
+                try await outbox.enqueue(ownerUID: uid, deckID: folderID, kind: .upsertFolder)
+                self?.scheduleOutboxProcessing()
+            } catch {
+                self?.record(error)
+            }
+        }
+    }
+
+    /// Queues a cloud tombstone before the caller removes a local folder.
+    func enqueueDelete(for folder: FolderModel) {
+        guard let uid = currentUserID(), folder.ownerUID == uid, let folderID = folder.cloudID else { return }
+
+        Task { [weak self, outbox] in
+            do {
+                try await outbox.enqueue(ownerUID: uid, deckID: folderID, kind: .deleteFolder)
+                self?.scheduleOutboxProcessing()
+            } catch {
+                self?.record(error)
+            }
+        }
+    }
+
+    /// Queues a deck upsert by cloud ID from detached persistence paths.
+    func enqueueUpsert(ownerUID: String, deckID: String) {
+        guard ownerUID == currentUserID() else { return }
+
+        Task { [weak self, outbox] in
+            do {
+                try await outbox.enqueue(ownerUID: ownerUID, deckID: deckID, kind: .upsertDeck)
                 self?.scheduleOutboxProcessing()
             } catch {
                 self?.record(error)
@@ -152,10 +219,31 @@ final class CloudSyncCoordinator {
                             try await outbox.remove(operation)
                             continue
                         }
-                        try await service.upsertDeck(deck, uid: uid, cards: deck.cards)
+                        let dailyStudyAggregates = try context.fetch(FetchDescriptor<HomeDailyStudyAggregate>())
+                        let dailyDeckAggregates = try context.fetch(FetchDescriptor<HomeDailyDeckAggregate>())
+                        let dailyCardAggregates = try context.fetch(FetchDescriptor<HomeDailyCardAggregate>())
+                        try await service.upsertDeck(
+                            deck,
+                            uid: uid,
+                            cards: deck.cards,
+                            dailyStudyAggregates: dailyStudyAggregates,
+                            dailyDeckAggregates: dailyDeckAggregates,
+                            dailyCardAggregates: dailyCardAggregates
+                        )
                         try context.save()
                     case .deleteDeck:
                         try await service.softDeleteDeck(deckID: operation.deckID, uid: uid)
+                    case .upsertFolder:
+                        guard let folder = try context.fetch(FetchDescriptor<FolderModel>()).first(where: {
+                            $0.ownerUID == uid && $0.cloudID == operation.entityID
+                        }) else {
+                            try await outbox.remove(operation)
+                            continue
+                        }
+                        try await service.upsertFolder(folder, uid: uid)
+                        try context.save()
+                    case .deleteFolder:
+                        try await service.softDeleteFolder(folderID: operation.entityID, uid: uid)
                     }
 
                     try await outbox.remove(operation)
@@ -201,6 +289,22 @@ final class CloudSyncCoordinator {
         scheduleRemoteImportProcessing()
     }
 
+    private func handleRemoteFolderSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
+        if let error {
+            lastErrorMessage = error.localizedDescription
+            return
+        }
+        guard let snapshot else { return }
+
+        let changedFolders = snapshot.documentChanges
+            .filter { $0.type != .removed }
+            .map { CloudSyncRemoteFolderHeader(document: $0.document) }
+        guard !changedFolders.isEmpty else { return }
+
+        pendingRemoteFolders.append(contentsOf: changedFolders)
+        scheduleRemoteImportProcessing()
+    }
+
     private func scheduleRemoteImportProcessing() {
         guard remoteImportTask == nil else { return }
 
@@ -211,9 +315,21 @@ final class CloudSyncCoordinator {
     }
 
     private func processPendingRemoteDecks() async {
-        while !pendingRemoteDecks.isEmpty {
+        while !pendingRemoteFolders.isEmpty || !pendingRemoteDecks.isEmpty {
             guard !Task.isCancelled else { return }
             guard let uid = activeUID, let remoteImportActor else { return }
+
+            if !pendingRemoteFolders.isEmpty {
+                let header = pendingRemoteFolders.removeFirst()
+
+                do {
+                    try await remoteImportActor.applyRemoteFolder(header, uid: uid)
+                    lastErrorMessage = nil
+                } catch {
+                    lastErrorMessage = error.localizedDescription
+                }
+                continue
+            }
 
             let header = pendingRemoteDecks.removeFirst()
 
@@ -241,11 +357,23 @@ final class CloudSyncCoordinator {
     private func assignCloudIdentity(to deck: DeckModel, uid: String) {
         deck.ownerUID = uid
         if deck.cloudID == nil { deck.cloudID = UUID().uuidString }
+        if let folder = deck.folder {
+            assignCloudIdentity(to: folder, uid: uid)
+        }
 
         for card in deck.cards {
             card.ownerUID = uid
             if card.cloudID == nil { card.cloudID = UUID().uuidString }
+            for event in card.reviewHistory {
+                event.ownerUID = uid
+                if event.cloudID == nil { event.cloudID = UUID().uuidString }
+            }
         }
+    }
+
+    private func assignCloudIdentity(to folder: FolderModel, uid: String) {
+        folder.ownerUID = uid
+        if folder.cloudID == nil { folder.cloudID = UUID().uuidString }
     }
 
     private func record(_ error: Error) {
@@ -269,6 +397,7 @@ nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
     let deckID: String
     let title: String
     let colorHex: String
+    let folderID: String?
     let createdAt: Date?
     let editedAt: Date
     let lastOpenedAt: Date?
@@ -281,6 +410,7 @@ nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
         deckID: String,
         title: String,
         colorHex: String,
+        folderID: String?,
         createdAt: Date?,
         editedAt: Date,
         lastOpenedAt: Date?,
@@ -292,6 +422,7 @@ nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
         self.deckID = deckID
         self.title = title
         self.colorHex = colorHex
+        self.folderID = folderID
         self.createdAt = createdAt
         self.editedAt = editedAt
         self.lastOpenedAt = lastOpenedAt
@@ -307,6 +438,7 @@ nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
             deckID: document.documentID,
             title: data["title"] as? String ?? "",
             colorHex: data["colorHex"] as? String ?? "#FFFFFF",
+            folderID: data["folderID"] as? String,
             createdAt: Self.date(in: data, key: "createdAt"),
             editedAt: Self.date(in: data, key: "editedAt") ?? .distantPast,
             lastOpenedAt: Self.date(in: data, key: "lastOpenedAt"),
@@ -323,6 +455,56 @@ nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
     }
 }
 
+nonisolated struct CloudSyncRemoteFolderHeader: Sendable {
+    let folderID: String
+    let title: String
+    let colorHex: String
+    let deckCount: Int
+    let createdAt: Date?
+    let editedAt: Date
+    let syncRevision: Int?
+    let isDeleted: Bool
+
+    init(document: QueryDocumentSnapshot) {
+        let data = document.data()
+        folderID = document.documentID
+        title = data["title"] as? String ?? ""
+        colorHex = data["colorHex"] as? String ?? "#70707A"
+        deckCount = data["deckCount"] as? Int ?? 0
+        createdAt = Self.date(in: data, key: "createdAt")
+        editedAt = Self.date(in: data, key: "editedAt") ?? .distantPast
+        syncRevision = data["syncRevision"] as? Int
+        isDeleted = data["deletedAt"] != nil
+    }
+
+    private static func date(in data: [String: Any], key: String) -> Date? {
+        if let timestamp = data[key] as? Timestamp { return timestamp.dateValue() }
+        return data[key] as? Date
+    }
+}
+
+nonisolated struct CloudSyncRemoteReviewEventSnapshot: Sendable {
+    let eventID: String
+    let timestamp: Date
+    let timeSpent: TimeInterval
+    let difficultyRaw: Int
+    let xpAwarded: Int
+
+    init(document: QueryDocumentSnapshot) {
+        let data = document.data()
+        eventID = document.documentID
+        timestamp = Self.date(in: data, key: "timestamp") ?? .distantPast
+        timeSpent = data["timeSpent"] as? TimeInterval ?? 0
+        difficultyRaw = data["difficultyRaw"] as? Int ?? ReviewDifficulty.good.rawValue
+        xpAwarded = data["xpAwarded"] as? Int ?? 0
+    }
+
+    private static func date(in data: [String: Any], key: String) -> Date? {
+        if let timestamp = data[key] as? Timestamp { return timestamp.dateValue() }
+        return data[key] as? Date
+    }
+}
+
 nonisolated struct CloudSyncRemoteCardSnapshot: Sendable {
     let cardID: String
     let content: DraftCardContent?
@@ -331,8 +513,13 @@ nonisolated struct CloudSyncRemoteCardSnapshot: Sendable {
     let creationSourceRaw: String
     let createdAt: Date?
     let editedAt: Date
+    let dueDate: Date?
+    let easeFactor: Double?
+    let interval: Int?
+    let consecutiveCorrectAnswers: Int?
     let syncRevision: Int?
     let isDeleted: Bool
+    let reviewEvents: [CloudSyncRemoteReviewEventSnapshot]
 
     init(
         cardID: String,
@@ -342,8 +529,13 @@ nonisolated struct CloudSyncRemoteCardSnapshot: Sendable {
         creationSourceRaw: String,
         createdAt: Date?,
         editedAt: Date,
+        dueDate: Date?,
+        easeFactor: Double?,
+        interval: Int?,
+        consecutiveCorrectAnswers: Int?,
         syncRevision: Int?,
-        isDeleted: Bool
+        isDeleted: Bool,
+        reviewEvents: [CloudSyncRemoteReviewEventSnapshot]
     ) {
         self.cardID = cardID
         self.content = content
@@ -352,11 +544,16 @@ nonisolated struct CloudSyncRemoteCardSnapshot: Sendable {
         self.creationSourceRaw = creationSourceRaw
         self.createdAt = createdAt
         self.editedAt = editedAt
+        self.dueDate = dueDate
+        self.easeFactor = easeFactor
+        self.interval = interval
+        self.consecutiveCorrectAnswers = consecutiveCorrectAnswers
         self.syncRevision = syncRevision
         self.isDeleted = isDeleted
+        self.reviewEvents = reviewEvents
     }
 
-    init(document: QueryDocumentSnapshot) throws {
+    init(document: QueryDocumentSnapshot, reviewEvents: [CloudSyncRemoteReviewEventSnapshot] = []) throws {
         let data = document.data()
         let isDeleted = data["deletedAt"] != nil
         self.init(
@@ -367,8 +564,13 @@ nonisolated struct CloudSyncRemoteCardSnapshot: Sendable {
             creationSourceRaw: data["creationSource"] as? String ?? CardCreationSource.manual.rawValue,
             createdAt: Self.date(in: data, key: "createdAt"),
             editedAt: Self.date(in: data, key: "editedAt") ?? .distantPast,
+            dueDate: Self.date(in: data, key: "dueDate"),
+            easeFactor: data["easeFactor"] as? Double,
+            interval: data["interval"] as? Int,
+            consecutiveCorrectAnswers: data["consecutiveCorrectAnswers"] as? Int,
             syncRevision: data["syncRevision"] as? Int,
-            isDeleted: isDeleted
+            isDeleted: isDeleted,
+            reviewEvents: reviewEvents
         )
     }
 
@@ -409,6 +611,60 @@ actor CloudSyncRemoteImportActor {
         self.outbox = outbox
     }
 
+    func applyRemoteFolder(
+        _ header: CloudSyncRemoteFolderHeader,
+        uid: String
+    ) async throws {
+        if try await outbox.containsFolderDelete(ownerUID: uid, folderID: header.folderID) {
+            return
+        }
+
+        defer { flushContext() }
+
+        let localFolder = try activeContext.fetch(FetchDescriptor<FolderModel>()).first(where: {
+            $0.ownerUID == uid && $0.cloudID == header.folderID
+        })
+
+        if header.isDeleted {
+            guard let localFolder else { return }
+            if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localFolder.editedAt, than: header.editedAt) {
+                try await outbox.enqueue(ownerUID: uid, deckID: header.folderID, kind: .upsertFolder)
+                return
+            }
+
+            for deck in localFolder.decks {
+                deck.folder = nil
+                deck.editedAt = header.editedAt
+            }
+            activeContext.delete(localFolder)
+            try activeContext.save()
+            return
+        }
+
+        let folder: FolderModel
+        if let localFolder {
+            if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localFolder.editedAt, than: header.editedAt) {
+                try await outbox.enqueue(ownerUID: uid, deckID: header.folderID, kind: .upsertFolder)
+                return
+            }
+            folder = localFolder
+        } else {
+            folder = FolderModel(title: header.title, colorHex: header.colorHex)
+            folder.ownerUID = uid
+            folder.cloudID = header.folderID
+            activeContext.insert(folder)
+        }
+
+        folder.title = header.title
+        folder.colorHex = header.colorHex
+        folder.deckCount = header.deckCount
+        folder.createdAt = header.createdAt ?? folder.createdAt
+        folder.editedAt = header.editedAt
+        folder.syncRevision = header.syncRevision ?? folder.syncRevision
+        folder.lastSyncedAt = Date()
+        try activeContext.save()
+    }
+
     func applyRemoteDeck(
         _ header: CloudSyncRemoteDeckHeader,
         uid: String
@@ -418,6 +674,9 @@ actor CloudSyncRemoteImportActor {
         }
 
         let cards = header.isDeleted ? [] : try await remoteCards(uid: uid, deckID: header.deckID)
+        if !header.isDeleted {
+            try await applyRemoteHomeAnalytics(uid: uid)
+        }
         return try apply(CloudSyncRemoteDeckSnapshot(header: header, cards: cards), uid: uid)
     }
 
@@ -457,6 +716,7 @@ actor CloudSyncRemoteImportActor {
 
         deck.title = header.title
         deck.colorHex = header.colorHex
+        deck.folder = try resolveRemoteFolder(id: header.folderID, uid: uid)
         deck.createdAt = header.createdAt ?? deck.createdAt
         deck.editedAt = header.editedAt
         deck.lastOpenedAt = header.lastOpenedAt
@@ -528,7 +788,25 @@ actor CloudSyncRemoteImportActor {
             .collection("cards")
             .getDocuments()
             .documents
-        return try documents.map(CloudSyncRemoteCardSnapshot.init(document:))
+        var snapshots: [CloudSyncRemoteCardSnapshot] = []
+        snapshots.reserveCapacity(documents.count)
+
+        for document in documents {
+            let reviewDocuments = try await Firestore.firestore()
+                .collection("users")
+                .document(uid)
+                .collection("decks")
+                .document(deckID)
+                .collection("cards")
+                .document(document.documentID)
+                .collection("reviewEvents")
+                .getDocuments()
+                .documents
+            let reviewEvents = reviewDocuments.map(CloudSyncRemoteReviewEventSnapshot.init(document:))
+            snapshots.append(try CloudSyncRemoteCardSnapshot(document: document, reviewEvents: reviewEvents))
+        }
+
+        return snapshots
     }
 
     private func applyRemoteCard(
@@ -543,8 +821,175 @@ actor CloudSyncRemoteImportActor {
         card.creationSourceRaw = remoteCard.creationSourceRaw
         card.createdAt = remoteCard.createdAt ?? card.createdAt
         card.editedAt = remoteCard.editedAt
+        card.dueDate = remoteCard.dueDate ?? card.dueDate
+        card.easeFactor = remoteCard.easeFactor ?? card.easeFactor
+        card.interval = remoteCard.interval ?? card.interval
+        card.consecutiveCorrectAnswers = remoteCard.consecutiveCorrectAnswers ?? card.consecutiveCorrectAnswers
         card.syncRevision = remoteCard.syncRevision ?? card.syncRevision
         card.lastSyncedAt = now
+        applyRemoteReviewEvents(remoteCard.reviewEvents, to: card, uid: card.ownerUID, now: now)
+    }
+
+    private func resolveRemoteFolder(id folderID: String?, uid: String) throws -> FolderModel? {
+        guard let folderID else { return nil }
+
+        if let folder = try activeContext.fetch(FetchDescriptor<FolderModel>()).first(where: {
+            $0.ownerUID == uid && $0.cloudID == folderID
+        }) {
+            return folder
+        }
+
+        let placeholder = FolderModel(title: "Folder", colorHex: "#70707A")
+        placeholder.ownerUID = uid
+        placeholder.cloudID = folderID
+        placeholder.editedAt = .distantPast
+        activeContext.insert(placeholder)
+        return placeholder
+    }
+
+    private func applyRemoteReviewEvents(
+        _ remoteEvents: [CloudSyncRemoteReviewEventSnapshot],
+        to card: CardModel,
+        uid: String?,
+        now: Date
+    ) {
+        var localEventsByCloudID = [String: ReviewEvent]()
+        for event in card.reviewHistory {
+            if let cloudID = event.cloudID {
+                localEventsByCloudID[cloudID] = event
+            }
+        }
+
+        for remoteEvent in remoteEvents where localEventsByCloudID[remoteEvent.eventID] == nil {
+            let event = ReviewEvent(
+                timeSpent: remoteEvent.timeSpent,
+                difficulty: ReviewDifficulty(rawValue: remoteEvent.difficultyRaw) ?? .good,
+                xpAwarded: remoteEvent.xpAwarded
+            )
+            event.timestamp = remoteEvent.timestamp
+            event.cloudID = remoteEvent.eventID
+            event.ownerUID = uid
+            event.lastSyncedAt = now
+            event.card = card
+            card.reviewHistory.append(event)
+            activeContext.insert(event)
+        }
+    }
+
+    private func applyRemoteHomeAnalytics(uid: String) async throws {
+        let firestore = Firestore.firestore()
+        let userRef = firestore.collection("users").document(uid)
+        let dailyStudy = try await userRef.collection("homeDailyStudy").getDocuments().documents
+        let dailyDecks = try await userRef.collection("homeDailyDecks").getDocuments().documents
+        let dailyCards = try await userRef.collection("homeDailyCards").getDocuments().documents
+
+        try applyRemoteDailyStudy(dailyStudy)
+        try applyRemoteDailyDecks(dailyDecks)
+        try applyRemoteDailyCards(dailyCards)
+    }
+
+    private func applyRemoteDailyStudy(_ documents: [QueryDocumentSnapshot]) throws {
+        for document in documents {
+            let data = document.data()
+            let dayKey = data["dayKey"] as? String ?? document.documentID
+            let aggregate = try fetchOrCreateDailyStudy(dayKey: dayKey, data: data)
+            aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
+            aggregate.uniqueCardCount = data["uniqueCardCount"] as? Int ?? aggregate.uniqueCardCount
+            aggregate.rawReviewCount = data["rawReviewCount"] as? Int ?? aggregate.rawReviewCount
+            aggregate.landedCount = data["landedCount"] as? Int ?? aggregate.landedCount
+            aggregate.retryCount = data["retryCount"] as? Int ?? aggregate.retryCount
+            aggregate.xpEarned = data["xpEarned"] as? Int ?? aggregate.xpEarned
+            aggregate.newCardsLearned = data["newCardsLearned"] as? Int ?? aggregate.newCardsLearned
+            aggregate.dailyGoal = data["dailyGoal"] as? Int ?? aggregate.dailyGoal
+        }
+    }
+
+    private func applyRemoteDailyDecks(_ documents: [QueryDocumentSnapshot]) throws {
+        for document in documents {
+            let data = document.data()
+            let aggregateKey = data["aggregateKey"] as? String ?? document.documentID
+            let aggregate = try fetchOrCreateDailyDeck(aggregateKey: aggregateKey, data: data)
+            aggregate.dayKey = data["dayKey"] as? String ?? aggregate.dayKey
+            aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
+            aggregate.deckIdentifier = data["deckIdentifier"] as? String ?? aggregate.deckIdentifier
+            aggregate.deckTitleSnapshot = data["deckTitleSnapshot"] as? String ?? aggregate.deckTitleSnapshot
+            aggregate.deckColorHexSnapshot = data["deckColorHexSnapshot"] as? String ?? aggregate.deckColorHexSnapshot
+            aggregate.uniqueCardCount = data["uniqueCardCount"] as? Int ?? aggregate.uniqueCardCount
+            aggregate.landedCount = data["landedCount"] as? Int ?? aggregate.landedCount
+            aggregate.retryCount = data["retryCount"] as? Int ?? aggregate.retryCount
+        }
+    }
+
+    private func applyRemoteDailyCards(_ documents: [QueryDocumentSnapshot]) throws {
+        for document in documents {
+            let data = document.data()
+            let aggregateKey = data["aggregateKey"] as? String ?? document.documentID
+            let aggregate = try fetchOrCreateDailyCard(aggregateKey: aggregateKey, data: data)
+            aggregate.dayKey = data["dayKey"] as? String ?? aggregate.dayKey
+            aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
+            aggregate.cardIdentifier = data["cardIdentifier"] as? String ?? aggregate.cardIdentifier
+            aggregate.deckIdentifier = data["deckIdentifier"] as? String ?? aggregate.deckIdentifier
+            aggregate.deckAggregateKey = data["deckAggregateKey"] as? String ?? aggregate.deckAggregateKey
+            aggregate.deckTitleSnapshot = data["deckTitleSnapshot"] as? String ?? aggregate.deckTitleSnapshot
+            aggregate.deckColorHexSnapshot = data["deckColorHexSnapshot"] as? String ?? aggregate.deckColorHexSnapshot
+            aggregate.cardTitleSnapshot = data["cardTitleSnapshot"] as? String ?? aggregate.cardTitleSnapshot
+            aggregate.finalDifficultyRaw = data["finalDifficultyRaw"] as? Int ?? aggregate.finalDifficultyRaw
+            aggregate.repeatCount = data["repeatCount"] as? Int ?? aggregate.repeatCount
+            aggregate.lastReviewedAt = date(in: data, key: "lastReviewedAt") ?? aggregate.lastReviewedAt
+        }
+    }
+
+    private func fetchOrCreateDailyStudy(dayKey: String, data: [String: Any]) throws -> HomeDailyStudyAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>()).first(where: { $0.dayKey == dayKey }) {
+            return existing
+        }
+        let aggregate = HomeDailyStudyAggregate(dayDate: date(in: data, key: "dayDate") ?? Date())
+        aggregate.dayKey = dayKey
+        activeContext.insert(aggregate)
+        return aggregate
+    }
+
+    private func fetchOrCreateDailyDeck(aggregateKey: String, data: [String: Any]) throws -> HomeDailyDeckAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>()).first(where: { $0.aggregateKey == aggregateKey }) {
+            return existing
+        }
+        let aggregate = HomeDailyDeckAggregate(
+            dayDate: date(in: data, key: "dayDate") ?? Date(),
+            deckIdentifier: data["deckIdentifier"] as? String ?? "unassigned",
+            deck: nil,
+            deckTitleSnapshot: data["deckTitleSnapshot"] as? String ?? "Untitled Deck",
+            deckColorHexSnapshot: data["deckColorHexSnapshot"] as? String ?? "#70707A"
+        )
+        aggregate.aggregateKey = aggregateKey
+        activeContext.insert(aggregate)
+        return aggregate
+    }
+
+    private func fetchOrCreateDailyCard(aggregateKey: String, data: [String: Any]) throws -> HomeDailyCardAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyCardAggregate>()).first(where: { $0.aggregateKey == aggregateKey }) {
+            return existing
+        }
+        let aggregate = HomeDailyCardAggregate(
+            dayDate: date(in: data, key: "dayDate") ?? Date(),
+            cardIdentifier: data["cardIdentifier"] as? String ?? "unassigned",
+            deckIdentifier: data["deckIdentifier"] as? String ?? "unassigned",
+            card: nil,
+            deck: nil,
+            deckTitleSnapshot: data["deckTitleSnapshot"] as? String ?? "Untitled Deck",
+            deckColorHexSnapshot: data["deckColorHexSnapshot"] as? String ?? "#70707A",
+            cardTitleSnapshot: data["cardTitleSnapshot"] as? String ?? "Untitled Card",
+            finalDifficulty: ReviewDifficulty(rawValue: data["finalDifficultyRaw"] as? Int ?? ReviewDifficulty.good.rawValue) ?? .good,
+            repeatCount: data["repeatCount"] as? Int ?? 0,
+            lastReviewedAt: date(in: data, key: "lastReviewedAt") ?? Date()
+        )
+        aggregate.aggregateKey = aggregateKey
+        activeContext.insert(aggregate)
+        return aggregate
+    }
+
+    private func date(in data: [String: Any], key: String) -> Date? {
+        if let timestamp = data[key] as? Timestamp { return timestamp.dateValue() }
+        return data[key] as? Date
     }
 
     private func flushContext() {
