@@ -247,37 +247,35 @@ struct PlayModeCompletionOverlay: View {
     let secondaryAction: (() -> Void)?
 
     @Environment(ThemeManager.self) private var themeManager
-    @State private var isGlowShifted = false
 
-    private var panelCornerRadius: CGFloat { 38 }
+    private var panelCornerRadius: CGFloat { 30 }
 
     var body: some View {
         GeometryReader { proxy in
             let panelWidth = panelWidth(in: proxy.size.width)
 
             ZStack {
-                themeManager.screenBackground.opacity(0.78)
+                themeManager.screenBackground.opacity(0.86)
                     .ignoresSafeArea()
-                    .background(.ultraThinMaterial)
 
-                completionGlowBackground
-
-                VStack(spacing: UIConstants.Spacing.extraLarge) {
+                VStack(spacing: UIConstants.Spacing.large) {
                     completionHeader
                     statsGrid
                     actionButtons
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 28)
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.vertical, UIConstants.Spacing.extraLarge)
                 .frame(width: panelWidth)
-                .duoSurface(cornerRadius: panelCornerRadius, tint: themeManager.roleColor(.buttonPrimaryFill))
+                .background {
+                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                        .fill(themeManager.surfacePrimary.opacity(0.34))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true)) {
-                isGlowShifted = true
-            }
         }
     }
 
@@ -293,58 +291,12 @@ struct PlayModeCompletionOverlay: View {
     private var completionHeader: some View {
         VStack(spacing: UIConstants.Spacing.small) {
             Text(headline)
-                .font(.system(size: 31, weight: .black))
+                .font(.system(size: 29, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
                 .minimumScaleFactor(0.62)
         }
-    }
-
-    private var completionGlowBackground: some View {
-        ZStack {
-            RadialGradient(
-                colors: [
-                    themeManager.roleColor(.buttonPrimaryFill).opacity(0.30),
-                    themeManager.roleColor(.buttonPrimaryFill).opacity(0.08),
-                    .clear
-                ],
-                center: .center,
-                startRadius: 8,
-                endRadius: 230
-            )
-            .frame(width: 430, height: 430)
-            .offset(x: isGlowShifted ? 84 : -70, y: isGlowShifted ? -178 : -112)
-
-            RadialGradient(
-                colors: [
-                    themeManager.highlightRose.opacity(0.18),
-                    themeManager.highlightRose.opacity(0.06),
-                    .clear
-                ],
-                center: .center,
-                startRadius: 6,
-                endRadius: 250
-            )
-            .frame(width: 500, height: 500)
-            .offset(x: isGlowShifted ? -112 : 92, y: isGlowShifted ? 176 : 108)
-
-            RadialGradient(
-                colors: [
-                    themeManager.brandDeep.opacity(0.24),
-                    themeManager.brandDeep.opacity(0.07),
-                    .clear
-                ],
-                center: .center,
-                startRadius: 4,
-                endRadius: 260
-            )
-            .frame(width: 520, height: 520)
-            .offset(x: isGlowShifted ? 124 : -96, y: isGlowShifted ? 80 : 158)
-        }
-        .blur(radius: 42)
-        .allowsHitTesting(false)
-        .ignoresSafeArea()
     }
 
     private var statsGrid: some View {
@@ -386,15 +338,15 @@ struct PlayModeCompletionOverlay: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 19, weight: .black))
+                .font(.system(size: 18, weight: .black))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity)
-                .frame(height: 58)
+                .frame(height: 52)
                 .foregroundStyle(isPrimary ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textPrimary)
                 .background {
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(isPrimary ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.surfaceSecondary.opacity(0.78))
+                        .fill(isPrimary ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.surfaceSecondary.opacity(0.52))
                 }
         }
         .buttonStyle(.plain)
@@ -410,34 +362,28 @@ private struct PlayModeCompletionStatBox: View {
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        VStack(spacing: UIConstants.Spacing.small) {
-            Image(systemName: stat.icon)
-                .font(.system(size: 18, weight: .black))
-                .foregroundStyle(stat.color)
+        VStack(spacing: 4) {
+            Text(stat.value)
+                .font(.system(size: 31, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
 
-            VStack(spacing: 3) {
-                Text(stat.value)
-                    .font(.system(size: 30, weight: .black))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-
-                Text(stat.title)
-                    .font(.system(size: 12, weight: .black))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .textCase(.uppercase)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
+            Text(stat.title)
+                .font(.system(size: 12, weight: .black))
+                .foregroundStyle(themeManager.textSecondary)
+                .textCase(.uppercase)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .multilineTextAlignment(.center)
         .padding(.horizontal, UIConstants.Spacing.small)
-        .padding(.vertical, UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, minHeight: 98, alignment: .center)
+        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, minHeight: 86, alignment: .center)
         .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(themeManager.surfaceSecondary.opacity(0.72))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(themeManager.surfaceSecondary.opacity(0.38))
         )
     }
 }

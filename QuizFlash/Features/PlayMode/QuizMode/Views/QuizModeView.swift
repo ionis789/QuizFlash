@@ -559,7 +559,6 @@ private struct QuizModeSessionView: View {
 
             quizPrimaryFloatingButton(
                 title: viewModel.primaryActionTitle,
-                systemImage: primaryFloatingSymbol,
                 isDisabled: isPrimaryActionDisabled,
                 action: handlePrimaryAction
             )
@@ -601,18 +600,17 @@ private struct QuizModeSessionView: View {
 
     private func quizPrimaryFloatingButton(
         title: String,
-        systemImage: String,
         isDisabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
+            Text(title)
                 .font(.system(size: 16, weight: .black))
                 .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
                 .lineLimit(1)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 16)
-                .frame(minWidth: 154, minHeight: 62)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 13)
                 .background {
                     Capsule(style: .continuous)
                         .fill(primaryFloatingBackground(isDisabled: isDisabled))
@@ -923,12 +921,6 @@ private struct QuizModeSessionView: View {
         if viewModel.isShowingRetryPrompt { return false }
         if viewModel.isEvaluated { return false }
         return !viewModel.canSubmitAnswer
-    }
-
-    private var primaryFloatingSymbol: String {
-        if viewModel.isShowingRetryPrompt { return "arrow.counterclockwise" }
-        if viewModel.isEvaluated { return "chevron.compact.right" }
-        return "checkmark"
     }
 
     private var primaryFloatingTint: Color {
