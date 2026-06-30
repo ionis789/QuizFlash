@@ -510,6 +510,10 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         max(outcomeCount, 1)
     }
 
+    private var hasOutcome: Bool {
+        outcomeCount > 0
+    }
+
     private var correctFraction: CGFloat {
         CGFloat(correctCount) / CGFloat(total)
     }
@@ -530,11 +534,43 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
         Color(red: 0.92, green: 0.34, blue: 0.32)
     }
 
+    private var ringAnimation: Animation {
+        .smooth(duration: 0.35, extraBounce: 0)
+    }
+
     var body: some View {
         ZStack {
             Circle()
                 .stroke(themeManager.textSecondary.opacity(0.16), lineWidth: lineWidth)
 
+            outcomeLayer
+                .opacity(hasOutcome ? 1 : 0)
+                .transaction { transaction in
+                    if !hasOutcome {
+                        transaction.disablesAnimations = true
+                        transaction.animation = nil
+                    }
+                }
+
+            Text("\(reviewedCount)")
+                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+                .contentTransition(reviewedCount == 0 ? .identity : .numericText(value: Double(reviewedCount)))
+                .padding(.horizontal, 12)
+        }
+        .animation(hasOutcome ? ringAnimation : nil, value: correctCount)
+        .animation(hasOutcome ? ringAnimation : nil, value: retryCount)
+        .animation(reviewedCount == 0 ? nil : ringAnimation, value: reviewedCount)
+        .accessibilityLabel("Daily progress")
+        .accessibilityValue("\(correctCount) correct, \(retryCount) retry, \(reviewedCount) reviewed")
+    }
+
+    @ViewBuilder
+    private var outcomeLayer: some View {
+        ZStack {
             if correctCount > 0 {
                 outcomeSegment(
                     from: 0,
@@ -561,21 +597,7 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
                     lineCap: .round
                 )
             }
-
-            Text("\(reviewedCount)")
-                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.64)
-                .contentTransition(.numericText(value: Double(reviewedCount)))
-                .padding(.horizontal, 12)
         }
-        .animation(.smooth(duration: 0.35, extraBounce: 0), value: correctCount)
-        .animation(.smooth(duration: 0.35, extraBounce: 0), value: retryCount)
-        .animation(.smooth(duration: 0.35, extraBounce: 0), value: reviewedCount)
-        .accessibilityLabel("Daily progress")
-        .accessibilityValue("\(correctCount) correct, \(retryCount) retry, \(reviewedCount) reviewed")
     }
 
     private var greenCapOverlayFraction: CGFloat {
