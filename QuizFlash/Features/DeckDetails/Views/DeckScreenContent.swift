@@ -259,15 +259,10 @@ extension DeckContentView {
                 viewModel.setSelectedCardsPinned(
                     isPinned,
                     in: deck,
-                    context: context,
-                    groupingAnimation: .deckCardReorder
+                    context: context
                 )
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(80))
-                    guard viewModel.isSelecting else { return }
-                    withAnimation(.deckSelectionExit) {
-                        viewModel.exitSelectionMode()
-                    }
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
                 }
             },
             onStartSelection: {
@@ -276,7 +271,7 @@ extension DeckContentView {
                 }
             },
             onDoneSelection: {
-                withAnimation(.deckSelectionExit) {
+                withBottomChromeAnimation {
                     viewModel.exitSelectionMode()
                 }
             },

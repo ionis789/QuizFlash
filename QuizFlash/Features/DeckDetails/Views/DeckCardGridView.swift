@@ -310,6 +310,7 @@ private struct DeckGridCardCell: View {
     let onTogglePinned: (GridCardInfo) -> Void
     let onDeleteCard: (GridCardInfo) -> Void
     @State private var cardSize: CGSize = .zero
+    @State private var pinFillScale: CGFloat = 1
 
     private var locale: Locale { appPreferences.resolvedLocale }
 
@@ -424,8 +425,23 @@ private struct DeckGridCardCell: View {
                     }
                 }
         }
-        .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
+        .scaleEffect((isSelecting && isSelected ? 0.9 : 1) * pinFillScale)
         .animation(.spring(response: 0.24, dampingFraction: 0.88), value: isSelected)
+        .onChange(of: card.isPinned) { _, _ in
+            runPinFillAnimation()
+        }
+    }
+
+    private func runPinFillAnimation() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            pinFillScale = 0.92
+        }
+
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            pinFillScale = 1
+        }
     }
 }
 

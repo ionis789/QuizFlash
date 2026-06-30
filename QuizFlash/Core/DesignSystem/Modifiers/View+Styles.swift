@@ -33,16 +33,6 @@ extension Animation {
         .spring(response: 0.3, dampingFraction: 0.9)
     }
 
-    /// Lightweight deck-card movement used when pinning changes section membership.
-    static var deckCardReorder: Animation {
-        .smooth(duration: 0.26, extraBounce: 0)
-    }
-
-    /// Calm selection-mode exit motion used after bulk deck-card actions.
-    static var deckSelectionExit: Animation {
-        .smooth(duration: 0.22, extraBounce: 0)
-    }
-
     /// Shared spring used by tab-item emphasis inside the floating tab bar.
     static var tabItemSpring: Animation {
         .spring(response: 0.32, dampingFraction: 0.9)
