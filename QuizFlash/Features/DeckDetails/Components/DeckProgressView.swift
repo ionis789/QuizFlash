@@ -23,6 +23,9 @@ struct DeckProgressView: View {
     let stats: DeckStats
     let deckTint: Color
 
+    @State private var displayedAccuracy = 0
+    @State private var displayedMastery = 0.0
+
     private var locale: Locale { appPreferences.resolvedLocale }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -37,6 +40,17 @@ struct DeckProgressView: View {
             progressSummaryBlock
         }
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .onAppear {
+            animateDisplayedStats()
+        }
+        .onChange(of: stats.accuracy) { _, newValue in
+            withAnimation(.selectionToolbarSpring) {
+                displayedAccuracy = newValue
+            }
+        }
+        .onChange(of: stats.deckMastery) { _, newValue in
+            displayedMastery = newValue
+        }
     }
 
     private var summarySeparator: some View {
@@ -49,16 +63,13 @@ struct DeckProgressView: View {
             accuracySummary
                 .frame(maxWidth: .infinity, alignment: .center)
             DeckIntegratedMasteryRing(
-                mastery: stats.deckMastery,
+                mastery: displayedMastery,
                 deckTint: deckTint,
                 progressTitle: localized("Progress")
             )
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
-        .transaction { transaction in
-            transaction.animation = nil
-        }
     }
 
     private var accuracySummary: some View {
@@ -69,14 +80,21 @@ struct DeckProgressView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.76)
 
-            Text("\(stats.accuracy)%")
+            Text("\(displayedAccuracy)%")
                 .font(.system(size: 52, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .contentTransition(.numericText(value: Double(stats.accuracy)))
+                .statusTextMotion(trigger: displayedAccuracy)
         }
         .multilineTextAlignment(.center)
+    }
+
+    private func animateDisplayedStats() {
+        withAnimation(.selectionToolbarSpring) {
+            displayedAccuracy = stats.accuracy
+        }
+        displayedMastery = stats.deckMastery
     }
 }
 
@@ -93,11 +111,12 @@ private struct DeckIntegratedMasteryRing: View {
             size: 144,
             strokeWidth: 14
         ) { animatedProgress in
+            let progressPercent = Int(animatedProgress * 100)
             VStack(spacing: 4) {
-                Text("\(Int(animatedProgress * 100))%")
+                Text("\(progressPercent)%")
                     .font(.system(size: 30, weight: .black))
                     .foregroundStyle(.primary)
-                    .contentTransition(.numericText(value: animatedProgress * 100))
+                    .statusTextMotion(trigger: progressPercent)
 
                 Text(progressTitle)
                     .font(.system(size: 13, weight: .heavy))
