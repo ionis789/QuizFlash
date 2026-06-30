@@ -237,6 +237,7 @@ Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned
 Copied!	Copied!	Copiat!	Скопировано!
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
 Correct	Correct	Corect	Верно
+Correct reviewed formula	Correct / reviewed cards	Corecte / carduri revizuite	Верные / повторённые карточки
 Could not extract text from this source. Try another source.	Could not extract text from this source. Try another source.	Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.	Не удалось извлечь текст из этого источника. Попробуйте другой источник.
 Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
 Create	Create	Creează	Создать
@@ -252,9 +253,9 @@ Create your first folder	Create your first folder	Creați primul dvs. folder	С�
 Created %@	Created %@	Creat %@	Создано %@
 Current %@	Current %@	%@ curent	Текущая %@
 Current Summary	Current Summary	Rezumat curent	Текущая сводка
-Current week	Current week	Săptămâna curentă	Текущая неделя
 Custom Color	Custom Color	Culoare personalizată	Свой цвет
 Cyan	Cyan	Cyan	Голубой
+Daily results	Daily results	Rezultate pe zile	Результаты по дням
 Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная нагрузка
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
@@ -363,7 +364,6 @@ Good cards	Good	Bune	Хорошие
 Good evening	Good evening	Bună seara	Добрый вечер
 Good morning	Good morning	Bună dimineața	Доброе утро
 Good night	Good night	Noapte bună	Доброй ночи
-Good rate	Good rate	Rată bune	Доля хороших
 Google Sign-In is not configured.	Google Sign-In is not configured.	Google Sign-In nu este configurat.	Google Sign-In не настроен.
 Google sign-in is not ready yet. Please try email sign-in.	Google sign-in is not ready yet. Please try email sign-in.	Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.	Вход через Google пока не готов. Попробуйте войти по email.
 Green	Green	Verde	Зелёный
@@ -582,6 +582,7 @@ Reduce cards to %d or fewer.	Reduce cards to %d or fewer.	Redu cardurile la %d s
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
+Remembered	Remembered	Ținute minte	Запомнено
 Remembered: %d%%	Remembered: %d%%	Ținute minte: %d%%	Запомнено: %d%%
 Render	Render	Randare	Рендер
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
@@ -671,7 +672,7 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
-Study detail	Study detail	Detalii studiu	Детали учёбы
+Study week	Study week	Săptămână studiu	Неделя учёбы
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
@@ -760,7 +761,6 @@ We could not finish sign-in. Please try again.	We could not finish sign-in. Plea
 We'll send a reset link.	We'll send a reset link.	Îți trimitem un link de resetare.	Мы отправим ссылку для сброса.
 Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
-Week of %@	Week of %@	Săptămâna din %@	Неделя от %@
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
 Welcome back	Welcome back	Bine ai revenit	С возвращением
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?

@@ -222,6 +222,7 @@
 "Copied!" = "Copiat!";
 "Copy and share with Codex" = "Copiați și partajați cu Codex";
 "Correct" = "Corect";
+"Correct reviewed formula" = "Corecte / carduri revizuite";
 "Custom Color" = "Culoare custom";
 "Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
 "Covers %@ %@" = "Acoperă %1$@ %2$@";
@@ -237,9 +238,9 @@
 "Created %@" = "Creat %@";
 "Current %@" = "%@ curent";
 "Current Summary" = "Rezumat curent";
-"Current week" = "Săptămâna curentă";
 "Custom Color" = "Culoare personalizată";
 "Cyan" = "Cyan";
+"Daily results" = "Rezultate pe zile";
 "Daily Workload" = "Volumul de lucru zilnic";
 "Deck Health" = "Deck Sănătate";
 "Deck Title" = "Deck Titlu";
@@ -346,7 +347,6 @@
 "Good evening" = "Bună seara";
 "Good morning" = "Bună dimineața";
 "Good night" = "Noapte bună";
-"Good rate" = "Rată bune";
 "Good %d" = "Bune %d";
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.";
@@ -737,7 +737,6 @@
 "We'll send a reset link." = "Îți trimitem un link de resetare.";
 "Weakest deck: %@" = "Cel mai slab deck: %@";
 "Weakest linked deck: %@" = "Cele mai slabe legături deck: %@";
-"Week of %@" = "Săptămâna din %@";
 "Weekly Momentum" = "Momentum săptămânal";
 "Welcome back" = "Bine ai revenit";
 "What is eventual consistency?" = "Ce este consistenta eventuala?";
@@ -775,7 +774,8 @@
 "No goal" = "Fără țintă";
 "No reviews this week" = "Nicio revizuire săptămâna asta";
 "Ready when you are." = "Gata când ești tu.";
-"Study detail" = "Detalii studiu";
+"Remembered" = "Ținute minte";
 "Remembered: %d%%" = "Ținute minte: %d%%";
+"Study week" = "Săptămână studiu";
 "This week" = "Săptămâna aceasta";
 "Update Goal" = "Actualizează ținta";

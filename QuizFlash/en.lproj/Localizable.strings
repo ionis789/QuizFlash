@@ -222,6 +222,7 @@
 "Copied!" = "Copied!";
 "Copy and share with Codex" = "Copy and share with Codex";
 "Correct" = "Correct";
+"Correct reviewed formula" = "Correct / reviewed cards";
 "Custom Color" = "Custom Color";
 "Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
 "Covers %@ %@" = "Covers %1$@ %2$@";
@@ -237,9 +238,9 @@
 "Created %@" = "Created %@";
 "Current %@" = "Current %@";
 "Current Summary" = "Current Summary";
-"Current week" = "Current week";
 "Custom Color" = "Custom Color";
 "Cyan" = "Cyan";
+"Daily results" = "Daily results";
 "Daily Workload" = "Daily Workload";
 "Deck Health" = "Deck Health";
 "Deck Title" = "Deck Title";
@@ -346,7 +347,6 @@
 "Good evening" = "Good evening";
 "Good morning" = "Good morning";
 "Good night" = "Good night";
-"Good rate" = "Good rate";
 "Good %d" = "Good %d";
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Google sign-in is not ready yet. Please try email sign-in.";
@@ -737,7 +737,6 @@
 "We'll send a reset link." = "We'll send a reset link.";
 "Weakest deck: %@" = "Weakest deck: %@";
 "Weakest linked deck: %@" = "Weakest linked deck: %@";
-"Week of %@" = "Week of %@";
 "Weekly Momentum" = "Weekly Momentum";
 "Welcome back" = "Welcome back";
 "What is eventual consistency?" = "What is eventual consistency?";
@@ -775,7 +774,8 @@
 "No goal" = "No goal";
 "No reviews this week" = "No reviews this week";
 "Ready when you are." = "Ready when you are.";
-"Study detail" = "Study detail";
+"Remembered" = "Remembered";
 "Remembered: %d%%" = "Remembered: %d%%";
+"Study week" = "Study week";
 "This week" = "This week";
 "Update Goal" = "Update Goal";

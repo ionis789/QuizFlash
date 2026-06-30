@@ -44,16 +44,13 @@ struct HomePerformanceDetailSheetView: View {
         AppLocalization.string(value, locale: locale)
     }
 
-    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
-        let format = AppLocalization.string(value, locale: locale)
-        return String(format: format, locale: locale, arguments: arguments)
-    }
-
-    private var windowEndingLine: String {
-        localizedFormat(
-            "Week of %@",
-            HomeViewModel.labelForSelectedDay(summary.weekStartDate)
-        )
+    private var weekRangeLine: String {
+        let formatter = DateIntervalFormatter()
+        formatter.calendar = appPreferences.resolvedCalendar
+        formatter.locale = locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: summary.weekStartDate, to: summary.windowEndDate)
     }
 
     var body: some View {
@@ -74,11 +71,11 @@ struct HomePerformanceDetailSheetView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(localized("Study detail"))
+            Text(localized("Study week"))
                 .font(.system(size: 32, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
 
-            Text(windowEndingLine)
+            Text(weekRangeLine)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -89,8 +86,9 @@ struct HomePerformanceDetailSheetView: View {
     private var overviewMetricsSection: some View {
         LazyVGrid(columns: gridColumns, alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HomePerformancePlainMetric(
-                title: localized("Good rate"),
-                value: "\(summary.accuracyPercent)%"
+                title: localized("Remembered"),
+                value: "\(summary.accuracyPercent)%",
+                caption: localized("Correct reviewed formula")
             )
             HomePerformancePlainMetric(
                 title: localized("Active days"),
@@ -108,7 +106,7 @@ struct HomePerformanceDetailSheetView: View {
     private var comparisonSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             HomePerformanceBarSection(
-                title: localized("Current week"),
+                title: localized("Daily results"),
                 daySummaries: summary.currentDaySummaries,
                 labelTint: accentColor
             )
@@ -132,6 +130,7 @@ private struct HomePerformancePlainMetric: View {
 
     let title: String
     let value: String
+    var caption: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -145,6 +144,14 @@ private struct HomePerformancePlainMetric: View {
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
+
+            if let caption {
+                Text(caption)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(themeManager.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

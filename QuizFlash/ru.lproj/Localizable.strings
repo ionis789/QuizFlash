@@ -222,6 +222,7 @@
 "Copied!" = "Скопировано!";
 "Copy and share with Codex" = "Скопируйте и поделитесь с Кодексом";
 "Correct" = "Верно";
+"Correct reviewed formula" = "Верные / повторённые карточки";
 "Custom Color" = "Свой цвет";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
 "Covers %@ %@" = "Обложки %1$@ %2$@";
@@ -237,9 +238,9 @@
 "Created %@" = "Создано %@";
 "Current %@" = "Текущая %@";
 "Current Summary" = "Текущая сводка";
-"Current week" = "Текущая неделя";
 "Custom Color" = "Свой цвет";
 "Cyan" = "Голубой";
+"Daily results" = "Результаты по дням";
 "Daily Workload" = "Ежедневная нагрузка";
 "Deck Health" = "Здоровье колоды";
 "Deck Title" = "Название колоды";
@@ -346,7 +347,6 @@
 "Good evening" = "Добрый вечер";
 "Good morning" = "Доброе утро";
 "Good night" = "Доброй ночи";
-"Good rate" = "Доля хороших";
 "Good %d" = "Хорошо %d";
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Вход через Google пока не готов. Попробуйте войти по email.";
@@ -737,7 +737,6 @@
 "We'll send a reset link." = "Мы отправим ссылку для сброса.";
 "Weakest deck: %@" = "Самая слабая колода: %@.";
 "Weakest linked deck: %@" = "Самая слабая связанная колода: %@";
-"Week of %@" = "Неделя от %@";
 "Weekly Momentum" = "Еженедельный импульс";
 "Welcome back" = "С возвращением";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
@@ -775,7 +774,8 @@
 "No goal" = "Без цели";
 "No reviews this week" = "На этой неделе нет повторений";
 "Ready when you are." = "Готово, когда вы готовы.";
-"Study detail" = "Детали учёбы";
+"Remembered" = "Запомнено";
 "Remembered: %d%%" = "Запомнено: %d%%";
+"Study week" = "Неделя учёбы";
 "This week" = "Эта неделя";
 "Update Goal" = "Обновить цель";
