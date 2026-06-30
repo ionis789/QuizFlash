@@ -94,7 +94,7 @@ private struct QuizModeSessionView: View {
     private var contentHorizontalPadding: CGFloat { 8 }
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
-    private var minimumReservedFloatingControlsHeight: CGFloat { 48 }
+    private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
     private var questionContentHiddenScale: CGFloat { 0.952 }
     private var questionContentTransition: Animation {
         .spring(response: 0.36, dampingFraction: 0.84)
@@ -494,10 +494,11 @@ private struct QuizModeSessionView: View {
                 }
                 .scrollDisabled(!needsScroll)
 
-                ChromeSoftCircleSymbolButton(
-                    systemName: "xmark",
+                QuizExplanationSheetCloseButton(
                     accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
-                    action: { showsExplanationSheet = false }
+                    fallbackDismiss: {
+                        showsExplanationSheet = false
+                    }
                 )
                 .padding(.top, UIConstants.Spacing.medium)
                 .padding(.trailing, UIConstants.Spacing.medium)
@@ -598,26 +599,25 @@ private struct QuizModeSessionView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            ZStack {
-                Capsule(style: .continuous)
-                    .fill(primaryFloatingBackground(isDisabled: isDisabled))
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
-                    }
-
-                Text(title)
-                    .font(.system(size: 16, weight: .black))
-                    .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
-                    .lineLimit(1)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 13)
-                    .contentTransition(.identity)
-                    .transaction { transaction in
-                        transaction.animation = nil
-                    }
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            Text(title)
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 13)
+                .contentTransition(.identity)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(primaryFloatingBackground(isDisabled: isDisabled))
+                }
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(isDisabled ? 0.08 : 0.20), lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -1313,6 +1313,29 @@ private struct QuizModeSessionView: View {
 }
 
 // MARK: - Explanation Sheet
+
+private struct QuizExplanationSheetCloseButton: View {
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+
+    let accessibilityLabel: String
+    let fallbackDismiss: () -> Void
+
+    var body: some View {
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: accessibilityLabel,
+            action: dismiss
+        )
+    }
+
+    private func dismiss() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            fallbackDismiss()
+        }
+    }
+}
 
 private struct QuizExplanationSheetBackground: View {
     var body: some View {
