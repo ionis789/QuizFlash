@@ -16,6 +16,7 @@ import SwiftUI
 ///   - folder: The folder model to display.
 ///   - action: Called when the user taps the card to open the folder.
 struct FolderCardView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Input
@@ -56,7 +57,7 @@ struct FolderCardView: View {
                 // MARK: Deck Count
 
                 // Safe: deckCount is a denormalized Int — no relationship fault at render time.
-                Text("\(folder.deckCount) decks")
+                Text(deckCountText)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(themeManager.textSecondary)
             }
@@ -66,6 +67,19 @@ struct FolderCardView: View {
             .flashcardStyle(surfaceRole: .widget)
         }
         .duoPressableSurfaceStyle()
+    }
+
+    private var deckCountText: String {
+        if folder.deckCount == 0 {
+            return AppLocalization.string("Empty", locale: appPreferences.resolvedLocale)
+        }
+
+        return AppLocalization.numbered(
+            folder.deckCount,
+            singular: "%d deck",
+            plural: "%d decks",
+            locale: appPreferences.resolvedLocale
+        )
     }
 }
 

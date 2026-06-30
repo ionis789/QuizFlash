@@ -267,10 +267,6 @@ struct HomeDashboardView: View {
                     .font(.system(size: usesRegularMetrics ? 16 : 15, weight: .black))
                     .foregroundStyle(accentColor)
                     .frame(width: usesRegularMetrics ? 32 : 30, height: usesRegularMetrics ? 32 : 30)
-                    .background {
-                        Circle()
-                            .fill(accentColor.opacity(0.14))
-                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 2)
@@ -1387,14 +1383,7 @@ private struct HomeDashboardFolderCard: View {
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(
-                        AppLocalization.numbered(
-                            snapshot.deckCount,
-                            singular: "%d deck",
-                            plural: "%d decks",
-                            locale: appPreferences.resolvedLocale
-                        )
-                    )
+                    Text(deckCountText)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(themeManager.textSecondary)
                 }
@@ -1403,8 +1392,7 @@ private struct HomeDashboardFolderCard: View {
                 Image(systemName: "chevron.compact.right")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(folderColor)
-                    .padding(10)
-                    .background(folderColor.opacity(0.12), in: Circle())
+                    .frame(width: usesRegularMetrics ? 30 : 28, height: usesRegularMetrics ? 30 : 28)
             }
             .padding(.horizontal, usesRegularMetrics ? 18 : 16)
             .padding(.vertical, usesRegularMetrics ? 18 : 16)
@@ -1419,6 +1407,19 @@ private struct HomeDashboardFolderCard: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var deckCountText: String {
+        if snapshot.deckCount == 0 {
+            return AppLocalization.string("Empty", locale: appPreferences.resolvedLocale)
+        }
+
+        return AppLocalization.numbered(
+            snapshot.deckCount,
+            singular: "%d deck",
+            plural: "%d decks",
+            locale: appPreferences.resolvedLocale
+        )
     }
 }
 
