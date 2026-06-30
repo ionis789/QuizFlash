@@ -426,6 +426,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
                 .frame(height: 34)
                 .background(Color.primary.opacity(0.075), in: Capsule())
             }
+            .noPressEffectButtonStyle()
         }
     }
 }

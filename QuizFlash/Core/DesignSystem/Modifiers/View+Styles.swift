@@ -570,15 +570,19 @@ private struct BorderBeamModifier: ViewModifier {
     }
 }
 
-// MARK: - DuoPressableSurfaceStyle
+// MARK: - Press Effect Button Styles
 
-/// Subtle full-surface press treatment for interactive Duolingo-style panels.
+/// Keeps button interaction semantics without changing the label while pressed.
+private struct NoPressEffectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
+/// Button style for full-surface Duolingo-style panels.
 private struct DuoPressableSurfaceStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.985 : 1, anchor: .center)
-            .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.easeInOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 
@@ -771,7 +775,12 @@ extension View {
         )
     }
 
-    /// Applies the shared full-panel press response.
+    /// Removes visual press feedback while preserving button behavior.
+    func noPressEffectButtonStyle() -> some View {
+        buttonStyle(NoPressEffectButtonStyle())
+    }
+
+    /// Applies the shared full-panel button style.
     func duoPressableSurfaceStyle() -> some View {
         buttonStyle(DuoPressableSurfaceStyle())
     }

@@ -214,7 +214,7 @@ struct SettingsView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .noPressEffectButtonStyle()
 
             if isCardsGoalExpanded {
                 VStack(spacing: UIConstants.Spacing.medium) {
@@ -530,7 +530,7 @@ struct SettingsView: View {
                             value: nil
                         )
                     }
-                    .buttonStyle(.plain)
+                    .noPressEffectButtonStyle()
                 }
             }
 
@@ -562,7 +562,7 @@ struct SettingsView: View {
                         Spacer(minLength: 0)
                     }
                 }
-                .buttonStyle(.plain)
+                .noPressEffectButtonStyle()
             }
 
             settingsBlock {
@@ -587,7 +587,7 @@ struct SettingsView: View {
                         Spacer(minLength: 0)
                     }
                 }
-                .buttonStyle(.plain)
+                .noPressEffectButtonStyle()
             }
         }
     }
@@ -1058,7 +1058,7 @@ struct SettingsView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .noPressEffectButtonStyle()
 
             if isTextSizeExpanded {
                 TickValuePicker(

@@ -315,7 +315,7 @@ private struct CompactTextSizeSliderRow: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .noPressEffectButtonStyle()
 
             if isExpanded {
                 TickValuePicker(
@@ -384,7 +384,7 @@ private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
                 .frame(height: isDense ? 38 : 44)
                 .background(Color.primary.opacity(0.075), in: Capsule())
             }
-            .buttonStyle(.plain)
+            .noPressEffectButtonStyle()
         }
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
@@ -477,7 +477,7 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
                     in: Capsule()
                 )
         }
-        .buttonStyle(.plain)
+        .noPressEffectButtonStyle()
     }
 }
 
