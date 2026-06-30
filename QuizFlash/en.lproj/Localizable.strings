@@ -222,7 +222,8 @@
 "Copied!" = "Copied!";
 "Copy and share with Codex" = "Copy and share with Codex";
 "Correct" = "Correct";
-"Correct reviewed formula" = "Correct / reviewed cards";
+"Accuracy: %d%%" = "Accuracy: %d%%";
+"Correct reviewed formula" = "Landed / reviewed cards";
 "Custom Color" = "Custom Color";
 "Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
 "Covers %@ %@" = "Covers %1$@ %2$@";
@@ -774,7 +775,6 @@
 "No goal" = "No goal";
 "No reviews this week" = "No reviews this week";
 "Ready when you are." = "Ready when you are.";
-"Correct rate" = "Correct rate";
-"Correct: %d%%" = "Correct: %d%%";
+"Correct rate" = "Accuracy";
 "This week" = "This week";
 "Update Goal" = "Update Goal";

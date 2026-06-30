@@ -294,7 +294,7 @@ struct HomeDashboardView: View {
             return localized("No reviews this week")
         }
 
-        return localizedFormat("Correct: %d%%", summary.goodRatePercent)
+        return localizedFormat("Accuracy: %d%%", summary.goodRatePercent)
     }
 
     @ViewBuilder

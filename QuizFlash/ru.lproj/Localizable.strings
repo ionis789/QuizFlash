@@ -222,7 +222,8 @@
 "Copied!" = "Скопировано!";
 "Copy and share with Codex" = "Скопируйте и поделитесь с Кодексом";
 "Correct" = "Верно";
-"Correct reviewed formula" = "Верные / повторённые карточки";
+"Accuracy: %d%%" = "Точность: %d%%";
+"Correct reviewed formula" = "Успешные / повторённые карточки";
 "Custom Color" = "Свой цвет";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
 "Covers %@ %@" = "Обложки %1$@ %2$@";
@@ -774,7 +775,6 @@
 "No goal" = "Без цели";
 "No reviews this week" = "На этой неделе нет повторений";
 "Ready when you are." = "Готово, когда вы готовы.";
-"Correct rate" = "Процент верных";
-"Correct: %d%%" = "Верно: %d%%";
+"Correct rate" = "Точность";
 "This week" = "Эта неделя";
 "Update Goal" = "Обновить цель";

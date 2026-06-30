@@ -222,7 +222,8 @@
 "Copied!" = "Copiat!";
 "Copy and share with Codex" = "Copiați și partajați cu Codex";
 "Correct" = "Corect";
-"Correct reviewed formula" = "Corecte / carduri revizuite";
+"Accuracy: %d%%" = "Acuratețe: %d%%";
+"Correct reviewed formula" = "Reușite / carduri revizuite";
 "Custom Color" = "Culoare custom";
 "Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
 "Covers %@ %@" = "Acoperă %1$@ %2$@";
@@ -774,7 +775,6 @@
 "No goal" = "Fără țintă";
 "No reviews this week" = "Nicio revizuire săptămâna asta";
 "Ready when you are." = "Gata când ești tu.";
-"Correct rate" = "Rată corectă";
-"Correct: %d%%" = "Corecte: %d%%";
+"Correct rate" = "Acuratețe";
 "This week" = "Săptămâna aceasta";
 "Update Goal" = "Actualizează ținta";
