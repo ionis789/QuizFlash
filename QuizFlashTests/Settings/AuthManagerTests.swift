@@ -130,6 +130,24 @@ final class AuthManagerTests: XCTestCase {
         XCTAssertTrue(manager.isAuthenticated)
     }
 
+    func testGoogleSignInShowsSuccessBeforeSigningIn() async throws {
+        let user = AuthUserSnapshot.googleUser
+        let provider = MockAuthProvider(currentUser: nil)
+        provider.googleSignInResult = user
+        let manager = AuthManager(authProvider: provider)
+
+        try await manager.signInWithGoogle(presentingViewController: UIViewController())
+
+        XCTAssertEqual(manager.sessionState, .providerSignInSucceeded(user))
+        XCTAssertFalse(manager.isAuthenticated)
+        XCTAssertEqual(manager.currentUser, user)
+
+        manager.completeProviderSignInSuccess()
+
+        XCTAssertEqual(manager.sessionState, .signedIn(user))
+        XCTAssertTrue(manager.isAuthenticated)
+    }
+
     func testPasswordResetNormalizesEmail() async throws {
         let provider = MockAuthProvider(currentUser: nil)
         let manager = AuthManager(authProvider: provider)

@@ -101,7 +101,6 @@ struct HomeView: View {
                         .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                         .zIndex(1)
                     }
-                    .animation(.snappy(duration: 0.28, extraBounce: 0.04), value: calendarVM.monthRows.count)
                     .tabBarAutoHideOnScroll()
                     .frame(maxWidth: .infinity, alignment: .top)
                 }

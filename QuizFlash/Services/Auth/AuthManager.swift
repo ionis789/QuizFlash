@@ -45,6 +45,7 @@ enum AuthSessionState: Equatable, Sendable {
     case signedIn(AuthUserSnapshot)
     case emailVerificationRequired(AuthUserSnapshot)
     case emailVerificationSucceeded(AuthUserSnapshot)
+    case providerSignInSucceeded(AuthUserSnapshot)
 }
 
 // MARK: - Auth Provider ID
@@ -145,7 +146,10 @@ final class AuthManager {
         switch sessionState {
         case .checking, .signedOut:
             nil
-        case .signedIn(let user), .emailVerificationRequired(let user), .emailVerificationSucceeded(let user):
+        case .signedIn(let user),
+             .emailVerificationRequired(let user),
+             .emailVerificationSucceeded(let user),
+             .providerSignInSucceeded(let user):
             user
         }
     }
@@ -243,6 +247,12 @@ final class AuthManager {
         }
     }
 
+    func completeProviderSignInSuccess() {
+        if case .providerSignInSucceeded(let user) = sessionState {
+            sessionState = .signedIn(user)
+        }
+    }
+
     func signInWithGoogle(presentingViewController: UIViewController?) async throws {
         guard let presentingViewController else {
             throw AuthManagerError.missingPresenter
@@ -251,12 +261,12 @@ final class AuthManager {
         let user = try await authProvider.signInWithGoogle(
             presentingViewController: presentingViewController
         )
-        apply(user)
+        applyProviderSignInSuccess(user)
     }
 
     func signInWithApple() async throws {
         let user = try await authProvider.signInWithApple()
-        apply(user)
+        applyProviderSignInSuccess(user)
     }
 
     func logout() async throws {
@@ -283,6 +293,11 @@ final class AuthManager {
             return
         }
 
+        if case .providerSignInSucceeded(let previousUser) = sessionState,
+           previousUser.uid == user.uid {
+            return
+        }
+
         let wasWaitingForSameEmailUser: Bool = {
             switch sessionState {
             case .emailVerificationRequired(let previousUser),
@@ -298,6 +313,15 @@ final class AuthManager {
         } else {
             sessionState = .signedIn(user)
         }
+    }
+
+    private func applyProviderSignInSuccess(_ user: AuthUserSnapshot) {
+        guard !user.requiresEmailVerification else {
+            sessionState = .emailVerificationRequired(user)
+            return
+        }
+
+        sessionState = .providerSignInSucceeded(user)
     }
 
     private var authProvider: AuthProviding {
