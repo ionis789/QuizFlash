@@ -578,6 +578,9 @@ private struct HomeDataCoordinator: View {
 
         guard recentDeckSignature != nextSignature else { return }
         recentDeckSignature = nextSignature
-        recentDeckSnapshots = LibraryGrouping.makeDeckSnapshots(from: nextDecks)
+        recentDeckSnapshots = LibraryGrouping.makeDeckSnapshots(
+            from: nextDecks,
+            includeCardKindPresence: false
+        )
     }
 }

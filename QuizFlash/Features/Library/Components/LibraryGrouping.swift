@@ -67,9 +67,14 @@ struct DeckSection: Identifiable, Equatable, Sendable {
 /// A utility enum providing logic to group a list of decks into sections.
 nonisolated enum LibraryGrouping {
     /// Projects SwiftData decks into value snapshots safe for long scroll surfaces.
-    static func makeDeckSnapshots(from decks: [DeckModel]) -> [LibraryDeckRowSnapshot] {
+    static func makeDeckSnapshots(
+        from decks: [DeckModel],
+        includeCardKindPresence: Bool = true
+    ) -> [LibraryDeckRowSnapshot] {
         decks.map { deck in
-            let cardKinds = Self.cardKindPresence(for: deck)
+            let cardKinds = includeCardKindPresence
+                ? Self.cardKindPresence(for: deck)
+                : (hasFlashcards: false, hasQuizCards: false)
             return LibraryDeckRowSnapshot(
                 id: deck.persistentModelID,
                 title: deck.title,

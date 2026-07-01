@@ -618,6 +618,7 @@ actor CloudSyncRemoteImportActor {
     private let container: ModelContainer
     private let outbox: CloudSyncOutbox
     private var _context: ModelContext?
+    private var attemptedHomeAnalyticsUIDs = Set<String>()
 
     private var activeContext: ModelContext {
         if let existing = _context { return existing }
@@ -695,12 +696,16 @@ actor CloudSyncRemoteImportActor {
         }
 
         let cards = header.isDeleted ? [] : try await remoteCards(uid: uid, deckID: header.deckID)
-        if !header.isDeleted {
+        if !header.isDeleted, !attemptedHomeAnalyticsUIDs.contains(uid) {
+            attemptedHomeAnalyticsUIDs.insert(uid)
             do {
                 try await applyRemoteHomeAnalytics(uid: uid)
             } catch where Self.isPermissionDenied(error) {
                 // Home analytics collections were added after deck sync. If deployed
                 // rules are still older, keep importing the deck/card payload.
+            } catch {
+                // Analytics is user-level sync data. A transient analytics fetch
+                // failure should not block deck/card import on fresh installs.
             }
         }
         return try apply(CloudSyncRemoteDeckSnapshot(header: header, cards: cards), uid: uid)
