@@ -63,6 +63,7 @@ actor PlaySessionPersistenceService {
     func persistReviews(_ reviews: [PlaySessionReviewWrite]) async {
         guard !reviews.isEmpty else { return }
 
+        let activityDate = Date()
         let bgContext = ModelContext(container)
         bgContext.autosaveEnabled = false
 
@@ -116,6 +117,7 @@ actor PlaySessionPersistenceService {
             reviewCount: savedReviewCount,
             totalXP: totalXP,
             newCardsLearned: newCardsLearnedCount,
+            activityDate: activityDate,
             in: bgContext
         )
         updateHomeAnalyticsDailyGoal(
@@ -123,7 +125,7 @@ actor PlaySessionPersistenceService {
             in: bgContext,
             cache: &analyticsCache
         )
-        updateUserProfile(totalXP: totalXP, in: bgContext)
+        updateUserProfile(totalXP: totalXP, activityDate: activityDate, in: bgContext)
 
         do {
             try bgContext.save()
@@ -179,9 +181,10 @@ actor PlaySessionPersistenceService {
         reviewCount: Int,
         totalXP: Int,
         newCardsLearned: Int,
+        activityDate: Date,
         in context: ModelContext
     ) -> DailyActivityLog {
-        let todayString = Self.dayFormatter.string(from: Date())
+        let todayString = Self.dayFormatter.string(from: activityDate)
         let descriptor = FetchDescriptor<DailyActivityLog>(
             predicate: #Predicate { $0.dateString == todayString }
         )
@@ -190,7 +193,7 @@ actor PlaySessionPersistenceService {
         if let existing = (try? context.fetch(descriptor))?.first {
             log = existing
         } else {
-            log = DailyActivityLog(date: Date())
+            log = DailyActivityLog(date: activityDate)
             context.insert(log)
         }
 
@@ -200,7 +203,7 @@ actor PlaySessionPersistenceService {
         return log
     }
 
-    private func updateUserProfile(totalXP: Int, in context: ModelContext) {
+    private func updateUserProfile(totalXP: Int, activityDate: Date, in context: ModelContext) {
         let descriptor = FetchDescriptor<UserProfile>()
 
         let profile: UserProfile
@@ -212,7 +215,28 @@ actor PlaySessionPersistenceService {
         }
 
         profile.totalXP += totalXP
-        profile.lastActiveDate = Date()
+
+        let calendar = Calendar.current
+        let activityDay = calendar.startOfDay(for: activityDate)
+
+        if let lastActiveDate = profile.lastActiveDate {
+            let lastActiveDay = calendar.startOfDay(for: lastActiveDate)
+            let previousActivityDay = calendar.date(byAdding: .day, value: -1, to: activityDay)
+
+            if !calendar.isDate(lastActiveDay, inSameDayAs: activityDay) {
+                if let previousActivityDay,
+                   calendar.isDate(lastActiveDay, inSameDayAs: previousActivityDay) {
+                    profile.currentStreak = max(profile.currentStreak, 0) + 1
+                } else {
+                    profile.currentStreak = 1
+                }
+            }
+        } else {
+            profile.currentStreak = 1
+        }
+
+        profile.longestStreak = max(profile.longestStreak, profile.currentStreak)
+        profile.lastActiveDate = activityDate
     }
 
     private func updateHomeAnalytics(

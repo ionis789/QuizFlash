@@ -296,13 +296,15 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 HStack(spacing: UIConstants.Spacing.standard) {
-                    profileMetric(icon: "flame.fill", title: streakSummary)
+                    profileMetric(icon: "flame.fill", title: streakCountText)
+                        .accessibilityLabel(streakSummary)
 
                     Rectangle()
                         .fill(Color.primary.opacity(0.10))
                         .frame(width: 1, height: 32)
 
-                    profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary)
+                    profileMetric(icon: "rectangle.stack.fill", title: deckCountText)
+                        .accessibilityLabel(deckCountSummary)
                 }
                 .padding(.bottom, UIConstants.Spacing.standard)
 
@@ -826,7 +828,7 @@ struct SettingsView: View {
                             .fill(Color.primary.opacity(0.12))
 
                         Capsule()
-                            .fill(Color.primary.opacity(0.64))
+                            .fill(themeManager.accentColor.color.opacity(0.88))
                             .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
                     }
                 }
@@ -868,7 +870,7 @@ struct SettingsView: View {
                     Capsule()
                         .fill(
                             index < filledSegments
-                                ? Color.primary.opacity(0.64)
+                                ? themeManager.accentColor.color.opacity(0.88)
                                 : Color.primary.opacity(0.12)
                         )
                         .frame(maxWidth: .infinity)
@@ -1004,6 +1006,10 @@ struct SettingsView: View {
         )
     }
 
+    private var streakCountText: String {
+        currentStreak.formatted(.number)
+    }
+
     private var deckCountSummary: String {
         AppLocalization.numbered(
             cachedDeckCount,
@@ -1011,6 +1017,10 @@ struct SettingsView: View {
             plural: "%d Decks",
             locale: appPreferences.resolvedLocale
         )
+    }
+
+    private var deckCountText: String {
+        cachedDeckCount.formatted(.number)
     }
 
     private var profile: UserProfile? {

@@ -88,7 +88,64 @@ final class PlaySessionPersistenceServiceTests: XCTestCase {
 
         let profile = try XCTUnwrap(profiles.first)
         XCTAssertEqual(profile.totalXP, 32)
+        XCTAssertEqual(profile.currentStreak, 1)
+        XCTAssertEqual(profile.longestStreak, 1)
         XCTAssertNotNil(profile.lastActiveDate)
+    }
+
+    func testPersistReviewsUpdatesStreakOncePerCalendarDay() async throws {
+        let container = try TestModelContainerFactory.makeInMemoryContainer()
+        let setupContext = ModelContext(container)
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
+
+        let deck = DeckModel(title: "Streak Deck", colorHex: "#FFFFFF")
+        let card = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "Front", back: "Back"),
+            cardNumber: 1
+        )
+        let profile = UserProfile(
+            totalXP: 20,
+            currentStreak: 3,
+            longestStreak: 5,
+            lastActiveDate: yesterday
+        )
+
+        setupContext.insert(deck)
+        setupContext.insert(card)
+        setupContext.insert(profile)
+        deck.cards = [card]
+        card.deck = deck
+        deck.cardCount = 1
+
+        try setupContext.save()
+
+        let service = PlaySessionPersistenceService(container: container)
+        await service.persistReviews([
+            PlaySessionReviewWrite(
+                cardID: card.persistentModelID,
+                difficulty: .good,
+                timeSpent: 4.5,
+                xpAwarded: 12
+            )
+        ])
+        await service.persistReviews([
+            PlaySessionReviewWrite(
+                cardID: card.persistentModelID,
+                difficulty: .easy,
+                timeSpent: 2.0,
+                xpAwarded: 20
+            )
+        ])
+
+        let verificationContext = ModelContext(container)
+        let persistedProfile = try XCTUnwrap(
+            try verificationContext.fetchAll(UserProfile.self).first
+        )
+
+        XCTAssertEqual(persistedProfile.totalXP, 52)
+        XCTAssertEqual(persistedProfile.currentStreak, 4)
+        XCTAssertEqual(persistedProfile.longestStreak, 5)
+        XCTAssertTrue(Calendar.current.isDateInToday(try XCTUnwrap(persistedProfile.lastActiveDate)))
     }
 
     func testPersistReviewsAgainDifficultyResetsSRSState() async throws {
