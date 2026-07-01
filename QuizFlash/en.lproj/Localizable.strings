@@ -778,5 +778,9 @@
 "Update Goal" = "Update Goal";
 "Backend Trace" = "Backend Trace";
 "Copy" = "Copy";
+"Current Session" = "Current Session";
+"No trace sessions" = "No trace sessions";
 "Refresh" = "Refresh";
+"Session" = "Session";
 "Trace Log" = "Trace Log";
+"Trace Sessions" = "Trace Sessions";

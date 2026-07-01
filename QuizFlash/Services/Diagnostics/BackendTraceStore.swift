@@ -12,11 +12,14 @@ import Foundation
 actor BackendTraceStore {
     static let shared = BackendTraceStore()
 
-    private static let maxEvents = 300
-    private let storageKey = "diagnostics.backendTrace.events"
+    private static let maxSessions = 24
+    private static let maxEventsPerSession = 300
+    private let storageKey = "diagnostics.backendTrace.sessions"
+    private let legacyEventsStorageKey = "diagnostics.backendTrace.events"
     private let userDefaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private var currentSessionID = UUID()
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -29,39 +32,90 @@ actor BackendTraceStore {
         layer: String,
         details: [String: String] = [:]
     ) {
-        var events = loadEvents()
-        let nextSequence = (events.last?.sequence ?? 0) + 1
-        events.append(
+        var sessions = loadSessions()
+        let now = Date()
+        let sessionIndex = sessions.firstIndex { $0.id == currentSessionID }
+        if sessionIndex == nil {
+            sessions.append(
+                BackendTraceSession(
+                    id: currentSessionID,
+                    startedAt: now,
+                    updatedAt: now,
+                    events: []
+                )
+            )
+        }
+
+        guard let index = sessions.firstIndex(where: { $0.id == currentSessionID }) else { return }
+        var session = sessions[index]
+        let nextSequence = (session.events.last?.sequence ?? 0) + 1
+        session.events.append(
             BackendTraceEvent(
                 sequence: nextSequence,
-                date: Date(),
+                date: now,
                 layer: sanitize(layer),
                 event: sanitize(event),
                 detail: detailString(from: details)
             )
         )
+        session.updatedAt = now
 
-        if events.count > Self.maxEvents {
-            events.removeFirst(events.count - Self.maxEvents)
+        if session.events.count > Self.maxEventsPerSession {
+            session.events.removeFirst(session.events.count - Self.maxEventsPerSession)
         }
 
-        persist(events)
+        sessions[index] = session
+        sessions.sort { $0.startedAt < $1.startedAt }
+        if sessions.count > Self.maxSessions {
+            sessions.removeFirst(sessions.count - Self.maxSessions)
+        }
+
+        persist(sessions)
     }
 
     func clear() {
         userDefaults.removeObject(forKey: storageKey)
+        userDefaults.removeObject(forKey: legacyEventsStorageKey)
+        currentSessionID = UUID()
     }
 
     func eventCount() -> Int {
-        loadEvents().count
+        loadSessions().reduce(0) { $0 + $1.events.count }
+    }
+
+    func sessionSummaries() -> [BackendTraceSessionSummary] {
+        loadSessions()
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .map { session in
+                BackendTraceSessionSummary(
+                    id: session.id,
+                    startedAt: session.startedAt,
+                    updatedAt: session.updatedAt,
+                    eventCount: session.events.count,
+                    isCurrent: session.id == currentSessionID
+                )
+            }
     }
 
     func report() -> String {
-        let events = loadEvents()
+        report(sessionID: nil)
+    }
+
+    func report(sessionID: UUID?) -> String {
+        let sessions = loadSessions()
+        let session = sessionID
+            .flatMap { id in sessions.first { $0.id == id } }
+            ?? sessions.first { $0.id == currentSessionID }
+            ?? sessions.sorted { $0.updatedAt > $1.updatedAt }.first
+        let events = session?.events ?? []
         var lines = [
             "QuizFlash Backend Trace",
             "generatedAt=\(format(Date()))",
-            "eventCount=\(events.count)",
+            "sessionID=\(session?.id.uuidString ?? "<none>")",
+            "sessionStartedAt=\(session.map { format($0.startedAt) } ?? "<none>")",
+            "sessionUpdatedAt=\(session.map { format($0.updatedAt) } ?? "<none>")",
+            "sessionEventCount=\(events.count)",
+            "totalSessions=\(sessions.count)",
             "bundle=\(Bundle.main.bundleIdentifier ?? "<unknown>")",
             "appVersion=\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "<unknown>")",
             "build=\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "<unknown>")",
@@ -93,16 +147,16 @@ actor BackendTraceStore {
         return "...\(uid.suffix(6))"
     }
 
-    private func loadEvents() -> [BackendTraceEvent] {
+    private func loadSessions() -> [BackendTraceSession] {
         guard let data = userDefaults.data(forKey: storageKey),
-              let events = try? decoder.decode([BackendTraceEvent].self, from: data) else {
+              let sessions = try? decoder.decode([BackendTraceSession].self, from: data) else {
             return []
         }
-        return events
+        return sessions
     }
 
-    private func persist(_ events: [BackendTraceEvent]) {
-        guard let data = try? encoder.encode(events) else { return }
+    private func persist(_ sessions: [BackendTraceSession]) {
+        guard let data = try? encoder.encode(sessions) else { return }
         userDefaults.set(data, forKey: storageKey)
     }
 
@@ -147,6 +201,21 @@ actor BackendTraceStore {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
     }
+}
+
+struct BackendTraceSessionSummary: Identifiable, Hashable {
+    let id: UUID
+    let startedAt: Date
+    let updatedAt: Date
+    let eventCount: Int
+    let isCurrent: Bool
+}
+
+private struct BackendTraceSession: Codable {
+    let id: UUID
+    let startedAt: Date
+    var updatedAt: Date
+    var events: [BackendTraceEvent]
 }
 
 private struct BackendTraceEvent: Codable {

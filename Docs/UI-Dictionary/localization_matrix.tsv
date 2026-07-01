@@ -54,8 +54,8 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
+%d deck	%d deck	%d pachet	%d колода
 %d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -162,8 +162,8 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -206,8 +206,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -254,6 +254,7 @@ Create your first deck to begin.	Create your first deck to begin.	Creează primu
 Create your first folder	Create your first folder	Creați primul dvs. folder	Создайте свою первую папку
 Created %@	Created %@	Creat %@	Создано %@
 Current %@	Current %@	%@ curent	Текущая %@
+Current Session	Current Session	Sesiunea curentă	Текущая сессия
 Current Summary	Current Summary	Rezumat curent	Текущая сводка
 Custom Color	Custom Color	Culoare personalizată	Свой цвет
 Cyan	Cyan	Cyan	Голубой
@@ -315,8 +316,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -492,6 +493,7 @@ No reviews this week	No reviews this week	Nicio revizuire săptămâna asta	На
 No reviews yet	No reviews yet	Fără revizuiri încă	Пока нет повторений
 No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
 No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
+No trace sessions	No trace sessions	Nu există sesiuni trace	Нет trace-сессий
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
@@ -559,8 +561,8 @@ PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -635,6 +637,7 @@ Selected source	Selected source	Sursa selectată	Выбранный источн
 Selected Text	Selected Text	Text selectat	Выделенный текст
 Send Reset Link	Send Reset Link	Trimite link	Отправить ссылку
 Serif	Serif	Serif	С засечками
+Session	Session	Sesiune	Сессия
 Settings	Settings	Setări	Настройки
 Shadow Color	Shadow Color	Culoare umbră	Цвет тени
 Shadow Tuner	Shadow Tuner	Reglaj umbră	Настройка тени
@@ -713,9 +716,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
-this week	this week	săptămâna asta	эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -734,6 +737,7 @@ Top keeps short content pinned to the top. Center uses the grid guide layout for
 Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
 Trace Log	Trace Log	Log trace	Лог трассировки
+Trace Sessions	Trace Sessions	Sesiuni trace	Trace-сессии
 Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.	Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».
 Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка

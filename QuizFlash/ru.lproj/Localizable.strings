@@ -778,5 +778,9 @@
 "Update Goal" = "Обновить цель";
 "Backend Trace" = "Трассировка backend";
 "Copy" = "Копировать";
+"Current Session" = "Текущая сессия";
+"No trace sessions" = "Нет trace-сессий";
 "Refresh" = "Обновить";
+"Session" = "Сессия";
 "Trace Log" = "Лог трассировки";
+"Trace Sessions" = "Trace-сессии";

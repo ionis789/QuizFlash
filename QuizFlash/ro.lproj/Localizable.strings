@@ -778,5 +778,9 @@
 "Update Goal" = "Actualizează ținta";
 "Backend Trace" = "Trace backend";
 "Copy" = "Copiază";
+"Current Session" = "Sesiunea curentă";
+"No trace sessions" = "Nu există sesiuni trace";
 "Refresh" = "Reîmprospătează";
+"Session" = "Sesiune";
 "Trace Log" = "Log trace";
+"Trace Sessions" = "Sesiuni trace";
