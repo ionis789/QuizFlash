@@ -294,41 +294,38 @@ struct SettingsView: View {
             profileNameButton
                 .padding(.bottom, UIConstants.Spacing.standard)
 
-            VStack(spacing: UIConstants.Spacing.standard) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                        profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
-                        profileMetric(
-                            icon: accountPlanIcon,
-                            title: accountPlanSummary,
-                            tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
-                            alignment: .center
-                        )
-                    }
+            VStack(spacing: 0) {
+                HStack(spacing: UIConstants.Spacing.standard) {
+                    profileMetric(icon: "flame.fill", title: streakSummary)
 
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                        HStack(spacing: UIConstants.Spacing.small) {
-                            profileMetric(icon: "flame.fill", title: streakSummary, tint: .orange)
-                            profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary, tint: themeManager.accentColor.color)
-                        }
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(width: 1, height: 32)
 
-                        profileMetric(
-                            icon: accountPlanIcon,
-                            title: accountPlanSummary,
-                            tint: isPremiumUser ? .yellow : themeManager.accentColor.color,
-                            alignment: .center
-                        )
-                    }
+                    profileMetric(icon: "rectangle.stack.fill", title: deckCountSummary)
                 }
+                .padding(.bottom, UIConstants.Spacing.standard)
+
+                profileDivider
+
+                profileMetric(
+                    icon: accountPlanIcon ?? "person.crop.circle.fill",
+                    title: accountPlanSummary
+                )
+                .padding(.vertical, UIConstants.Spacing.standard)
 
                 if isPremiumUser {
+                    profileDivider
                     premiumUsageProgressLine
+                        .padding(.top, UIConstants.Spacing.standard)
                 } else {
+                    profileDivider
                     freeGenerationsProgressLine
+                        .padding(.top, UIConstants.Spacing.standard)
                 }
             }
-            .padding(UIConstants.Spacing.large)
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.vertical, UIConstants.Spacing.standard)
             .settingsCardBackground(cornerRadius: UIConstants.Radius.maximum)
         }
     }
@@ -810,32 +807,31 @@ struct SettingsView: View {
         if let quota = subscriptionManager.cloudAIUsageQuotaForDisplay,
            let limitMicroUSD = quota.limitMicroUSD,
            limitMicroUSD > 0 {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Text(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
-                        .font(.subheadline.weight(.heavy))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(.secondary)
 
                     Spacer(minLength: UIConstants.Spacing.small)
 
                     Text(formattedUsagePercent(quota.usageProgress))
-                        .font(.subheadline.weight(.black).monospacedDigit())
-                        .foregroundStyle(themeManager.accentColor.color)
+                        .font(.system(size: 18, weight: .bold).monospacedDigit())
+                        .foregroundStyle(.primary)
                 }
 
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.white.opacity(0.12))
+                            .fill(Color.primary.opacity(0.12))
 
                         Capsule()
-                            .fill(themeManager.accentColor.color.gradient)
+                            .fill(Color.primary.opacity(0.64))
                             .frame(width: proxy.size.width * max(0, min(quota.usageProgress, 1)))
                     }
                 }
-                .frame(height: 8)
+                .frame(height: 6)
             }
-            .padding(.top, UIConstants.Spacing.small)
             .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
             .accessibilityValue("\(formattedUsagePercent(quota.usageProgress)), \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
         }
@@ -850,17 +846,17 @@ struct SettingsView: View {
             Int(ceil((Double(used) / Double(limit)) * Double(segmentCount)))
         )
 
-        return VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
+        return VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
-                    .font(.subheadline.weight(.heavy))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.secondary)
 
                 Spacer(minLength: UIConstants.Spacing.small)
 
                 Text("\(used) / \(limit)")
-                    .font(.subheadline.weight(.black).monospacedDigit())
-                    .foregroundStyle(themeManager.accentColor.color)
+                    .font(.system(size: 18, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .transaction { transaction in
                         transaction.animation = nil
@@ -872,43 +868,44 @@ struct SettingsView: View {
                     Capsule()
                         .fill(
                             index < filledSegments
-                                ? themeManager.accentColor.color
-                                : Color.white.opacity(0.14)
+                                ? Color.primary.opacity(0.64)
+                                : Color.primary.opacity(0.12)
                         )
                         .frame(maxWidth: .infinity)
-                        .frame(height: 8)
+                        .frame(height: 6)
                 }
             }
-            .frame(height: 8)
+            .frame(height: 6)
         }
-        .padding(.top, UIConstants.Spacing.small)
         .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
         .accessibilityValue("\(used) / \(limit)")
     }
 
+    private var profileDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.10))
+            .frame(height: 1)
+    }
+
     private func profileMetric(
         icon: String?,
-        title: String,
-        tint: Color,
-        alignment: Alignment = .center
+        title: String
     ) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: UIConstants.Spacing.small) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .black))
-                    .foregroundStyle(tint)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: UIConstants.Size.iconStandard)
             }
 
             Text(title)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(themeManager.textSecondary)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
         }
-        .frame(maxWidth: .infinity, alignment: alignment)
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .padding(.vertical, 10)
-        .background(tint.opacity(0.10), in: Capsule())
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func accountInfoRow(
