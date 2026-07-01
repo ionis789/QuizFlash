@@ -10,7 +10,7 @@ struct RootView: View {
 
     @State private var hasStartedLaunchAnimation = false
     @State private var isLaunchAnimationVisible = true
-    @State private var launchPhase: QuizFlashLaunchPhase = .initial
+    @State private var isLaunchSymbolPresented = false
 
     var body: some View {
         ZStack {
@@ -34,7 +34,7 @@ struct RootView: View {
 
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
-                    phase: launchPhase
+                    isPresented: isLaunchSymbolPresented
                 )
                 .transition(.opacity)
                 .zIndex(2)
@@ -50,82 +50,45 @@ struct RootView: View {
         guard !hasStartedLaunchAnimation else { return }
         hasStartedLaunchAnimation = true
 
-        let pulseAnimation: Animation = reduceMotion
-            ? .easeOut(duration: 0.16)
-            : .spring(response: 0.28, dampingFraction: 0.68)
-        let settleAnimation: Animation = reduceMotion
+        let revealAnimation: Animation = reduceMotion
             ? .easeOut(duration: 0.18)
-            : .spring(response: 0.46, dampingFraction: 0.72)
-        let liftAnimation: Animation = reduceMotion
-            ? .easeInOut(duration: 0.28)
-            : .spring(response: 0.58, dampingFraction: 0.82)
+            : .spring(response: 0.46, dampingFraction: 0.86)
         let exitAnimation: Animation = reduceMotion
             ? .easeInOut(duration: 0.18)
-            : .easeInOut(duration: 0.32)
+            : .easeInOut(duration: 0.28)
 
-        withAnimation(pulseAnimation) {
-            launchPhase = .compressed
+        withAnimation(revealAnimation) {
+            isLaunchSymbolPresented = true
         }
 
-        try? await Task.sleep(nanoseconds: reduceMotion ? 140_000_000 : 190_000_000)
-
-        withAnimation(settleAnimation) {
-            launchPhase = .settled
-        }
-
-        try? await Task.sleep(nanoseconds: reduceMotion ? 300_000_000 : 520_000_000)
-
-        withAnimation(liftAnimation) {
-            launchPhase = .lifted
-        }
-
-        try? await Task.sleep(nanoseconds: reduceMotion ? 360_000_000 : 660_000_000)
+        try? await Task.sleep(nanoseconds: reduceMotion ? 420_000_000 : 760_000_000)
 
         withAnimation(exitAnimation) {
-            launchPhase = .exiting
+            isLaunchAnimationVisible = false
         }
-
-        try? await Task.sleep(nanoseconds: reduceMotion ? 190_000_000 : 360_000_000)
-
-        isLaunchAnimationVisible = false
     }
 }
 
 // MARK: - Launch Animation
 
-private enum QuizFlashLaunchPhase {
-    case initial
-    case compressed
-    case settled
-    case lifted
-    case exiting
-}
-
 private struct QuizFlashLaunchAnimationView: View {
 
     @Environment(ThemeManager.self) private var themeManager
 
-    let phase: QuizFlashLaunchPhase
+    let isPresented: Bool
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                themeManager.screenBackground
-                    .ignoresSafeArea()
+        ZStack {
+            themeManager.screenBackground
+                .ignoresSafeArea()
 
-                ambientGlow
-                    .scaleEffect(glowScale)
-                    .offset(y: verticalOffset(in: proxy.size))
-                    .opacity(overlayOpacity)
+            ambientGlow
+                .scaleEffect(isPresented ? 1.0 : 0.82)
+                .opacity(isPresented ? 1.0 : 0.0)
 
-                boltSymbol
-                    .scaleEffect(symbolScale)
-                    .rotationEffect(.degrees(symbolRotation))
-                    .offset(y: verticalOffset(in: proxy.size))
-                    .opacity(symbolOpacity)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .opacity(containerOpacity)
+            boltSymbol
+                .scaleEffect(isPresented ? 1.0 : 0.88)
+                .opacity(isPresented ? 1.0 : 0.0)
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
@@ -134,14 +97,13 @@ private struct QuizFlashLaunchAnimationView: View {
     private var ambientGlow: some View {
         RadialGradient(
             colors: [
-                launchPurple.opacity(glowCoreOpacity),
-                launchPurple.opacity(glowMidOpacity),
-                launchPurple.opacity(0.08),
+                launchPurple.opacity(0.26),
+                launchPurple.opacity(0.12),
                 .clear
             ],
             center: .center,
             startRadius: 8,
-            endRadius: glowEndRadius
+            endRadius: 190
         )
         .ignoresSafeArea()
     }
@@ -162,169 +124,13 @@ private struct QuizFlashLaunchAnimationView: View {
                 )
             )
             .shadow(
-                color: launchPurple.opacity(symbolGlowOpacity),
-                radius: symbolGlowRadius
-            )
-            .shadow(
-                color: launchPurple.opacity(phase == .lifted ? 0.50 : 0.18),
-                radius: phase == .lifted ? 44 : 18
+                color: launchPurple.opacity(0.48),
+                radius: 26
             )
     }
 
     private var launchPurple: Color {
         Color(red: 0.62, green: 0.52, blue: 1.0)
-    }
-
-    private var symbolScale: CGFloat {
-        switch phase {
-        case .initial:
-            return 1.16
-        case .compressed:
-            return 0.82
-        case .settled:
-            return 1.0
-        case .lifted:
-            return 1.64
-        case .exiting:
-            return 1.78
-        }
-    }
-
-    private var symbolRotation: Double {
-        switch phase {
-        case .initial:
-            return -5
-        case .compressed:
-            return -3
-        case .settled, .lifted, .exiting:
-            return 0
-        }
-    }
-
-    private var symbolOpacity: Double {
-        switch phase {
-        case .initial, .compressed, .settled, .lifted:
-            return 1
-        case .exiting:
-            return 0
-        }
-    }
-
-    private var containerOpacity: Double {
-        switch phase {
-        case .initial, .compressed, .settled, .lifted:
-            return 1
-        case .exiting:
-            return 0
-        }
-    }
-
-    private var overlayOpacity: Double {
-        switch phase {
-        case .initial, .compressed, .settled, .lifted:
-            return 1
-        case .exiting:
-            return 0
-        }
-    }
-
-    private var glowScale: CGFloat {
-        switch phase {
-        case .initial:
-            return 0.72
-        case .compressed:
-            return 0.58
-        case .settled:
-            return 0.88
-        case .lifted:
-            return 1.35
-        case .exiting:
-            return 1.55
-        }
-    }
-
-    private var glowCoreOpacity: Double {
-        switch phase {
-        case .initial:
-            return 0.18
-        case .compressed:
-            return 0.14
-        case .settled:
-            return 0.26
-        case .lifted:
-            return 0.46
-        case .exiting:
-            return 0.0
-        }
-    }
-
-    private var glowMidOpacity: Double {
-        switch phase {
-        case .initial:
-            return 0.12
-        case .compressed:
-            return 0.09
-        case .settled:
-            return 0.18
-        case .lifted:
-            return 0.30
-        case .exiting:
-            return 0.0
-        }
-    }
-
-    private var glowEndRadius: CGFloat {
-        switch phase {
-        case .initial, .compressed:
-            return 120
-        case .settled:
-            return 180
-        case .lifted:
-            return 310
-        case .exiting:
-            return 360
-        }
-    }
-
-    private var symbolGlowOpacity: Double {
-        switch phase {
-        case .initial:
-            return 0.34
-        case .compressed:
-            return 0.24
-        case .settled:
-            return 0.58
-        case .lifted:
-            return 0.88
-        case .exiting:
-            return 0.0
-        }
-    }
-
-    private var symbolGlowRadius: CGFloat {
-        switch phase {
-        case .initial:
-            return 18
-        case .compressed:
-            return 10
-        case .settled:
-            return 28
-        case .lifted:
-            return 64
-        case .exiting:
-            return 72
-        }
-    }
-
-    private func verticalOffset(in size: CGSize) -> CGFloat {
-        switch phase {
-        case .initial, .compressed, .settled:
-            return 0
-        case .lifted:
-            return -size.height * 0.31
-        case .exiting:
-            return -size.height * 0.38
-        }
     }
 }
 
