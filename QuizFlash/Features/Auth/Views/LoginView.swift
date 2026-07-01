@@ -120,15 +120,17 @@ struct LoginView: View {
                 Spacer(minLength: UIConstants.Spacing.huge)
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 46, weight: .heavy))
-                        .foregroundStyle(themeManager.accentColor.color)
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 42, weight: .heavy))
+                            .foregroundStyle(themeManager.accentColor.color)
 
-                    Text("QuizFlash")
-                        .font(.system(size: 40, weight: .heavy))
-                        .foregroundStyle(.primary)
+                        Text("QuizFlash")
+                            .font(.system(size: 40, weight: .heavy))
+                            .foregroundStyle(.primary)
+                    }
 
-                    Text(AppLocalization.string("Welcome back", locale: locale))
+                    Text(AppLocalization.string("Learn faster. Stay productive.", locale: locale))
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -163,7 +165,7 @@ struct LoginView: View {
 
                 AuthAsyncButton(
                     title: AppLocalization.string("Sign In", locale: locale),
-                    icon: "chevron.compact.right",
+                    icon: nil,
                     tint: themeManager.accentColor.color,
                     isEnabled: canSignIn
                 ) {
@@ -544,16 +546,9 @@ private struct EmailVerificationRequiredView: View {
             .multilineTextAlignment(.center)
 
             VStack(spacing: UIConstants.Spacing.medium) {
-                HStack(spacing: UIConstants.Spacing.medium) {
-                    Text(AppLocalization.string("Checking verification", locale: locale))
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    ProgressActivityDots(color: themeManager.accentColor.color)
-                }
+                ProgressActivityDots(color: themeManager.accentColor.color)
                 .frame(maxWidth: .infinity)
                 .frame(height: UIConstants.Size.buttonHeight)
-                .background(Color.primary.opacity(0.06), in: Capsule())
 
                 AuthAsyncButton(
                     title: AppLocalization.string("Resend Email", locale: locale),
@@ -571,7 +566,7 @@ private struct EmailVerificationRequiredView: View {
                     title: AppLocalization.string("Cancel", locale: locale),
                     icon: "xmark",
                     tint: Color.primary.opacity(0.08),
-                    foreground: .primary
+                    foreground: .secondary
                 ) {
                     try await onCancel()
                 } onError: { error in

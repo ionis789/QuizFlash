@@ -185,7 +185,6 @@
 "Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately." = "Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.";
 "Check your email" = "Проверьте email";
 "Check your internet connection and try again." = "Проверьте подключение к интернету и попробуйте снова.";
-"Checking verification" = "Автоматическая проверка";
 "Choice %@" = "Выбор %@";
 "Choice %d" = "Вариант %d";
 "Choices" = "Варианты";
@@ -396,6 +395,7 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.";
 "Layout" = "Разметка";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
+"Learn faster. Stay productive." = "Учитесь быстрее. Оставайтесь продуктивными.";
 "Label Color" = "Цвет метки";
 "Learning" = "В изучении";
 "LEARNING PROGRESS" = "ПРОГРЕСС ОБУЧЕНИЯ";
@@ -742,7 +742,6 @@
 "Weakest deck: %@" = "Самая слабая колода: %@.";
 "Weakest linked deck: %@" = "Самая слабая связанная колода: %@";
 "Weekly Momentum" = "Еженедельный импульс";
-"Welcome back" = "С возвращением";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
 "Widget Border Radius" = "Радиус границы виджета";
 "XP" = "XP";

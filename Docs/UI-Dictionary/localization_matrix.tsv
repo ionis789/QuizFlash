@@ -200,7 +200,6 @@ Center	Center	Centru	Центр
 Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
 Check your email	Check your email	Verifică emailul	Проверьте email
 Check your internet connection and try again.	Check your internet connection and try again.	Verifică conexiunea la internet și încearcă din nou.	Проверьте подключение к интернету и попробуйте снова.
-Checking verification	Checking automatically	Se verifică automat	Автоматическая проверка
 Choice %@	Choice %@	Alegere %@	Выбор %@
 Choice %d	Choice %d	Varianta %d	Вариант %d
 Choices	Choices	Variante	Варианты
@@ -415,6 +414,7 @@ Last week	Last week	Săptămâna trecută	Прошлая неделя
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
+Learn faster. Stay productive.	Learn faster. Stay productive.	Învață mai eficient. Rămâi productiv.	Учитесь быстрее. Оставайтесь продуктивными.
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
@@ -770,7 +770,6 @@ We'll send a reset link.	We'll send a reset link.	Îți trimitem un link de rese
 Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
-Welcome back	Welcome back	Bine ai revenit	С возвращением
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP
