@@ -776,3 +776,7 @@
 "Correct rate" = "Точность";
 "This week" = "Эта неделя";
 "Update Goal" = "Обновить цель";
+"Backend Trace" = "Трассировка backend";
+"Copy" = "Копировать";
+"Refresh" = "Обновить";
+"Trace Log" = "Лог трассировки";

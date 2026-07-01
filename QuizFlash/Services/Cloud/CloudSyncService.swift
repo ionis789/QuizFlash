@@ -46,6 +46,18 @@ final class CloudSyncService {
             .collection("users")
             .document(uid)
 
+        await BackendTraceStore.shared.record(
+            "upsert-deck-start",
+            layer: "cloud.service",
+            details: [
+                "uid": BackendTraceStore.safeUID(uid),
+                "deck": BackendTraceStore.safeUID(deckID),
+                "cards": String(cards.count),
+                "dailyStudy": String(dailyStudyAggregates.count),
+                "dailyDecks": String(dailyDeckAggregates.count),
+                "dailyCards": String(dailyCardAggregates.count)
+            ]
+        )
         deck.cloudID = deckID
         deck.ownerUID = uid
         deck.syncRevision += 1
@@ -132,13 +144,50 @@ final class CloudSyncService {
         }
 
         try await batch.commit()
+        await BackendTraceStore.shared.record(
+            "upsert-deck-primary-commit-success",
+            layer: "cloud.service",
+            details: [
+                "deck": BackendTraceStore.safeUID(deckID),
+                "skippedOversizedCard": String(skippedOversizedCard),
+                "hasOptionalWrites": String(hasOptionalWrites)
+            ]
+        )
         guard hasOptionalWrites else { return }
 
         do {
             try await optionalBatch.commit()
+            await BackendTraceStore.shared.record(
+                "upsert-deck-optional-commit-success",
+                layer: "cloud.service",
+                details: [
+                    "deck": BackendTraceStore.safeUID(deckID),
+                    "dailyStudy": String(dailyStudyAggregates.count),
+                    "dailyDecks": String(dailyDeckAggregates.count),
+                    "dailyCards": String(dailyCardAggregates.count)
+                ]
+            )
         } catch where Self.isPermissionDenied(error) {
+            await BackendTraceStore.shared.record(
+                "upsert-deck-optional-permission-denied",
+                layer: "cloud.service",
+                details: [
+                    "deck": BackendTraceStore.safeUID(deckID),
+                    "error": error.localizedDescription
+                ]
+            )
             // New analytics/review-event collections are optional for older deployed rules.
             // Deck/card sync must keep working even before those rules are rolled out.
+        } catch {
+            await BackendTraceStore.shared.record(
+                "upsert-deck-optional-error",
+                layer: "cloud.service",
+                details: [
+                    "deck": BackendTraceStore.safeUID(deckID),
+                    "error": error.localizedDescription
+                ]
+            )
+            throw error
         }
     }
 
@@ -157,7 +206,20 @@ final class CloudSyncService {
         folder.syncRevision += 1
         folder.lastSyncedAt = now
 
+        await BackendTraceStore.shared.record(
+            "upsert-folder-start",
+            layer: "cloud.service",
+            details: [
+                "uid": BackendTraceStore.safeUID(uid),
+                "folder": BackendTraceStore.safeUID(folderID)
+            ]
+        )
         try await folderRef.setData(folderPayload(for: folder), merge: true)
+        await BackendTraceStore.shared.record(
+            "upsert-folder-success",
+            layer: "cloud.service",
+            details: ["folder": BackendTraceStore.safeUID(folderID)]
+        )
     }
 
     /// Soft-deletes the cloud copy of a deck.
@@ -171,6 +233,14 @@ final class CloudSyncService {
     func softDeleteDeck(deckID: String, uid: String) async throws {
         let now = Date()
 
+        await BackendTraceStore.shared.record(
+            "soft-delete-deck-start",
+            layer: "cloud.service",
+            details: [
+                "uid": BackendTraceStore.safeUID(uid),
+                "deck": BackendTraceStore.safeUID(deckID)
+            ]
+        )
         try await firestore
             .collection("users")
             .document(uid)
@@ -181,12 +251,25 @@ final class CloudSyncService {
                 "editedAt": Timestamp(date: now),
                 "updatedAt": FieldValue.serverTimestamp()
             ], merge: true)
+        await BackendTraceStore.shared.record(
+            "soft-delete-deck-success",
+            layer: "cloud.service",
+            details: ["deck": BackendTraceStore.safeUID(deckID)]
+        )
     }
 
     /// Marks one folder deleted without granting client delete permission in Firestore.
     func softDeleteFolder(folderID: String, uid: String) async throws {
         let now = Date()
 
+        await BackendTraceStore.shared.record(
+            "soft-delete-folder-start",
+            layer: "cloud.service",
+            details: [
+                "uid": BackendTraceStore.safeUID(uid),
+                "folder": BackendTraceStore.safeUID(folderID)
+            ]
+        )
         try await firestore
             .collection("users")
             .document(uid)
@@ -197,6 +280,11 @@ final class CloudSyncService {
                 "editedAt": Timestamp(date: now),
                 "updatedAt": FieldValue.serverTimestamp()
             ], merge: true)
+        await BackendTraceStore.shared.record(
+            "soft-delete-folder-success",
+            layer: "cloud.service",
+            details: ["folder": BackendTraceStore.safeUID(folderID)]
+        )
     }
 
     func addDeckListener(

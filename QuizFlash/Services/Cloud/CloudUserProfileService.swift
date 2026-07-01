@@ -44,17 +44,44 @@ final class CloudUserProfileService {
     /// Creates or refreshes the user profile document.
     func upsertUserProfile(for user: AuthUserSnapshot?) async {
         guard let user else {
+            await BackendTraceStore.shared.record(
+                "profile-signed-out",
+                layer: "cloud.profile"
+            )
             lastUpsertedUID = nil
             lastErrorMessage = nil
             return
         }
 
         do {
+            await BackendTraceStore.shared.record(
+                "profile-direct-upsert-start",
+                layer: "cloud.profile",
+                details: [
+                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "providerCount": String(user.providers.count),
+                    "hasDisplayName": String(user.displayName?.isEmpty == false),
+                    "hasPhotoURL": String(user.photoURLString?.isEmpty == false)
+                ]
+            )
             try await upsertUserProfileDirectly(for: user)
+            await BackendTraceStore.shared.record(
+                "profile-direct-upsert-success",
+                layer: "cloud.profile",
+                details: ["uid": BackendTraceStore.safeUID(user.uid)]
+            )
             await upsertUserProfileThroughFunctionIfAvailable(for: user)
             lastUpsertedUID = user.uid
             lastErrorMessage = nil
         } catch {
+            await BackendTraceStore.shared.record(
+                "profile-upsert-error",
+                layer: "cloud.profile",
+                details: [
+                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "error": error.localizedDescription
+                ]
+            )
             lastErrorMessage = error.localizedDescription
         }
     }
@@ -90,7 +117,23 @@ final class CloudUserProfileService {
         if let displayName = user.displayName { payload["displayName"] = displayName }
         if let photoURL = user.photoURLString { payload["photoURL"] = photoURL }
 
-        _ = try? await functions.httpsCallable("upsertUserProfile").call(payload)
+        do {
+            _ = try await functions.httpsCallable("upsertUserProfile").call(payload)
+            await BackendTraceStore.shared.record(
+                "profile-function-upsert-success",
+                layer: "cloud.profile",
+                details: ["uid": BackendTraceStore.safeUID(user.uid)]
+            )
+        } catch {
+            await BackendTraceStore.shared.record(
+                "profile-function-upsert-ignored-error",
+                layer: "cloud.profile",
+                details: [
+                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "error": error.localizedDescription
+                ]
+            )
+        }
     }
 
     private var functions: Functions {

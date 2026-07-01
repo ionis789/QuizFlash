@@ -23,9 +23,66 @@ struct CloudSessionBootstrapper: View {
             }
             .task(id: authManager.sessionState) {
                 let user = authManager.currentUser
+                await BackendTraceStore.shared.record(
+                    "session-state",
+                    layer: "bootstrap",
+                    details: [
+                        "state": sessionStateName(authManager.sessionState),
+                        "uid": BackendTraceStore.safeUID(user?.uid)
+                    ]
+                )
+                await BackendTraceStore.shared.record(
+                    "profile-upsert-start",
+                    layer: "bootstrap",
+                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                )
                 await cloudUserProfileService.upsertUserProfile(for: user)
+                await BackendTraceStore.shared.record(
+                    "profile-upsert-finished",
+                    layer: "bootstrap",
+                    details: [
+                        "uid": BackendTraceStore.safeUID(cloudUserProfileService.lastUpsertedUID),
+                        "error": cloudUserProfileService.lastErrorMessage ?? "<none>"
+                    ]
+                )
+                await BackendTraceStore.shared.record(
+                    "subscription-configure-start",
+                    layer: "bootstrap",
+                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                )
                 await subscriptionManager.configure(for: user)
+                await BackendTraceStore.shared.record(
+                    "subscription-configure-finished",
+                    layer: "bootstrap",
+                    details: [
+                        "premium": String(subscriptionManager.isPremium),
+                        "freeUsed": String(subscriptionManager.freeGenerationsUsed ?? -1),
+                        "freeLimit": String(subscriptionManager.freeGenerationsLimit ?? -1),
+                        "usageProgress": String(format: "%.4f", subscriptionManager.cloudAIUsageProgress),
+                        "error": subscriptionManager.lastErrorMessage ?? "<none>"
+                    ]
+                )
                 cloudSyncCoordinator.configure(for: user, modelContainer: modelContext.container)
+                await BackendTraceStore.shared.record(
+                    "cloud-sync-configure-called",
+                    layer: "bootstrap",
+                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                )
             }
+    }
+
+    private func sessionStateName(_ state: AuthSessionState) -> String {
+        switch state {
+        case .checking:
+            return "checking"
+        case .signedOut:
+            return "signedOut"
+        case .signedIn:
+            return "signedIn"
+        case .emailVerificationRequired:
+            return "emailVerificationRequired"
+        case .emailVerificationSucceeded:
+            return "emailVerificationSucceeded"
+        }
     }
 }

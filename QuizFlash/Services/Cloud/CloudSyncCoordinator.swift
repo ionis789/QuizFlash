@@ -47,25 +47,46 @@ final class CloudSyncCoordinator {
     /// Starts background sync for one signed-in Firebase user.
     func configure(for user: AuthUserSnapshot?, modelContainer: ModelContainer) {
         stop()
-        guard let user else { return }
+        guard let user else {
+            trace("configure-signed-out")
+            return
+        }
 
         activeUID = user.uid
         self.modelContainer = modelContainer
         remoteImportActor = CloudSyncRemoteImportActor(container: modelContainer, outbox: outbox)
+        trace(
+            "configure-signed-in",
+            details: ["uid": BackendTraceStore.safeUID(user.uid)]
+        )
         deckListener = service.addDeckListener(uid: user.uid) { [weak self] snapshot, error in
             Task { @MainActor [weak self] in
                 self?.handleRemoteSnapshot(snapshot, error: error)
             }
         }
+        trace(
+            "deck-listener-started",
+            details: ["path": "users/\(BackendTraceStore.safeUID(user.uid))/decks"]
+        )
         folderListener = service.addFolderListener(uid: user.uid) { [weak self] snapshot, error in
             Task { @MainActor [weak self] in
                 self?.handleRemoteFolderSnapshot(snapshot, error: error)
             }
         }
+        trace(
+            "folder-listener-started",
+            details: ["path": "users/\(BackendTraceStore.safeUID(user.uid))/folders"]
+        )
         scheduleOutboxProcessing()
     }
 
     func stop() {
+        if activeUID != nil || deckListener != nil || folderListener != nil {
+            trace(
+                "stop",
+                details: ["uid": BackendTraceStore.safeUID(activeUID)]
+            )
+        }
         deckListener?.remove()
         deckListener = nil
         folderListener?.remove()
@@ -199,10 +220,20 @@ final class CloudSyncCoordinator {
     }
 
     private func processOutbox() async {
-        guard let uid = activeUID, let modelContainer else { return }
+        guard let uid = activeUID, let modelContainer else {
+            trace("outbox-skipped-no-session")
+            return
+        }
 
         do {
             let operations = try await outbox.operations(for: uid)
+            trace(
+                "outbox-loaded",
+                details: [
+                    "uid": BackendTraceStore.safeUID(uid),
+                    "count": String(operations.count)
+                ]
+            )
             guard !operations.isEmpty else { return }
 
             let context = ModelContext(modelContainer)
@@ -211,18 +242,39 @@ final class CloudSyncCoordinator {
 
                 do {
                     var shouldRemoveOperation = true
+                    trace(
+                        "outbox-operation-start",
+                        details: [
+                            "kind": operation.kind.rawValue,
+                            "entity": BackendTraceStore.safeUID(operation.entityID)
+                        ]
+                    )
                     switch operation.kind {
                     case .upsertDeck:
                         // Cloud IDs are optional in the SwiftData schema, but required for synced decks.
                         guard let deck = try context.fetch(FetchDescriptor<DeckModel>()).first(where: {
                             $0.ownerUID == uid && $0.cloudID == operation.deckID
                         }) else {
+                            trace(
+                                "outbox-deck-missing-local",
+                                details: ["deck": BackendTraceStore.safeUID(operation.deckID)]
+                            )
                             try await outbox.remove(operation)
                             continue
                         }
                         let dailyStudyAggregates = try context.fetch(FetchDescriptor<HomeDailyStudyAggregate>())
                         let dailyDeckAggregates = try context.fetch(FetchDescriptor<HomeDailyDeckAggregate>())
                         let dailyCardAggregates = try context.fetch(FetchDescriptor<HomeDailyCardAggregate>())
+                        trace(
+                            "outbox-upsert-deck-upload",
+                            details: [
+                                "deck": BackendTraceStore.safeUID(operation.deckID),
+                                "cards": String(deck.cards.count),
+                                "dailyStudy": String(dailyStudyAggregates.count),
+                                "dailyDecks": String(dailyDeckAggregates.count),
+                                "dailyCards": String(dailyCardAggregates.count)
+                            ]
+                        )
                         try await service.upsertDeck(
                             deck,
                             uid: uid,
@@ -233,39 +285,81 @@ final class CloudSyncCoordinator {
                         )
                         try context.save()
                     case .deleteDeck:
+                        trace(
+                            "outbox-delete-deck-upload",
+                            details: ["deck": BackendTraceStore.safeUID(operation.deckID)]
+                        )
                         try await service.softDeleteDeck(deckID: operation.deckID, uid: uid)
                     case .upsertFolder:
                         guard let folder = try context.fetch(FetchDescriptor<FolderModel>()).first(where: {
                             $0.ownerUID == uid && $0.cloudID == operation.entityID
                         }) else {
+                            trace(
+                                "outbox-folder-missing-local",
+                                details: ["folder": BackendTraceStore.safeUID(operation.entityID)]
+                            )
                             try await outbox.remove(operation)
                             continue
                         }
                         do {
+                            trace(
+                                "outbox-upsert-folder-upload",
+                                details: ["folder": BackendTraceStore.safeUID(operation.entityID)]
+                            )
                             try await service.upsertFolder(folder, uid: uid)
                             try context.save()
                         } catch where Self.isPermissionDenied(error) {
                             shouldRemoveOperation = false
+                            trace(
+                                "outbox-upsert-folder-permission-denied",
+                                details: ["folder": BackendTraceStore.safeUID(operation.entityID)]
+                            )
                         }
                     case .deleteFolder:
                         do {
+                            trace(
+                                "outbox-delete-folder-upload",
+                                details: ["folder": BackendTraceStore.safeUID(operation.entityID)]
+                            )
                             try await service.softDeleteFolder(folderID: operation.entityID, uid: uid)
                         } catch where Self.isPermissionDenied(error) {
                             shouldRemoveOperation = false
+                            trace(
+                                "outbox-delete-folder-permission-denied",
+                                details: ["folder": BackendTraceStore.safeUID(operation.entityID)]
+                            )
                         }
                     }
 
                     if shouldRemoveOperation {
                         try await outbox.remove(operation)
                     }
+                    trace(
+                        "outbox-operation-finished",
+                        details: [
+                            "kind": operation.kind.rawValue,
+                            "removed": String(shouldRemoveOperation)
+                        ]
+                    )
                     lastErrorMessage = nil
                 } catch {
+                    trace(
+                        "outbox-operation-error",
+                        details: [
+                            "kind": operation.kind.rawValue,
+                            "error": error.localizedDescription
+                        ]
+                    )
                     lastErrorMessage = error.localizedDescription
                     scheduleRetry()
                     return
                 }
             }
         } catch {
+            trace(
+                "outbox-load-error",
+                details: ["error": error.localizedDescription]
+            )
             lastErrorMessage = error.localizedDescription
             scheduleRetry()
         }
@@ -286,14 +380,30 @@ final class CloudSyncCoordinator {
 
     private func handleRemoteSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
         if let error {
+            trace(
+                "deck-listener-error",
+                details: ["error": error.localizedDescription]
+            )
             lastErrorMessage = error.localizedDescription
             return
         }
-        guard let snapshot else { return }
+        guard let snapshot else {
+            trace("deck-listener-empty-callback")
+            return
+        }
 
         let changedDecks = snapshot.documentChanges
             .filter { $0.type != .removed }
             .map { CloudSyncRemoteDeckHeader(document: $0.document) }
+        trace(
+            "deck-listener-snapshot",
+            details: [
+                "documents": String(snapshot.documents.count),
+                "changes": String(snapshot.documentChanges.count),
+                "acceptedChanges": String(changedDecks.count),
+                "fromCache": String(snapshot.metadata.isFromCache)
+            ]
+        )
         guard !changedDecks.isEmpty else { return }
 
         pendingRemoteDecks.append(contentsOf: changedDecks)
@@ -303,17 +413,37 @@ final class CloudSyncCoordinator {
     private func handleRemoteFolderSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
         if let error {
             if Self.isPermissionDenied(error) {
+                trace(
+                    "folder-listener-permission-denied",
+                    details: ["error": error.localizedDescription]
+                )
                 lastErrorMessage = nil
                 return
             }
+            trace(
+                "folder-listener-error",
+                details: ["error": error.localizedDescription]
+            )
             lastErrorMessage = error.localizedDescription
             return
         }
-        guard let snapshot else { return }
+        guard let snapshot else {
+            trace("folder-listener-empty-callback")
+            return
+        }
 
         let changedFolders = snapshot.documentChanges
             .filter { $0.type != .removed }
             .map { CloudSyncRemoteFolderHeader(document: $0.document) }
+        trace(
+            "folder-listener-snapshot",
+            details: [
+                "documents": String(snapshot.documents.count),
+                "changes": String(snapshot.documentChanges.count),
+                "acceptedChanges": String(changedFolders.count),
+                "fromCache": String(snapshot.metadata.isFromCache)
+            ]
+        )
         guard !changedFolders.isEmpty else { return }
 
         pendingRemoteFolders.append(contentsOf: changedFolders)
@@ -323,6 +453,13 @@ final class CloudSyncCoordinator {
     private func scheduleRemoteImportProcessing() {
         guard remoteImportTask == nil else { return }
 
+        trace(
+            "remote-import-scheduled",
+            details: [
+                "deckQueue": String(pendingRemoteDecks.count),
+                "folderQueue": String(pendingRemoteFolders.count)
+            ]
+        )
         remoteImportTask = Task { @MainActor [weak self] in
             await self?.processPendingRemoteDecks()
             self?.remoteImportTask = nil
@@ -338,9 +475,28 @@ final class CloudSyncCoordinator {
                 let header = pendingRemoteFolders.removeFirst()
 
                 do {
+                    trace(
+                        "remote-folder-import-start",
+                        details: [
+                            "folder": BackendTraceStore.safeUID(header.folderID),
+                            "deleted": String(header.isDeleted),
+                            "revision": String(header.syncRevision ?? -1)
+                        ]
+                    )
                     try await remoteImportActor.applyRemoteFolder(header, uid: uid)
+                    trace(
+                        "remote-folder-import-success",
+                        details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+                    )
                     lastErrorMessage = nil
                 } catch {
+                    trace(
+                        "remote-folder-import-error",
+                        details: [
+                            "folder": BackendTraceStore.safeUID(header.folderID),
+                            "error": error.localizedDescription
+                        ]
+                    )
                     lastErrorMessage = error.localizedDescription
                 }
                 continue
@@ -349,13 +505,35 @@ final class CloudSyncCoordinator {
             let header = pendingRemoteDecks.removeFirst()
 
             do {
+                trace(
+                    "remote-deck-import-start",
+                    details: [
+                        "deck": BackendTraceStore.safeUID(header.deckID),
+                        "deleted": String(header.isDeleted),
+                        "revision": String(header.syncRevision ?? -1)
+                    ]
+                )
                 let result = try await remoteImportActor.applyRemoteDeck(header, uid: uid)
                 if case .enqueueLocalUpsert(let deckID) = result {
                     try await outbox.enqueue(ownerUID: uid, deckID: deckID, kind: .upsertDeck)
                     scheduleOutboxProcessing()
                 }
+                trace(
+                    "remote-deck-import-success",
+                    details: [
+                        "deck": BackendTraceStore.safeUID(header.deckID),
+                        "result": result.debugName
+                    ]
+                )
                 lastErrorMessage = nil
             } catch {
+                trace(
+                    "remote-deck-import-error",
+                    details: [
+                        "deck": BackendTraceStore.safeUID(header.deckID),
+                        "error": error.localizedDescription
+                    ]
+                )
                 lastErrorMessage = error.localizedDescription
             }
         }
@@ -392,7 +570,21 @@ final class CloudSyncCoordinator {
     }
 
     private func record(_ error: Error) {
+        trace(
+            "error-recorded",
+            details: ["error": error.localizedDescription]
+        )
         lastErrorMessage = error.localizedDescription
+    }
+
+    private func trace(_ event: String, details: [String: String] = [:]) {
+        Task {
+            await BackendTraceStore.shared.record(
+                event,
+                layer: "cloud.sync",
+                details: details
+            )
+        }
     }
 
     nonisolated private static func isPermissionDenied(_ error: Error) -> Bool {
@@ -412,6 +604,15 @@ final class CloudSyncCoordinator {
 nonisolated enum CloudSyncRemoteImportResult: Equatable, Sendable {
     case noUploadNeeded
     case enqueueLocalUpsert(deckID: String)
+
+    var debugName: String {
+        switch self {
+        case .noUploadNeeded:
+            return "noUploadNeeded"
+        case .enqueueLocalUpsert:
+            return "enqueueLocalUpsert"
+        }
+    }
 }
 
 nonisolated struct CloudSyncRemoteDeckHeader: Sendable {
@@ -638,6 +839,10 @@ actor CloudSyncRemoteImportActor {
         uid: String
     ) async throws {
         if try await outbox.containsFolderDelete(ownerUID: uid, folderID: header.folderID) {
+            trace(
+                "folder-skipped-local-delete-outbox",
+                details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+            )
             return
         }
 
@@ -648,8 +853,18 @@ actor CloudSyncRemoteImportActor {
         })
 
         if header.isDeleted {
-            guard let localFolder else { return }
+            guard let localFolder else {
+                trace(
+                    "folder-remote-delete-missing-local",
+                    details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+                )
+                return
+            }
             if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localFolder.editedAt, than: header.editedAt) {
+                trace(
+                    "folder-remote-delete-rejected-local-newer",
+                    details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+                )
                 try await outbox.enqueue(ownerUID: uid, deckID: header.folderID, kind: .upsertFolder)
                 return
             }
@@ -660,21 +875,37 @@ actor CloudSyncRemoteImportActor {
             }
             activeContext.delete(localFolder)
             try activeContext.save()
+            trace(
+                "folder-remote-delete-applied",
+                details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+            )
             return
         }
 
         let folder: FolderModel
         if let localFolder {
             if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localFolder.editedAt, than: header.editedAt) {
+                trace(
+                    "folder-upsert-rejected-local-newer",
+                    details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+                )
                 try await outbox.enqueue(ownerUID: uid, deckID: header.folderID, kind: .upsertFolder)
                 return
             }
             folder = localFolder
+            trace(
+                "folder-upsert-update-local",
+                details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+            )
         } else {
             folder = FolderModel(title: header.title, colorHex: header.colorHex)
             folder.ownerUID = uid
             folder.cloudID = header.folderID
             activeContext.insert(folder)
+            trace(
+                "folder-upsert-create-local",
+                details: ["folder": BackendTraceStore.safeUID(header.folderID)]
+            )
         }
 
         folder.title = header.title
@@ -685,6 +916,13 @@ actor CloudSyncRemoteImportActor {
         folder.syncRevision = header.syncRevision ?? folder.syncRevision
         folder.lastSyncedAt = Date()
         try activeContext.save()
+        trace(
+            "folder-upsert-saved",
+            details: [
+                "folder": BackendTraceStore.safeUID(header.folderID),
+                "deckCount": String(header.deckCount)
+            ]
+        )
     }
 
     func applyRemoteDeck(
@@ -692,18 +930,64 @@ actor CloudSyncRemoteImportActor {
         uid: String
     ) async throws -> CloudSyncRemoteImportResult {
         if try await outbox.containsDelete(ownerUID: uid, deckID: header.deckID) {
+            await BackendTraceStore.shared.record(
+                "deck-skipped-local-delete-outbox",
+                layer: "cloud.import",
+                details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+            )
             return .noUploadNeeded
         }
 
         let cards = header.isDeleted ? [] : try await remoteCards(uid: uid, deckID: header.deckID)
-        if !header.isDeleted, !attemptedHomeAnalyticsUIDs.contains(uid) {
+        await BackendTraceStore.shared.record(
+            "deck-remote-cards-loaded",
+            layer: "cloud.import",
+            details: [
+                "deck": BackendTraceStore.safeUID(header.deckID),
+                "cards": String(cards.count),
+                "reviewEvents": String(cards.reduce(0) { $0 + $1.reviewEvents.count })
+            ]
+        )
+        if header.isDeleted {
+            await BackendTraceStore.shared.record(
+                "home-analytics-skipped-deleted-deck",
+                layer: "cloud.import",
+                details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+            )
+        } else if attemptedHomeAnalyticsUIDs.contains(uid) {
+            await BackendTraceStore.shared.record(
+                "home-analytics-skipped-already-attempted",
+                layer: "cloud.import",
+                details: ["uid": BackendTraceStore.safeUID(uid)]
+            )
+        } else {
             attemptedHomeAnalyticsUIDs.insert(uid)
             do {
+                await BackendTraceStore.shared.record(
+                    "home-analytics-import-start",
+                    layer: "cloud.import",
+                    details: ["uid": BackendTraceStore.safeUID(uid)]
+                )
                 try await applyRemoteHomeAnalytics(uid: uid)
+                await BackendTraceStore.shared.record(
+                    "home-analytics-import-success",
+                    layer: "cloud.import",
+                    details: ["uid": BackendTraceStore.safeUID(uid)]
+                )
             } catch where Self.isPermissionDenied(error) {
+                await BackendTraceStore.shared.record(
+                    "home-analytics-permission-denied",
+                    layer: "cloud.import",
+                    details: ["error": error.localizedDescription]
+                )
                 // Home analytics collections were added after deck sync. If deployed
                 // rules are still older, keep importing the deck/card payload.
             } catch {
+                await BackendTraceStore.shared.record(
+                    "home-analytics-error-ignored",
+                    layer: "cloud.import",
+                    details: ["error": error.localizedDescription]
+                )
                 // Analytics is user-level sync data. A transient analytics fetch
                 // failure should not block deck/card import on fresh installs.
             }
@@ -723,26 +1007,52 @@ actor CloudSyncRemoteImportActor {
         })
 
         if header.isDeleted {
-            guard let localDeck else { return .noUploadNeeded }
+            guard let localDeck else {
+                trace(
+                    "deck-remote-delete-missing-local",
+                    details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+                )
+                return .noUploadNeeded
+            }
             if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localDeck.editedAt, than: header.editedAt) {
+                trace(
+                    "deck-remote-delete-rejected-local-newer",
+                    details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+                )
                 return .enqueueLocalUpsert(deckID: header.deckID)
             }
             activeContext.delete(localDeck)
             try activeContext.save()
+            trace(
+                "deck-remote-delete-applied",
+                details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+            )
             return .noUploadNeeded
         }
 
         let deck: DeckModel
         if let localDeck {
             if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localDeck.editedAt, than: header.editedAt) {
+                trace(
+                    "deck-upsert-rejected-local-newer",
+                    details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+                )
                 return .enqueueLocalUpsert(deckID: header.deckID)
             }
             deck = localDeck
+            trace(
+                "deck-upsert-update-local",
+                details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+            )
         } else {
             deck = DeckModel(title: header.title, colorHex: header.colorHex)
             deck.ownerUID = uid
             deck.cloudID = header.deckID
             activeContext.insert(deck)
+            trace(
+                "deck-upsert-create-local",
+                details: ["deck": BackendTraceStore.safeUID(header.deckID)]
+            )
         }
 
         deck.title = header.title
@@ -765,6 +1075,11 @@ actor CloudSyncRemoteImportActor {
         var shouldUploadLocal = false
         var resolvedCardCount = deck.cards.count
         let now = Date()
+        var createdCards = 0
+        var updatedCards = 0
+        var deletedCards = 0
+        var rejectedLocalNewerCards = 0
+        var skippedInvalidCards = 0
 
         for remoteCard in snapshot.cards {
             let localCard = localCardsByCloudID[remoteCard.cardID]
@@ -772,21 +1087,28 @@ actor CloudSyncRemoteImportActor {
             if remoteCard.isDeleted {
                 if let localCard, CloudSyncCoordinator.localEditIsMeaningfullyNewer(localCard.editedAt, than: remoteCard.editedAt) {
                     shouldUploadLocal = true
+                    rejectedLocalNewerCards += 1
                 } else if let localCard {
                     activeContext.delete(localCard)
                     localCardsByCloudID[remoteCard.cardID] = nil
                     resolvedCardCount = max(0, resolvedCardCount - 1)
+                    deletedCards += 1
                 }
                 continue
             }
 
-            guard let content = remoteCard.content else { continue }
+            guard let content = remoteCard.content else {
+                skippedInvalidCards += 1
+                continue
+            }
             if let localCard {
                 if CloudSyncCoordinator.localEditIsMeaningfullyNewer(localCard.editedAt, than: remoteCard.editedAt) {
                     shouldUploadLocal = true
+                    rejectedLocalNewerCards += 1
                     continue
                 }
                 applyRemoteCard(localCard, remoteCard: remoteCard, content: content, now: now)
+                updatedCards += 1
             } else {
                 let card = CardModel(
                     content: content,
@@ -802,11 +1124,25 @@ actor CloudSyncRemoteImportActor {
                 activeContext.insert(card)
                 localCardsByCloudID[remoteCard.cardID] = card
                 resolvedCardCount += 1
+                createdCards += 1
             }
         }
 
         deck.cardCount = resolvedCardCount
         try activeContext.save()
+        trace(
+            "deck-upsert-saved",
+            details: [
+                "deck": BackendTraceStore.safeUID(header.deckID),
+                "remoteCards": String(snapshot.cards.count),
+                "createdCards": String(createdCards),
+                "updatedCards": String(updatedCards),
+                "deletedCards": String(deletedCards),
+                "rejectedLocalNewerCards": String(rejectedLocalNewerCards),
+                "skippedInvalidCards": String(skippedInvalidCards),
+                "shouldUploadLocal": String(shouldUploadLocal)
+            ]
+        )
         return shouldUploadLocal ? .enqueueLocalUpsert(deckID: header.deckID) : .noUploadNeeded
     }
 
@@ -819,8 +1155,18 @@ actor CloudSyncRemoteImportActor {
             .collection("cards")
             .getDocuments()
             .documents
+        await BackendTraceStore.shared.record(
+            "cards-get-documents-success",
+            layer: "cloud.import",
+            details: [
+                "deck": BackendTraceStore.safeUID(deckID),
+                "cards": String(documents.count)
+            ]
+        )
         var snapshots: [CloudSyncRemoteCardSnapshot] = []
         snapshots.reserveCapacity(documents.count)
+        var totalReviewEvents = 0
+        var reviewPermissionDenied = 0
 
         for document in documents {
             let reviewDocuments: [QueryDocumentSnapshot]
@@ -837,11 +1183,23 @@ actor CloudSyncRemoteImportActor {
                     .documents
             } catch where Self.isPermissionDenied(error) {
                 reviewDocuments = []
+                reviewPermissionDenied += 1
             }
             let reviewEvents = reviewDocuments.map(CloudSyncRemoteReviewEventSnapshot.init(document:))
+            totalReviewEvents += reviewEvents.count
             snapshots.append(try CloudSyncRemoteCardSnapshot(document: document, reviewEvents: reviewEvents))
         }
 
+        await BackendTraceStore.shared.record(
+            "cards-decoded",
+            layer: "cloud.import",
+            details: [
+                "deck": BackendTraceStore.safeUID(deckID),
+                "cards": String(snapshots.count),
+                "reviewEvents": String(totalReviewEvents),
+                "reviewPermissionDenied": String(reviewPermissionDenied)
+            ]
+        )
         return snapshots
     }
 
@@ -918,6 +1276,15 @@ actor CloudSyncRemoteImportActor {
         let dailyStudy = try await userRef.collection("homeDailyStudy").getDocuments().documents
         let dailyDecks = try await userRef.collection("homeDailyDecks").getDocuments().documents
         let dailyCards = try await userRef.collection("homeDailyCards").getDocuments().documents
+        await BackendTraceStore.shared.record(
+            "home-analytics-documents-loaded",
+            layer: "cloud.import",
+            details: [
+                "dailyStudy": String(dailyStudy.count),
+                "dailyDecks": String(dailyDecks.count),
+                "dailyCards": String(dailyCards.count)
+            ]
+        )
 
         try applyRemoteDailyStudy(dailyStudy)
         try applyRemoteDailyDecks(dailyDecks)
@@ -1036,6 +1403,16 @@ actor CloudSyncRemoteImportActor {
 
     private func flushContext() {
         _context = nil
+    }
+
+    private func trace(_ event: String, details: [String: String] = [:]) {
+        Task {
+            await BackendTraceStore.shared.record(
+                event,
+                layer: "cloud.import",
+                details: details
+            )
+        }
     }
 }
 

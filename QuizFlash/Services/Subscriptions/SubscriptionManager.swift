@@ -53,21 +53,39 @@ final class SubscriptionManager {
     /// Refreshes premium state for the current Firebase user.
     func configure(for user: AuthUserSnapshot?) async {
         guard let user else {
+            await BackendTraceStore.shared.record(
+                "configure-signed-out",
+                layer: "subscription"
+            )
             applySignedOutState()
             return
         }
 
+        await BackendTraceStore.shared.record(
+            "configure-signed-in",
+            layer: "subscription",
+            details: ["uid": BackendTraceStore.safeUID(user.uid)]
+        )
         await refresh(uid: user.uid)
     }
 
     /// Re-reads custom claims and the user profile document.
     func refresh(uid: String? = Auth.auth().currentUser?.uid) async {
         guard let uid else {
+            await BackendTraceStore.shared.record(
+                "refresh-no-user",
+                layer: "subscription"
+            )
             applySignedOutState()
             return
         }
 
         prepareStateForUIDIfNeeded(uid)
+        await BackendTraceStore.shared.record(
+            "firestore-user-read-start",
+            layer: "subscription",
+            details: ["path": "users/\(BackendTraceStore.safeUID(uid))"]
+        )
 
         do {
             let userData = try await firestore
@@ -80,6 +98,11 @@ final class SubscriptionManager {
             let profilePlan = userData?["plan"] as? String
             let resolvedProfilePremium = profilePremium ?? (profilePlan == "premium")
             lastErrorMessage = nil
+            await BackendTraceStore.shared.record(
+                "firestore-user-read-success",
+                layer: "subscription",
+                details: firestoreUserDetails(userData, resolvedPremium: resolvedProfilePremium)
+            )
 
             if resolvedProfilePremium {
                 isPremium = true
@@ -96,6 +119,16 @@ final class SubscriptionManager {
             } else {
                 applyFreeQuota(used: usage, limit: limit)
             }
+            await BackendTraceStore.shared.record(
+                "local-plan-applied",
+                layer: "subscription",
+                details: [
+                    "premium": String(isPremium),
+                    "planSource": planSource.rawValue,
+                    "freeUsed": String(freeGenerationsUsed ?? -1),
+                    "freeLimit": String(freeGenerationsLimit ?? -1)
+                ]
+            )
 
             await refreshCloudAIUsageQuota()
             if isPremium {
@@ -104,6 +137,14 @@ final class SubscriptionManager {
                 cloudAIGenerationHistory = []
             }
         } catch {
+            await BackendTraceStore.shared.record(
+                "firestore-user-read-error",
+                layer: "subscription",
+                details: [
+                    "uid": BackendTraceStore.safeUID(uid),
+                    "error": error.localizedDescription
+                ]
+            )
             lastErrorMessage = error.localizedDescription
         }
     }
@@ -150,13 +191,26 @@ final class SubscriptionManager {
 
     func refreshCloudAIUsageQuota() async {
         guard Auth.auth().currentUser != nil else {
+            await BackendTraceStore.shared.record(
+                "quota-refresh-no-user",
+                layer: "subscription"
+            )
             cloudAIUsageQuota = nil
             return
         }
 
         do {
+            await BackendTraceStore.shared.record(
+                "quota-refresh-start",
+                layer: "subscription"
+            )
             applyCloudAIQuotaState(try await CloudAIProxyClient.shared.currentUsageQuota())
         } catch {
+            await BackendTraceStore.shared.record(
+                "quota-refresh-error",
+                layer: "subscription",
+                details: ["error": error.localizedDescription]
+            )
             if isPremium {
                 lastErrorMessage = error.localizedDescription
             }
@@ -165,19 +219,41 @@ final class SubscriptionManager {
 
     func refreshCloudAIGenerationHistory() async {
         guard Auth.auth().currentUser != nil else {
+            await BackendTraceStore.shared.record(
+                "generation-history-no-user",
+                layer: "subscription"
+            )
             cloudAIGenerationHistory = []
             return
         }
 
         guard isPremium else {
+            await BackendTraceStore.shared.record(
+                "generation-history-skipped-free",
+                layer: "subscription"
+            )
             cloudAIGenerationHistory = []
             return
         }
 
         do {
+            await BackendTraceStore.shared.record(
+                "generation-history-start",
+                layer: "subscription"
+            )
             cloudAIGenerationHistory = try await CloudAIProxyClient.shared.currentUsageGenerations()
+            await BackendTraceStore.shared.record(
+                "generation-history-success",
+                layer: "subscription",
+                details: ["count": String(cloudAIGenerationHistory.count)]
+            )
             lastErrorMessage = nil
         } catch {
+            await BackendTraceStore.shared.record(
+                "generation-history-error",
+                layer: "subscription",
+                details: ["error": error.localizedDescription]
+            )
             lastErrorMessage = error.localizedDescription
         }
     }
@@ -195,6 +271,13 @@ final class SubscriptionManager {
         }
         cloudAIUsageQuota = state
         lastErrorMessage = nil
+        Task {
+            await BackendTraceStore.shared.record(
+                "quota-state-applied",
+                layer: "subscription",
+                details: Self.quotaDetails(state)
+            )
+        }
     }
 
     /// Placeholder action until App Store Connect purchases are available.
@@ -240,6 +323,48 @@ final class SubscriptionManager {
         let firestore = Firestore.firestore()
         cachedFirestore = firestore
         return firestore
+    }
+
+    private func firestoreUserDetails(
+        _ data: [String: Any]?,
+        resolvedPremium: Bool
+    ) -> [String: String] {
+        guard let data else {
+            return [
+                "exists": "false",
+                "resolvedPremium": String(resolvedPremium)
+            ]
+        }
+
+        let aiUsage = data["aiUsage"] as? [String: Any]
+        return [
+            "exists": "true",
+            "keys": data.keys.sorted().joined(separator: ","),
+            "premiumField": String(describing: data["premium"]),
+            "planField": String(describing: data["plan"]),
+            "resolvedPremium": String(resolvedPremium),
+            "freeUsed": String(describing: data["freeGenerationsUsed"]),
+            "freeLimit": String(describing: data["freeGenerationsLimit"]),
+            "budgetMicroUSD": String(describing: data["aiMonthlyBudgetMicroUSD"]),
+            "aiUsageKeys": aiUsage?.keys.sorted().joined(separator: ",") ?? "<none>",
+            "aiUsageCost": String(describing: aiUsage?["costMicroUSD"]),
+            "aiUsagePeriod": String(describing: aiUsage?["period"])
+        ]
+    }
+
+    private static func quotaDetails(_ quota: CloudAIQuotaState) -> [String: String] {
+        [
+            "premium": String(quota.premium),
+            "freeUsed": String(quota.freeGenerationsUsed ?? -1),
+            "freeLimit": String(quota.freeGenerationsLimit ?? -1),
+            "monthlyCostMicroUSD": String(quota.monthlyCostMicroUSD),
+            "consumedMicroUSD": String(quota.consumedMicroUSD),
+            "reservedMicroUSD": String(quota.reservedMicroUSD),
+            "limitMicroUSD": String(quota.limitMicroUSD ?? -1),
+            "availableMicroUSD": String(quota.availableMicroUSD ?? -1),
+            "usageProgress": String(quota.usageProgress),
+            "percent": String(quota.percent ?? -1)
+        ]
     }
 
 }

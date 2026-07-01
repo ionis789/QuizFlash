@@ -159,6 +159,10 @@ final class CloudAIProxyClient {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
               let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            await BackendTraceStore.shared.record(
+                "entitlements-preflight-failed",
+                layer: "cloud.ai-proxy"
+            )
             throw CloudAIProxyError.signInRequired
         }
 
@@ -166,21 +170,69 @@ final class CloudAIProxyClient {
         request.httpMethod = "GET"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
+        await BackendTraceStore.shared.record(
+            "entitlements-request-start",
+            layer: "cloud.ai-proxy",
+            details: [
+                "uid": BackendTraceStore.safeUID(user.uid),
+                "host": request.url?.host ?? "<none>",
+                "path": request.url?.path ?? "<none>"
+            ]
+        )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
+            await BackendTraceStore.shared.record(
+                "entitlements-invalid-response",
+                layer: "cloud.ai-proxy"
+            )
             throw CloudAIProxyError.invalidResponse
         }
+        await BackendTraceStore.shared.record(
+            "entitlements-response",
+            layer: "cloud.ai-proxy",
+            details: [
+                "status": String(httpResponse.statusCode),
+                "bytes": String(data.count)
+            ]
+        )
         guard (200...299).contains(httpResponse.statusCode) else {
+            await BackendTraceStore.shared.record(
+                "entitlements-error-response",
+                layer: "cloud.ai-proxy",
+                details: [
+                    "status": String(httpResponse.statusCode),
+                    "message": Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode)
+                ]
+            )
             throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
         }
 
-        return try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
+        do {
+            let quota = try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
+            await BackendTraceStore.shared.record(
+                "entitlements-decode-success",
+                layer: "cloud.ai-proxy",
+                details: Self.quotaDetails(quota)
+            )
+            return quota
+        } catch {
+            await BackendTraceStore.shared.record(
+                "entitlements-decode-error",
+                layer: "cloud.ai-proxy",
+                details: ["error": error.localizedDescription]
+            )
+            throw error
+        }
     }
 
     func currentUsageGenerations() async throws -> [CloudAIGenerationUsageRecord] {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
               let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            await BackendTraceStore.shared.record(
+                "usage-generations-preflight-failed",
+                layer: "cloud.ai-proxy"
+            )
             throw CloudAIProxyError.signInRequired
         }
 
@@ -188,15 +240,59 @@ final class CloudAIProxyClient {
         request.httpMethod = "GET"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
+        await BackendTraceStore.shared.record(
+            "usage-generations-request-start",
+            layer: "cloud.ai-proxy",
+            details: [
+                "uid": BackendTraceStore.safeUID(user.uid),
+                "host": request.url?.host ?? "<none>",
+                "path": request.url?.path ?? "<none>"
+            ]
+        )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
+            await BackendTraceStore.shared.record(
+                "usage-generations-invalid-response",
+                layer: "cloud.ai-proxy"
+            )
             throw CloudAIProxyError.invalidResponse
         }
+        await BackendTraceStore.shared.record(
+            "usage-generations-response",
+            layer: "cloud.ai-proxy",
+            details: [
+                "status": String(httpResponse.statusCode),
+                "bytes": String(data.count)
+            ]
+        )
         guard (200...299).contains(httpResponse.statusCode) else {
+            await BackendTraceStore.shared.record(
+                "usage-generations-error-response",
+                layer: "cloud.ai-proxy",
+                details: [
+                    "status": String(httpResponse.statusCode),
+                    "message": Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode)
+                ]
+            )
             throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
         }
 
-        return try JSONDecoder().decode(UsageGenerationsResponse.self, from: data).generations
+        do {
+            let generations = try JSONDecoder().decode(UsageGenerationsResponse.self, from: data).generations
+            await BackendTraceStore.shared.record(
+                "usage-generations-decode-success",
+                layer: "cloud.ai-proxy",
+                details: ["count": String(generations.count)]
+            )
+            return generations
+        } catch {
+            await BackendTraceStore.shared.record(
+                "usage-generations-decode-error",
+                layer: "cloud.ai-proxy",
+                details: ["error": error.localizedDescription]
+            )
+            throw error
+        }
     }
 
     func currentPromptBundle() async throws -> AIPromptBundle {
@@ -393,6 +489,21 @@ final class CloudAIProxyClient {
             return nil
         }
         return payload.usageQuota
+    }
+
+    private static func quotaDetails(_ quota: CloudAIQuotaState) -> [String: String] {
+        [
+            "premium": String(quota.premium),
+            "freeUsed": String(quota.freeGenerationsUsed ?? -1),
+            "freeLimit": String(quota.freeGenerationsLimit ?? -1),
+            "monthlyCostMicroUSD": String(quota.monthlyCostMicroUSD),
+            "consumedMicroUSD": String(quota.consumedMicroUSD),
+            "reservedMicroUSD": String(quota.reservedMicroUSD),
+            "limitMicroUSD": String(quota.limitMicroUSD ?? -1),
+            "availableMicroUSD": String(quota.availableMicroUSD ?? -1),
+            "usageProgress": String(quota.usageProgress),
+            "percent": String(quota.percent ?? -1)
+        ]
     }
 }
 

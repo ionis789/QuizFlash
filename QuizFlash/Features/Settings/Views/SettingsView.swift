@@ -42,6 +42,7 @@ struct SettingsView: View {
     @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
     @State private var isCardsGoalExpanded = false
     @State private var isTextSizeExpanded = false
+    @State private var backendTraceEventCount = 0
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -110,6 +111,7 @@ struct SettingsView: View {
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
             await subscriptionManager.refreshCloudAIUsageQuota()
+            backendTraceEventCount = await BackendTraceStore.shared.eventCount()
         }
         .onDisappear {
             profileImageDecodeTask?.cancel()
@@ -515,6 +517,21 @@ struct SettingsView: View {
                         }
                     )
                 }
+            }
+
+            settingsBlock {
+                NavigationLink {
+                    BackendTraceView()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "server.rack",
+                        tint: .orange,
+                        title: SettingsTextContent.verbatim(AppLocalization.string("Backend Trace", locale: appPreferences.resolvedLocale)),
+                        detail: nil,
+                        value: "\(backendTraceEventCount)"
+                    )
+                }
+                .noPressEffectButtonStyle()
             }
 
             if !FeatureLabRoute.visibleRoutes(in: .current).isEmpty {
