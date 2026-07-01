@@ -149,6 +149,53 @@ export async function finalizeFirestoreGenerationUsage(
   throw new Error("Firestore usage commit conflicted too many times.");
 }
 
+export async function replaceFirestoreMonthlyUsage(
+  uid: string,
+  period: string,
+  usage: FirestoreMonthlyUsage,
+  env: FirestoreAdminEnv
+): Promise<FirestoreAccountState> {
+  const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+
+  for (let attempt = 0; attempt < maximumCommitAttempts; attempt += 1) {
+    const documents = await readAccountDocuments(uid, period, env, accessToken);
+    const nextAccount = {
+      ...documents.account,
+      monthlyUsage: normalizedMonthlyUsage(period, usage)
+    };
+    const now = new Date().toISOString();
+    const response = await commitWrites([
+      updateWrite(
+        userPath(uid, env),
+        {
+          premium: {booleanValue: nextAccount.premium},
+          freeGenerationsUsed: integerValue(nextAccount.freeGenerationsUsed),
+          freeGenerationsLimit: integerValue(nextAccount.freeGenerationsLimit),
+          aiMonthlyBudgetMicroUSD: integerValue(nextAccount.monthlyBudgetMicroUSD),
+          aiUsage: currentUsageValue(nextAccount, undefined, now),
+          updatedAt: {timestampValue: now}
+        },
+        documents.profile
+      ),
+      updateWrite(
+        monthlyUsagePath(uid, period, env),
+        monthlyUsageFields(nextAccount.monthlyUsage, "d1-repair", now),
+        documents.usage
+      )
+    ], env, accessToken);
+
+    if (response.ok) {
+      return nextAccount;
+    }
+
+    if (response.status !== 409 && response.status !== 412) {
+      throw new Error(`Firestore usage repair failed with status ${response.status}.`);
+    }
+  }
+
+  throw new Error("Firestore usage repair conflicted too many times.");
+}
+
 export function applyingUsageDelta(
   account: FirestoreAccountState,
   delta: GenerationUsageDelta
@@ -191,9 +238,10 @@ export function parseFirestoreAccountState(
   const profileFields = profile?.fields ?? {};
   const rootUsageFields = profileFields.aiUsage?.mapValue?.fields;
   const rootUsagePeriod = rootUsageFields?.period?.stringValue;
-  const usageFields = rootUsagePeriod === period
+  const monthlyArchiveFields = usage?.fields ?? {};
+  const usageFields = rootUsagePeriod === period && !usageFieldsAreEmpty(rootUsageFields)
     ? rootUsageFields ?? {}
-    : usage?.fields ?? {};
+    : monthlyArchiveFields;
   const premiumField = profileFields.premium?.booleanValue;
 
   return {
@@ -481,6 +529,41 @@ function integerValue(value: number): FirestoreValue {
 
 function nonNegativeInteger(value: number): number {
   return Math.max(0, Math.trunc(Number.isFinite(value) ? value : 0));
+}
+
+function usageFieldsAreEmpty(fields: Record<string, FirestoreValue> | undefined): boolean {
+  if (!fields) return true;
+  return [
+    "generatedCards",
+    "requestCount",
+    "premiumRequestCount",
+    "freeRequestCount",
+    "costMicroUSD",
+    "promptTokens",
+    "completionTokens",
+    "totalTokens",
+    "cacheHitTokens",
+    "cacheMissTokens"
+  ].every((field) => integerField(fields, field, 0) === 0);
+}
+
+function normalizedMonthlyUsage(
+  period: string,
+  usage: FirestoreMonthlyUsage
+): FirestoreMonthlyUsage {
+  return {
+    period,
+    generatedCards: nonNegativeInteger(usage.generatedCards),
+    requestCount: nonNegativeInteger(usage.requestCount),
+    premiumRequestCount: nonNegativeInteger(usage.premiumRequestCount),
+    freeRequestCount: nonNegativeInteger(usage.freeRequestCount),
+    costMicroUSD: nonNegativeInteger(usage.costMicroUSD),
+    promptTokens: nonNegativeInteger(usage.promptTokens),
+    completionTokens: nonNegativeInteger(usage.completionTokens),
+    totalTokens: nonNegativeInteger(usage.totalTokens),
+    cacheHitTokens: nonNegativeInteger(usage.cacheHitTokens),
+    cacheMissTokens: nonNegativeInteger(usage.cacheMissTokens)
+  };
 }
 
 function configuredMonthlyBudgetMicroUSD(env: FirestoreAdminEnv): number {

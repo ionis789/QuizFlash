@@ -2,6 +2,8 @@ import { DurableObject } from "cloudflare:workers";
 import {
   finalizeFirestoreGenerationUsage,
   readFirestoreAccountState,
+  replaceFirestoreMonthlyUsage,
+  type FirestoreMonthlyUsage,
   type FirestoreAccountState
 } from "./firestoreUsage";
 import {defaultPromptBundle, type PromptBundleRecord, validatedPromptBundle} from "./promptBundle";
@@ -147,6 +149,19 @@ type GenerationAccountingRow = {
 type ActiveGenerationStatusRow = {
   status: string;
   provider_call_count: number;
+};
+
+type D1UsageRepairRow = {
+  generatedCards: number | null;
+  requestCount: number | null;
+  premiumRequestCount: number | null;
+  freeRequestCount: number | null;
+  costMicroUSD: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  cacheHitTokens: number | null;
+  cacheMissTokens: number | null;
 };
 
 type UsageEventResponse = {
@@ -319,7 +334,12 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
   async entitlement(uid: string): Promise<QuotaResponse> {
     return this.enqueue(async () => {
       const now = Date.now();
-      const account = await readFirestoreAccountState(uid, monthKey(now), this.env);
+      const period = monthKey(now);
+      const account = await this.repairEmptyFirestoreUsageFromD1IfNeeded(
+        await readFirestoreAccountState(uid, period, this.env),
+        period,
+        now
+      );
       await this.syncD1UsageCache(account, now);
       return this.entitlementResponse(account);
     });
@@ -483,6 +503,67 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         now
       )
     ]);
+  }
+
+  private async repairEmptyFirestoreUsageFromD1IfNeeded(
+    account: FirestoreAccountState,
+    period: string,
+    now: number
+  ): Promise<FirestoreAccountState> {
+    if (!isEmptyUsage(account.monthlyUsage)) {
+      return account;
+    }
+
+    const recoveredUsage = await this.d1FinalizedUsage(account.uid, period);
+    if (recoveredUsage.requestCount <= 0 || isEmptyUsage(recoveredUsage)) {
+      return account;
+    }
+
+    console.log(JSON.stringify({
+      event: "firestore_usage_repair_from_d1",
+      uid_suffix: account.uid.slice(-6),
+      period,
+      request_count: recoveredUsage.requestCount,
+      cost_micro_usd: recoveredUsage.costMicroUSD,
+      at_ms: now
+    }));
+    return replaceFirestoreMonthlyUsage(account.uid, period, recoveredUsage, this.env);
+  }
+
+  private async d1FinalizedUsage(uid: string, period: string): Promise<FirestoreMonthlyUsage> {
+    const bounds = monthBounds(period);
+    const row = await this.env.AI_DB.prepare(
+      `SELECT
+        COALESCE(SUM(validated_cards), 0) AS "generatedCards",
+        COUNT(*) AS "requestCount",
+        COALESCE(SUM(CASE WHEN premium = 1 THEN 1 ELSE 0 END), 0) AS "premiumRequestCount",
+        COALESCE(SUM(CASE WHEN premium = 1 THEN 0 ELSE 1 END), 0) AS "freeRequestCount",
+        COALESCE(SUM(cost_micro_usd), 0) AS "costMicroUSD",
+        COALESCE(SUM(total_prompt_tokens), 0) AS "promptTokens",
+        COALESCE(SUM(total_completion_tokens), 0) AS "completionTokens",
+        COALESCE(SUM(total_tokens), 0) AS "totalTokens",
+        COALESCE(SUM(total_cache_hit_tokens), 0) AS "cacheHitTokens",
+        COALESCE(SUM(total_cache_miss_tokens), 0) AS "cacheMissTokens"
+      FROM ai_generations
+      WHERE uid = ?
+        AND created_at_ms >= ?
+        AND created_at_ms < ?
+        AND status IN ('succeeded', 'partial', 'failed', 'expired')`
+    ).bind(uid, bounds.startMs, bounds.endMs).first<D1UsageRepairRow>();
+
+    return {
+      period,
+      generatedCards: nonNegativeInteger(row?.generatedCards),
+      requestCount: nonNegativeInteger(row?.requestCount),
+      premiumRequestCount: nonNegativeInteger(row?.premiumRequestCount),
+      freeRequestCount: nonNegativeInteger(row?.freeRequestCount),
+      costMicroUSD: nonNegativeInteger(row?.costMicroUSD),
+      promptTokens: nonNegativeInteger(row?.promptTokens),
+      completionTokens: nonNegativeInteger(row?.completionTokens),
+      totalTokens: nonNegativeInteger(row?.totalTokens),
+      cacheHitTokens: nonNegativeInteger(row?.cacheHitTokens),
+      cacheMissTokens: nonNegativeInteger(row?.cacheMissTokens)
+    };
   }
 
   private async generationAccountingRow(generationId: string): Promise<GenerationAccountingRow | null> {
@@ -1035,6 +1116,36 @@ function generationUsageDelta(
 
 function compactJSON(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function isEmptyUsage(usage: FirestoreMonthlyUsage): boolean {
+  return usage.generatedCards === 0
+    && usage.requestCount === 0
+    && usage.premiumRequestCount === 0
+    && usage.freeRequestCount === 0
+    && usage.costMicroUSD === 0
+    && usage.promptTokens === 0
+    && usage.completionTokens === 0
+    && usage.totalTokens === 0
+    && usage.cacheHitTokens === 0
+    && usage.cacheMissTokens === 0;
+}
+
+function monthBounds(period: string): {startMs: number; endMs: number} {
+  const match = /^(\d{4})(\d{2})$/.exec(period);
+  if (!match) throw new WorkerError(500, "internal", "Usage period is invalid.");
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  return {
+    startMs: Date.UTC(year, monthIndex, 1),
+    endMs: Date.UTC(year, monthIndex + 1, 1)
+  };
+}
+
+function nonNegativeInteger(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : 0;
 }
 
 function numeric(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }

@@ -135,6 +135,39 @@ describe("QuizFlash AI proxy", () => {
     expect(account.monthlyUsage.costMicroUSD).toBe(42_000);
   });
 
+  it("falls back to the monthly archive when the root usage projection is empty", () => {
+    const account = parseFirestoreAccountState(
+      "user",
+      "202606",
+      {
+        fields: {
+          premium: {booleanValue: true},
+          aiUsage: {
+            mapValue: {
+              fields: {
+                period: {stringValue: "202606"},
+                requestCount: {integerValue: "0"},
+                totalTokens: {integerValue: "0"},
+                costMicroUSD: {integerValue: "0"}
+              }
+            }
+          }
+        }
+      },
+      {
+        fields: {
+          requestCount: {integerValue: "7"},
+          totalTokens: {integerValue: "800"},
+          costMicroUSD: {integerValue: "5600"}
+        }
+      }
+    );
+
+    expect(account.monthlyUsage.requestCount).toBe(7);
+    expect(account.monthlyUsage.totalTokens).toBe(800);
+    expect(account.monthlyUsage.costMicroUSD).toBe(5_600);
+  });
+
   it("increments canonical free and monthly usage from the latest Firestore value", () => {
     const account = parseFirestoreAccountState("user", "202606", {
       fields: {

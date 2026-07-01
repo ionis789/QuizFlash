@@ -66,8 +66,7 @@ final class CloudSyncService {
         var skippedOversizedCard = false
         var currentCardIDs = Set<String>()
         let batch = firestore.batch()
-        let optionalBatch = firestore.batch()
-        var hasOptionalWrites = false
+        let optionalWriter = CloudOptionalBatchWriter(firestore: firestore)
         batch.setData(deckPayload(for: deck), forDocument: deckRef, merge: true)
 
         for card in cards {
@@ -94,12 +93,11 @@ final class CloudSyncService {
                 event.ownerUID = uid
                 event.lastSyncedAt = now
 
-                optionalBatch.setData(
+                optionalWriter.setData(
                     reviewEventPayload(for: event),
                     forDocument: cardRef.collection("reviewEvents").document(eventID),
                     merge: true
                 )
-                hasOptionalWrites = true
             }
         }
 
@@ -117,30 +115,27 @@ final class CloudSyncService {
         }
 
         for aggregate in dailyStudyAggregates {
-            optionalBatch.setData(
+            optionalWriter.setData(
                 dailyStudyPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyStudy").document(aggregate.dayKey),
                 merge: true
             )
-            hasOptionalWrites = true
         }
 
         for aggregate in dailyDeckAggregates {
-            optionalBatch.setData(
+            optionalWriter.setData(
                 dailyDeckPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyDecks").document(aggregate.aggregateKey),
                 merge: true
             )
-            hasOptionalWrites = true
         }
 
         for aggregate in dailyCardAggregates {
-            optionalBatch.setData(
+            optionalWriter.setData(
                 dailyCardPayload(for: aggregate),
                 forDocument: userRef.collection("homeDailyCards").document(aggregate.aggregateKey),
                 merge: true
             )
-            hasOptionalWrites = true
         }
 
         try await batch.commit()
@@ -150,18 +145,20 @@ final class CloudSyncService {
             details: [
                 "deck": BackendTraceStore.safeUID(deckID),
                 "skippedOversizedCard": String(skippedOversizedCard),
-                "hasOptionalWrites": String(hasOptionalWrites)
+                "optionalWrites": String(optionalWriter.totalWriteCount)
             ]
         )
-        guard hasOptionalWrites else { return }
+        guard optionalWriter.hasWrites else { return }
 
         do {
-            try await optionalBatch.commit()
+            let optionalCommitCount = try await optionalWriter.commitAll()
             await BackendTraceStore.shared.record(
                 "upsert-deck-optional-commit-success",
                 layer: "cloud.service",
                 details: [
                     "deck": BackendTraceStore.safeUID(deckID),
+                    "batches": String(optionalCommitCount),
+                    "writes": String(optionalWriter.totalWriteCount),
                     "dailyStudy": String(dailyStudyAggregates.count),
                     "dailyDecks": String(dailyDeckAggregates.count),
                     "dailyCards": String(dailyCardAggregates.count)
@@ -173,6 +170,7 @@ final class CloudSyncService {
                 layer: "cloud.service",
                 details: [
                     "deck": BackendTraceStore.safeUID(deckID),
+                    "writes": String(optionalWriter.totalWriteCount),
                     "error": error.localizedDescription
                 ]
             )
@@ -184,6 +182,7 @@ final class CloudSyncService {
                 layer: "cloud.service",
                 details: [
                     "deck": BackendTraceStore.safeUID(deckID),
+                    "writes": String(optionalWriter.totalWriteCount),
                     "error": error.localizedDescription
                 ]
             )
@@ -472,5 +471,54 @@ final class CloudSyncService {
             "lastReviewedAt": Timestamp(date: aggregate.lastReviewedAt),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+    }
+}
+
+private final class CloudOptionalBatchWriter {
+    private static let maxWritesPerBatch = 420
+
+    private let firestore: Firestore
+    private var currentBatch: WriteBatch
+    private var currentWriteCount = 0
+    private var sealedBatches: [WriteBatch] = []
+
+    private(set) var totalWriteCount = 0
+
+    init(firestore: Firestore) {
+        self.firestore = firestore
+        self.currentBatch = firestore.batch()
+    }
+
+    var hasWrites: Bool {
+        totalWriteCount > 0
+    }
+
+    func setData(
+        _ data: [String: Any],
+        forDocument document: DocumentReference,
+        merge: Bool
+    ) {
+        if currentWriteCount >= Self.maxWritesPerBatch {
+            sealCurrentBatch()
+        }
+
+        currentBatch.setData(data, forDocument: document, merge: merge)
+        currentWriteCount += 1
+        totalWriteCount += 1
+    }
+
+    func commitAll() async throws -> Int {
+        sealCurrentBatch()
+        for batch in sealedBatches {
+            try await batch.commit()
+        }
+        return sealedBatches.count
+    }
+
+    private func sealCurrentBatch() {
+        guard currentWriteCount > 0 else { return }
+        sealedBatches.append(currentBatch)
+        currentBatch = firestore.batch()
+        currentWriteCount = 0
     }
 }

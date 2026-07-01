@@ -127,8 +127,9 @@ actor PlaySessionPersistenceService {
 
         do {
             try bgContext.save()
+            let decksToSync = affectedCloudDecks
             await MainActor.run {
-                for key in affectedCloudDecks {
+                for key in decksToSync {
                     CloudSyncCoordinator.shared.enqueueUpsert(ownerUID: key.ownerUID, deckID: key.deckID)
                 }
             }
