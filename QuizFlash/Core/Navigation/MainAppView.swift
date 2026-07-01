@@ -350,17 +350,16 @@ struct MainAppView: View {
     private func tabBarChrome(in proxy: GeometryProxy) -> some View {
         let bottomScreenAnchorOffset = proxy.safeAreaInsets.bottom
 
-        ZStack(alignment: .bottom) {
-            tabBarBottomBlur(in: proxy)
-                .opacity(isFloatingTabBarVisible ? 1 : 0)
-                .offset(y: bottomScreenAnchorOffset + (isFloatingTabBarVisible ? 0 : 80))
-                .animation(.bottomChromeSpring, value: isFloatingTabBarVisible)
-                .allowsHitTesting(false)
-            tabBarView(in: proxy)
-                .bottomChromeVisibility(isFloatingTabBarVisible)
-                .accessibilityHidden(!isFloatingTabBarVisible)
-        }
-        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
+        tabBarBottomBlur(in: proxy)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
+            .opacity(isFloatingTabBarVisible ? 1 : 0)
+            .offset(y: bottomScreenAnchorOffset + (isFloatingTabBarVisible ? 0 : 80))
+            .animation(.bottomChromeSpring, value: isFloatingTabBarVisible)
+            .allowsHitTesting(false)
+
+        tabBarView(in: proxy)
+            .bottomChromeVisibility(isFloatingTabBarVisible)
+            .accessibilityHidden(!isFloatingTabBarVisible)
     }
 
     @ViewBuilder
