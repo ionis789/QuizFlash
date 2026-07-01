@@ -178,23 +178,7 @@ extension LibraryLayout {
         VStack(alignment: .leading, spacing: 6) {
             LargeScreenTitle(title: title)
 
-            Text(
-                viewModel.cachedDeckCount == 0
-                    ? localized("No Decks")
-                    : (
-                        viewModel.cachedDeckCount == 1
-                            ? localizedFormat("%d Deck", viewModel.cachedDeckCount)
-                            : localizedFormat("%d Decks", viewModel.cachedDeckCount)
-                    )
-            )
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.secondary)
-
-            if let syncProgress = cloudSyncCoordinator.syncProgress {
-                LibrarySyncProgressPill(progress: syncProgress)
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
-            }
+            libraryDeckStatusLine
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -216,7 +200,52 @@ extension LibraryLayout {
                 }
         }
         .transition(.opacity)
-        .animation(.easeInOut(duration: 0.18), value: cloudSyncCoordinator.syncProgress)
+        .animation(.easeInOut(duration: 0.2), value: cloudSyncCoordinator.syncProgress)
+    }
+
+    @ViewBuilder
+    private var libraryDeckStatusLine: some View {
+        ZStack(alignment: .leading) {
+            if let syncProgress = cloudSyncCoordinator.syncProgress {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(localized("Syncing…"))
+
+                    ProgressActivityDots(color: themeManager.accentColor.color)
+                        .frame(minWidth: 28)
+
+                    Text(localizedFormat(
+                        "%d/%d decks",
+                        syncProgress.boundedCompletedItems,
+                        syncProgress.totalItems
+                    ))
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.2), value: syncProgress.boundedCompletedItems)
+                    .animation(.easeInOut(duration: 0.2), value: syncProgress.totalItems)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .accessibilityLabel(
+                    "\(localized("Syncing…")) \(localizedFormat("%d/%d decks", syncProgress.boundedCompletedItems, syncProgress.totalItems))"
+                )
+            } else {
+                Text(libraryDeckCountText)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .accessibilityLabel(libraryDeckCountText)
+            }
+        }
+        .font(.system(size: 14, weight: .bold))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .frame(height: 20, alignment: .leading)
+    }
+
+    private var libraryDeckCountText: String {
+        if viewModel.cachedDeckCount == 0 {
+            return localized("No Decks")
+        }
+        if viewModel.cachedDeckCount == 1 {
+            return localizedFormat("%d Deck", viewModel.cachedDeckCount)
+        }
+        return localizedFormat("%d Decks", viewModel.cachedDeckCount)
     }
 
     @ViewBuilder

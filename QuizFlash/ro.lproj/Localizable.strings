@@ -49,6 +49,7 @@
 "%d deck" = "%d pachet";
 "%d Deck" = "%d deck";
 "%d decks" = "%d pachete";
+"%d/%d decks" = "%d/%d deckuri";
 "%d Decks" = "%d deckuri";
 "%d flashcards" = "%d flashcarduri";
 "%d goal days" = "%d zile cu țintă";

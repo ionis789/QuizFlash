@@ -5,7 +5,6 @@
 //  Auxiliary Library views:
 //  - empty state
 //  - selection indicator
-//  - sync progress
 //  - blocking loading overlay
 //
 
@@ -58,52 +57,6 @@ struct LibraryEmptyStateView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Sync Progress
-
-struct LibrarySyncProgressPill: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let progress: CloudSyncProgressSnapshot
-
-    private var locale: Locale {
-        appPreferences.resolvedLocale
-    }
-
-    private var title: String {
-        AppLocalization.string("Syncing…", locale: locale)
-    }
-
-    private var progressValue: String {
-        "\(progress.boundedCompletedItems)/\(progress.totalItems)"
-    }
-
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            Text(title)
-                .font(.system(size: 13, weight: .heavy))
-                .lineLimit(1)
-                .foregroundStyle(themeManager.textPrimary)
-
-            ProgressActivityDots(color: themeManager.accentColor.color)
-                .frame(minWidth: 28)
-        }
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .background(
-            Capsule()
-                .fill(themeManager.surfaceSecondary.opacity(0.9))
-                .overlay(
-                    Capsule()
-                        .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
-                )
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(progressValue)
     }
 }
 
