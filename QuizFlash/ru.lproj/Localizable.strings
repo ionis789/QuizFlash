@@ -657,6 +657,8 @@
 "Swipe review" = "Повтор свайпом";
 "System" = "Система";
 "System Default" = "Системное значение";
+"Syncing %d/%d" = "Синхронизация %d/%d";
+"Syncing…" = "Синхронизация…";
 "Tab Bar" = "Панель вкладок";
 "Tab Bar Blur" = "Размытие панели вкладок";
 "Tap + to add a card, or generate cards with AI." = "Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.";

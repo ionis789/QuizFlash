@@ -15,6 +15,7 @@ let kLibraryChromeSpace = "libraryChrome"
 struct LibraryLayout: View {
     @Environment(AppPreferences.self) var appPreferences
     @Environment(ThemeManager.self) var themeManager
+    @Environment(CloudSyncCoordinator.self) var cloudSyncCoordinator
 
     let decks: [DeckModel]
     let folders: [FolderModel]

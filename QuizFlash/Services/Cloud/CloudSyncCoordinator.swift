@@ -10,6 +10,29 @@ import Foundation
 import Observation
 import SwiftData
 
+// MARK: - Cloud Sync Progress
+
+nonisolated enum CloudSyncProgressPhase: String, Sendable {
+    case importing
+    case uploading
+}
+
+nonisolated struct CloudSyncProgressSnapshot: Equatable, Sendable {
+    let phase: CloudSyncProgressPhase
+    let completedItems: Int
+    let totalItems: Int
+    let failedItems: Int
+
+    var boundedCompletedItems: Int {
+        min(max(0, completedItems), max(0, totalItems))
+    }
+
+    var progressFraction: Double? {
+        guard totalItems > 0 else { return nil }
+        return Double(boundedCompletedItems) / Double(totalItems)
+    }
+}
+
 // MARK: - Cloud Sync Coordinator
 
 /// Coordinates durable background deck sync without delaying local SwiftData saves.
@@ -33,6 +56,7 @@ final class CloudSyncCoordinator {
 
     private(set) var activeUID: String?
     private(set) var lastErrorMessage: String?
+    private(set) var syncProgress: CloudSyncProgressSnapshot?
 
     init(
         service: CloudSyncService? = nil,
@@ -103,6 +127,7 @@ final class CloudSyncCoordinator {
         activeUID = nil
         modelContainer = nil
         lastErrorMessage = nil
+        syncProgress = nil
     }
 
     // MARK: - Local Mutations
@@ -236,6 +261,7 @@ final class CloudSyncCoordinator {
             )
             guard !operations.isEmpty else { return }
 
+            beginSyncProgress(.uploading, totalItems: operations.count)
             let context = ModelContext(modelContainer)
             for operation in operations {
                 guard !Task.isCancelled else { return }
@@ -341,6 +367,7 @@ final class CloudSyncCoordinator {
                             "removed": String(shouldRemoveOperation)
                         ]
                     )
+                    advanceSyncProgress(.uploading)
                     lastErrorMessage = nil
                 } catch {
                     trace(
@@ -351,6 +378,7 @@ final class CloudSyncCoordinator {
                         ]
                     )
                     lastErrorMessage = error.localizedDescription
+                    advanceSyncProgress(.uploading, failed: true)
                     scheduleRetry()
                     return
                 }
@@ -376,6 +404,48 @@ final class CloudSyncCoordinator {
         }
     }
 
+    private func beginSyncProgress(_ phase: CloudSyncProgressPhase, totalItems: Int) {
+        guard totalItems > 0 else {
+            if syncProgress?.phase == phase {
+                syncProgress = nil
+            }
+            return
+        }
+
+        syncProgress = CloudSyncProgressSnapshot(
+            phase: phase,
+            completedItems: 0,
+            totalItems: totalItems,
+            failedItems: 0
+        )
+    }
+
+    private func increaseSyncProgressTotal(_ phase: CloudSyncProgressPhase, by count: Int) {
+        guard count > 0, let current = syncProgress, current.phase == phase else { return }
+        syncProgress = CloudSyncProgressSnapshot(
+            phase: current.phase,
+            completedItems: current.completedItems,
+            totalItems: current.totalItems + count,
+            failedItems: current.failedItems
+        )
+    }
+
+    private func advanceSyncProgress(_ phase: CloudSyncProgressPhase, failed: Bool = false) {
+        guard let current = syncProgress, current.phase == phase else { return }
+        let completed = min(current.totalItems, current.completedItems + 1)
+        let failedItems = current.failedItems + (failed ? 1 : 0)
+        if completed >= current.totalItems {
+            syncProgress = nil
+        } else {
+            syncProgress = CloudSyncProgressSnapshot(
+                phase: current.phase,
+                completedItems: completed,
+                totalItems: current.totalItems,
+                failedItems: failedItems
+            )
+        }
+    }
+
     // MARK: - Remote Changes
 
     private func handleRemoteSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
@@ -395,6 +465,7 @@ final class CloudSyncCoordinator {
         let changedDecks = snapshot.documentChanges
             .filter { $0.type != .removed }
             .map { CloudSyncRemoteDeckHeader(document: $0.document) }
+            .sorted(by: Self.remoteDeckSort)
         trace(
             "deck-listener-snapshot",
             details: [
@@ -407,6 +478,7 @@ final class CloudSyncCoordinator {
         guard !changedDecks.isEmpty else { return }
 
         pendingRemoteDecks.append(contentsOf: changedDecks)
+        refreshRemoteImportProgressForNewItems(changedCount: changedDecks.count)
         scheduleRemoteImportProcessing()
     }
 
@@ -435,6 +507,7 @@ final class CloudSyncCoordinator {
         let changedFolders = snapshot.documentChanges
             .filter { $0.type != .removed }
             .map { CloudSyncRemoteFolderHeader(document: $0.document) }
+            .sorted(by: Self.remoteFolderSort)
         trace(
             "folder-listener-snapshot",
             details: [
@@ -447,6 +520,7 @@ final class CloudSyncCoordinator {
         guard !changedFolders.isEmpty else { return }
 
         pendingRemoteFolders.append(contentsOf: changedFolders)
+        refreshRemoteImportProgressForNewItems(changedCount: changedFolders.count)
         scheduleRemoteImportProcessing()
     }
 
@@ -460,9 +534,22 @@ final class CloudSyncCoordinator {
                 "folderQueue": String(pendingRemoteFolders.count)
             ]
         )
+        pendingRemoteFolders.sort(by: Self.remoteFolderSort)
+        pendingRemoteDecks.sort(by: Self.remoteDeckSort)
+        beginSyncProgress(.importing, totalItems: pendingRemoteFolders.count + pendingRemoteDecks.count)
         remoteImportTask = Task { @MainActor [weak self] in
             await self?.processPendingRemoteDecks()
             self?.remoteImportTask = nil
+        }
+    }
+
+    private func refreshRemoteImportProgressForNewItems(changedCount: Int) {
+        guard remoteImportTask != nil else { return }
+        if syncProgress?.phase == .importing {
+            increaseSyncProgressTotal(.importing, by: changedCount)
+        } else {
+            let pendingCount = pendingRemoteFolders.count + pendingRemoteDecks.count
+            beginSyncProgress(.importing, totalItems: pendingCount)
         }
     }
 
@@ -488,6 +575,7 @@ final class CloudSyncCoordinator {
                         "remote-folder-import-success",
                         details: ["folder": BackendTraceStore.safeUID(header.folderID)]
                     )
+                    advanceSyncProgress(.importing)
                     lastErrorMessage = nil
                 } catch {
                     trace(
@@ -497,6 +585,7 @@ final class CloudSyncCoordinator {
                             "error": error.localizedDescription
                         ]
                     )
+                    advanceSyncProgress(.importing, failed: true)
                     lastErrorMessage = error.localizedDescription
                 }
                 continue
@@ -525,6 +614,7 @@ final class CloudSyncCoordinator {
                         "result": result.debugName
                     ]
                 )
+                advanceSyncProgress(.importing)
                 lastErrorMessage = nil
             } catch {
                 trace(
@@ -534,6 +624,7 @@ final class CloudSyncCoordinator {
                         "error": error.localizedDescription
                     ]
                 )
+                advanceSyncProgress(.importing, failed: true)
                 lastErrorMessage = error.localizedDescription
             }
         }
@@ -591,6 +682,28 @@ final class CloudSyncCoordinator {
         let nsError = error as NSError
         return nsError.domain == FirestoreErrorDomain
             && nsError.code == FirestoreErrorCode.permissionDenied.rawValue
+    }
+
+    nonisolated private static func remoteDeckSort(
+        lhs: CloudSyncRemoteDeckHeader,
+        rhs: CloudSyncRemoteDeckHeader
+    ) -> Bool {
+        let lhsDate = lhs.createdAt ?? lhs.editedAt
+        let rhsDate = rhs.createdAt ?? rhs.editedAt
+        if lhsDate != rhsDate { return lhsDate > rhsDate }
+        if lhs.editedAt != rhs.editedAt { return lhs.editedAt > rhs.editedAt }
+        return lhs.deckID < rhs.deckID
+    }
+
+    nonisolated private static func remoteFolderSort(
+        lhs: CloudSyncRemoteFolderHeader,
+        rhs: CloudSyncRemoteFolderHeader
+    ) -> Bool {
+        let lhsDate = lhs.createdAt ?? lhs.editedAt
+        let rhsDate = rhs.createdAt ?? rhs.editedAt
+        if lhsDate != rhsDate { return lhsDate > rhsDate }
+        if lhs.editedAt != rhs.editedAt { return lhs.editedAt > rhs.editedAt }
+        return lhs.folderID < rhs.folderID
     }
 
     /// Ignores sub-millisecond timestamp drift introduced by Firestore serialization.
@@ -1168,25 +1281,50 @@ actor CloudSyncRemoteImportActor {
         var totalReviewEvents = 0
         var reviewPermissionDenied = 0
 
-        for document in documents {
-            let reviewDocuments: [QueryDocumentSnapshot]
-            do {
-                reviewDocuments = try await Firestore.firestore()
-                    .collection("users")
-                    .document(uid)
-                    .collection("decks")
-                    .document(deckID)
-                    .collection("cards")
-                    .document(document.documentID)
-                    .collection("reviewEvents")
-                    .getDocuments()
-                    .documents
-            } catch where Self.isPermissionDenied(error) {
-                reviewDocuments = []
-                reviewPermissionDenied += 1
+        var reviewEventsByCardID: [String: [CloudSyncRemoteReviewEventSnapshot]] = [:]
+        reviewEventsByCardID.reserveCapacity(documents.count)
+
+        try await withThrowingTaskGroup(
+            of: (cardID: String, events: [CloudSyncRemoteReviewEventSnapshot], permissionDenied: Bool).self
+        ) { group in
+            for document in documents {
+                let cardID = document.documentID
+                group.addTask {
+                    let reviewDocuments: [QueryDocumentSnapshot]
+                    do {
+                        reviewDocuments = try await Firestore.firestore()
+                            .collection("users")
+                            .document(uid)
+                            .collection("decks")
+                            .document(deckID)
+                            .collection("cards")
+                            .document(cardID)
+                            .collection("reviewEvents")
+                            .getDocuments()
+                            .documents
+                    } catch where Self.isPermissionDenied(error) {
+                        return (cardID, [], true)
+                    }
+
+                    return (
+                        cardID,
+                        reviewDocuments.map(CloudSyncRemoteReviewEventSnapshot.init(document:)),
+                        false
+                    )
+                }
             }
-            let reviewEvents = reviewDocuments.map(CloudSyncRemoteReviewEventSnapshot.init(document:))
-            totalReviewEvents += reviewEvents.count
+
+            for try await result in group {
+                reviewEventsByCardID[result.cardID] = result.events
+                totalReviewEvents += result.events.count
+                if result.permissionDenied {
+                    reviewPermissionDenied += 1
+                }
+            }
+        }
+
+        for document in documents {
+            let reviewEvents = reviewEventsByCardID[document.documentID] ?? []
             snapshots.append(try CloudSyncRemoteCardSnapshot(document: document, reviewEvents: reviewEvents))
         }
 

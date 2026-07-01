@@ -5,6 +5,7 @@
 //  Auxiliary Library views:
 //  - empty state
 //  - selection indicator
+//  - sync progress
 //  - blocking loading overlay
 //
 
@@ -57,6 +58,65 @@ struct LibraryEmptyStateView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Sync Progress
+
+struct LibrarySyncProgressPill: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    let progress: CloudSyncProgressSnapshot
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private var title: String {
+        guard progress.totalItems > 0 else {
+            return AppLocalization.string("Syncing…", locale: locale)
+        }
+
+        let format = AppLocalization.string("Syncing %d/%d", locale: locale)
+        return String(
+            format: format,
+            locale: locale,
+            progress.boundedCompletedItems,
+            progress.totalItems
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let fraction = progress.progressFraction {
+                ProgressView(value: fraction)
+                    .progressViewStyle(.linear)
+                    .tint(themeManager.accentColor.color)
+                    .frame(width: 48)
+            } else {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(themeManager.accentColor.color)
+            }
+
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .lineLimit(1)
+                .foregroundStyle(themeManager.textPrimary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            Capsule()
+                .fill(themeManager.surfaceSecondary.opacity(0.82))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
     }
 }
 

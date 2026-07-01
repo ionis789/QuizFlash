@@ -189,6 +189,12 @@ extension LibraryLayout {
             )
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.secondary)
+
+            if let syncProgress = cloudSyncCoordinator.syncProgress {
+                LibrarySyncProgressPill(progress: syncProgress)
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -210,6 +216,7 @@ extension LibraryLayout {
                 }
         }
         .transition(.opacity)
+        .animation(.easeInOut(duration: 0.18), value: cloudSyncCoordinator.syncProgress)
     }
 
     @ViewBuilder
