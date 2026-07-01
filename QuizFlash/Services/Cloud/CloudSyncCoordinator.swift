@@ -12,13 +12,7 @@ import SwiftData
 
 // MARK: - Cloud Sync Progress
 
-nonisolated enum CloudSyncProgressPhase: String, Sendable {
-    case importing
-    case uploading
-}
-
 nonisolated struct CloudSyncProgressSnapshot: Equatable, Sendable {
-    let phase: CloudSyncProgressPhase
     let completedItems: Int
     let totalItems: Int
     let failedItems: Int
@@ -53,6 +47,7 @@ final class CloudSyncCoordinator {
     @ObservationIgnored private var remoteImportTask: Task<Void, Never>?
     @ObservationIgnored private var pendingRemoteDecks: [CloudSyncRemoteDeckHeader] = []
     @ObservationIgnored private var pendingRemoteFolders: [CloudSyncRemoteFolderHeader] = []
+    @ObservationIgnored private var pendingMissingRemoteDeckIDs: Set<String> = []
 
     private(set) var activeUID: String?
     private(set) var lastErrorMessage: String?
@@ -124,6 +119,7 @@ final class CloudSyncCoordinator {
         remoteImportActor = nil
         pendingRemoteDecks.removeAll()
         pendingRemoteFolders.removeAll()
+        pendingMissingRemoteDeckIDs.removeAll()
         activeUID = nil
         modelContainer = nil
         lastErrorMessage = nil
@@ -261,7 +257,6 @@ final class CloudSyncCoordinator {
             )
             guard !operations.isEmpty else { return }
 
-            beginSyncProgress(.uploading, totalItems: operations.count)
             let context = ModelContext(modelContainer)
             for operation in operations {
                 guard !Task.isCancelled else { return }
@@ -367,7 +362,6 @@ final class CloudSyncCoordinator {
                             "removed": String(shouldRemoveOperation)
                         ]
                     )
-                    advanceSyncProgress(.uploading)
                     lastErrorMessage = nil
                 } catch {
                     trace(
@@ -378,7 +372,6 @@ final class CloudSyncCoordinator {
                         ]
                     )
                     lastErrorMessage = error.localizedDescription
-                    advanceSyncProgress(.uploading, failed: true)
                     scheduleRetry()
                     return
                 }
@@ -404,43 +397,31 @@ final class CloudSyncCoordinator {
         }
     }
 
-    private func beginSyncProgress(_ phase: CloudSyncProgressPhase, totalItems: Int) {
-        guard totalItems > 0 else {
-            if syncProgress?.phase == phase {
-                syncProgress = nil
-            }
-            return
-        }
+    private func registerMissingRemoteDecks(_ deckIDs: Set<String>) {
+        let newDeckIDs = deckIDs.subtracting(pendingMissingRemoteDeckIDs)
+        guard !newDeckIDs.isEmpty else { return }
 
+        pendingMissingRemoteDeckIDs.formUnion(newDeckIDs)
+        let completedItems = syncProgress?.completedItems ?? 0
+        let failedItems = syncProgress?.failedItems ?? 0
         syncProgress = CloudSyncProgressSnapshot(
-            phase: phase,
-            completedItems: 0,
-            totalItems: totalItems,
-            failedItems: 0
+            completedItems: completedItems,
+            totalItems: completedItems + pendingMissingRemoteDeckIDs.count,
+            failedItems: failedItems
         )
     }
 
-    private func increaseSyncProgressTotal(_ phase: CloudSyncProgressPhase, by count: Int) {
-        guard count > 0, let current = syncProgress, current.phase == phase else { return }
-        syncProgress = CloudSyncProgressSnapshot(
-            phase: current.phase,
-            completedItems: current.completedItems,
-            totalItems: current.totalItems + count,
-            failedItems: current.failedItems
-        )
-    }
+    private func finishMissingRemoteDeckImport(deckID: String, failed: Bool = false) {
+        guard pendingMissingRemoteDeckIDs.remove(deckID) != nil, let current = syncProgress else { return }
 
-    private func advanceSyncProgress(_ phase: CloudSyncProgressPhase, failed: Bool = false) {
-        guard let current = syncProgress, current.phase == phase else { return }
-        let completed = min(current.totalItems, current.completedItems + 1)
+        let completedItems = min(current.totalItems, current.completedItems + 1)
         let failedItems = current.failedItems + (failed ? 1 : 0)
-        if completed >= current.totalItems {
+        if pendingMissingRemoteDeckIDs.isEmpty || completedItems >= current.totalItems {
             syncProgress = nil
         } else {
             syncProgress = CloudSyncProgressSnapshot(
-                phase: current.phase,
-                completedItems: completed,
-                totalItems: current.totalItems,
+                completedItems: completedItems,
+                totalItems: completedItems + pendingMissingRemoteDeckIDs.count,
                 failedItems: failedItems
             )
         }
@@ -477,8 +458,8 @@ final class CloudSyncCoordinator {
         )
         guard !changedDecks.isEmpty else { return }
 
+        registerMissingRemoteDecks(missingRemoteDeckIDs(in: changedDecks))
         pendingRemoteDecks.append(contentsOf: changedDecks)
-        refreshRemoteImportProgressForNewItems(changedCount: changedDecks.count)
         scheduleRemoteImportProcessing()
     }
 
@@ -520,7 +501,6 @@ final class CloudSyncCoordinator {
         guard !changedFolders.isEmpty else { return }
 
         pendingRemoteFolders.append(contentsOf: changedFolders)
-        refreshRemoteImportProgressForNewItems(changedCount: changedFolders.count)
         scheduleRemoteImportProcessing()
     }
 
@@ -536,20 +516,9 @@ final class CloudSyncCoordinator {
         )
         pendingRemoteFolders.sort(by: Self.remoteFolderSort)
         pendingRemoteDecks.sort(by: Self.remoteDeckSort)
-        beginSyncProgress(.importing, totalItems: pendingRemoteFolders.count + pendingRemoteDecks.count)
         remoteImportTask = Task { @MainActor [weak self] in
             await self?.processPendingRemoteDecks()
             self?.remoteImportTask = nil
-        }
-    }
-
-    private func refreshRemoteImportProgressForNewItems(changedCount: Int) {
-        guard remoteImportTask != nil else { return }
-        if syncProgress?.phase == .importing {
-            increaseSyncProgressTotal(.importing, by: changedCount)
-        } else {
-            let pendingCount = pendingRemoteFolders.count + pendingRemoteDecks.count
-            beginSyncProgress(.importing, totalItems: pendingCount)
         }
     }
 
@@ -575,7 +544,6 @@ final class CloudSyncCoordinator {
                         "remote-folder-import-success",
                         details: ["folder": BackendTraceStore.safeUID(header.folderID)]
                     )
-                    advanceSyncProgress(.importing)
                     lastErrorMessage = nil
                 } catch {
                     trace(
@@ -585,7 +553,6 @@ final class CloudSyncCoordinator {
                             "error": error.localizedDescription
                         ]
                     )
-                    advanceSyncProgress(.importing, failed: true)
                     lastErrorMessage = error.localizedDescription
                 }
                 continue
@@ -614,7 +581,7 @@ final class CloudSyncCoordinator {
                         "result": result.debugName
                     ]
                 )
-                advanceSyncProgress(.importing)
+                finishMissingRemoteDeckImport(deckID: header.deckID)
                 lastErrorMessage = nil
             } catch {
                 trace(
@@ -624,13 +591,36 @@ final class CloudSyncCoordinator {
                         "error": error.localizedDescription
                     ]
                 )
-                advanceSyncProgress(.importing, failed: true)
+                finishMissingRemoteDeckImport(deckID: header.deckID, failed: true)
                 lastErrorMessage = error.localizedDescription
             }
         }
     }
 
     // MARK: - Helpers
+
+    private func missingRemoteDeckIDs(in headers: [CloudSyncRemoteDeckHeader]) -> Set<String> {
+        guard let uid = activeUID, let modelContainer else { return [] }
+        let candidateIDs = Set(headers.filter { !$0.isDeleted }.map(\.deckID))
+        guard !candidateIDs.isEmpty else { return [] }
+
+        let context = ModelContext(modelContainer)
+        do {
+            let localDecks = try context.fetch(FetchDescriptor<DeckModel>())
+            let localCloudIDs = Set(
+                localDecks.lazy
+                    .filter { $0.ownerUID == uid }
+                    .compactMap(\.cloudID)
+            )
+            return candidateIDs.subtracting(localCloudIDs)
+        } catch {
+            trace(
+                "missing-deck-progress-scan-error",
+                details: ["error": error.localizedDescription]
+            )
+            return []
+        }
+    }
 
     private func currentUserID() -> String? {
         guard FirebaseApp.app() != nil else { return nil }
