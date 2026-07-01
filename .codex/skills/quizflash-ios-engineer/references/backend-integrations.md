@@ -7,7 +7,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Firebase project: the configured default project in `.firebaserc` is `quizflash-6b0ea`.
 - The iOS app boots Firebase in `App/QuizFlashApp.swift` and uses Firebase Auth, Firestore, and Firebase Functions.
 - Firestore rules are deployed to the fresh `quizflash-6b0ea` project. The project has no legacy user or deck data and must not acquire a first-login migration path.
-- Firestore is the canonical backend for Auth-linked profiles, background deck sync, manual premium state, free AI quota, and monthly AI usage.
+- Firestore is the canonical backend for Auth-linked profiles, background deck sync, manual premium state, free AI quota, and AI usage. Premium quota uses a rolling 30-day billing window anchored by the server-owned `aiBillingAnchorMs`, not a calendar month.
 - Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
 - Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
 - RevenueCat is not integrated yet. `SubscriptionManager` currently reads the canonical Firestore user document; `restorePurchases()` is intentionally a placeholder.
@@ -35,12 +35,13 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 `users/{uid}` is the user-owned profile plus server-owned access state.
 
 - Client-owned profile fields: `email`, `displayName`, `photoURL`, `providers`, and safe presentation metadata.
-- Server-owned or admin-owned fields: `premium`, `aiMonthlyBudgetMicroUSD`, `aiUsage`, `freeGenerationsUsed`, and `freeGenerationsLimit`. `plan` is read only as a temporary legacy fallback.
+- Server-owned or admin-owned fields: `premium`, `aiBillingAnchorMs`, `aiMonthlyBudgetMicroUSD`, `aiUsage`, `freeGenerationsUsed`, and `freeGenerationsLimit`. `plan` is read only as a temporary legacy fallback.
 - Current rules permit a signed-in user to create/update only their own safe profile fields. Quota and usage fields are server/admin-owned; the iOS client cannot initialize, increment, or reset them.
 - Do not make entitlement, budget, quota, or usage client-writable.
 - `users/{uid}.premium` is the canonical entitlement checkbox. An explicit `false` overrides any legacy `plan` value.
-- `users/{uid}.aiMonthlyBudgetMicroUSD` is the canonical per-user premium budget. `users/{uid}.aiUsage` is the canonical current-period usage map exposed for administration.
-- Historical monthly usage is mirrored atomically at `users/{uid}/usage/{YYYYMM}`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
+- `users/{uid}.aiBillingAnchorMs` is the server-owned premium activation anchor in epoch milliseconds. If it is missing for an existing development account, the Worker initializes it from the first premium D1 generation, otherwise from the current request time.
+- `users/{uid}.aiMonthlyBudgetMicroUSD` is the canonical per-user premium budget. `users/{uid}.aiUsage` is the canonical active-window usage map exposed for administration.
+- Historical usage is mirrored atomically at `users/{uid}/usage/{period}`. Calendar periods use `YYYYMM`; premium rolling billing periods use `r30_<windowStartMs>`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
 - Cloud deck data remains below `users/{uid}/decks/{deckId}/cards/{cardId}`. The current design uses soft deletion because client deletes are denied by the rules; account cleanup is a callable backend operation.
 
 Whenever the document shape changes, update all of these together: the iOS writer/reader, `firestore.rules`, Functions, migration/defaulting logic, and tests or emulator coverage.
@@ -60,11 +61,11 @@ Required behavior:
 
 1. Refresh plan state before presenting or confirming AI generation so a manual/admin entitlement change updates the picker promptly.
 2. Validate `targetCards` in the UI for clear feedback, then validate it again in the Firestore transaction or Callable Function. Never trust the picker clamp.
-3. Read `premium`, `aiMonthlyBudgetMicroUSD`, and current `aiUsage` from Firestore inside the trusted Worker request that authorizes or finalizes quota. Do not authorize from stale client memory, custom claims, or D1.
+3. Read `premium`, `aiBillingAnchorMs`, `aiMonthlyBudgetMicroUSD`, and current `aiUsage` from Firestore inside the trusted Worker request that authorizes or finalizes quota. Premium authorization must use the rolling 30-day billing window derived from `aiBillingAnchorMs`, not the current calendar month. Do not authorize from stale client memory or custom claims.
 4. Update the UI from the authoritative response or Firestore listener after a successful mutation.
 5. Make retries idempotent. Firestore `usageEvents/{generationId}` is created in the same atomic commit as the quota/usage mutation, so a network retry cannot consume twice.
 6. Do not charge a free generation for a failed provider request. Provider cost and tokens are still recorded for failed/expired requests that reached DeepSeek.
-7. D1 is operational storage only: generation sessions, provider-call idempotency, encrypted retry responses, prompt configuration, and a replaceable usage cache. Every authorization starts from Firestore, and D1 usage rows are overwritten from the canonical Firestore snapshot.
+7. D1 is operational storage plus premium billing-window telemetry: generation sessions, provider-call idempotency, encrypted retry responses, prompt configuration, and a replaceable usage cache. Every authorization starts from Firestore account state, then premium usage is rebuilt for the active rolling window from finalized D1 generation rows and mirrored back to Firestore.
 8. Test at least free request 1, free request 5, rejected request 6, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, plan changes while the app is open, and two concurrent requests.
 
 ## DeepSeek Production Boundary

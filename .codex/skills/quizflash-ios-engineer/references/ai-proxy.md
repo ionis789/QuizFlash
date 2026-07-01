@@ -18,7 +18,7 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 ## Current Release Flow
 
 1. The final Generate action calls `CloudAIProxyClient.startGeneration` with a Firebase ID token, target-card count, and idempotency key.
-2. `POST /v1/generations/start` verifies Firebase Auth, reads canonical entitlement and current-month usage from Firestore, then creates the operational session through the UID Durable Object.
+2. `POST /v1/generations/start` verifies Firebase Auth, reads canonical entitlement from Firestore, derives the active quota window, then creates the operational session through the UID Durable Object. Premium quota windows are rolling 30-day windows anchored by server-owned `users/{uid}.aiBillingAnchorMs`, not calendar months.
 3. `AIFlashcardService` keeps its local planner and builds the exact OpenAI-compatible request body: model, messages, response format, temperature, and thinking options.
 4. `AIRequestTransport.cloudProxy` changes only the destination and adds generation/session/provider-call headers. `POST /v1/chat/completions` forwards the received body bytes to DeepSeek and returns the response bytes unchanged.
 5. iOS derives a best-effort deck title locally from source headings or the PDF filename, then runs the existing retry policy, JSON/DTO decoding, LaTeX normalization, and local card insertion. New clients send only card batches through the proxy; the title operation remains accepted for backward compatibility.
@@ -32,10 +32,10 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 
 ### Usage Authority
 
-- Firestore is the only source of truth for plan, free quota, and monthly AI usage.
-- The root `users/{uid}` fields `premium`, `aiMonthlyBudgetMicroUSD`, and current-period `aiUsage` are canonical and directly editable by an administrator.
-- Monthly documents at `users/{uid}/usage/{YYYYMM}` are historical archives written atomically with the root usage projection.
-- D1 usage tables are caches and operational telemetry. The Worker must never push a stale D1 counter into Firestore.
+- Firestore is the source of truth for plan, free quota, the premium billing anchor, and the active AI usage projection.
+- The root `users/{uid}` fields `premium`, `aiBillingAnchorMs`, `aiMonthlyBudgetMicroUSD`, and active-window `aiUsage` are canonical and directly editable by an administrator.
+- Usage documents at `users/{uid}/usage/{period}` are archives written atomically with the root usage projection. Free/calendar periods use `YYYYMM`; premium billing periods use `r30_<windowStartMs>`.
+- D1 usage tables are operational telemetry and the source for reconstructing premium usage inside the active rolling 30-day window. The Worker must never push D1 usage outside that active window into Firestore quota state.
 - An admin edit in Firestore affects the next entitlement/start/finalization request. That request also replaces the corresponding D1 cache row.
 - Failed or expired generations do not consume a free generation, but any provider cost/tokens already incurred are finalized in monthly Firestore usage.
 

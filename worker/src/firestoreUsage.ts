@@ -21,6 +21,7 @@ export type FirestoreMonthlyUsage = {
 export type FirestoreAccountState = {
   uid: string;
   premium: boolean;
+  aiBillingAnchorMs: number | null;
   freeGenerationsUsed: number;
   freeGenerationsLimit: number;
   monthlyBudgetMicroUSD: number;
@@ -169,6 +170,9 @@ export async function replaceFirestoreMonthlyUsage(
         userPath(uid, env),
         {
           premium: {booleanValue: nextAccount.premium},
+          ...(nextAccount.aiBillingAnchorMs !== null
+            ? {aiBillingAnchorMs: integerValue(nextAccount.aiBillingAnchorMs)}
+            : {}),
           freeGenerationsUsed: integerValue(nextAccount.freeGenerationsUsed),
           freeGenerationsLimit: integerValue(nextAccount.freeGenerationsLimit),
           aiMonthlyBudgetMicroUSD: integerValue(nextAccount.monthlyBudgetMicroUSD),
@@ -194,6 +198,43 @@ export async function replaceFirestoreMonthlyUsage(
   }
 
   throw new Error("Firestore usage repair conflicted too many times.");
+}
+
+export async function writeFirestoreBillingAnchor(
+  uid: string,
+  period: string,
+  anchorMs: number,
+  env: FirestoreAdminEnv
+): Promise<FirestoreAccountState> {
+  const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+
+  for (let attempt = 0; attempt < maximumCommitAttempts; attempt += 1) {
+    const documents = await readAccountDocuments(uid, period, env, accessToken);
+    const nextAccount = {
+      ...documents.account,
+      aiBillingAnchorMs: nonNegativeInteger(anchorMs)
+    };
+    const response = await commitWrites([
+      updateWrite(
+        userPath(uid, env),
+        {
+          aiBillingAnchorMs: integerValue(nextAccount.aiBillingAnchorMs ?? anchorMs),
+          updatedAt: {timestampValue: new Date().toISOString()}
+        },
+        documents.profile
+      )
+    ], env, accessToken);
+
+    if (response.ok) {
+      return nextAccount;
+    }
+
+    if (response.status !== 409 && response.status !== 412) {
+      throw new Error(`Firestore billing anchor write failed with status ${response.status}.`);
+    }
+  }
+
+  throw new Error("Firestore billing anchor write conflicted too many times.");
 }
 
 export function applyingUsageDelta(
@@ -239,16 +280,24 @@ export function parseFirestoreAccountState(
   const rootUsageFields = profileFields.aiUsage?.mapValue?.fields;
   const rootUsagePeriod = rootUsageFields?.period?.stringValue;
   const monthlyArchiveFields = usage?.fields ?? {};
-  const usageFields = rootUsagePeriod === period && !usageFieldsAreEmpty(rootUsageFields)
+  const premiumField = profileFields.premium?.booleanValue;
+  const premium = typeof premiumField === "boolean"
+    ? premiumField
+    : profileFields.plan?.stringValue === "premium";
+  const aiBillingAnchorMs = nullableIntegerField(profileFields, "aiBillingAnchorMs");
+  const rootUsageMatchesRequest = rootUsagePeriod === period
+    || (premium && aiBillingAnchorMs !== null && rootUsagePeriod?.startsWith("r30_") === true);
+  const usageFields = rootUsageMatchesRequest && !usageFieldsAreEmpty(rootUsageFields)
     ? rootUsageFields ?? {}
     : monthlyArchiveFields;
-  const premiumField = profileFields.premium?.booleanValue;
+  const resolvedUsagePeriod = rootUsageMatchesRequest && rootUsagePeriod
+    ? rootUsagePeriod
+    : period;
 
   return {
     uid,
-    premium: typeof premiumField === "boolean"
-      ? premiumField
-      : profileFields.plan?.stringValue === "premium",
+    premium,
+    aiBillingAnchorMs,
     freeGenerationsUsed: integerField(profileFields, "freeGenerationsUsed", 0),
     freeGenerationsLimit: integerField(profileFields, "freeGenerationsLimit", defaultFreeGenerationsLimit),
     monthlyBudgetMicroUSD: integerField(
@@ -257,7 +306,7 @@ export function parseFirestoreAccountState(
       fallbackMonthlyBudgetMicroUSD
     ),
     monthlyUsage: {
-      period,
+      period: resolvedUsagePeriod,
       generatedCards: integerField(usageFields, "generatedCards", 0),
       requestCount: integerField(usageFields, "requestCount", 0),
       premiumRequestCount: integerField(usageFields, "premiumRequestCount", 0),
@@ -308,6 +357,9 @@ function firestoreUsageCommitWrites(
       userPath(nextAccount.uid, env),
       {
         premium: {booleanValue: nextAccount.premium},
+        ...(nextAccount.aiBillingAnchorMs !== null
+          ? {aiBillingAnchorMs: integerValue(nextAccount.aiBillingAnchorMs)}
+          : {}),
         freeGenerationsUsed: integerValue(nextAccount.freeGenerationsUsed),
         freeGenerationsLimit: integerValue(nextAccount.freeGenerationsLimit),
         aiMonthlyBudgetMicroUSD: integerValue(nextAccount.monthlyBudgetMicroUSD),
@@ -418,6 +470,12 @@ function missingCanonicalProfileFields(
   const existing = documents.profile.document?.fields ?? {};
   const fields: Record<string, FirestoreValue> = {};
   const usageFields = existing.aiUsage?.mapValue?.fields;
+  const premiumField = existing.premium?.booleanValue;
+  const premium = typeof premiumField === "boolean"
+    ? premiumField
+    : existing.plan?.stringValue === "premium";
+  const hasRollingAnchor = nullableIntegerField(existing, "aiBillingAnchorMs") !== null;
+  const requireCurrentPeriodUsage = !premium || !hasRollingAnchor;
   const requiredUsageFields = [
     "period",
     "generatedCards",
@@ -441,8 +499,8 @@ function missingCanonicalProfileFields(
     fields.aiMonthlyBudgetMicroUSD = integerValue(documents.account.monthlyBudgetMicroUSD);
   }
   if (
-    usageFields?.period?.stringValue !== documents.account.monthlyUsage.period ||
-    requiredUsageFields.some((field) => usageFields?.[field] === undefined)
+    requiredUsageFields.some((field) => usageFields?.[field] === undefined) ||
+    (requireCurrentPeriodUsage && usageFields?.period?.stringValue !== documents.account.monthlyUsage.period)
   ) {
     fields.aiUsage = currentUsageValue(documents.account, undefined, new Date().toISOString());
   }
@@ -521,6 +579,14 @@ function integerField(
 ): number {
   const parsed = Number(fields[field]?.integerValue);
   return Number.isFinite(parsed) ? nonNegativeInteger(parsed) : fallback;
+}
+
+function nullableIntegerField(
+  fields: Record<string, FirestoreValue>,
+  field: string
+): number | null {
+  const parsed = Number(fields[field]?.integerValue);
+  return Number.isFinite(parsed) && parsed > 0 ? nonNegativeInteger(parsed) : null;
 }
 
 function integerValue(value: number): FirestoreValue {

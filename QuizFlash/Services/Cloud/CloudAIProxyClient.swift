@@ -50,6 +50,10 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
     let reservedMicroUSD: Int
     let availableMicroUSD: Int?
     let percent: Double?
+    let usageBasis: String?
+    let billingWindowKey: String?
+    let billingWindowStartMs: Int?
+    let billingWindowEndMs: Int?
 
     var usageProgress: Double {
         guard let limitMicroUSD, limitMicroUSD > 0 else { return 0 }
@@ -65,7 +69,11 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
         consumedMicroUSD: Int? = nil,
         reservedMicroUSD: Int = 0,
         availableMicroUSD: Int? = nil,
-        percent: Double? = nil
+        percent: Double? = nil,
+        usageBasis: String? = nil,
+        billingWindowKey: String? = nil,
+        billingWindowStartMs: Int? = nil,
+        billingWindowEndMs: Int? = nil
     ) {
         self.premium = premium
         self.freeGenerationsUsed = freeGenerationsUsed
@@ -76,6 +84,10 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
         self.reservedMicroUSD = reservedMicroUSD
         self.availableMicroUSD = availableMicroUSD
         self.percent = percent
+        self.usageBasis = usageBasis
+        self.billingWindowKey = billingWindowKey
+        self.billingWindowStartMs = billingWindowStartMs
+        self.billingWindowEndMs = billingWindowEndMs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -88,6 +100,10 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
         case reservedMicroUSD
         case availableMicroUSD
         case percent
+        case usageBasis
+        case billingWindowKey
+        case billingWindowStartMs
+        case billingWindowEndMs
     }
 
     init(from decoder: Decoder) throws {
@@ -102,7 +118,11 @@ nonisolated struct CloudAIQuotaState: Decodable, Sendable {
             consumedMicroUSD: try container.decodeIfPresent(Int.self, forKey: .consumedMicroUSD),
             reservedMicroUSD: try container.decodeIfPresent(Int.self, forKey: .reservedMicroUSD) ?? 0,
             availableMicroUSD: try container.decodeIfPresent(Int.self, forKey: .availableMicroUSD),
-            percent: try container.decodeIfPresent(Double.self, forKey: .percent)
+            percent: try container.decodeIfPresent(Double.self, forKey: .percent),
+            usageBasis: try container.decodeIfPresent(String.self, forKey: .usageBasis),
+            billingWindowKey: try container.decodeIfPresent(String.self, forKey: .billingWindowKey),
+            billingWindowStartMs: try container.decodeIfPresent(Int.self, forKey: .billingWindowStartMs),
+            billingWindowEndMs: try container.decodeIfPresent(Int.self, forKey: .billingWindowEndMs)
         )
     }
 }
@@ -502,7 +522,11 @@ final class CloudAIProxyClient {
             "limitMicroUSD": String(quota.limitMicroUSD ?? -1),
             "availableMicroUSD": String(quota.availableMicroUSD ?? -1),
             "usageProgress": String(quota.usageProgress),
-            "percent": String(quota.percent ?? -1)
+            "percent": String(quota.percent ?? -1),
+            "usageBasis": quota.usageBasis ?? "unknown",
+            "billingWindowKey": quota.billingWindowKey ?? "none",
+            "billingWindowStartMs": String(quota.billingWindowStartMs ?? -1),
+            "billingWindowEndMs": String(quota.billingWindowEndMs ?? -1)
         ]
     }
 

@@ -17,6 +17,7 @@ service cloud.firestore {
         'usage',
         'cost',
         'aiUsage',
+        'aiBillingAnchorMs',
         'aiMonthlyBudgetMicroUSD',
         'freeGenerationsUsed',
         'freeGenerationsLimit'
@@ -32,6 +33,7 @@ service cloud.firestore {
           'usage',
           'cost',
           'aiUsage',
+          'aiBillingAnchorMs',
           'aiMonthlyBudgetMicroUSD',
           'freeGenerationsUsed',
           'freeGenerationsLimit'

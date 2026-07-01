@@ -363,7 +363,11 @@ final class SubscriptionManager {
             "limitMicroUSD": String(quota.limitMicroUSD ?? -1),
             "availableMicroUSD": String(quota.availableMicroUSD ?? -1),
             "usageProgress": String(quota.usageProgress),
-            "percent": String(quota.percent ?? -1)
+            "percent": String(quota.percent ?? -1),
+            "usageBasis": quota.usageBasis ?? "unknown",
+            "billingWindowKey": quota.billingWindowKey ?? "none",
+            "billingWindowStartMs": String(quota.billingWindowStartMs ?? -1),
+            "billingWindowEndMs": String(quota.billingWindowEndMs ?? -1)
         ]
     }
 

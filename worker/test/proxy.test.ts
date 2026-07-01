@@ -1,6 +1,6 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse} from "../src";
+import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, rollingBillingWindow} from "../src";
 import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
@@ -55,7 +55,11 @@ describe("QuizFlash AI proxy", () => {
       consumedMicroUSD: 12_000,
       reservedMicroUSD: 0,
       availableMicroUSD: 8_000,
-      percent: 0.6
+      percent: 0.6,
+      usageBasis: "rolling_30d",
+      billingWindowKey: "r30_1782323063585",
+      billingWindowStartMs: 1_782_323_063_585,
+      billingWindowEndMs: 1_784_915_063_585
     };
 
     const response = promptStartResponse({generationId: "generation", usageQuota}, promptConfig, promptConfig.version);
@@ -89,6 +93,31 @@ describe("QuizFlash AI proxy", () => {
     expect(account.monthlyBudgetMicroUSD).toBe(2_500_000);
     expect(account.monthlyUsage.costMicroUSD).toBe(900);
     expect(account.monthlyUsage.requestCount).toBe(2);
+  });
+
+  it("reads the server-owned rolling billing anchor", () => {
+    const account = parseFirestoreAccountState("user", "202606", {
+      fields: {
+        premium: {booleanValue: true},
+        aiBillingAnchorMs: {integerValue: "1782323063585"}
+      }
+    }, null);
+
+    expect(account.aiBillingAnchorMs).toBe(1_782_323_063_585);
+  });
+
+  it("uses rolling 30-day billing windows from the activation anchor", () => {
+    const anchor = Date.UTC(2026, 5, 24, 17, 44, 23, 585);
+    const currentWindow = rollingBillingWindow(anchor, Date.UTC(2026, 6, 1, 8, 35, 0));
+    const nextWindow = rollingBillingWindow(anchor, anchor + 31 * 24 * 60 * 60 * 1000);
+
+    expect(currentWindow).toMatchObject({
+      key: `r30_${anchor}`,
+      startMs: anchor,
+      endMs: anchor + 30 * 24 * 60 * 60 * 1000,
+      basis: "rolling_30d"
+    });
+    expect(nextWindow.startMs).toBe(anchor + 30 * 24 * 60 * 60 * 1000);
   });
 
   it("lets the canonical premium boolean override the legacy plan string", () => {

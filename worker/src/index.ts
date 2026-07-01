@@ -3,6 +3,7 @@ import {
   finalizeFirestoreGenerationUsage,
   readFirestoreAccountState,
   replaceFirestoreMonthlyUsage,
+  writeFirestoreBillingAnchor,
   type FirestoreMonthlyUsage,
   type FirestoreAccountState
 } from "./firestoreUsage";
@@ -55,6 +56,17 @@ type QuotaResponse = {
   reservedMicroUSD: number;
   availableMicroUSD: number | null;
   percent: number | null;
+  usageBasis: "calendar_month" | "rolling_30d";
+  billingWindowKey: string;
+  billingWindowStartMs: number;
+  billingWindowEndMs: number;
+};
+
+type UsageWindow = {
+  key: string;
+  startMs: number;
+  endMs: number;
+  basis: "calendar_month" | "rolling_30d";
 };
 
 type GenerationSessionResponse = {
@@ -205,8 +217,8 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         return sessionRejection(429, "resource-exhausted", "Another AI generation is already running.");
       }
     }
-    const account = await readFirestoreAccountState(input.uid, monthKey(now), this.env);
-    await this.syncD1UsageCache(account, now);
+    const quotaAccount = await this.quotaAccount(input.uid, now);
+    const {account, window} = quotaAccount;
 
     const existing = await this.env.AI_DB.prepare(
       "SELECT id, status, premium, target_cards FROM ai_generations WHERE uid = ? AND idempotency_key = ?"
@@ -215,7 +227,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     if (existing?.status === "succeeded" || existing?.status === "partial") {
       return {
         kind: "session",
-        session: await this.sessionResponse(existing.id, existing.target_cards, now, account)
+        session: await this.sessionResponse(existing.id, existing.target_cards, now, account, window)
       };
     }
 
@@ -227,7 +239,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         429,
         "resource-exhausted",
         "Free AI generation limit reached.",
-        await this.entitlementResponse(account)
+        await this.entitlementResponse(account, window)
       );
     }
 
@@ -237,7 +249,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     }
 
     if (account.premium) {
-      const usageQuota = await this.entitlementResponse(account);
+      const usageQuota = await this.entitlementResponse(account, window);
       if ((usageQuota.availableMicroUSD ?? 0) <= 0) {
         return sessionRejection(429, "AI_QUOTA_EXHAUSTED", "Monthly AI budget reached.", usageQuota);
       }
@@ -262,7 +274,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       ).run();
     }
 
-    const response = await this.sessionResponse(generationId, input.targetCards, now, account);
+    const response = await this.sessionResponse(generationId, input.targetCards, now, account, window);
     await this.ctx.storage.put("active", {
       generationId,
       idempotencyKey: input.idempotencyKey,
@@ -294,7 +306,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
     const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
-    const account = await finalizeFirestoreGenerationUsage(
+    await finalizeFirestoreGenerationUsage(
       generation.uid,
       monthKey(now),
       generationUsageDelta(generationId, finalStatus, validatedCards, generation),
@@ -303,9 +315,9 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     await this.env.AI_DB.prepare(
       "UPDATE ai_generations SET status = ?, validated_cards = ?, updated_at_ms = ?, completed_at_ms = ? WHERE id = ?"
     ).bind(finalStatus, validatedCards, now, now, generationId).run();
-    await this.syncD1UsageCache(account, now);
+    const {account, window} = await this.quotaAccount(generation.uid, now);
     await this.clearActive(generationId);
-    return this.entitlementResponse(account);
+    return this.entitlementResponse(account, window);
   }
 
   async fail(generationId: string, sessionToken: string): Promise<QuotaResponse> {
@@ -317,7 +329,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const now = Date.now();
     const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
-    const account = await finalizeFirestoreGenerationUsage(
+    await finalizeFirestoreGenerationUsage(
       generation.uid,
       monthKey(now),
       generationUsageDelta(generationId, "failed", 0, generation),
@@ -326,22 +338,16 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     await this.env.AI_DB.prepare(
       "UPDATE ai_generations SET status = 'failed', updated_at_ms = ?, completed_at_ms = ? WHERE id = ? AND status IN ('reserved', 'running')"
     ).bind(now, now, generationId).run();
-    await this.syncD1UsageCache(account, now);
+    const {account, window} = await this.quotaAccount(generation.uid, now);
     await this.clearActive(generationId);
-    return this.entitlementResponse(account);
+    return this.entitlementResponse(account, window);
   }
 
   async entitlement(uid: string): Promise<QuotaResponse> {
     return this.enqueue(async () => {
       const now = Date.now();
-      const period = monthKey(now);
-      const account = await this.repairEmptyFirestoreUsageFromD1IfNeeded(
-        await readFirestoreAccountState(uid, period, this.env),
-        period,
-        now
-      );
-      await this.syncD1UsageCache(account, now);
-      return this.entitlementResponse(account);
+      const {account, window} = await this.quotaAccount(uid, now);
+      return this.entitlementResponse(account, window);
     });
   }
 
@@ -412,17 +418,19 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         const now = Date.now();
         const generation = await this.generationAccountingRow(active.generationId);
         if (generation) {
-          const account = await finalizeFirestoreGenerationUsage(
+          await finalizeFirestoreGenerationUsage(
             generation.uid,
             monthKey(now),
             generationUsageDelta(active.generationId, "expired", 0, generation),
             this.env
           );
-          await this.syncD1UsageCache(account, now);
         }
         await this.env.AI_DB.prepare(
           "UPDATE ai_generations SET status = 'expired', updated_at_ms = ? WHERE id = ? AND status IN ('reserved', 'running')"
         ).bind(now, active.generationId).run();
+        if (generation) {
+          await this.quotaAccount(generation.uid, now);
+        }
         await this.clearActive(active.generationId);
       }
     });
@@ -432,10 +440,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     generationId: string,
     targetCards: number,
     now: number,
-    account: FirestoreAccountState
+    account: FirestoreAccountState,
+    window: UsageWindow
   ): Promise<GenerationSessionResponse> {
     const sessionToken = await sessionTokenFor(generationId, this.env.RESPONSE_CACHE_ENCRYPTION_KEY);
-    const usageQuota = await this.entitlementResponse(account);
+    const usageQuota = await this.entitlementResponse(account, window);
     return {
       generationId,
       sessionToken,
@@ -446,10 +455,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     };
   }
 
-  private async entitlementResponse(account: FirestoreAccountState): Promise<QuotaResponse> {
+  private async entitlementResponse(account: FirestoreAccountState, window: UsageWindow): Promise<QuotaResponse> {
     const monthly = await this.env.AI_DB.prepare(
       "SELECT reserved_cost_micro_usd FROM ai_monthly_usage WHERE uid = ? AND period = ?"
-    ).bind(account.uid, account.monthlyUsage.period).first<{ reserved_cost_micro_usd: number }>();
+    ).bind(account.uid, window.key).first<{ reserved_cost_micro_usd: number }>();
     const consumed = Math.max(0, account.monthlyUsage.costMicroUSD);
     const reserved = Math.max(0, monthly?.reserved_cost_micro_usd ?? 0);
     const limit = account.premium ? account.monthlyBudgetMicroUSD : null;
@@ -464,7 +473,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       consumedMicroUSD: consumed,
       reservedMicroUSD: reserved,
       availableMicroUSD: available,
-      percent
+      percent,
+      usageBasis: window.basis,
+      billingWindowKey: window.key,
+      billingWindowStartMs: window.startMs,
+      billingWindowEndMs: window.endMs
     };
   }
 
@@ -505,33 +518,57 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     ]);
   }
 
-  private async repairEmptyFirestoreUsageFromD1IfNeeded(
+  private async quotaAccount(uid: string, now: number): Promise<{account: FirestoreAccountState; window: UsageWindow}> {
+    const calendarPeriod = monthKey(now);
+    let account = await readFirestoreAccountState(uid, calendarPeriod, this.env);
+    let window = calendarUsageWindow(calendarPeriod);
+
+    if (account.premium) {
+      account = await this.accountWithBillingAnchor(account, calendarPeriod, now);
+      window = rollingBillingWindow(account.aiBillingAnchorMs ?? now, now);
+      const usage = await this.d1UsageInWindow(uid, window);
+      account = usageSnapshotsEqual(account.monthlyUsage, usage)
+        ? {...account, monthlyUsage: usage}
+        : await replaceFirestoreMonthlyUsage(uid, window.key, usage, this.env);
+    }
+
+    await this.syncD1UsageCache(account, now);
+    return {account, window};
+  }
+
+  private async accountWithBillingAnchor(
     account: FirestoreAccountState,
     period: string,
     now: number
   ): Promise<FirestoreAccountState> {
-    if (!isEmptyUsage(account.monthlyUsage)) {
+    if (account.aiBillingAnchorMs !== null) {
       return account;
     }
 
-    const recoveredUsage = await this.d1FinalizedUsage(account.uid, period);
-    if (recoveredUsage.requestCount <= 0 || isEmptyUsage(recoveredUsage)) {
-      return account;
-    }
+    const firstPremiumGenerationMs = await this.firstPremiumGenerationCreatedAtMs(account.uid);
+    const anchorMs = firstPremiumGenerationMs !== null && firstPremiumGenerationMs <= now
+      ? firstPremiumGenerationMs
+      : now;
 
     console.log(JSON.stringify({
-      event: "firestore_usage_repair_from_d1",
+      event: "ai_billing_anchor_initialized",
       uid_suffix: account.uid.slice(-6),
-      period,
-      request_count: recoveredUsage.requestCount,
-      cost_micro_usd: recoveredUsage.costMicroUSD,
+      anchor_ms: anchorMs,
+      source: firstPremiumGenerationMs !== null ? "first_premium_generation" : "now",
       at_ms: now
     }));
-    return replaceFirestoreMonthlyUsage(account.uid, period, recoveredUsage, this.env);
+    return writeFirestoreBillingAnchor(account.uid, period, anchorMs, this.env);
   }
 
-  private async d1FinalizedUsage(uid: string, period: string): Promise<FirestoreMonthlyUsage> {
-    const bounds = monthBounds(period);
+  private async firstPremiumGenerationCreatedAtMs(uid: string): Promise<number | null> {
+    const row = await this.env.AI_DB.prepare(
+      "SELECT MIN(created_at_ms) AS createdAtMs FROM ai_generations WHERE uid = ? AND premium = 1 AND created_at_ms > 0"
+    ).bind(uid).first<{createdAtMs: number | null}>();
+    const value = nonNegativeInteger(row?.createdAtMs);
+    return value > 0 ? value : null;
+  }
+
+  private async d1UsageInWindow(uid: string, window: UsageWindow): Promise<FirestoreMonthlyUsage> {
     const row = await this.env.AI_DB.prepare(
       `SELECT
         COALESCE(SUM(validated_cards), 0) AS "generatedCards",
@@ -549,10 +586,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         AND created_at_ms >= ?
         AND created_at_ms < ?
         AND status IN ('succeeded', 'partial', 'failed', 'expired')`
-    ).bind(uid, bounds.startMs, bounds.endMs).first<D1UsageRepairRow>();
+    ).bind(uid, window.startMs, window.endMs).first<D1UsageRepairRow>();
 
     return {
-      period,
+      period: window.key,
       generatedCards: nonNegativeInteger(row?.generatedCards),
       requestCount: nonNegativeInteger(row?.requestCount),
       premiumRequestCount: nonNegativeInteger(row?.premiumRequestCount),
@@ -1131,6 +1168,20 @@ function isEmptyUsage(usage: FirestoreMonthlyUsage): boolean {
     && usage.cacheMissTokens === 0;
 }
 
+function usageSnapshotsEqual(left: FirestoreMonthlyUsage, right: FirestoreMonthlyUsage): boolean {
+  return left.period === right.period
+    && left.generatedCards === right.generatedCards
+    && left.requestCount === right.requestCount
+    && left.premiumRequestCount === right.premiumRequestCount
+    && left.freeRequestCount === right.freeRequestCount
+    && left.costMicroUSD === right.costMicroUSD
+    && left.promptTokens === right.promptTokens
+    && left.completionTokens === right.completionTokens
+    && left.totalTokens === right.totalTokens
+    && left.cacheHitTokens === right.cacheHitTokens
+    && left.cacheMissTokens === right.cacheMissTokens;
+}
+
 function monthBounds(period: string): {startMs: number; endMs: number} {
   const match = /^(\d{4})(\d{2})$/.exec(period);
   if (!match) throw new WorkerError(500, "internal", "Usage period is invalid.");
@@ -1139,6 +1190,32 @@ function monthBounds(period: string): {startMs: number; endMs: number} {
   return {
     startMs: Date.UTC(year, monthIndex, 1),
     endMs: Date.UTC(year, monthIndex + 1, 1)
+  };
+}
+
+function calendarUsageWindow(period: string): UsageWindow {
+  const bounds = monthBounds(period);
+  return {
+    key: period,
+    startMs: bounds.startMs,
+    endMs: bounds.endMs,
+    basis: "calendar_month"
+  };
+}
+
+const rollingBillingWindowDurationMs = 30 * 24 * 60 * 60 * 1000;
+
+export function rollingBillingWindow(anchorMs: number, now: number): UsageWindow {
+  const safeAnchor = nonNegativeInteger(anchorMs);
+  const safeNow = Math.max(safeAnchor, nonNegativeInteger(now));
+  const elapsed = Math.max(0, safeNow - safeAnchor);
+  const windowIndex = Math.floor(elapsed / rollingBillingWindowDurationMs);
+  const startMs = safeAnchor + windowIndex * rollingBillingWindowDurationMs;
+  return {
+    key: `r30_${startMs}`,
+    startMs,
+    endMs: startMs + rollingBillingWindowDurationMs,
+    basis: "rolling_30d"
   };
 }
 
