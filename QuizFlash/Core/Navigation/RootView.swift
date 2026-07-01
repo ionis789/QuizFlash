@@ -10,9 +10,7 @@ struct RootView: View {
 
     @State private var hasStartedLaunchAnimation = false
     @State private var isLaunchAnimationVisible = true
-    @State private var isLaunchPulseActive = false
-    @State private var isLaunchFlashActive = false
-    @State private var isLaunchExiting = false
+    @State private var launchPhase: QuizFlashLaunchPhase = .initial
 
     var body: some View {
         ZStack {
@@ -36,9 +34,7 @@ struct RootView: View {
 
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
-                    isPulseActive: isLaunchPulseActive,
-                    isFlashActive: isLaunchFlashActive,
-                    isExiting: isLaunchExiting
+                    phase: launchPhase
                 )
                 .transition(.opacity)
                 .zIndex(2)
@@ -56,28 +52,37 @@ struct RootView: View {
 
         let pulseAnimation: Animation = reduceMotion
             ? .easeOut(duration: 0.16)
-            : .spring(response: 0.48, dampingFraction: 0.72)
-        let flashAnimation: Animation = reduceMotion
+            : .spring(response: 0.28, dampingFraction: 0.68)
+        let settleAnimation: Animation = reduceMotion
             ? .easeOut(duration: 0.18)
-            : .easeOut(duration: 0.44)
+            : .spring(response: 0.46, dampingFraction: 0.72)
+        let liftAnimation: Animation = reduceMotion
+            ? .easeInOut(duration: 0.28)
+            : .spring(response: 0.58, dampingFraction: 0.82)
         let exitAnimation: Animation = reduceMotion
             ? .easeInOut(duration: 0.18)
-            : .easeInOut(duration: 0.34)
+            : .easeInOut(duration: 0.32)
 
         withAnimation(pulseAnimation) {
-            isLaunchPulseActive = true
+            launchPhase = .compressed
         }
 
-        try? await Task.sleep(nanoseconds: reduceMotion ? 240_000_000 : 340_000_000)
+        try? await Task.sleep(nanoseconds: reduceMotion ? 140_000_000 : 190_000_000)
 
-        withAnimation(flashAnimation) {
-            isLaunchFlashActive = true
+        withAnimation(settleAnimation) {
+            launchPhase = .settled
         }
 
-        try? await Task.sleep(nanoseconds: reduceMotion ? 300_000_000 : 680_000_000)
+        try? await Task.sleep(nanoseconds: reduceMotion ? 300_000_000 : 520_000_000)
+
+        withAnimation(liftAnimation) {
+            launchPhase = .lifted
+        }
+
+        try? await Task.sleep(nanoseconds: reduceMotion ? 360_000_000 : 660_000_000)
 
         withAnimation(exitAnimation) {
-            isLaunchExiting = true
+            launchPhase = .exiting
         }
 
         try? await Task.sleep(nanoseconds: reduceMotion ? 190_000_000 : 360_000_000)
@@ -88,38 +93,39 @@ struct RootView: View {
 
 // MARK: - Launch Animation
 
+private enum QuizFlashLaunchPhase {
+    case initial
+    case compressed
+    case settled
+    case lifted
+    case exiting
+}
+
 private struct QuizFlashLaunchAnimationView: View {
 
     @Environment(ThemeManager.self) private var themeManager
 
-    let isPulseActive: Bool
-    let isFlashActive: Bool
-    let isExiting: Bool
+    let phase: QuizFlashLaunchPhase
 
     var body: some View {
-        ZStack {
-            themeManager.screenBackground
-                .ignoresSafeArea()
-
-            ambientGlow
-
+        GeometryReader { proxy in
             ZStack {
-                pulseRing(size: 166, opacity: isPulseActive ? 0.0 : 0.5)
-                    .scaleEffect(isPulseActive ? 1.34 : 0.72)
+                themeManager.screenBackground
+                    .ignoresSafeArea()
 
-                pulseRing(size: 120, opacity: isPulseActive ? 0.42 : 0.18)
-                    .scaleEffect(isPulseActive ? 1.04 : 0.82)
+                ambientGlow
+                    .scaleEffect(glowScale)
+                    .offset(y: verticalOffset(in: proxy.size))
+                    .opacity(overlayOpacity)
 
-                symbolPlate
-
-                flashStreak
-                    .mask(
-                        Circle()
-                            .frame(width: 132, height: 132)
-                    )
+                boltSymbol
+                    .scaleEffect(symbolScale)
+                    .rotationEffect(.degrees(symbolRotation))
+                    .offset(y: verticalOffset(in: proxy.size))
+                    .opacity(symbolOpacity)
             }
-            .scaleEffect(isExiting ? 0.92 : 1.0)
-            .opacity(isExiting ? 0.0 : 1.0)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .opacity(containerOpacity)
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
@@ -128,100 +134,197 @@ private struct QuizFlashLaunchAnimationView: View {
     private var ambientGlow: some View {
         RadialGradient(
             colors: [
-                themeManager.accentColor.color.opacity(isPulseActive ? 0.32 : 0.10),
-                themeManager.highlightWarm.opacity(isFlashActive ? 0.16 : 0.04),
+                launchPurple.opacity(glowCoreOpacity),
+                launchPurple.opacity(glowMidOpacity),
+                launchPurple.opacity(0.08),
                 .clear
             ],
             center: .center,
-            startRadius: 6,
-            endRadius: isPulseActive ? 310 : 130
+            startRadius: 8,
+            endRadius: glowEndRadius
         )
-        .scaleEffect(isPulseActive ? 1.08 : 0.72)
-        .opacity(isExiting ? 0.0 : 1.0)
         .ignoresSafeArea()
     }
 
-    private var symbolPlate: some View {
-        ZStack {
-            Circle()
-                .fill(themeManager.surfacePrimary.opacity(0.34))
-                .frame(width: 104, height: 104)
-                .overlay {
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    .white.opacity(0.34),
-                                    themeManager.accentColor.color.opacity(0.42),
-                                    themeManager.highlightWarm.opacity(0.30)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                }
+    private var boltSymbol: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: 58, weight: .black, design: .rounded))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [
+                        .white,
+                        Color(red: 0.86, green: 0.82, blue: 1.0),
+                        launchPurple
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .shadow(
+                color: launchPurple.opacity(symbolGlowOpacity),
+                radius: symbolGlowRadius
+            )
+            .shadow(
+                color: launchPurple.opacity(phase == .lifted ? 0.50 : 0.18),
+                radius: phase == .lifted ? 44 : 18
+            )
+    }
 
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 58, weight: .black, design: .rounded))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            .white,
-                            themeManager.accentColor.color,
-                            themeManager.highlightWarm
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(
-                    color: themeManager.accentColor.color.opacity(isPulseActive ? 0.74 : 0.18),
-                    radius: isPulseActive ? 28 : 8
-                )
-                .shadow(
-                    color: themeManager.highlightWarm.opacity(isFlashActive ? 0.52 : 0.0),
-                    radius: isFlashActive ? 18 : 0
-                )
-                .scaleEffect(isPulseActive ? 1.0 : 0.68)
-                .rotationEffect(.degrees(isPulseActive ? 0 : -8))
+    private var launchPurple: Color {
+        Color(red: 0.62, green: 0.52, blue: 1.0)
+    }
+
+    private var symbolScale: CGFloat {
+        switch phase {
+        case .initial:
+            return 1.16
+        case .compressed:
+            return 0.82
+        case .settled:
+            return 1.0
+        case .lifted:
+            return 1.64
+        case .exiting:
+            return 1.78
         }
     }
 
-    private var flashStreak: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        .white.opacity(0.0),
-                        .white.opacity(isFlashActive ? 0.96 : 0.0),
-                        themeManager.highlightWarm.opacity(isFlashActive ? 0.88 : 0.0),
-                        .clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: 34, height: 188)
-            .blur(radius: 0.8)
-            .rotationEffect(.degrees(24))
-            .offset(x: isFlashActive ? 96 : -96)
-            .blendMode(.screen)
+    private var symbolRotation: Double {
+        switch phase {
+        case .initial:
+            return -5
+        case .compressed:
+            return -3
+        case .settled, .lifted, .exiting:
+            return 0
+        }
     }
 
-    private func pulseRing(size: CGFloat, opacity: Double) -> some View {
-        Circle()
-            .stroke(
-                themeManager.accentColor.color.opacity(opacity),
-                lineWidth: 1.4
-            )
-            .frame(width: size, height: size)
-            .shadow(
-                color: themeManager.accentColor.color.opacity(opacity),
-                radius: 16
-            )
+    private var symbolOpacity: Double {
+        switch phase {
+        case .initial, .compressed, .settled, .lifted:
+            return 1
+        case .exiting:
+            return 0
+        }
+    }
+
+    private var containerOpacity: Double {
+        switch phase {
+        case .initial, .compressed, .settled, .lifted:
+            return 1
+        case .exiting:
+            return 0
+        }
+    }
+
+    private var overlayOpacity: Double {
+        switch phase {
+        case .initial, .compressed, .settled, .lifted:
+            return 1
+        case .exiting:
+            return 0
+        }
+    }
+
+    private var glowScale: CGFloat {
+        switch phase {
+        case .initial:
+            return 0.72
+        case .compressed:
+            return 0.58
+        case .settled:
+            return 0.88
+        case .lifted:
+            return 1.35
+        case .exiting:
+            return 1.55
+        }
+    }
+
+    private var glowCoreOpacity: Double {
+        switch phase {
+        case .initial:
+            return 0.18
+        case .compressed:
+            return 0.14
+        case .settled:
+            return 0.26
+        case .lifted:
+            return 0.46
+        case .exiting:
+            return 0.0
+        }
+    }
+
+    private var glowMidOpacity: Double {
+        switch phase {
+        case .initial:
+            return 0.12
+        case .compressed:
+            return 0.09
+        case .settled:
+            return 0.18
+        case .lifted:
+            return 0.30
+        case .exiting:
+            return 0.0
+        }
+    }
+
+    private var glowEndRadius: CGFloat {
+        switch phase {
+        case .initial, .compressed:
+            return 120
+        case .settled:
+            return 180
+        case .lifted:
+            return 310
+        case .exiting:
+            return 360
+        }
+    }
+
+    private var symbolGlowOpacity: Double {
+        switch phase {
+        case .initial:
+            return 0.34
+        case .compressed:
+            return 0.24
+        case .settled:
+            return 0.58
+        case .lifted:
+            return 0.88
+        case .exiting:
+            return 0.0
+        }
+    }
+
+    private var symbolGlowRadius: CGFloat {
+        switch phase {
+        case .initial:
+            return 18
+        case .compressed:
+            return 10
+        case .settled:
+            return 28
+        case .lifted:
+            return 64
+        case .exiting:
+            return 72
+        }
+    }
+
+    private func verticalOffset(in size: CGSize) -> CGFloat {
+        switch phase {
+        case .initial, .compressed, .settled:
+            return 0
+        case .lifted:
+            return -size.height * 0.31
+        case .exiting:
+            return -size.height * 0.38
+        }
     }
 }
 
