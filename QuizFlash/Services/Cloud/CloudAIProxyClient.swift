@@ -282,7 +282,7 @@ final class CloudAIProxyClient {
             await BackendTraceStore.shared.record(
                 "usage-generations-decode-success",
                 layer: "cloud.ai-proxy",
-                details: ["count": String(generations.count)]
+                details: Self.generationHistoryDetails(generations)
             )
             return generations
         } catch {
@@ -504,6 +504,39 @@ final class CloudAIProxyClient {
             "usageProgress": String(quota.usageProgress),
             "percent": String(quota.percent ?? -1)
         ]
+    }
+
+    private static func generationHistoryDetails(_ generations: [CloudAIGenerationUsageRecord]) -> [String: String] {
+        let currentPeriod = periodKey(for: Date())
+        let currentPeriodGenerations = generations.filter { generation in
+            periodKey(forMilliseconds: generation.createdAtMs) == currentPeriod
+        }
+        let totalCost = generations.reduce(0) { $0 + max(0, $1.costMicroUSD) }
+        let currentPeriodCost = currentPeriodGenerations.reduce(0) { $0 + max(0, $1.costMicroUSD) }
+        let latestCreatedAtMs = generations.map(\.createdAtMs).max() ?? 0
+
+        return [
+            "count": String(generations.count),
+            "currentPeriod": currentPeriod,
+            "currentPeriodCount": String(currentPeriodGenerations.count),
+            "currentPeriodCostMicroUSD": String(currentPeriodCost),
+            "totalListedCostMicroUSD": String(totalCost),
+            "latestCreatedAtMs": String(latestCreatedAtMs),
+            "latestPeriod": periodKey(forMilliseconds: latestCreatedAtMs)
+        ]
+    }
+
+    private static func periodKey(forMilliseconds milliseconds: Int) -> String {
+        guard milliseconds > 0 else { return "<none>" }
+        return periodKey(for: Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000))
+    }
+
+    private static func periodKey(for date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = calendar.dateComponents([.year, .month], from: date)
+        guard let year = components.year, let month = components.month else { return "<none>" }
+        return String(format: "%04d%02d", year, month)
     }
 }
 
