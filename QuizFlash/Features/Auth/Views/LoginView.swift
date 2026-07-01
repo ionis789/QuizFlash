@@ -64,11 +64,11 @@ struct LoginView: View {
                         authManager.completeEmailVerificationSuccess()
                     }
                 )
-            case .providerSignInSucceeded(let user):
-                ProviderSignInSuccessView(
+            case .signInSucceeded(let user):
+                SignInSuccessView(
                     user: user,
                     onContinue: {
-                        authManager.completeProviderSignInSuccess()
+                        authManager.completeSignInSuccess()
                     }
                 )
             case .checking:
@@ -418,11 +418,10 @@ private struct ForgotPasswordView: View {
     }
 }
 
-// MARK: - Provider Sign-In Success View
+// MARK: - Sign-In Success View
 
-private struct ProviderSignInSuccessView: View {
+private struct SignInSuccessView: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
 
     let user: AuthUserSnapshot
     let onContinue: @MainActor @Sendable () -> Void
@@ -435,21 +434,11 @@ private struct ProviderSignInSuccessView: View {
         VStack(spacing: UIConstants.Spacing.large) {
             Spacer(minLength: 0)
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 58, weight: .bold))
-                .foregroundStyle(themeManager.accentColor.color)
-
-            VStack(spacing: UIConstants.Spacing.small) {
-                Text(AppLocalization.string("Signed in", locale: locale))
-                    .font(.system(size: 38, weight: .heavy))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-
-                Text(AppLocalization.string("You're all set.", locale: locale))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            Text(AppLocalization.string("Welcome back", locale: locale))
+                .font(.system(size: 46, weight: .heavy))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.82)
 
             Spacer(minLength: 0)
         }

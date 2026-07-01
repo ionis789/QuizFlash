@@ -627,7 +627,6 @@
 "Side" = "Сторона";
 "Sign In" = "Войти";
 "Sign in with Google" = "Войти через Google";
-"Signed in" = "Вход выполнен";
 "Sign Up" = "Регистрация";
 "Sign-in is not ready yet. Please try again later." = "Вход пока не готов. Попробуйте позже.";
 "Sign-in was cancelled." = "Вход был отменен.";
@@ -742,6 +741,7 @@
 "Weakest deck: %@" = "Самая слабая колода: %@.";
 "Weakest linked deck: %@" = "Самая слабая связанная колода: %@";
 "Weekly Momentum" = "Еженедельный импульс";
+"Welcome back" = "С возвращением";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
 "Widget Border Radius" = "Радиус границы виджета";
 "XP" = "XP";

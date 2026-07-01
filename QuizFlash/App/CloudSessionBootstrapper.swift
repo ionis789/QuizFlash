@@ -83,8 +83,8 @@ struct CloudSessionBootstrapper: View {
             return "emailVerificationRequired"
         case .emailVerificationSucceeded:
             return "emailVerificationSucceeded"
-        case .providerSignInSucceeded:
-            return "providerSignInSucceeded"
+        case .signInSucceeded:
+            return "signInSucceeded"
         }
     }
 }

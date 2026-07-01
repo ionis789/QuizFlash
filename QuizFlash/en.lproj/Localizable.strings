@@ -627,7 +627,6 @@
 "Side" = "Side";
 "Sign In" = "Sign In";
 "Sign in with Google" = "Sign in with Google";
-"Signed in" = "Signed in";
 "Sign Up" = "Sign Up";
 "Sign-in is not ready yet. Please try again later." = "Sign-in is not ready yet. Please try again later.";
 "Sign-in was cancelled." = "Sign-in was cancelled.";
@@ -742,6 +741,7 @@
 "Weakest deck: %@" = "Weakest deck: %@";
 "Weakest linked deck: %@" = "Weakest linked deck: %@";
 "Weekly Momentum" = "Weekly Momentum";
+"Welcome back" = "Welcome back";
 "What is eventual consistency?" = "What is eventual consistency?";
 "Widget Border Radius" = "Widget Border Radius";
 "XP" = "XP";

@@ -28,7 +28,7 @@ struct RootView: View {
                 case .signedOut,
                      .emailVerificationRequired,
                      .emailVerificationSucceeded,
-                     .providerSignInSucceeded:
+                     .signInSucceeded:
                     LoginView()
                         .transition(.opacity)
                 }
