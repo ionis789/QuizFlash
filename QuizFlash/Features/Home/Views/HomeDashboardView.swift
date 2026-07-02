@@ -94,10 +94,6 @@ struct HomeDashboardView: View {
         layoutContext.dashboardContext.maxContentWidth
     }
 
-    private var usesDashboardColumns: Bool {
-        dashboardMetrics.usesDashboardColumns
-    }
-
     private var usesRegularMetrics: Bool {
         dashboardMetrics.usesRegularMetrics
     }
@@ -119,7 +115,11 @@ struct HomeDashboardView: View {
     }
 
     private var studyHeroMinHeight: CGFloat {
-        usesRegularMetrics ? 282 : 256
+        usesRegularMetrics ? 360 : 256
+    }
+
+    private var studySectionMaxWidth: CGFloat {
+        usesRegularMetrics ? min(availableSectionWidth, 900) : availableSectionWidth
     }
 
     private var weeklyStatsExpandAnimation: Animation {
@@ -130,7 +130,7 @@ struct HomeDashboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            boundedSection(studySection)
+            boundedStudySection(studySection)
                 .padding(.top, topSectionInset)
                 .padding(.horizontal, contentHorizontalInset)
                 .homeDashboardSectionMotion()
@@ -154,6 +154,13 @@ struct HomeDashboardView: View {
     }
 
     @ViewBuilder
+    private func boundedStudySection<Content: View>(_ content: Content) -> some View {
+        content
+            .frame(maxWidth: studySectionMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
     private func boundedSection<Content: View>(_ content: Content) -> some View {
         if let dashboardMaxWidth {
             content
@@ -170,7 +177,7 @@ struct HomeDashboardView: View {
         VStack(alignment: .leading, spacing: sectionHeaderContentSpacing) {
             HomeDashboardSectionHeader(title: localized("Activity"))
 
-            duoStudyCard {
+            duoStudyCard(minHeight: isWeeklyStatsExpanded ? studyHeroMinHeight : nil) {
                 VStack(alignment: .leading, spacing: usesRegularMetrics ? 16 : 14) {
                     selectedDayStatsContent(for: dashboardSnapshot.selectedDayOverview)
 
@@ -182,11 +189,16 @@ struct HomeDashboardView: View {
         }
     }
 
-    private func duoStudyCard<Content: View>(isInteractive: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+    private func duoStudyCard<Content: View>(
+        isInteractive: Bool = false,
+        minHeight: CGFloat? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         content()
             .modifier(HomeDashboardStudyCardModifier(
                 usesRegularMetrics: usesRegularMetrics,
-                isInteractive: isInteractive
+                isInteractive: isInteractive,
+                minHeight: minHeight
             ))
     }
 
@@ -289,7 +301,11 @@ struct HomeDashboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 if isExpanded {
-                    HomePerformanceBarRow(daySummaries: summary.currentDaySummaries)
+                    HomePerformanceBarRow(
+                        daySummaries: summary.currentDaySummaries,
+                        maxColumnWidth: usesRegularMetrics ? 112 : nil,
+                        barHeight: usesRegularMetrics ? 142 : 114
+                    )
                         .frame(maxWidth: .infinity)
                         .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                 }
@@ -344,22 +360,11 @@ struct HomeDashboardView: View {
     // MARK: - Library
 
     private var librarySection: some View {
-        Group {
-            if usesDashboardColumns {
-                HStack(alignment: .top, spacing: 14) {
-                    if !recentDeckSnapshots.isEmpty {
-                        recentDecksSection
-                    }
-                    foldersSection
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 18) {
-                    if !recentDeckSnapshots.isEmpty {
-                        recentDecksSection
-                    }
-                    foldersSection
-                }
+        VStack(alignment: .leading, spacing: 18) {
+            if !recentDeckSnapshots.isEmpty {
+                recentDecksSection
             }
+            foldersSection
         }
     }
 
@@ -476,6 +481,7 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
 
     let usesRegularMetrics: Bool
     let isInteractive: Bool
+    var minHeight: CGFloat? = nil
 
     private var cornerRadius: CGFloat {
         usesRegularMetrics ? 24 : 22
@@ -489,7 +495,7 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
         content
             .padding(.horizontal, usesRegularMetrics ? 20 : 18)
             .padding(.vertical, usesRegularMetrics ? 15 : 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(themeManager.roleColor(.widgetSurfaceFill).opacity(0.72))

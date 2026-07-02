@@ -173,6 +173,8 @@ private struct HomePerformanceBarSection: View {
 
 struct HomePerformanceBarRow: View {
     let daySummaries: [HomePastWeekPerformanceDaySummary]
+    var maxColumnWidth: CGFloat? = nil
+    var barHeight: CGFloat = HomePerformanceStackedBar.defaultBarHeight
 
     private let columnSpacing: CGFloat = UIConstants.Spacing.small
 
@@ -180,24 +182,32 @@ struct HomePerformanceBarRow: View {
         max(daySummaries.map { $0.landedCount + $0.retryCount }.max() ?? 0, 1)
     }
 
+    private var rowHeight: CGFloat {
+        HomePerformanceBarColumn.totalHeight(for: barHeight)
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let itemCount = max(daySummaries.count, 1)
             let spacingTotal = columnSpacing * CGFloat(max(itemCount - 1, 0))
-            let columnWidth = max((proxy.size.width - spacingTotal) / CGFloat(itemCount), 1)
+            let rawColumnWidth = max((proxy.size.width - spacingTotal) / CGFloat(itemCount), 1)
+            let columnWidth = maxColumnWidth.map { min(rawColumnWidth, $0) } ?? rawColumnWidth
+            let rowWidth = (columnWidth * CGFloat(itemCount)) + spacingTotal
 
             HStack(alignment: .bottom, spacing: columnSpacing) {
                 ForEach(daySummaries) { day in
                     HomePerformanceBarColumn(
                         day: day,
-                        maxOutcomeTotal: maxOutcomeTotal
+                        maxOutcomeTotal: maxOutcomeTotal,
+                        barHeight: barHeight
                     )
                     .frame(width: columnWidth)
                 }
             }
-            .frame(width: proxy.size.width, height: HomePerformanceBarColumn.totalHeight, alignment: .bottom)
+            .frame(width: rowWidth, height: rowHeight, alignment: .bottom)
+            .frame(width: proxy.size.width, height: rowHeight, alignment: .center)
         }
-        .frame(height: HomePerformanceBarColumn.totalHeight)
+        .frame(height: rowHeight)
         .frame(maxWidth: .infinity)
     }
 }
@@ -205,10 +215,13 @@ struct HomePerformanceBarRow: View {
 private struct HomePerformanceBarColumn: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    static let totalHeight: CGFloat = 150
+    static func totalHeight(for barHeight: CGFloat) -> CGFloat {
+        barHeight + 36
+    }
 
     let day: HomePastWeekPerformanceDaySummary
     let maxOutcomeTotal: Int
+    let barHeight: CGFloat
 
     private var goodTint: Color {
         .green
@@ -239,7 +252,8 @@ private struct HomePerformanceBarColumn: View {
                 retryCount: day.retryCount,
                 totalRatio: totalRatio,
                 goodTint: goodTint,
-                retryTint: retryTint
+                retryTint: retryTint,
+                barHeight: barHeight
             )
         }
         .frame(maxWidth: .infinity, alignment: .bottom)
@@ -254,8 +268,9 @@ private struct HomePerformanceStackedBar: View {
     let totalRatio: CGFloat
     let goodTint: Color
     let retryTint: Color
+    let barHeight: CGFloat
 
-    private let barHeight: CGFloat = 114
+    static let defaultBarHeight: CGFloat = 114
     private let minActiveHeight: CGFloat = 32
     private let minReadableSegmentHeight: CGFloat = 27
 
