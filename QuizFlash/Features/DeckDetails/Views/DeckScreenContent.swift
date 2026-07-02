@@ -542,28 +542,26 @@ extension DeckContentView {
     ) -> (gap: CGFloat, statsWidth: CGFloat, playModesWidth: CGFloat, summarySpacing: CGFloat) {
         let gap: CGFloat = 32
         let availableWidth = max(0, rawAvailableWidth)
-        let minimumStatsWidth: CGFloat = 428
+        let statsWidth: CGFloat = 428
         let minimumPlayModesWidth: CGFloat = 440
-        let minimumTotalWidth = minimumStatsWidth + gap + minimumPlayModesWidth
+        let minimumTotalWidth = statsWidth + gap + minimumPlayModesWidth
 
         guard availableWidth > minimumTotalWidth else {
             return (
                 gap,
-                minimumStatsWidth,
+                statsWidth,
                 minimumPlayModesWidth,
                 gap
             )
         }
 
-        let statsWidth = min(max(availableWidth * 0.44, minimumStatsWidth), 600)
         let playModesWidth = max(minimumPlayModesWidth, availableWidth - statsWidth - gap)
-        let summarySpacing = min(max(statsWidth - 396, gap), 96)
 
         return (
             gap,
             statsWidth,
             playModesWidth,
-            summarySpacing
+            gap
         )
     }
 }
