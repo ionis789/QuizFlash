@@ -7,6 +7,117 @@
 
 import SwiftUI
 
+// MARK: - Border Design
+
+enum AppBorderSurfaceRole {
+    case card
+    case widgetPrimary
+    case widgetSecondary
+    case panel
+    case control
+    case pill
+    case homeCard
+}
+
+enum AppBorderRenderer {
+    static func color(
+        for role: AppBorderSurfaceRole,
+        preferences: AppBorderDesignPreferences,
+        colorScheme: ColorScheme
+    ) -> Color {
+        let design = preferences.normalized
+        let opacity = bounded(
+            (0.18 + design.depth * 0.50)
+                * design.preset.opacityScale
+                * opacityScale(for: role)
+                * (colorScheme == .dark ? 1 : 0.72),
+            0.05,
+            role == .homeCard ? 0.95 : 0.78
+        )
+        let brightness = colorScheme == .dark
+            ? bounded(0.25 - design.depth * 0.18, 0.055, 0.25)
+            : bounded(0.46 - design.depth * 0.15, 0.18, 0.46)
+        let saturation = bounded(0.18 + design.depth * 0.20, 0.12, 0.44)
+
+        return Color(
+            hue: design.hue,
+            saturation: saturation,
+            brightness: brightness
+        )
+        .opacity(opacity)
+    }
+
+    static func lineWidth(
+        for role: AppBorderSurfaceRole,
+        preferences: AppBorderDesignPreferences
+    ) -> CGFloat {
+        let design = preferences.normalized
+        let width = (baseWidth(for: role) + design.thickness * widthRange(for: role)) * design.preset.lineScale
+        return CGFloat(bounded(width, 0.45, 4.4))
+    }
+
+    private static func baseWidth(for role: AppBorderSurfaceRole) -> Double {
+        switch role {
+        case .card:
+            return 0.78
+        case .widgetPrimary:
+            return 0.72
+        case .widgetSecondary:
+            return 0.42
+        case .panel:
+            return 0.82
+        case .control:
+            return 0.64
+        case .pill:
+            return 0.58
+        case .homeCard:
+            return 0.92
+        }
+    }
+
+    private static func widthRange(for role: AppBorderSurfaceRole) -> Double {
+        switch role {
+        case .card:
+            return 2.0
+        case .widgetPrimary:
+            return 1.7
+        case .widgetSecondary:
+            return 1.1
+        case .panel:
+            return 2.2
+        case .control:
+            return 1.55
+        case .pill:
+            return 1.25
+        case .homeCard:
+            return 2.45
+        }
+    }
+
+    private static func opacityScale(for role: AppBorderSurfaceRole) -> Double {
+        switch role {
+        case .card:
+            return 0.9
+        case .widgetPrimary:
+            return 0.72
+        case .widgetSecondary:
+            return 0.34
+        case .panel:
+            return 0.78
+        case .control:
+            return 0.58
+        case .pill:
+            return 0.66
+        case .homeCard:
+            return 1.28
+        }
+    }
+
+    private static func bounded(_ value: Double, _ lowerBound: Double, _ upperBound: Double) -> Double {
+        min(max(value, lowerBound), upperBound)
+    }
+}
+
 // MARK: - Shared Motion Presets
 
 extension Animation {
@@ -259,6 +370,7 @@ enum DuoSurfaceRole {
 /// Applies the shared surface chrome used by flashcards and widget-like cards.
 private struct FlashcardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let cornerRadius: CGFloat
@@ -318,18 +430,34 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     private var basePrimaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.09 : 0.28)
+            AppBorderRenderer.color(
+                for: .card,
+                preferences: appPreferences.borderDesign,
+                colorScheme: colorScheme
+            )
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.17 : 0.16)
+            AppBorderRenderer.color(
+                for: .widgetPrimary,
+                preferences: appPreferences.borderDesign,
+                colorScheme: colorScheme
+            )
         }
     }
 
     private var baseSecondaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.035 : 0.12)
+            AppBorderRenderer.color(
+                for: .widgetSecondary,
+                preferences: appPreferences.borderDesign,
+                colorScheme: colorScheme
+            )
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.055 : 0.055)
+            AppBorderRenderer.color(
+                for: .widgetSecondary,
+                preferences: appPreferences.borderDesign,
+                colorScheme: colorScheme
+            )
         }
     }
 
@@ -347,11 +475,18 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var primaryBorderLineWidth: CGFloat {
-        1 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
+        let role: AppBorderSurfaceRole = surfaceRole == .card ? .card : .widgetPrimary
+        return AppBorderRenderer.lineWidth(
+            for: role,
+            preferences: appPreferences.borderDesign
+        ) + min(resolvedBaseBorderBlurRadius * 0.08, 0.7)
     }
 
     private var secondaryBorderLineWidth: CGFloat {
-        1 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
+        AppBorderRenderer.lineWidth(
+            for: .widgetSecondary,
+            preferences: appPreferences.borderDesign
+        ) + min(resolvedBaseBorderBlurRadius * 0.04, 0.4)
     }
 
     private var secondaryBorderBlurRadius: CGFloat {
@@ -363,11 +498,18 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var cardBorderColor: Color {
-        themeManager.textPrimary.opacity(colorScheme == .dark ? 0.11 : 0.30)
+        AppBorderRenderer.color(
+            for: .card,
+            preferences: appPreferences.borderDesign,
+            colorScheme: colorScheme
+        )
     }
 
     private var resolvedCardBorderLineWidth: CGFloat {
-        1.08 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
+        AppBorderRenderer.lineWidth(
+            for: .card,
+            preferences: appPreferences.borderDesign
+        ) + min(resolvedBaseBorderBlurRadius * 0.16, 0.55)
     }
 
     private var resolvedCardBorderBlurRadius: CGFloat {
@@ -403,6 +545,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
 /// Applies the shared Duolingo-inspired panel/control surface chrome.
 private struct DuoSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let cornerRadius: CGFloat
@@ -439,12 +582,18 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        let baseOpacity: CGFloat = role == .panel ? 0.17 : 0.105
-        return themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 0.86)
+        AppBorderRenderer.color(
+            for: role == .panel ? .panel : .control,
+            preferences: appPreferences.borderDesign,
+            colorScheme: colorScheme
+        )
     }
 
     private var borderLineWidth: CGFloat {
-        role == .panel ? 1 : 0.8
+        AppBorderRenderer.lineWidth(
+            for: role == .panel ? .panel : .control,
+            preferences: appPreferences.borderDesign
+        )
     }
 }
 
@@ -453,6 +602,7 @@ private struct DuoSurfaceModifier: ViewModifier {
 /// Applies the shared outlined metric-chip treatment used by Home-style stats.
 private struct DuoMetricPillModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let tint: Color?
@@ -469,7 +619,7 @@ private struct DuoMetricPillModifier: ViewModifier {
             }
             .overlay {
                 Capsule(style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1.05)
+                    .strokeBorder(borderColor, lineWidth: borderLineWidth)
             }
     }
 
@@ -478,7 +628,18 @@ private struct DuoMetricPillModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.26 : 0.22)
+        AppBorderRenderer.color(
+            for: .pill,
+            preferences: appPreferences.borderDesign,
+            colorScheme: colorScheme
+        )
+    }
+
+    private var borderLineWidth: CGFloat {
+        AppBorderRenderer.lineWidth(
+            for: .pill,
+            preferences: appPreferences.borderDesign
+        )
     }
 }
 

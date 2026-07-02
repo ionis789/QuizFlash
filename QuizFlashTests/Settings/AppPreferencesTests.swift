@@ -25,12 +25,27 @@ final class AppPreferencesTests: XCTestCase {
         preferences.createDeckSortOrder = .oldest
         preferences.defaultTextSize = FlashcardTextSize(step: 8)
         preferences.zoneSurfaceStyle = .rounded
+        preferences.borderDesign = AppBorderDesignPreferences(
+            preset: .bold,
+            thickness: 0.9,
+            depth: 0.8,
+            hue: 0.2
+        )
 
         let reloadedPreferences = AppPreferences(userDefaults: defaults)
         XCTAssertEqual(reloadedPreferences.weekStartDay, .monday)
         XCTAssertEqual(reloadedPreferences.createDeckSortOrder, .oldest)
         XCTAssertEqual(reloadedPreferences.defaultTextSize, FlashcardTextSize(step: 8))
         XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
+        XCTAssertEqual(
+            reloadedPreferences.borderDesign,
+            AppBorderDesignPreferences(
+                preset: .bold,
+                thickness: 0.9,
+                depth: 0.8,
+                hue: 0.2
+            )
+        )
     }
 
     func testDailyCardsGoalDefaultsToNilAndPersistsOptionalValue() {

@@ -185,6 +185,104 @@ nonisolated enum AppZoneSurfaceStyle: String, CaseIterable, Identifiable, Codabl
     }
 }
 
+// MARK: - Border Design
+
+/// High-level border presets tuned by the global border design controls.
+nonisolated enum AppBorderStylePreset: String, CaseIterable, Identifiable, Codable, Sendable {
+    case minimal
+    case soft
+    case defined
+    case bold
+
+    var id: String { rawValue }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .minimal:
+            return AppLocalization.string("Minimal", locale: locale)
+        case .soft:
+            return AppLocalization.string("Soft", locale: locale)
+        case .defined:
+            return AppLocalization.string("Defined", locale: locale)
+        case .bold:
+            return AppLocalization.string("Strong", locale: locale)
+        }
+    }
+
+    var lineScale: Double {
+        switch self {
+        case .minimal:
+            return 0.62
+        case .soft:
+            return 0.84
+        case .defined:
+            return 1
+        case .bold:
+            return 1.22
+        }
+    }
+
+    var opacityScale: Double {
+        switch self {
+        case .minimal:
+            return 0.58
+        case .soft:
+            return 0.76
+        case .defined:
+            return 1
+        case .bold:
+            return 1.12
+        }
+    }
+}
+
+/// Stores the app-wide border tuning used by shared surfaces and Home cards.
+nonisolated struct AppBorderDesignPreferences: Codable, Equatable, Sendable {
+    static let defaultValue = AppBorderDesignPreferences(
+        preset: .defined,
+        thickness: 0.52,
+        depth: 0.72,
+        hue: 0.70
+    )
+    static let valueRange: ClosedRange<Double> = 0...1
+
+    var preset: AppBorderStylePreset
+    var thickness: Double
+    var depth: Double
+    var hue: Double
+
+    init(
+        preset: AppBorderStylePreset,
+        thickness: Double,
+        depth: Double,
+        hue: Double
+    ) {
+        self.preset = preset
+        self.thickness = Self.clamped(thickness)
+        self.depth = Self.clamped(depth)
+        self.hue = Self.clamped(hue)
+    }
+
+    var normalized: AppBorderDesignPreferences {
+        AppBorderDesignPreferences(
+            preset: preset,
+            thickness: thickness,
+            depth: depth,
+            hue: hue
+        )
+    }
+
+    func updating(_ update: (inout AppBorderDesignPreferences) -> Void) -> AppBorderDesignPreferences {
+        var copy = self
+        update(&copy)
+        return copy.normalized
+    }
+
+    private static func clamped(_ value: Double) -> Double {
+        min(max(value, valueRange.lowerBound), valueRange.upperBound)
+    }
+}
+
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -203,6 +301,7 @@ final class AppPreferences {
         static let defaultTextSize = "preferences.editor.defaultTextSize"
         static let defaultTextSizeScaleVersion = "preferences.editor.defaultTextSizeScaleVersion"
         static let zoneSurfaceStyle = "preferences.editor.zoneSurfaceStyle"
+        static let borderDesign = "preferences.design.borderDesign"
     }
 
     static let defaultDailyCardsGoal = 50
@@ -292,6 +391,13 @@ final class AppPreferences {
         }
     }
 
+    /// Global border tuning shared by app cards, widgets, controls, and Home surfaces.
+    var borderDesign: AppBorderDesignPreferences {
+        didSet {
+            persistBorderDesign(borderDesign.normalized)
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.appLanguage = AppLanguagePreference(
@@ -315,6 +421,7 @@ final class AppPreferences {
         self.zoneSurfaceStyle = AppZoneSurfaceStyle(
             rawValue: userDefaults.string(forKey: Keys.zoneSurfaceStyle) ?? ""
         ) ?? .simple
+        self.borderDesign = Self.resolvedBorderDesign(from: userDefaults)
         userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
         AppLocalization.applyLanguageOverride(appLanguage)
     }
@@ -335,6 +442,22 @@ final class AppPreferences {
         }
 
         return FlashcardTextSize(step: storedStep)
+    }
+
+    private static func resolvedBorderDesign(from userDefaults: UserDefaults) -> AppBorderDesignPreferences {
+        guard
+            let data = userDefaults.data(forKey: Keys.borderDesign),
+            let decoded = try? JSONDecoder().decode(AppBorderDesignPreferences.self, from: data)
+        else {
+            return .defaultValue
+        }
+
+        return decoded.normalized
+    }
+
+    private func persistBorderDesign(_ borderDesign: AppBorderDesignPreferences) {
+        guard let data = try? JSONEncoder().encode(borderDesign) else { return }
+        userDefaults.set(data, forKey: Keys.borderDesign)
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

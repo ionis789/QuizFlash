@@ -170,6 +170,8 @@ Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
 Blur Tuner	Blur Tuner	Reglaj blur	Настройка блюра
 Body	Body	Corp	Текст
+Border	Border	Bordură	Граница
+Border Type	Border Type	Tip bordură	Тип границы
 Bold	Bold	Aldin	Жирный
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
@@ -223,6 +225,7 @@ Close and keep progress	Close and keep progress	Închide și păstrează progres
 Close search	Close search	Închide căutarea	Закрыть поиск
 Code	Code	Cod	Код
 Code: %@	Code: %@	Cod: %@	Код: %@
+Color	Color	Culoare	Цвет
 Collapse	Collapse	Restrânge	Свернуть
 Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
 Confirm Password	Confirm Password	Confirmă parola	Подтвердите пароль
@@ -267,7 +270,9 @@ Deeper cards with structure, context, and key nuance.	Deeper cards with structur
 DeepSeek endpoint with deepseek-v4-flash defaults.	DeepSeek endpoint with deepseek-v4-flash defaults.	Endpoint DeepSeek cu setările implicite deepseek-v4-flash.	Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
+Defined	Defined	Definită	Чёткая
 Delete	Delete	Șterge	Удалить
+Depth	Depth	Intensitate	Глубина
 "Delete ""%@""?"	"Delete ""%@""?"	Ștergi „%@”?	"Удалить ""%@""?"
 Delete %d card?	Delete %d card?	Ștergi %d card?	Удалить %d карточку?
 Delete %d cards?	Delete %d cards?	Ștergi %d carduri?	Удалить %d карточки?
@@ -436,6 +441,7 @@ Mark Correct	Mark Correct	Marchează corect	Отметить верным
 Marked as correct	Marked as correct	Marcat ca corect	Отмечено как верное
 Mastered	Mastered	Stăpânite	Освоенные
 Medium	Medium	Mediu	Средний
+Minimal	Minimal	Minimală	Минимальная
 Mock AI	Mock AI	Simulare AI	Мок ИИ
 Mode	Mode	Modul	Режим
 Momentum	Momentum	Impuls	Импульс
@@ -655,6 +661,7 @@ Sign Up	Sign Up	Înregistrare	Регистрация
 Sign-in is not ready yet. Please try again later.	Sign-in is not ready yet. Please try again later.	Autentificarea nu este gata încă. Încearcă mai târziu.	Вход пока не готов. Попробуйте позже.
 Sign-in was cancelled.	Sign-in was cancelled.	Autentificarea a fost anulată.	Вход был отменен.
 Simple	Simple	Simplu	Простой
+Soft	Soft	Fină	Мягкая
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
 Small	Small	Mic	Маленький
@@ -676,6 +683,7 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
+Strong	Strong	Puternică	Сильная
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
@@ -711,6 +719,7 @@ This action cannot be undone.	This action cannot be undone.	Această acțiune nu
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
 This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
+Thickness	Thickness	Grosime	Толщина
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.

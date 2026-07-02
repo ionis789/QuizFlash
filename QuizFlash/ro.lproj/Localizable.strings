@@ -156,6 +156,8 @@
 "Blur Header Lab" = "Blur Header Lab";
 "Blur Tuner" = "Reglaj blur";
 "Body" = "Corp";
+"Border" = "Bordură";
+"Border Type" = "Tip bordură";
 "Bold" = "Aldin";
 "Bottom" = "Jos";
 "Bottom chrome visible" = "Parte de jos crom vizibil";
@@ -209,6 +211,7 @@
 "Continue playing" = "Continuă jocul";
 "Code" = "Cod";
 "Code: %@" = "Cod: %@";
+"Color" = "Culoare";
 "Collapse" = "Restrânge";
 "Configurations are stored in the app sandbox Application Support folder, outside source control." = "Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.";
 "Confirm Password" = "Confirmă parola";
@@ -250,7 +253,9 @@
 "DeepSeek endpoint with deepseek-v4-flash defaults." = "Endpoint DeepSeek cu setările implicite deepseek-v4-flash.";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
+"Defined" = "Definită";
 "Delete" = "Șterge";
+"Depth" = "Intensitate";
 "Delete \"%@\"?" = "Ștergi „%@”?";
 "Delete %d card?" = "Ștergi %d card?";
 "Delete %d cards?" = "Ștergi %d carduri?";
@@ -418,6 +423,7 @@
 "Marked as correct" = "Marcat ca corect";
 "Mastered" = "Stăpânite";
 "Medium" = "Mediu";
+"Minimal" = "Minimală";
 "Mock AI" = "Simulare AI";
 "Mode" = "Modul";
 "Momentum" = "Impuls";
@@ -631,6 +637,7 @@
 "Sign-in is not ready yet. Please try again later." = "Autentificarea nu este gata încă. Încearcă mai târziu.";
 "Sign-in was cancelled." = "Autentificarea a fost anulată.";
 "Simple" = "Simplu";
+"Soft" = "Fină";
 "Single correct answer" = "Un singur răspuns corect";
 "Sketch" = "Schiță";
 "Small" = "Mic";
@@ -652,6 +659,7 @@
 "Storage" = "Depozitare";
 "Stored Answer" = "Răspuns salvat";
 "Streak" = "Serie";
+"Strong" = "Puternică";
 "Sunday" = "Duminică";
 "Suspended" = "Suspendat";
 "Swipe HUD" = "Glisați HUD";
@@ -688,6 +696,7 @@
 "This deck and all its cards will be deleted." = "Acest deck și toate cardurile lui vor fi șterse.";
 "This deletes your Firebase account. Local decks stay on this device." = "Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.";
 "This is the prompt learners will see." = "Acesta este enunțul văzut de cursanți.";
+"Thickness" = "Grosime";
 "This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters." = "Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.";
 "This migration slice only enables the shared routing foundation. Flashcard editing remains fully available." = "Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.";
 "This permanently deletes the deck and all its cards." = "Aceasta șterge definitiv deck și toate carduri ale sale.";
