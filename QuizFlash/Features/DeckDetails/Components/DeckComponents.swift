@@ -159,11 +159,16 @@ struct DeckPlayModesView: View {
             return (defaultOrder[lhs] ?? 0) < (defaultOrder[rhs] ?? 0)
         }
     }
+
+    private var resolvedMaxContentWidth: CGFloat? {
+        maxContentWidth ?? (UIConstants.isPad ? 720 : nil)
+    }
+
     // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.small) {
+            HStack(spacing: isCompactLandscape ? UIConstants.Spacing.standard : UIConstants.Spacing.small) {
                 ForEach(orderedModes) { mode in
                     PlayModeCard(
                         mode: mode,
@@ -176,10 +181,10 @@ struct DeckPlayModesView: View {
                         onOpenSettings: onOpenSettings,
                         isCompactLandscape: isCompactLandscape
                     )
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: isCompactLandscape ? 220 : .infinity)
                 }
             }
-            .frame(maxWidth: maxContentWidth ?? (UIConstants.isPad ? 920 : .infinity), alignment: .center)
+            .frame(maxWidth: resolvedMaxContentWidth ?? .infinity, alignment: .center)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, isCompactLandscape ? 0 : UIConstants.Spacing.small)
@@ -207,6 +212,22 @@ private struct PlayModeCard: View {
     @State private var unavailableScale: CGFloat = 1
     @State private var unavailableFeedbackTask: Task<Void, Never>?
 
+    private var iconContainerSize: CGFloat {
+        isCompactLandscape ? 42 : 44
+    }
+
+    private var iconSize: CGFloat {
+        isCompactLandscape ? 19 : 20
+    }
+
+    private var titleSize: CGFloat {
+        isCompactLandscape ? 19 : 21
+    }
+
+    private var minimumHeight: CGFloat {
+        isCompactLandscape ? 118 : 88
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -223,25 +244,25 @@ private struct PlayModeCard: View {
                         RoundedRectangle(cornerRadius: 17, style: .continuous)
                             .fill(tintColor.opacity(canPlay ? 0.18 : 0.12))
                             .frame(
-                                width: isCompactLandscape ? 38 : 44,
-                                height: isCompactLandscape ? 38 : 44
+                                width: iconContainerSize,
+                                height: iconContainerSize
                             )
 
                         Image(systemName: mode.systemImage)
-                            .font(.system(size: isCompactLandscape ? 17 : 20, weight: .black))
+                            .font(.system(size: iconSize, weight: .black))
                             .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
                             .rotationEffect(mode.systemImageRotation)
                     }
 
                     Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
-                        .font(.system(size: isCompactLandscape ? 18 : 21, weight: .black))
+                        .font(.system(size: titleSize, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                 }
-                .frame(maxWidth: .infinity, minHeight: isCompactLandscape ? 74 : 88, alignment: .center)
-                .padding(.horizontal, 16)
-                .padding(.vertical, isCompactLandscape ? 10 : 14)
+                .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .center)
+                .padding(.horizontal, isCompactLandscape ? 14 : 16)
+                .padding(.vertical, isCompactLandscape ? 16 : 14)
                 .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
             .duoPressableSurfaceStyle()

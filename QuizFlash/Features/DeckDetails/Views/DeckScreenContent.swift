@@ -499,11 +499,11 @@ extension DeckContentView {
                         onOpenSettings: { mode in
                             selectedPlayModeSettings = mode
                         },
-                        maxContentWidth: 560,
+                        maxContentWidth: 468,
                         horizontalPadding: 0,
                         isCompactLandscape: true
                     )
-                    .frame(width: 560)
+                    .frame(maxWidth: 468)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
