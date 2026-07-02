@@ -114,6 +114,8 @@ struct DeckPlayModesView: View {
     let availability: PlayModeCardAvailability
     /// Frozen recent-usage dates for the current deck-view session.
     let recentUsageSnapshot: [DeckPlayModeDestination: Date]
+    /// Horizontal inset supplied by the owning adaptive deck layout.
+    var horizontalInset: CGFloat = UIConstants.Layout.screenEdgeInset
     /// Called when the user taps a play-mode card.
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
@@ -175,7 +177,7 @@ struct DeckPlayModesView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.horizontal, horizontalInset)
             .padding(.vertical, UIConstants.Spacing.small)
         }
     }

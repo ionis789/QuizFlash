@@ -175,6 +175,8 @@ struct DeckCardGridView: View {
     let isSelecting: Bool
     let selectedCards: Set<PersistentIdentifier>
     let isSuspended: Bool
+    var columnCount: Int? = nil
+    var horizontalInset: CGFloat = UIConstants.Layout.cardListEdgeInset
 
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
@@ -186,7 +188,7 @@ struct DeckCardGridView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     private var accent: Color { themeManager.accentColor.color }
-    private var columnsCount: Int { horizontalSizeClass == .regular ? 4 : 2 }
+    private var columnsCount: Int { columnCount ?? (horizontalSizeClass == .regular ? 4 : 2) }
     private var gridColumns: [GridItem] {
         Array(
             repeating: GridItem(
@@ -212,7 +214,7 @@ struct DeckCardGridView: View {
                     sectionView(section)
                 }
             }
-            .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
+            .padding(.horizontal, horizontalInset)
             .padding(.bottom, UIConstants.Spacing.standard)
         }
     }
@@ -288,7 +290,7 @@ struct DeckCardGridView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
-        .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
+        .padding(.horizontal, horizontalInset)
     }
 }
 
