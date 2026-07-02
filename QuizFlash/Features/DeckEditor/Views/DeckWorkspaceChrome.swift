@@ -387,19 +387,14 @@ extension DeckWorkspaceView {
     @ViewBuilder
     var primaryGenerateActionControl: some View {
         if shouldShowPrimaryGenerateAction {
-            CreateDeckCapsuleButton(
+            GenerateMoreAIButton(
                 action: {
                     presentAIGenerationSourcePicker()
                 },
                 isEnabled: canStartLocalGeneration,
-                chrome: .surface,
+                label: localized("Generate more"),
                 accessibilityLabel: localized("Generate cards with AI")
-            ) {
-                Text(localized("Generate more"))
-                    .font(.system(size: 15, weight: .heavy))
-                    .lineLimit(1)
-                    .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-            }
+            )
         }
     }
 
@@ -429,19 +424,14 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var generateActionControl: some View {
-        CreateDeckCapsuleButton(
+        GenerateMoreAIButton(
             action: {
                 presentAIGenerationSourcePicker()
             },
             isEnabled: canStartLocalGeneration,
-            chrome: .surface,
+            label: localized("Generate more"),
             accessibilityLabel: localized("Generate cards with AI")
-        ) {
-            Text(localized("Generate more"))
-                .font(.system(size: 14, weight: .bold))
-                .lineLimit(1)
-                .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-        }
+        )
     }
 
     @ViewBuilder
@@ -803,6 +793,67 @@ struct CreateDeckCapsuleContainer<Content: View>: View {
             .padding(.horizontal, UIConstants.Spacing.standard)
             .frame(minWidth: UIConstants.Size.capsuleHeight)
             .frame(height: UIConstants.Size.capsuleHeight)
+    }
+}
+
+struct GenerateMoreAIButton: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let action: () -> Void
+    var isEnabled: Bool = true
+    let label: String
+    let accessibilityLabel: String
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                ZStack {
+                    Circle()
+                        .fill(accentColor.opacity(0.18))
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(accentColor)
+                }
+                .frame(width: 26, height: 26)
+
+                Text(label)
+                    .font(.system(size: 15, weight: .heavy))
+                    .lineLimit(1)
+                    .foregroundStyle(accentColor)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 18)
+            .frame(height: UIConstants.Size.capsuleHeight)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(themeManager.roleColor(.buttonSurfaceFill))
+
+                Capsule(style: .continuous)
+                    .fill(accentColor.opacity(0.07))
+
+                Capsule(style: .continuous)
+                    .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(GenerateMoreAIButtonStyle())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accentColor: Color {
+        themeManager.roleColor(.buttonDangerForeground)
+    }
+}
+
+private struct GenerateMoreAIButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .scaleEffect(configuration.isPressed ? 0.975 : 1)
+            .animation(.timingCurve(0.24, 0.84, 0.30, 1.0, duration: 0.16), value: configuration.isPressed)
     }
 }
 
