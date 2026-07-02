@@ -254,6 +254,29 @@ enum DuoSurfaceRole {
     case control
 }
 
+// MARK: - Shared Surface Border Palette
+
+private enum SharedSurfaceBorderPalette {
+    static let darkGraphite = Color(red: 0.070, green: 0.060, blue: 0.105)
+    static let lightGraphite = Color(red: 0.120, green: 0.105, blue: 0.165)
+
+    static func primary(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? darkGraphite.opacity(0.98) : lightGraphite.opacity(0.34)
+    }
+
+    static func secondary(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? darkGraphite.opacity(0.74) : lightGraphite.opacity(0.18)
+    }
+
+    static func control(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? darkGraphite.opacity(0.94) : lightGraphite.opacity(0.28)
+    }
+
+    static func pill(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? darkGraphite.opacity(0.82) : lightGraphite.opacity(0.30)
+    }
+}
+
 // MARK: - FlashcardSurfaceModifier
 
 /// Applies the shared surface chrome used by flashcards and widget-like cards.
@@ -318,26 +341,18 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     private var basePrimaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            colorScheme == .dark
-                ? themeManager.screenBackground.opacity(0.46)
-                : themeManager.textPrimary.opacity(0.30)
+            SharedSurfaceBorderPalette.primary(for: colorScheme)
         case .widget:
-            colorScheme == .dark
-                ? themeManager.screenBackground.opacity(0.42)
-                : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.18)
+            SharedSurfaceBorderPalette.primary(for: colorScheme)
         }
     }
 
     private var baseSecondaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            colorScheme == .dark
-                ? themeManager.screenBackground.opacity(0.26)
-                : themeManager.textPrimary.opacity(0.14)
+            SharedSurfaceBorderPalette.secondary(for: colorScheme)
         case .widget:
-            colorScheme == .dark
-                ? themeManager.screenBackground.opacity(0.24)
-                : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.07)
+            SharedSurfaceBorderPalette.secondary(for: colorScheme)
         }
     }
 
@@ -355,11 +370,11 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var primaryBorderLineWidth: CGFloat {
-        1.18 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
+        1.7 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
     }
 
     private var secondaryBorderLineWidth: CGFloat {
-        1.08 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
+        1.45 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
     }
 
     private var secondaryBorderBlurRadius: CGFloat {
@@ -371,13 +386,11 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var cardBorderColor: Color {
-        colorScheme == .dark
-            ? themeManager.screenBackground.opacity(0.48)
-            : themeManager.textPrimary.opacity(0.32)
+        SharedSurfaceBorderPalette.primary(for: colorScheme)
     }
 
     private var resolvedCardBorderLineWidth: CGFloat {
-        1.24 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
+        1.75 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
     }
 
     private var resolvedCardBorderBlurRadius: CGFloat {
@@ -449,16 +462,11 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        if colorScheme == .dark {
-            return themeManager.screenBackground.opacity(role == .panel ? 0.42 : 0.36)
-        }
-
-        let baseOpacity: CGFloat = role == .panel ? 0.13 : 0.105
-        return themeManager.roleColor(.widgetSurfaceBorder).opacity(baseOpacity)
+        SharedSurfaceBorderPalette.control(for: colorScheme)
     }
 
     private var borderLineWidth: CGFloat {
-        role == .panel ? 1.15 : 1.05
+        role == .panel ? 1.8 : 1.55
     }
 }
 
@@ -483,7 +491,7 @@ private struct DuoMetricPillModifier: ViewModifier {
             }
             .overlay {
                 Capsule(style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1.15)
+                    .strokeBorder(borderColor, lineWidth: 1.45)
             }
     }
 
@@ -493,12 +501,10 @@ private struct DuoMetricPillModifier: ViewModifier {
 
     private var borderColor: Color {
         if let tint {
-            return tint.opacity(colorScheme == .dark ? 0.28 : 0.24)
+            return tint.opacity(colorScheme == .dark ? 0.36 : 0.28)
         }
 
-        return colorScheme == .dark
-            ? themeManager.screenBackground.opacity(0.34)
-            : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.24)
+        return SharedSurfaceBorderPalette.pill(for: colorScheme)
     }
 }
 
