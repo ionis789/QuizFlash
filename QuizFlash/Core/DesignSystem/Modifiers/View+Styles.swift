@@ -318,18 +318,26 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     private var basePrimaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.09 : 0.28)
+            colorScheme == .dark
+                ? themeManager.screenBackground.opacity(0.46)
+                : themeManager.textPrimary.opacity(0.30)
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.17 : 0.16)
+            colorScheme == .dark
+                ? themeManager.screenBackground.opacity(0.42)
+                : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.18)
         }
     }
 
     private var baseSecondaryBorderColor: Color {
         switch surfaceRole {
         case .card:
-            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.035 : 0.12)
+            colorScheme == .dark
+                ? themeManager.screenBackground.opacity(0.26)
+                : themeManager.textPrimary.opacity(0.14)
         case .widget:
-            themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? 0.055 : 0.055)
+            colorScheme == .dark
+                ? themeManager.screenBackground.opacity(0.24)
+                : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.07)
         }
     }
 
@@ -347,11 +355,11 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var primaryBorderLineWidth: CGFloat {
-        1 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
+        1.18 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
     }
 
     private var secondaryBorderLineWidth: CGFloat {
-        1 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
+        1.08 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
     }
 
     private var secondaryBorderBlurRadius: CGFloat {
@@ -363,11 +371,13 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var cardBorderColor: Color {
-        themeManager.textPrimary.opacity(colorScheme == .dark ? 0.11 : 0.30)
+        colorScheme == .dark
+            ? themeManager.screenBackground.opacity(0.48)
+            : themeManager.textPrimary.opacity(0.32)
     }
 
     private var resolvedCardBorderLineWidth: CGFloat {
-        1.08 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
+        1.24 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
     }
 
     private var resolvedCardBorderBlurRadius: CGFloat {
@@ -439,13 +449,16 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        let baseColor = colorScheme == .dark ? themeManager.textSecondary : themeManager.roleColor(.widgetSurfaceBorder)
-        let baseOpacity: CGFloat = role == .panel ? 0.09 : 0.07
-        return baseColor.opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 1.18)
+        if colorScheme == .dark {
+            return themeManager.screenBackground.opacity(role == .panel ? 0.42 : 0.36)
+        }
+
+        let baseOpacity: CGFloat = role == .panel ? 0.13 : 0.105
+        return themeManager.roleColor(.widgetSurfaceBorder).opacity(baseOpacity)
     }
 
     private var borderLineWidth: CGFloat {
-        role == .panel ? 0.75 : 0.65
+        role == .panel ? 1.15 : 1.05
     }
 }
 
@@ -470,7 +483,7 @@ private struct DuoMetricPillModifier: ViewModifier {
             }
             .overlay {
                 Capsule(style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1.05)
+                    .strokeBorder(borderColor, lineWidth: 1.15)
             }
     }
 
@@ -479,7 +492,13 @@ private struct DuoMetricPillModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        (tint ?? themeManager.roleColor(.widgetSurfaceBorder)).opacity(colorScheme == .dark ? 0.26 : 0.22)
+        if let tint {
+            return tint.opacity(colorScheme == .dark ? 0.28 : 0.24)
+        }
+
+        return colorScheme == .dark
+            ? themeManager.screenBackground.opacity(0.34)
+            : themeManager.roleColor(.widgetSurfaceBorder).opacity(0.24)
     }
 }
 
