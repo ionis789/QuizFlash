@@ -168,7 +168,7 @@ struct DeckPlayModesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: isCompactLandscape ? UIConstants.Spacing.standard : UIConstants.Spacing.small) {
+            HStack(spacing: isCompactLandscape ? 32 : UIConstants.Spacing.small) {
                 ForEach(orderedModes) { mode in
                     PlayModeCard(
                         mode: mode,
@@ -280,6 +280,10 @@ private struct PlayModeCard: View {
         }
         .opacity(canPlay ? 1 : 0.56)
         .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(themeManager.textSecondary.opacity(canPlay ? 0.22 : 0.16), lineWidth: 1.25)
+        }
         .offset(x: unavailableWiggleOffset)
         .scaleEffect(unavailableScale, anchor: .center)
         .onDisappear {

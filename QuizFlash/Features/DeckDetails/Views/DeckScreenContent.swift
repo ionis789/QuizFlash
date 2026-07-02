@@ -475,19 +475,24 @@ extension DeckContentView {
         let deckTint = Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
 
         if isIPadLandscape {
+            let landscapeStudyGap: CGFloat = 32
+            let landscapeStatsWidth: CGFloat = 428
+            let landscapePlayModesWidth: CGFloat = 440
+
             VStack(spacing: 18) {
                 AppSectionSeparator()
                     .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
-                HStack(alignment: .center, spacing: 36) {
+                HStack(alignment: .center, spacing: landscapeStudyGap) {
                     DeckProgressView(
                         stats: viewModel.currentStats,
                         deckTint: deckTint,
                         showsSeparator: false,
                         horizontalPadding: 0,
-                        maxContentWidth: 500
+                        maxContentWidth: landscapeStatsWidth,
+                        summarySpacing: landscapeStudyGap
                     )
-                    .frame(width: 500)
+                    .frame(width: landscapeStatsWidth)
 
                     DeckPlayModesView(
                         deck: deck,
@@ -499,11 +504,11 @@ extension DeckContentView {
                         onOpenSettings: { mode in
                             selectedPlayModeSettings = mode
                         },
-                        maxContentWidth: 468,
+                        maxContentWidth: landscapePlayModesWidth,
                         horizontalPadding: 0,
                         isCompactLandscape: true
                     )
-                    .frame(maxWidth: 468)
+                    .frame(width: landscapePlayModesWidth)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)

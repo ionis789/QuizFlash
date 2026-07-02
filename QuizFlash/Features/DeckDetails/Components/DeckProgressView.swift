@@ -25,6 +25,7 @@ struct DeckProgressView: View {
     var showsSeparator = true
     var horizontalPadding: CGFloat = UIConstants.Layout.screenEdgeInset
     var maxContentWidth: CGFloat? = nil
+    var summarySpacing: CGFloat? = nil
 
     @State private var displayedAccuracy = 0
     @State private var displayedMastery = 0.0
@@ -64,7 +65,7 @@ struct DeckProgressView: View {
     }
 
     private var progressSummaryBlock: some View {
-        HStack(alignment: .center, spacing: UIConstants.isPad ? 84 : 28) {
+        HStack(alignment: .center, spacing: summarySpacing ?? (UIConstants.isPad ? 84 : 28)) {
             accuracySummary
                 .frame(maxWidth: UIConstants.isPad ? 240 : 180, alignment: .center)
             DeckIntegratedMasteryRing(
