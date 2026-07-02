@@ -439,12 +439,13 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 
     private var borderColor: Color {
-        let baseOpacity: CGFloat = role == .panel ? 0.17 : 0.105
-        return themeManager.roleColor(.widgetSurfaceBorder).opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 0.86)
+        let baseColor = colorScheme == .dark ? themeManager.textSecondary : themeManager.roleColor(.widgetSurfaceBorder)
+        let baseOpacity: CGFloat = role == .panel ? 0.09 : 0.07
+        return baseColor.opacity(colorScheme == .dark ? baseOpacity : baseOpacity * 1.18)
     }
 
     private var borderLineWidth: CGFloat {
-        role == .panel ? 1 : 0.8
+        role == .panel ? 0.75 : 0.65
     }
 }
 
