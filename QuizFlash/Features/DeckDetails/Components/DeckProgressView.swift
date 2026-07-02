@@ -22,7 +22,6 @@ struct DeckProgressView: View {
 
     let stats: DeckStats
     let deckTint: Color
-    var horizontalInset: CGFloat = UIConstants.Layout.screenEdgeInset
 
     @State private var displayedAccuracy = 0
     @State private var displayedMastery = 0.0
@@ -40,7 +39,7 @@ struct DeckProgressView: View {
             summarySeparator
             progressSummaryBlock
         }
-        .padding(.horizontal, horizontalInset)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .onAppear {
             animateDisplayedStats()
         }

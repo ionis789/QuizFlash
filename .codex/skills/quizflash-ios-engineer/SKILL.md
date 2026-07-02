@@ -238,6 +238,12 @@ For every debug escalation, state the decision rule before asking for a video or
 5. Extend the regression net when fixing a bug.
    - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
 
+## App Run Verification
+
+After any app code change, `MUST` do a real `build + run` verification before handing control back unless the user explicitly says not to. Prefer a connected physical iPhone first. If no usable physical device is connected, use the simulator that is already active in macOS 27 Device Hub. Treat Device Hub as the simulator control surface on macOS 27; do not assume the old standalone `Simulator.app` exists.
+
+Do not boot a hidden/headless simulator as a fallback when Device Hub has no active simulator unless the user explicitly asks for that. If a task requires a fresh simulator and the user has not selected one, ask them to open/select it in Device Hub or state that run verification is blocked. Never leave a simulator booted only by Codex after verification; if Codex started it, shut it down before the final response.
+
 ## Decision Points
 
 - The `Quick Start` section is the canonical context-loading rule for existing-file tasks.
