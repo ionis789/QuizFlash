@@ -466,6 +466,7 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
 }
 
 private struct HomeDashboardStudyCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
 
     let usesRegularMetrics: Bool
@@ -476,8 +477,16 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
         usesRegularMetrics ? 24 : 22
     }
 
-    private var borderOpacity: CGFloat {
-        isInteractive ? 0.22 : 0.18
+    private var borderColor: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.055, green: 0.050, blue: 0.085).opacity(isInteractive ? 0.98 : 0.92)
+        }
+
+        return Color(red: 0.115, green: 0.100, blue: 0.160).opacity(isInteractive ? 0.38 : 0.32)
+    }
+
+    private var borderLineWidth: CGFloat {
+        usesRegularMetrics ? 2.2 : 1.9
     }
 
     func body(content: Content) -> some View {
@@ -491,8 +500,8 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(
-                                themeManager.textSecondary.opacity(borderOpacity),
-                                lineWidth: 1.15
+                                borderColor,
+                                lineWidth: borderLineWidth
                             )
                     }
             }
