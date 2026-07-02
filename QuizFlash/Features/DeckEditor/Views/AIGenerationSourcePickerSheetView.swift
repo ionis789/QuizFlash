@@ -20,6 +20,10 @@ struct AIGenerationSourcePickerSheetView: View {
         appPreferences.resolvedLocale
     }
 
+    private var accent: Color {
+        themeManager.accentColor.color
+    }
+
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
     }
@@ -37,12 +41,14 @@ struct AIGenerationSourcePickerSheetView: View {
             sourceButton(
                 title: localized("Choose Photos"),
                 systemImage: "photo.on.rectangle.angled",
+                tint: accent,
                 action: { dismissThen(onPhotos) }
             )
 
             sourceButton(
                 title: localized("Choose PDF"),
                 systemImage: "doc.richtext.fill",
+                tint: .orange,
                 action: { dismissThen(onPDF) }
             )
         }
@@ -56,18 +62,19 @@ struct AIGenerationSourcePickerSheetView: View {
     private func sourceButton(
         title: String,
         systemImage: String,
+        tint: Color,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: UIConstants.Spacing.medium) {
                 Image(systemName: systemImage)
                     .font(.system(size: 28, weight: .heavy))
-                    .foregroundStyle(themeManager.roleColor(.labelPrimaryForeground))
+                    .foregroundStyle(tint)
                     .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 23, weight: .heavy))
-                    .foregroundStyle(themeManager.roleColor(.labelPrimaryForeground))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
@@ -78,6 +85,6 @@ struct AIGenerationSourcePickerSheetView: View {
             .contentShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
         }
         .duoPressableSurfaceStyle()
-        .primarySelectionSurface(cornerRadius: 32)
+        .duoSurface(cornerRadius: 32, tint: tint)
     }
 }

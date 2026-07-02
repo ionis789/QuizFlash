@@ -159,6 +159,10 @@ private struct CompactTapAnimationRow: View {
     @Binding var tapAnimationStyle: FlashcardTapAnimationStyle
     @Binding var staticSwapTextMotion: FlashcardStaticSwapTextMotion
 
+    private var selectedForeground: Color {
+        ThemeManager.shared.roleColor(.labelPrimaryForeground)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             label(title: "Tap Animation", icon: "rectangle.2.swap")
@@ -215,19 +219,13 @@ private struct CompactTapAnimationRow: View {
                 } label: {
                     Text(titleForOption(option, appPreferences.resolvedLocale))
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
+                        .foregroundStyle(isSelected ? selectedForeground : Color.primary.opacity(0.78))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                         .contentTransition(.identity)
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)
-                        .background(isSelected ? tint : Color.primary.opacity(0.075), in: Capsule())
-                        .overlay {
-                            if !isSelected {
-                                Capsule()
-                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                            }
-                        }
+                        .primarySelectionSurface(isSelected: isSelected, cornerRadius: 20)
                 }
                 .buttonStyle(.plain)
             }
@@ -434,6 +432,10 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
     var isDense = false
     let titleForOption: (Option, Locale) -> String
 
+    private var selectedForeground: Color {
+        ThemeManager.shared.roleColor(.labelPrimaryForeground)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: isDense ? UIConstants.Spacing.small : UIConstants.Spacing.standard) {
             label
@@ -467,15 +469,12 @@ private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
         } label: {
             Text(titleForOption(option, appPreferences.resolvedLocale))
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
+                .foregroundStyle(isSelected ? selectedForeground : Color.primary.opacity(0.78))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .frame(maxWidth: .infinity)
                 .frame(height: isDense ? 40 : 48)
-                .background(
-                    isSelected ? tint : Color.primary.opacity(0.075),
-                    in: Capsule()
-                )
+                .primarySelectionSurface(isSelected: isSelected, cornerRadius: (isDense ? 40 : 48) / 2)
         }
         .noPressEffectButtonStyle()
     }

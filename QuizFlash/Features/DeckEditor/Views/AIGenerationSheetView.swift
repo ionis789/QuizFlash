@@ -34,11 +34,7 @@ struct AIGenerationSheetView: View {
         ThemeManager.shared.accentColor.color
     }
 
-    private var primarySelectionFill: Color {
-        ThemeManager.shared.roleColor(.labelPrimaryFill)
-    }
-
-    private var primarySelectionForeground: Color {
+    private var selectionPillForeground: Color {
         ThemeManager.shared.roleColor(.labelPrimaryForeground)
     }
 
@@ -332,16 +328,12 @@ struct AIGenerationSheetView: View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                .foregroundStyle(isSelected ? selectionPillForeground : .secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
                 .frame(maxWidth: .infinity)
-                .quizFlashLabelChrome(
-                    isSelected ? .secondary : .surface,
-                    shape: .capsule,
-                    size: UIConstants.Size.actionButton,
-                    horizontalPadding: UIConstants.Spacing.small
-                )
+                .frame(height: UIConstants.Size.actionButton)
+                .primarySelectionSurface(isSelected: isSelected, cornerRadius: UIConstants.Size.actionButton / 2)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -369,10 +361,10 @@ struct AIGenerationSheetView: View {
                 } label: {
                     Label(AppLocalization.string("Add Range", locale: appPreferences.resolvedLocale), systemImage: "plus.circle.fill")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(primarySelectionForeground)
+                        .foregroundStyle(.blue)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .primarySelectionSurface(cornerRadius: 16)
+                        .duoControlSurface(cornerRadius: 16, tint: .blue)
                 }
                 .buttonStyle(.plain)
             }
@@ -394,21 +386,22 @@ struct AIGenerationSheetView: View {
                     .font(.system(size: 15, weight: .bold))
 
                 if isSubmittingGeneration {
-                    ProgressActivityDots(color: primarySelectionForeground)
+                    ProgressActivityDots(color: .white)
                 }
             }
-            .foregroundStyle(primarySelectionForeground)
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: UIConstants.Size.actionButton)
             .background {
                 Capsule(style: .continuous)
-                    .fill(primarySelectionFill)
+                    .fill(Color.white.opacity(0.08))
+                    .shadow(color: Color.purple.opacity(0.24), radius: 14, y: 2)
             }
             .aiGenerationBorderBeam(
-                accent: primarySelectionForeground,
+                accent: accent,
                 cornerRadius: UIConstants.Size.actionButton / 2,
-                beamBlur: 8,
-                lineWidth: 1.4,
+                beamBlur: 10,
+                lineWidth: 2,
                 isEnabled: viewModel.canConfirmAIGeneration
             )
             .contentShape(Capsule(style: .continuous))
