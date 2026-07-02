@@ -311,7 +311,7 @@ struct SettingsView: View {
                 profileDivider
 
                 profileMetric(
-                    icon: accountPlanIcon ?? "person.crop.circle.fill",
+                    icon: accountPlanIcon,
                     title: accountPlanSummary
                 )
                 .padding(.vertical, UIConstants.Spacing.standard)

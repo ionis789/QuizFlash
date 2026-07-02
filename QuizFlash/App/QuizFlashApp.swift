@@ -50,9 +50,6 @@ struct QuizFlashApp: App {
             CloudSessionBootstrapper()
                 .id(appPreferences.languageRefreshKey)
                 .fontDesign(.rounded)
-#if DEBUG
-                .windowTouchProbe()
-#endif
                 .environment(authManager)
                 .environment(themeManager)
                 .environment(aiProviderStore)
