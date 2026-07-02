@@ -475,43 +475,46 @@ extension DeckContentView {
         let deckTint = Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
 
         if isIPadLandscape {
-            let landscapeStudyGap: CGFloat = 32
-            let landscapeStatsWidth: CGFloat = 428
-            let landscapePlayModesWidth: CGFloat = 440
-
             VStack(spacing: 18) {
                 AppSectionSeparator()
                     .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
-                HStack(alignment: .center, spacing: landscapeStudyGap) {
-                    DeckProgressView(
-                        stats: viewModel.currentStats,
-                        deckTint: deckTint,
-                        showsSeparator: false,
-                        horizontalPadding: 0,
-                        maxContentWidth: landscapeStatsWidth,
-                        summarySpacing: landscapeStudyGap
+                GeometryReader { proxy in
+                    let layout = landscapeStudyLayout(
+                        for: proxy.size.width - UIConstants.Layout.heroScreenEdgeInset * 2
                     )
-                    .frame(width: landscapeStatsWidth)
 
-                    DeckPlayModesView(
-                        deck: deck,
-                        availability: viewModel.playModeAvailability,
-                        recentUsageSnapshot: playModeRecentUsageSnapshot,
-                        onOpenMode: { mode in
-                            openPlayMode(mode)
-                        },
-                        onOpenSettings: { mode in
-                            selectedPlayModeSettings = mode
-                        },
-                        maxContentWidth: landscapePlayModesWidth,
-                        horizontalPadding: 0,
-                        isCompactLandscape: true
-                    )
-                    .frame(width: landscapePlayModesWidth)
+                    HStack(alignment: .center, spacing: layout.gap) {
+                        DeckProgressView(
+                            stats: viewModel.currentStats,
+                            deckTint: deckTint,
+                            showsSeparator: false,
+                            horizontalPadding: 0,
+                            maxContentWidth: layout.statsWidth,
+                            summarySpacing: layout.summarySpacing
+                        )
+                        .frame(width: layout.statsWidth)
+
+                        DeckPlayModesView(
+                            deck: deck,
+                            availability: viewModel.playModeAvailability,
+                            recentUsageSnapshot: playModeRecentUsageSnapshot,
+                            onOpenMode: { mode in
+                                openPlayMode(mode)
+                            },
+                            onOpenSettings: { mode in
+                                selectedPlayModeSettings = mode
+                            },
+                            maxContentWidth: layout.playModesWidth,
+                            horizontalPadding: 0,
+                            isCompactLandscape: true
+                        )
+                        .frame(width: layout.playModesWidth)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+                .frame(height: 176)
             }
             .padding(.top, 8)
         } else {
@@ -532,6 +535,36 @@ extension DeckContentView {
             )
             .padding(.top, 16)
         }
+    }
+
+    private func landscapeStudyLayout(
+        for rawAvailableWidth: CGFloat
+    ) -> (gap: CGFloat, statsWidth: CGFloat, playModesWidth: CGFloat, summarySpacing: CGFloat) {
+        let gap: CGFloat = 32
+        let availableWidth = max(0, rawAvailableWidth)
+        let minimumStatsWidth: CGFloat = 428
+        let minimumPlayModesWidth: CGFloat = 440
+        let minimumTotalWidth = minimumStatsWidth + gap + minimumPlayModesWidth
+
+        guard availableWidth > minimumTotalWidth else {
+            return (
+                gap,
+                minimumStatsWidth,
+                minimumPlayModesWidth,
+                gap
+            )
+        }
+
+        let statsWidth = min(max(availableWidth * 0.44, minimumStatsWidth), 600)
+        let playModesWidth = max(minimumPlayModesWidth, availableWidth - statsWidth - gap)
+        let summarySpacing = min(max(statsWidth - 396, gap), 96)
+
+        return (
+            gap,
+            statsWidth,
+            playModesWidth,
+            summarySpacing
+        )
     }
 }
 

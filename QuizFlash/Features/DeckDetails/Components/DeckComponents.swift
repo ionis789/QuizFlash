@@ -181,7 +181,7 @@ struct DeckPlayModesView: View {
                         onOpenSettings: onOpenSettings,
                         isCompactLandscape: isCompactLandscape
                     )
-                    .frame(maxWidth: isCompactLandscape ? 220 : .infinity)
+                    .frame(maxWidth: .infinity)
                 }
             }
             .frame(maxWidth: resolvedMaxContentWidth ?? .infinity, alignment: .center)
