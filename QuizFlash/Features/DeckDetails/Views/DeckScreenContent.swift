@@ -319,164 +319,214 @@ extension DeckContentView {
                         .scaleEffect(1.5)
                     Text(localized("Exporting...")).font(.headline)
                 }
-                    .padding(32)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(32)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
     }
 
     var mainContent: some View {
-        let scrollView = ScrollView {
-            VStack(spacing: 0) {
-                ScrollPositionRestorer(
-                    getOffset: { viewModel.savedScrollOffset },
-                    onOffsetChange: { offset in
-                        viewModel.savedScrollOffset = offset
-                    }
-                )
-                .frame(width: 0, height: 0)
+        GeometryReader { container in
+            let isIPadLandscape = UIConstants.isPad
+                && container.size.width > container.size.height
+                && container.size.width >= 1100
 
-                if let query = searchQuery, !query.isEmpty {
-                    HStack {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        (
-                            Text(localized("Filtered by"))
-                            + Text(verbatim: " \"\(query)\"")
-                        )
-                        .font(.subheadline)
-                        Spacer()
-                    }
-                    .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
-                    .padding(.vertical, 12)
-                    .background(Color.accentColor.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                    .padding(.top, 12)
-                }
+            let scrollView = ScrollView {
+                VStack(spacing: 0) {
+                    ScrollPositionRestorer(
+                        getOffset: { viewModel.savedScrollOffset },
+                        onOffsetChange: { offset in
+                            viewModel.savedScrollOffset = offset
+                        }
+                    )
+                    .frame(width: 0, height: 0)
 
-                VStack(spacing: 16) {
-                    Button {
-                        exitSelectionModeForExternalAction()
-                        deckEditorPresentation = DeckEditorSheetPresentation(id: deck.persistentModelID)
-                    } label: {
-                        HStack(alignment: .top, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(deck.title)
-                                    .font(.system(size: 42, weight: .heavy))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                    .minimumScaleFactor(0.7)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                Text(subtitleText)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
-                            }
-
-                            Spacer(minLength: 0)
-
-                            DeckHeroEditIndicator(
-                                tint: themeManager.roleColor(.buttonDangerForeground)
+                    if let query = searchQuery, !query.isEmpty {
+                        HStack {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                            (
+                                Text(localized("Filtered by"))
+                                    + Text(verbatim: " \"\(query)\"")
                             )
+                            .font(.subheadline)
+                            Spacer()
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                        .padding(.top, 12)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(localized("Opens deck edit mode"))
-                    .background {
-                        Color.clear
-                            .onGeometryChange(for: CGFloat.self) { proxy in
-                                proxy.frame(in: .named(kDeckChromeSpace)).maxY
-                            } action: { maxY in
-                                let revealLine =
-                                    navigationBarBottomY
-                                    - UIConstants.Layout.deckHeroPillRevealClearance
-                                let isCollapsed = maxY < revealLine
-                                if scrollState.pillVisible != isCollapsed {
-                                    scrollState.pillVisible = isCollapsed
+
+                    VStack(spacing: 16) {
+                        Button {
+                            exitSelectionModeForExternalAction()
+                            deckEditorPresentation = DeckEditorSheetPresentation(id: deck.persistentModelID)
+                        } label: {
+                            HStack(alignment: .top, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(deck.title)
+                                        .font(.system(size: 42, weight: .heavy))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.7)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Text(subtitleText)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .textCase(.uppercase)
                                 }
-                            }
-                    }
-                    .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
-                    if searchQuery == nil || searchQuery?.isEmpty == true {
-                        DeckProgressView(
-                            stats: viewModel.currentStats,
-                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
-                        )
-                        DeckPlayModesView(
-                            deck: deck,
-                            availability: viewModel.playModeAvailability,
-                            recentUsageSnapshot: playModeRecentUsageSnapshot,
-                            onOpenMode: { mode in
-                                openPlayMode(mode)
-                            },
-                            onOpenSettings: { mode in
-                                selectedPlayModeSettings = mode
-                            }
-                        )
-                        .padding(.top, 16)
-                    }
-                }
+                                Spacer(minLength: 0)
 
-                DeckCardGridView(
-                    cards: viewModel.cachedGroupedCards,
-                    isSelecting: viewModel.isSelecting,
-                    selectedCards: viewModel.selectedCards,
-                    isSuspended: isSuspended,
-                    onToggleSelection: { gridCard in
-                        withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
-                            viewModel.toggleSelection(for: gridCard.id)
+                                DeckHeroEditIndicator(
+                                    tint: themeManager.roleColor(.buttonDangerForeground)
+                                )
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .padding(.vertical, 6)
                         }
-                    },
-                    onTapCard: { gridCard in
-                        if viewModel.isSelecting {
+                        .buttonStyle(.plain)
+                        .accessibilityHint(localized("Opens deck edit mode"))
+                        .background {
+                            Color.clear
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.frame(in: .named(kDeckChromeSpace)).maxY
+                                } action: { maxY in
+                                    let revealLine =
+                                        navigationBarBottomY
+                                            - UIConstants.Layout.deckHeroPillRevealClearance
+                                    let isCollapsed = maxY < revealLine
+                                    if scrollState.pillVisible != isCollapsed {
+                                        scrollState.pillVisible = isCollapsed
+                                    }
+                                }
+                        }
+                        .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+
+                        if searchQuery == nil || searchQuery?.isEmpty == true {
+                            deckProgressAndPlayModes(isIPadLandscape: isIPadLandscape)
+                        }
+                    }
+
+                    DeckCardGridView(
+                        cards: viewModel.cachedGroupedCards,
+                        isSelecting: viewModel.isSelecting,
+                        selectedCards: viewModel.selectedCards,
+                        isSuspended: isSuspended,
+                        onToggleSelection: { gridCard in
                             withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
                                 viewModel.toggleSelection(for: gridCard.id)
                             }
-                        } else if searchQuery != nil {
-                            if let model = context.model(for: gridCard.id) as? CardModel {
-                                presentCardEditor(for: model)
+                        },
+                        onTapCard: { gridCard in
+                            if viewModel.isSelecting {
+                                withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
+                                    viewModel.toggleSelection(for: gridCard.id)
+                                }
+                            } else if searchQuery != nil {
+                                if let model = context.model(for: gridCard.id) as? CardModel {
+                                    presentCardEditor(for: model)
+                                }
+                            } else {
+                                if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
                             }
-                        } else {
-                            if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
-                        }
-                    },
-                    onEditCard: handleEditCard(_:),
-                    onTogglePinned: handleTogglePinned(_:),
-                    onDeleteCard: handleDeleteCard(_:)
-                )
-                .padding(.top, searchQuery == nil || searchQuery?.isEmpty == true ? 28 : 4)
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .tabBarAutoHideOnScroll(enabled: !viewModel.isSelecting)
-            .background {
-                themeManager.groupedScreenBackground
-            }
-        }
-        .coordinateSpace(name: kDeckScrollSpace)
-        .scrollIndicators(.hidden)
-        .gesture(
-            TapGesture().onEnded {
-                guard viewModel.isSelecting else { return }
-                withBottomChromeAnimation {
-                    viewModel.exitSelectionMode()
+                        },
+                        onEditCard: handleEditCard(_:),
+                        onTogglePinned: handleTogglePinned(_:),
+                        onDeleteCard: handleDeleteCard(_:)
+                    )
+                    .padding(.top, searchQuery == nil || searchQuery?.isEmpty == true ? 28 : 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .tabBarAutoHideOnScroll(enabled: !viewModel.isSelecting)
+                .background {
+                    themeManager.groupedScreenBackground
                 }
             }
-        )
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topContentInset)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: bottomContentInset)
-        }
-        .background(themeManager.groupedScreenBackground)
+            .coordinateSpace(name: kDeckScrollSpace)
+            .scrollIndicators(.hidden)
+            .gesture(
+                TapGesture().onEnded {
+                    guard viewModel.isSelecting else { return }
+                    withBottomChromeAnimation {
+                        viewModel.exitSelectionMode()
+                    }
+                }
+            )
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: topContentInset)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: bottomContentInset)
+            }
+            .background(themeManager.groupedScreenBackground)
 
-        return scrollView
+            return scrollView
+        }
+    }
+
+    @ViewBuilder
+    func deckProgressAndPlayModes(isIPadLandscape: Bool) -> some View {
+        let deckTint = Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
+
+        if isIPadLandscape {
+            VStack(spacing: 18) {
+                AppSectionSeparator()
+                    .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+
+                HStack(alignment: .center, spacing: 36) {
+                    DeckProgressView(
+                        stats: viewModel.currentStats,
+                        deckTint: deckTint,
+                        showsSeparator: false,
+                        horizontalPadding: 0,
+                        maxContentWidth: 500
+                    )
+                    .frame(width: 500)
+
+                    DeckPlayModesView(
+                        deck: deck,
+                        availability: viewModel.playModeAvailability,
+                        recentUsageSnapshot: playModeRecentUsageSnapshot,
+                        onOpenMode: { mode in
+                            openPlayMode(mode)
+                        },
+                        onOpenSettings: { mode in
+                            selectedPlayModeSettings = mode
+                        },
+                        maxContentWidth: 560,
+                        horizontalPadding: 0,
+                        isCompactLandscape: true
+                    )
+                    .frame(width: 560)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+            }
+            .padding(.top, 8)
+        } else {
+            DeckProgressView(
+                stats: viewModel.currentStats,
+                deckTint: deckTint
+            )
+            DeckPlayModesView(
+                deck: deck,
+                availability: viewModel.playModeAvailability,
+                recentUsageSnapshot: playModeRecentUsageSnapshot,
+                onOpenMode: { mode in
+                    openPlayMode(mode)
+                },
+                onOpenSettings: { mode in
+                    selectedPlayModeSettings = mode
+                }
+            )
+            .padding(.top, 16)
+        }
     }
 }
 

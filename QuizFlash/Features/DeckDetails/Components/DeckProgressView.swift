@@ -22,6 +22,9 @@ struct DeckProgressView: View {
 
     let stats: DeckStats
     let deckTint: Color
+    var showsSeparator = true
+    var horizontalPadding: CGFloat = UIConstants.Layout.screenEdgeInset
+    var maxContentWidth: CGFloat? = nil
 
     @State private var displayedAccuracy = 0
     @State private var displayedMastery = 0.0
@@ -36,10 +39,12 @@ struct DeckProgressView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            summarySeparator
+            if showsSeparator {
+                summarySeparator
+            }
             progressSummaryBlock
         }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .padding(.horizontal, horizontalPadding)
         .onAppear {
             animateDisplayedStats()
         }
@@ -68,7 +73,7 @@ struct DeckProgressView: View {
                 progressTitle: localized("Progress")
             )
         }
-        .frame(maxWidth: UIConstants.isPad ? 620 : .infinity, alignment: .center)
+        .frame(maxWidth: maxContentWidth ?? (UIConstants.isPad ? 620 : .infinity), alignment: .center)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 6)
         .padding(.vertical, 8)

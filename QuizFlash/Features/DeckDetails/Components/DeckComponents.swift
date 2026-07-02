@@ -118,6 +118,9 @@ struct DeckPlayModesView: View {
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
     let onOpenSettings: (DeckPlayModeDestination) -> Void
+    var maxContentWidth: CGFloat? = nil
+    var horizontalPadding: CGFloat = UIConstants.Layout.screenEdgeInset
+    var isCompactLandscape = false
 
     // MARK: - Computed Properties
 
@@ -170,15 +173,16 @@ struct DeckPlayModesView: View {
                         ),
                         canPlay: mode.canLaunch(with: availability, deck: deck),
                         onOpenMode: onOpenMode,
-                        onOpenSettings: onOpenSettings
+                        onOpenSettings: onOpenSettings,
+                        isCompactLandscape: isCompactLandscape
                     )
                     .frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: UIConstants.isPad ? 920 : .infinity, alignment: .center)
+            .frame(maxWidth: maxContentWidth ?? (UIConstants.isPad ? 920 : .infinity), alignment: .center)
             .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.vertical, UIConstants.Spacing.small)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, isCompactLandscape ? 0 : UIConstants.Spacing.small)
         }
     }
 }
@@ -197,6 +201,7 @@ private struct PlayModeCard: View {
     let canPlay: Bool
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
+    var isCompactLandscape = false
 
     @State private var unavailableWiggleOffset: CGFloat = 0
     @State private var unavailableScale: CGFloat = 1
@@ -217,23 +222,26 @@ private struct PlayModeCard: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 17, style: .continuous)
                             .fill(tintColor.opacity(canPlay ? 0.18 : 0.12))
-                            .frame(width: 44, height: 44)
+                            .frame(
+                                width: isCompactLandscape ? 38 : 44,
+                                height: isCompactLandscape ? 38 : 44
+                            )
 
                         Image(systemName: mode.systemImage)
-                            .font(.system(size: 20, weight: .black))
+                            .font(.system(size: isCompactLandscape ? 17 : 20, weight: .black))
                             .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
                             .rotationEffect(mode.systemImageRotation)
                     }
 
                     Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
-                        .font(.system(size: 21, weight: .black))
+                        .font(.system(size: isCompactLandscape ? 18 : 21, weight: .black))
                         .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                 }
-                .frame(maxWidth: .infinity, minHeight: 88, alignment: .center)
+                .frame(maxWidth: .infinity, minHeight: isCompactLandscape ? 74 : 88, alignment: .center)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.vertical, isCompactLandscape ? 10 : 14)
                 .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
             .duoPressableSurfaceStyle()
