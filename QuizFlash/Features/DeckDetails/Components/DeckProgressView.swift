@@ -59,15 +59,17 @@ struct DeckProgressView: View {
     }
 
     private var progressSummaryBlock: some View {
-        HStack(alignment: .center, spacing: 28) {
+        HStack(alignment: .center, spacing: UIConstants.isPad ? 84 : 28) {
             accuracySummary
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: UIConstants.isPad ? 240 : 180, alignment: .center)
             DeckIntegratedMasteryRing(
                 mastery: displayedMastery,
                 deckTint: deckTint,
                 progressTitle: localized("Progress")
             )
         }
+        .frame(maxWidth: UIConstants.isPad ? 620 : .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
     }

@@ -175,6 +175,8 @@ struct DeckPlayModesView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+            .frame(maxWidth: UIConstants.isPad ? 920 : .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.vertical, UIConstants.Spacing.small)
         }
