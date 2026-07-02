@@ -597,6 +597,27 @@ private struct DuoSurfaceModifier: ViewModifier {
     }
 }
 
+private struct PrimarySelectionSurfaceModifier: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        content
+            .background {
+                shape
+                    .fill(themeManager.roleColor(.labelPrimaryFill))
+            }
+            .overlay {
+                shape
+                    .strokeBorder(themeManager.roleColor(.labelPrimaryForeground).opacity(0.14), lineWidth: 1)
+            }
+            .clipShape(shape)
+    }
+}
+
 // MARK: - DuoMetricPillModifier
 
 /// Applies the shared outlined metric-chip treatment used by Home-style stats.
@@ -864,6 +885,25 @@ extension View {
         modifier(DuoSurfaceModifier(cornerRadius: cornerRadius, role: .control, tint: tint))
     }
 
+    /// Applies the shared selected-primary surface used by active pills and option buttons.
+    func primarySelectionSurface(cornerRadius: CGFloat = UIConstants.Radius.large) -> some View {
+        modifier(PrimarySelectionSurfaceModifier(cornerRadius: cornerRadius))
+    }
+
+    /// Applies selected-primary chrome when active and the normal control surface otherwise.
+    @ViewBuilder
+    func primarySelectionSurface(
+        isSelected: Bool,
+        cornerRadius: CGFloat = UIConstants.Radius.large,
+        inactiveTint: Color? = nil
+    ) -> some View {
+        if isSelected {
+            primarySelectionSurface(cornerRadius: cornerRadius)
+        } else {
+            duoControlSurface(cornerRadius: cornerRadius, tint: inactiveTint)
+        }
+    }
+
     /// Applies the shared outlined metric-chip treatment.
     func duoMetricPill(tint: Color? = nil) -> some View {
         modifier(DuoMetricPillModifier(tint: tint))
@@ -926,7 +966,7 @@ extension View {
                 accent.opacity(0.96),
                 accent.opacity(0.42),
                 Color.white.opacity(0.72),
-                accent.opacity(0.92)
+                accent.opacity(0.92),
             ],
             beamBlur: beamBlur,
             cornerRadius: cornerRadius,

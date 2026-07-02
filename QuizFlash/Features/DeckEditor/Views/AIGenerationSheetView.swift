@@ -34,6 +34,14 @@ struct AIGenerationSheetView: View {
         ThemeManager.shared.accentColor.color
     }
 
+    private var primarySelectionFill: Color {
+        ThemeManager.shared.roleColor(.labelPrimaryFill)
+    }
+
+    private var primarySelectionForeground: Color {
+        ThemeManager.shared.roleColor(.labelPrimaryForeground)
+    }
+
     private var maxContentWidth: CGFloat {
         UIConstants.isPad ? 760 : .infinity
     }
@@ -361,10 +369,10 @@ struct AIGenerationSheetView: View {
                 } label: {
                     Label(AppLocalization.string("Add Range", locale: appPreferences.resolvedLocale), systemImage: "plus.circle.fill")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(primarySelectionForeground)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .duoControlSurface(cornerRadius: 16, tint: .blue)
+                        .primarySelectionSurface(cornerRadius: 16)
                 }
                 .buttonStyle(.plain)
             }
@@ -386,22 +394,21 @@ struct AIGenerationSheetView: View {
                     .font(.system(size: 15, weight: .bold))
 
                 if isSubmittingGeneration {
-                    ProgressActivityDots(color: .white)
+                    ProgressActivityDots(color: primarySelectionForeground)
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(primarySelectionForeground)
             .frame(maxWidth: .infinity)
             .frame(height: UIConstants.Size.actionButton)
             .background {
                 Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                    .shadow(color: Color.purple.opacity(0.24), radius: 14, y: 2)
+                    .fill(primarySelectionFill)
             }
             .aiGenerationBorderBeam(
-                accent: accent,
+                accent: primarySelectionForeground,
                 cornerRadius: UIConstants.Size.actionButton / 2,
-                beamBlur: 10,
-                lineWidth: 2,
+                beamBlur: 8,
+                lineWidth: 1.4,
                 isEnabled: viewModel.canConfirmAIGeneration
             )
             .contentShape(Capsule(style: .continuous))

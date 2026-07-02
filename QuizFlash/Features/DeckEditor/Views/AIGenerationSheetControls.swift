@@ -91,7 +91,7 @@ struct SourceRangeTickPicker: View {
             inActiveHeightProgress: 0.46,
             interactionHeight: 72,
             tickAreaTopPadding: 10,
-            activeTint: ThemeManager.shared.accentColor.color,
+            activeTint: ThemeManager.shared.roleColor(.labelPrimaryForeground),
             inActiveTint: .primary,
             alignment: .center
         )
@@ -158,7 +158,7 @@ struct TickValuePicker: View {
             inActiveHeightProgress: 0.48,
             interactionHeight: isCompact ? 54 : 76,
             tickAreaTopPadding: isCompact ? 4 : 8,
-            activeTint: ThemeManager.shared.accentColor.color,
+            activeTint: ThemeManager.shared.roleColor(.labelPrimaryForeground),
             inActiveTint: .primary,
             alignment: .bottom
         )
@@ -273,7 +273,7 @@ struct TickPickerConfig {
     var inActiveHeightProgress: CGFloat = 0.55
     var interactionHeight: CGFloat = 60
     var tickAreaTopPadding: CGFloat = 0
-    var activeTint: Color = .yellow
+    var activeTint: Color = ThemeManager.shared.roleColor(.labelPrimaryForeground)
     var inActiveTint: Color = .primary
     var alignment: Alignment = .bottom
 

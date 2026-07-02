@@ -39,7 +39,6 @@ import SwiftData
 /// `AppRoute.folder(_, backLabel:)` to avoid the "ghost capsule" visual artifact
 /// that occurs when `router.activeTab` mutates mid-tab-switch animation.
 struct FolderView: View {
-
     // MARK: - Environment
 
     @Environment(\.modelContext) private var context
@@ -192,7 +191,6 @@ struct FolderView: View {
 /// Binds directly to `HomeViewModel` via `@Bindable` so changes propagate
 /// back to the VM without an extra `Binding` parameter.
 struct CreateFolderSheet: View {
-
     // MARK: - Environment
 
     @Environment(\.modelContext) private var context
@@ -219,7 +217,7 @@ struct CreateFolderSheet: View {
         "#AF9FFF",
         "#FF9F0A",
         "#FF5C7A",
-        "#32ADE6"
+        "#32ADE6",
     ]
 
     private var customColorBinding: Binding<Color> {
@@ -308,7 +306,7 @@ struct CreateFolderSheet: View {
             } label: {
                 Text(localized("Save"))
                     .font(.system(size: 18, weight: .black))
-                    .foregroundStyle(canSave ? themeManager.screenBackground : themeManager.textSecondary)
+                    .foregroundStyle(canSave ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
                     .background {
@@ -331,7 +329,7 @@ struct CreateFolderSheet: View {
             }
         }
         .alert(localized("Save Error"), isPresented: $viewModel.showCreateFolderError) {
-            Button(localized("OK"), role: .cancel) { }
+            Button(localized("OK"), role: .cancel) {}
         } message: {
             Text(viewModel.createFolderErrorMessage)
         }
