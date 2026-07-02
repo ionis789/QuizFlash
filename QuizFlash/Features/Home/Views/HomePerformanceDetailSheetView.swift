@@ -28,7 +28,7 @@ struct HomePerformanceDetailSheetView: View {
     private var gridColumns: [GridItem] {
         [
             GridItem(.flexible(), spacing: UIConstants.Spacing.medium),
-            GridItem(.flexible(), spacing: UIConstants.Spacing.medium)
+            GridItem(.flexible(), spacing: UIConstants.Spacing.medium),
         ]
     }
 
@@ -224,11 +224,11 @@ private struct HomePerformanceBarColumn: View {
     let barHeight: CGFloat
 
     private var goodTint: Color {
-        .green
+        Color(ThemeColorToken.successPrimary.assetName)
     }
 
     private var retryTint: Color {
-        Color(red: 1.0, green: 0.78, blue: 0.8)
+        Color(ThemeColorToken.dangerPrimary.assetName)
     }
 
     private var outcomeTotal: Int {
@@ -318,8 +318,12 @@ private struct HomePerformanceStackedBar: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             Capsule(style: .continuous)
-                .fill(themeManager.roleColor(.buttonPrimaryFill).opacity(0.16))
+                .fill(themeManager.textSecondary.opacity(0.08))
                 .frame(height: barHeight)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(themeManager.textSecondary.opacity(0.14), lineWidth: 1)
+                }
 
             VStack(spacing: 0) {
                 if retryCount > 0 {
@@ -327,7 +331,7 @@ private struct HomePerformanceStackedBar: View {
                         value: retryCount,
                         height: segmentHeights.retry,
                         fill: retryTint,
-                        textColor: Color.black.opacity(0.68)
+                        textColor: Color.white.opacity(0.9)
                     )
                 }
 
@@ -336,7 +340,7 @@ private struct HomePerformanceStackedBar: View {
                         value: landedCount,
                         height: segmentHeights.landed,
                         fill: goodTint,
-                        textColor: themeManager.textPrimary
+                        textColor: Color.white.opacity(0.92)
                     )
                 }
             }
@@ -344,6 +348,10 @@ private struct HomePerformanceStackedBar: View {
             .frame(maxWidth: .infinity)
             .frame(height: barHeight, alignment: .bottom)
             .clipShape(Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(themeManager.textPrimary.opacity(0.16), lineWidth: 1.1)
+            }
         }
         .frame(height: barHeight)
         .frame(maxWidth: .infinity)

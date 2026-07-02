@@ -7,6 +7,13 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Home Outcome Colors
+
+private enum HomeOutcomePalette {
+    static let correct = Color(ThemeColorToken.successPrimary.assetName)
+    static let retry = Color(ThemeColorToken.dangerPrimary.assetName)
+}
+
 // MARK: - Home Dashboard View
 
 /// The scrollable Home body rendered below the collapsible calendar header.
@@ -295,8 +302,8 @@ struct HomeDashboardView: View {
                         maxColumnWidth: usesRegularMetrics ? 88 : nil,
                         barHeight: usesRegularMetrics ? 154 : 114
                     )
-                        .frame(maxWidth: .infinity)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -551,11 +558,11 @@ private struct HomeDashboardSelectedDayOutcomeRing: View {
     }
 
     private var correctColor: Color {
-        Color(red: 0.35, green: 0.78, blue: 0.49)
+        HomeOutcomePalette.correct
     }
 
     private var retryColor: Color {
-        Color(red: 0.92, green: 0.34, blue: 0.32)
+        HomeOutcomePalette.retry
     }
 
     private var ringAnimation: Animation {
@@ -917,7 +924,6 @@ private struct HomeWeeklyCoverageBarsView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let daySummaries: [HomeWeeklyDaySummary]
-    let tint: Color
     let usesRegularMetrics: Bool
     let onSelectDate: (Date) -> Void
 
@@ -934,7 +940,6 @@ private struct HomeWeeklyCoverageBarsView: View {
                     HomeWeeklyCoverageBar(
                         day: day,
                         maxReviewedCount: maxReviewedCount,
-                        tint: tint,
                         usesRegularMetrics: usesRegularMetrics
                     )
                 }
@@ -950,7 +955,6 @@ private struct HomeWeeklyCoverageBar: View {
 
     let day: HomeWeeklyDaySummary
     let maxReviewedCount: Int
-    let tint: Color
     let usesRegularMetrics: Bool
 
     private var maxBarHeight: CGFloat {
@@ -970,9 +974,30 @@ private struct HomeWeeklyCoverageBar: View {
     }
 
     private var fillColor: Color {
-        if day.isSelectedDay { return tint }
-        if day.didStudy { return tint.opacity(0.52) }
+        if day.didStudy { return outcomeFillColor }
         return Color.white.opacity(0.12)
+    }
+
+    private var outcomeFillColor: Color {
+        let reviewedOutcomeCount = day.correctCardCount + day.retryCardCount
+        guard reviewedOutcomeCount > 0 else {
+            return HomeOutcomePalette.correct.opacity(day.isSelectedDay ? 0.9 : 0.48)
+        }
+
+        let correctRatio = Double(day.correctCardCount) / Double(reviewedOutcomeCount)
+        return correctRatio >= 0.5 ? HomeOutcomePalette.correct : HomeOutcomePalette.retry
+    }
+
+    private var borderColor: Color {
+        if day.didStudy {
+            return outcomeFillColor.opacity(day.isSelectedDay ? 0.92 : 0.5)
+        }
+
+        return themeManager.textSecondary.opacity(0.16)
+    }
+
+    private var barOpacity: Double {
+        day.isSelectedDay ? 1 : 0.68
     }
 
     var body: some View {
@@ -987,10 +1012,19 @@ private struct HomeWeeklyCoverageBar: View {
                 Capsule()
                     .fill(Color.white.opacity(0.05))
                     .frame(width: barWidth, height: maxBarHeight)
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(themeManager.textSecondary.opacity(0.11), lineWidth: 1)
+                    }
 
                 Capsule()
                     .fill(fillColor)
                     .frame(width: barWidth, height: normalizedHeight)
+                    .opacity(barOpacity)
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(borderColor, lineWidth: day.isSelectedDay ? 1.6 : 1.1)
+                    }
                     .overlay(alignment: .top) {
                         if day.isSelectedDay {
                             Capsule()
@@ -1006,7 +1040,7 @@ private struct HomeWeeklyCoverageBar: View {
 
             Text(day.shortWeekday)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(day.isSelectedDay ? tint : themeManager.textSecondary)
+                .foregroundStyle(day.isSelectedDay ? outcomeFillColor : themeManager.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .bottom)
     }
@@ -1547,8 +1581,8 @@ private struct HomeDashboardFolderCard: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(deckCountText)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(themeManager.textSecondary)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(themeManager.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
