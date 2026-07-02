@@ -118,10 +118,6 @@ struct HomeDashboardView: View {
         usesRegularMetrics ? 360 : 256
     }
 
-    private var studySectionMaxWidth: CGFloat {
-        usesRegularMetrics ? min(availableSectionWidth, 900) : availableSectionWidth
-    }
-
     private var weeklyStatsExpandAnimation: Animation {
         .easeInOut(duration: 0.18)
     }
@@ -130,7 +126,7 @@ struct HomeDashboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            boundedStudySection(studySection)
+            boundedSection(studySection)
                 .padding(.top, topSectionInset)
                 .padding(.horizontal, contentHorizontalInset)
                 .homeDashboardSectionMotion()
@@ -151,13 +147,6 @@ struct HomeDashboardView: View {
 
             Spacer(minLength: 170)
         }
-    }
-
-    @ViewBuilder
-    private func boundedStudySection<Content: View>(_ content: Content) -> some View {
-        content
-            .frame(maxWidth: studySectionMaxWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     @ViewBuilder
@@ -303,8 +292,8 @@ struct HomeDashboardView: View {
                 if isExpanded {
                     HomePerformanceBarRow(
                         daySummaries: summary.currentDaySummaries,
-                        maxColumnWidth: usesRegularMetrics ? 112 : nil,
-                        barHeight: usesRegularMetrics ? 142 : 114
+                        maxColumnWidth: usesRegularMetrics ? 88 : nil,
+                        barHeight: usesRegularMetrics ? 154 : 114
                     )
                         .frame(maxWidth: .infinity)
                         .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))

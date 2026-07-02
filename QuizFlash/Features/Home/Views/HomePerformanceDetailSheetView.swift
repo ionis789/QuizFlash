@@ -342,6 +342,7 @@ private struct HomePerformanceStackedBar: View {
             }
             .frame(height: activeHeight, alignment: .bottom)
             .frame(maxWidth: .infinity)
+            .frame(height: barHeight, alignment: .bottom)
             .clipShape(Capsule(style: .continuous))
         }
         .frame(height: barHeight)
