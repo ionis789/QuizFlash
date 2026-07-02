@@ -54,11 +54,10 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d decks	%d decks	%d pachete	%d колод
-%d/%d decks	%d/%d decks	%d/%d deckuri	%d/%d колод
+%d Deck	%d Deck	%d deck	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -83,6 +82,7 @@ key	en	ro	ru
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
 %d%% good cards	%d%% good cards	%d%% carduri bune	%d%% хороших карточек
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
+%d/%d decks	%d/%d decks	%d/%d deckuri	%d/%d колод
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
 %dm ago	%dm ago	acum %dmin	%dм назад
@@ -112,6 +112,7 @@ Active Configuration	Active Configuration	Configurație activă	Активная
 Active days	Active days	Zile active	Активные дни
 Active-recall question and answer cards.	Active-recall question and answer cards.	Carduri de întrebare și răspuns pentru memorare activă.	Карточки вопрос-ответ для активного запоминания.
 Activity	Activity	Activitate	Активность
+Activity card, recent decks, folders.	Activity card, recent decks, folders.	Card activitate, deckuri recente, foldere.	Карточка активности, недавние колоды, папки.
 Add a question before saving.	Add a question before saving.	Adaugă întrebarea înainte de salvare.	Добавьте вопрос перед сохранением.
 Add Above	Add Above	Adaugă deasupra	Добавить выше
 Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Adăugați un examen pentru a urmări pregătirea în deckuri conectate și marcați ziua respectivă în calendarul Acasă.	Добавьте экзамен, чтобы отслеживать готовность всех связанных колод, и отметьте этот день в главном календаре.
@@ -163,16 +164,19 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blank	Blank	Gol	Пропуск
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
 Blur Tuner	Blur Tuner	Reglaj blur	Настройка блюра
 Body	Body	Corp	Текст
-Border	Border	Bordură	Граница
-Border Type	Border Type	Tip bordură	Тип границы
 Bold	Bold	Aldin	Жирный
+Border	Border	Bordură	Граница
+Border Controls	Border Controls	Controale bordură	Настройки границ
+Border Design	Border Design	Design bordură	Дизайн границ
+Border system for Home, cards, settings, and controls.	Border system for Home, cards, settings, and controls.	Sistem de borduri pentru Home, carduri, setări și controale.	Система границ для главной, карточек, настроек и элементов управления.
+Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
@@ -190,8 +194,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -200,6 +204,8 @@ CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
 Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
 Center	Center	Centru	Центр
 Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
+Change these values once. Every preview below updates live.	Change these values once. Every preview below updates live.	Schimbă o dată valorile. Toate previzualizările de mai jos se actualizează live.	Измените значения один раз. Все предпросмотры ниже обновляются сразу.
+Changes the border color family.	Changes the border color family.	Schimbă familia de culoare a bordurii.	Меняет цветовую семью границы.
 Check your email	Check your email	Verifică emailul	Проверьте email
 Check your internet connection and try again.	Check your internet connection and try again.	Verifică conexiunea la internet și încearcă din nou.	Проверьте подключение к интернету и попробуйте снова.
 Choice %@	Choice %@	Alegere %@	Выбор %@
@@ -225,8 +231,8 @@ Close and keep progress	Close and keep progress	Închide și păstrează progres
 Close search	Close search	Închide căutarea	Закрыть поиск
 Code	Code	Cod	Код
 Code: %@	Code: %@	Cod: %@	Код: %@
-Color	Color	Culoare	Цвет
 Collapse	Collapse	Restrânge	Свернуть
+Color	Color	Culoare	Цвет
 Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
 Confirm Password	Confirm Password	Confirmă parola	Подтвердите пароль
 Content Alignment	Content Alignment	Aliniere conținut	Выравнивание контента
@@ -236,6 +242,8 @@ Continue from the last completed batch when you're ready.	Continue from the last
 Continue playing	Continue playing	Continuă jocul	Продолжить игру
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
 Continue with Google	Continue with Google	Continuă cu Google	Продолжить с Google
+Controls how thick every border is.	Controls how thick every border is.	Controlează grosimea tuturor bordurilor.	Управляет толщиной всех границ.
+Controls how visible the border color is.	Controls how visible the border color is.	Controlează cât de vizibilă este culoarea bordurii.	Управляет заметностью цвета границы.
 Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
 Copied!	Copied!	Copiat!	Скопировано!
 Copy	Copy	Copiază	Копировать
@@ -272,7 +280,6 @@ Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
 Defined	Defined	Definită	Чёткая
 Delete	Delete	Șterge	Удалить
-Depth	Depth	Intensitate	Глубина
 "Delete ""%@""?"	"Delete ""%@""?"	Ștergi „%@”?	"Удалить ""%@""?"
 Delete %d card?	Delete %d card?	Ștergi %d card?	Удалить %d карточку?
 Delete %d cards?	Delete %d cards?	Ștergi %d carduri?	Удалить %d карточки?
@@ -283,6 +290,7 @@ Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	�
 Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete?	Delete?	Ștergi?	Удалить?
+Depth	Depth	Intensitate	Глубина
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
@@ -362,6 +370,7 @@ Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI..
 Generating cards	Generating cards	Se generează cardurile	Генерация карточек
 Get started	Get started	Începe	Начать
 Getting Started	Getting Started	Noțiuni de bază	Начиная
+Global border style	Global border style	Stil global bordură	Глобальный стиль границ
 Goal closed	Goal closed	Obiectiv închis	Цель закрыта
 Goal days	Goal days	Zile cu țintă	Дни цели
 Goal: %d cards	Goal: %d cards	Țintă: %d carduri	Цель: %d карточек
@@ -389,6 +398,7 @@ Hide Tab Blur	Hide Tab Blur	Ascunde blurul tabbarului	Скрыть размыт�
 Highlight	Highlight	Evidențiere	Выделение
 History	History	Istoric	История
 Home	Home	Acasă	Главная
+Home dashboard	Home dashboard	Dashboard Home	Главный дашборд
 How does changing text size affect a study card?	How does changing text size affect a study card?	Cum afectează schimbarea dimensiunii textului un card de studiu?	Как изменение размера текста влияет на учебную карточку?
 Image	Image	Imagine	Изображение
 Image Size	Image Size	Dimensiune imagine	Размер изображения
@@ -488,8 +498,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
+No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -527,6 +537,7 @@ Orange	Orange	Portocaliu	Оранжевый
 Overflow Behaviour	Overflow Behaviour	Comportament de overflow	Поведение при переполнении
 Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
 Pace	Pace	Ritm	Темп
+Panels	Panels	Panouri	Панели
 Password	Password	Parolă	Пароль
 Password reset link sent.	Password reset link sent.	Linkul de resetare a fost trimis.	Ссылка для сброса пароля отправлена.
 Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Пароли не совпадают.
@@ -540,6 +551,7 @@ Pick a deck for today	Pick a deck for today	Alege un deck pentru azi	Выбер�
 Pick a deck for tonight	Pick a deck for tonight	Alege un deck pentru diseară	Выберите колоду на вечер
 Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Alegeți un rând deck de mai sus pentru a inspecta carduri care au aterizat curat și pe cele care mai au nevoie de o altă trecere.	Выберите ряд колоды выше, чтобы проверить карты, которые приземлились чисто, и те, которым еще нужен повторный проход.
 Pick the type of card you want to add to this deck.	Pick the type of card you want to add to this deck.	Alegeți tipul de card pe care doriți să îl adăugați la acest deck.	Выберите тип карточки, которую хотите добавить в эту колоду.
+Pills, chips, compact controls.	Pills, chips, compact controls.	Pastile, chipuri, controale compacte.	Плашки, чипы, компактные элементы.
 Pin	Pin	Fixează	Закрепить
 Pin selected cards	Pin selected cards	Fixează cardurile selectate	Закрепить выбранные карточки
 Pink	Pink	Roz	Розовый
@@ -563,13 +575,13 @@ Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -602,8 +614,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -646,6 +658,7 @@ Send Reset Link	Send Reset Link	Trimite link	Отправить ссылку
 Serif	Serif	Serif	С засечками
 Session	Session	Sesiune	Сессия
 Settings	Settings	Setări	Настройки
+Settings rows, sheets, grouped surfaces.	Settings rows, sheets, grouped surfaces.	Rânduri de setări, sheet-uri, suprafețe grupate.	Строки настроек, листы, сгруппированные поверхности.
 Shadow Color	Shadow Color	Culoare umbră	Цвет тени
 Shadow Tuner	Shadow Tuner	Reglaj umbră	Настройка тени
 Shape	Shape	Formă	Форма
@@ -661,10 +674,11 @@ Sign Up	Sign Up	Înregistrare	Регистрация
 Sign-in is not ready yet. Please try again later.	Sign-in is not ready yet. Please try again later.	Autentificarea nu este gata încă. Încearcă mai târziu.	Вход пока не готов. Попробуйте позже.
 Sign-in was cancelled.	Sign-in was cancelled.	Autentificarea a fost anulată.	Вход был отменен.
 Simple	Simple	Simplu	Простой
-Soft	Soft	Fină	Мягкая
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
 Small	Small	Mic	Маленький
+Small controls	Small controls	Controale mici	Малые элементы
+Soft	Soft	Fină	Мягкая
 Something went wrong	Something went wrong	Ceva nu a mers bine	Что-то пошло не так
 Sort By	Sort By	Sortează după	Сортировать по
 Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточки
@@ -684,13 +698,14 @@ Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
 Strong	Strong	Puternică	Сильная
+Study cards and widget cards.	Study cards and widget cards.	Carduri de studiu și carduri widget.	Учебные карточки и виджеты.
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
 Swipe review	Swipe review	Repetare prin glisare	Повтор свайпом
+Syncing…	Syncing…	Se sincronizează…	Синхронизация…
 System	System	Sistem	Система
 System Default	System Default	Implicit de sistem	Системное значение
-Syncing…	Syncing…	Se sincronizează…	Синхронизация…
 Tab Bar	Tab Bar	Bara de file	Панель вкладок
 Tab Bar Blur	Tab Bar Blur	Blur tabbar	Размытие панели вкладок
 Tap + to add a card, or generate cards with AI.	Tap + to add a card, or generate cards with AI.	Atinge + ca să adaugi un card sau generează carduri cu AI.	Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.
@@ -714,12 +729,12 @@ The omitted answer is symbol-dense enough that assisted builder input will usual
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
 The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
+Thickness	Thickness	Grosime	Толщина
 This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
 This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
-Thickness	Thickness	Grosime	Толщина
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
@@ -727,9 +742,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+This week	This week	Săptămâna aceasta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
-This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -780,6 +795,7 @@ Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
 Welcome back	Welcome back	Bine ai revenit	С возвращением
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
+Where it changes	Where it changes	Unde se schimbă	Где меняется
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP
 Yellow	Yellow	Galben	Жёлтый

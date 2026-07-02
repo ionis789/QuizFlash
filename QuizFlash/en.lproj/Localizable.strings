@@ -101,6 +101,7 @@
 "Active days" = "Active days";
 "Active-recall question and answer cards." = "Active-recall question and answer cards.";
 "Activity" = "Activity";
+"Activity card, recent decks, folders." = "Activity card, recent decks, folders.";
 "Add a question before saving." = "Add a question before saving.";
 "Add Above" = "Add Above";
 "Add an exam to track readiness across linked decks and mark that day in the Home calendar." = "Add an exam to track readiness across linked decks and mark that day in the Home calendar.";
@@ -157,6 +158,9 @@
 "Blur Tuner" = "Blur Tuner";
 "Body" = "Body";
 "Border" = "Border";
+"Border Controls" = "Border Controls";
+"Border Design" = "Border Design";
+"Border system for Home, cards, settings, and controls." = "Border system for Home, cards, settings, and controls.";
 "Border Type" = "Border Type";
 "Bold" = "Bold";
 "Bottom" = "Bottom";
@@ -173,6 +177,7 @@
 "Card %@" = "Card %@";
 "Card %d" = "Card %d";
 "Card Content" = "Card Content";
+"Changes the border color family." = "Changes the border color family.";
 "Card Distribution" = "Card Distribution";
 "card moved" = "card moved";
 "Card Text" = "Card Text";
@@ -185,6 +190,7 @@
 "Cellular Respiration" = "Cellular Respiration";
 "Center" = "Center";
 "Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately." = "Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.";
+"Change these values once. Every preview below updates live." = "Change these values once. Every preview below updates live.";
 "Check your email" = "Check your email";
 "Check your internet connection and try again." = "Check your internet connection and try again.";
 "Choice %@" = "Choice %@";
@@ -222,6 +228,8 @@
 "Continue where you left off." = "Continue where you left off.";
 "Continue with Google" = "Continue with Google";
 "Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported." = "Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.";
+"Controls how thick every border is." = "Controls how thick every border is.";
+"Controls how visible the border color is." = "Controls how visible the border color is.";
 "Copied!" = "Copied!";
 "Copy and share with Codex" = "Copy and share with Codex";
 "Correct" = "Correct";
@@ -359,6 +367,7 @@
 "Green" = "Green";
 "Group By" = "Group By";
 "Group by Card Type" = "Group by Card Type";
+"Global border style" = "Global border style";
 "GUIDED BRIEFING" = "GUIDED BRIEFING";
 "Hard" = "Hard";
 "Header Blur" = "Header Blur";
@@ -371,6 +380,7 @@
 "Highlight" = "Highlight";
 "History" = "History";
 "Home" = "Home";
+"Home dashboard" = "Home dashboard";
 "How does changing text size affect a study card?" = "How does changing text size affect a study card?";
 "Image" = "Image";
 "Image Size" = "Image Size";
@@ -502,10 +512,12 @@
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}";
 "or" = "or";
 "Orange" = "Orange";
+"Panels" = "Panels";
 "Overflow Behaviour" = "Overflow Behaviour";
 "Owner: %@" = "Owner: %@";
 "Pace" = "Pace";
 "Password" = "Password";
+"Pills, chips, compact controls." = "Pills, chips, compact controls.";
 "Password reset link sent." = "Password reset link sent.";
 "Passwords do not match." = "Passwords do not match.";
 "Paused" = "Paused";
@@ -622,6 +634,7 @@
 "Send Reset Link" = "Send Reset Link";
 "Serif" = "Serif";
 "Settings" = "Settings";
+"Settings rows, sheets, grouped surfaces." = "Settings rows, sheets, grouped surfaces.";
 "Shadow Color" = "Shadow Color";
 "Shadow Tuner" = "Shadow Tuner";
 "Shape" = "Shape";
@@ -641,6 +654,7 @@
 "Single correct answer" = "Single correct answer";
 "Sketch" = "Sketch";
 "Small" = "Small";
+"Small controls" = "Small controls";
 "Something went wrong" = "Something went wrong";
 "Sort By" = "Sort By";
 "Sort Cards" = "Sort Cards";
@@ -660,6 +674,7 @@
 "Stored Answer" = "Stored Answer";
 "Streak" = "Streak";
 "Strong" = "Strong";
+"Study cards and widget cards." = "Study cards and widget cards.";
 "Sunday" = "Sunday";
 "Suspended" = "Suspended";
 "Swipe HUD" = "Swipe HUD";
@@ -751,6 +766,7 @@
 "Weakest linked deck: %@" = "Weakest linked deck: %@";
 "Weekly Momentum" = "Weekly Momentum";
 "Welcome back" = "Welcome back";
+"Where it changes" = "Where it changes";
 "What is eventual consistency?" = "What is eventual consistency?";
 "Widget Border Radius" = "Widget Border Radius";
 "XP" = "XP";

@@ -101,6 +101,7 @@
 "Active days" = "Активные дни";
 "Active-recall question and answer cards." = "Карточки вопрос-ответ для активного запоминания.";
 "Activity" = "Активность";
+"Activity card, recent decks, folders." = "Карточка активности, недавние колоды, папки.";
 "Add a question before saving." = "Добавьте вопрос перед сохранением.";
 "Add Above" = "Добавить выше";
 "Add an exam to track readiness across linked decks and mark that day in the Home calendar." = "Добавьте экзамен, чтобы отслеживать готовность всех связанных колод, и отметьте этот день в главном календаре.";
@@ -157,6 +158,9 @@
 "Blur Tuner" = "Настройка блюра";
 "Body" = "Текст";
 "Border" = "Граница";
+"Border Controls" = "Настройки границ";
+"Border Design" = "Дизайн границ";
+"Border system for Home, cards, settings, and controls." = "Система границ для главной, карточек, настроек и элементов управления.";
 "Border Type" = "Тип границы";
 "Bold" = "Жирный";
 "Bottom" = "Снизу";
@@ -173,6 +177,7 @@
 "Card %@" = "Карта %@";
 "Card %d" = "Карта %d";
 "Card Content" = "Содержимое карточки";
+"Changes the border color family." = "Меняет цветовую семью границы.";
 "Card Distribution" = "Распределение карточек";
 "card moved" = "карточка пройдена";
 "Card Text" = "Текст карточки";
@@ -185,6 +190,7 @@
 "Cellular Respiration" = "Клеточное дыхание";
 "Center" = "Центр";
 "Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately." = "Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.";
+"Change these values once. Every preview below updates live." = "Измените значения один раз. Все предпросмотры ниже обновляются сразу.";
 "Check your email" = "Проверьте email";
 "Check your internet connection and try again." = "Проверьте подключение к интернету и попробуйте снова.";
 "Choice %@" = "Выбор %@";
@@ -222,6 +228,8 @@
 "Continue where you left off." = "Продолжайте с того места, где остановились.";
 "Continue with Google" = "Продолжить с Google";
 "Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported." = "Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.";
+"Controls how thick every border is." = "Управляет толщиной всех границ.";
+"Controls how visible the border color is." = "Управляет заметностью цвета границы.";
 "Copied!" = "Скопировано!";
 "Copy and share with Codex" = "Скопируйте и поделитесь с Кодексом";
 "Correct" = "Верно";
@@ -359,6 +367,7 @@
 "Green" = "Зелёный";
 "Group By" = "Группировать по";
 "Group by Card Type" = "Группировать по типу карточки";
+"Global border style" = "Глобальный стиль границ";
 "GUIDED BRIEFING" = "БРИФИНГ С УПРАВЛЕНИЕМ";
 "Hard" = "Сложно";
 "Header Blur" = "Размытие заголовка";
@@ -371,6 +380,7 @@
 "Highlight" = "Выделение";
 "History" = "История";
 "Home" = "Главная";
+"Home dashboard" = "Главный дашборд";
 "How does changing text size affect a study card?" = "Как изменение размера текста влияет на учебную карточку?";
 "Image" = "Изображение";
 "Image Size" = "Размер изображения";
@@ -502,10 +512,12 @@
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Необязательный. Используйте это для полей тела, специфичных для поставщика, таких как рассуждения OpenRouter. Пример: {\"рассуждение\":{\"включено\":true}}";
 "or" = "или";
 "Orange" = "Оранжевый";
+"Panels" = "Панели";
 "Overflow Behaviour" = "Поведение при переполнении";
 "Owner: %@" = "Владелец: %@";
 "Pace" = "Темп";
 "Password" = "Пароль";
+"Pills, chips, compact controls." = "Плашки, чипы, компактные элементы.";
 "Password reset link sent." = "Ссылка для сброса пароля отправлена.";
 "Passwords do not match." = "Пароли не совпадают.";
 "Paused" = "На паузе";
@@ -622,6 +634,7 @@
 "Send Reset Link" = "Отправить ссылку";
 "Serif" = "С засечками";
 "Settings" = "Настройки";
+"Settings rows, sheets, grouped surfaces." = "Строки настроек, листы, сгруппированные поверхности.";
 "Shadow Color" = "Цвет тени";
 "Shadow Tuner" = "Настройка тени";
 "Shape" = "Форма";
@@ -641,6 +654,7 @@
 "Single correct answer" = "Один правильный ответ";
 "Sketch" = "Набросок";
 "Small" = "Маленький";
+"Small controls" = "Малые элементы";
 "Something went wrong" = "Что-то пошло не так";
 "Sort By" = "Сортировать по";
 "Sort Cards" = "Сортировать карточки";
@@ -660,6 +674,7 @@
 "Stored Answer" = "Сохранённый ответ";
 "Streak" = "Серия";
 "Strong" = "Сильная";
+"Study cards and widget cards." = "Учебные карточки и виджеты.";
 "Sunday" = "Воскресенье";
 "Suspended" = "Приостановлена";
 "Swipe HUD" = "Проведите по интерфейсу";
@@ -751,6 +766,7 @@
 "Weakest linked deck: %@" = "Самая слабая связанная колода: %@";
 "Weekly Momentum" = "Еженедельный импульс";
 "Welcome back" = "С возвращением";
+"Where it changes" = "Где меняется";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
 "Widget Border Radius" = "Радиус границы виджета";
 "XP" = "XP";

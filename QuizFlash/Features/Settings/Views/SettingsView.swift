@@ -17,7 +17,6 @@ struct SettingsView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -43,7 +42,6 @@ struct SettingsView: View {
     @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
     @State private var isCardsGoalExpanded = false
     @State private var isTextSizeExpanded = false
-    @State private var isBorderDesignExpanded = false
     @State private var backendTraceEventCount = 0
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
@@ -479,7 +477,18 @@ struct SettingsView: View {
             }
 
             settingsBlock {
-                borderDesignSettings
+                NavigationLink {
+                    BorderDesignSettingsView()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "rectangle.dashed",
+                        tint: themeManager.accentColor.color,
+                        title: SettingsTextContent.verbatim(AppLocalization.string("Border", locale: appPreferences.resolvedLocale)),
+                        detail: SettingsTextContent.verbatim(AppLocalization.string("Global border style", locale: appPreferences.resolvedLocale)),
+                        value: appPreferences.borderDesign.preset.localizedTitle(locale: appPreferences.resolvedLocale)
+                    )
+                }
+                .noPressEffectButtonStyle()
             }
 
             settingsBlock {
@@ -1107,145 +1116,6 @@ struct SettingsView: View {
         .animation(.easeInOut(duration: 0.16), value: isTextSizeExpanded)
     }
 
-    private var borderDesignSettings: some View {
-        VStack(alignment: .leading, spacing: isBorderDesignExpanded ? UIConstants.Spacing.medium : 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isBorderDesignExpanded.toggle()
-                }
-            } label: {
-                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                    SettingsRowIcon(icon: "rectangle.dashed", tint: borderPreviewAccentColor)
-
-                    Text(AppLocalization.string("Border", locale: appPreferences.resolvedLocale))
-                        .font(.body.weight(.bold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    Spacer(minLength: UIConstants.Spacing.standard)
-
-                    Text(appPreferences.borderDesign.preset.localizedTitle(locale: appPreferences.resolvedLocale))
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .padding(.horizontal, UIConstants.Spacing.medium)
-                        .frame(height: 34)
-                        .background(borderPreviewAccentColor.opacity(0.10), in: Capsule())
-                }
-                .contentShape(Rectangle())
-            }
-            .noPressEffectButtonStyle()
-
-            if isBorderDesignExpanded {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                    SettingsMenuPickerRow(
-                        icon: "slider.horizontal.3",
-                        tint: borderPreviewAccentColor,
-                        title: "Border Type",
-                        selection: borderPresetBinding,
-                        options: AppBorderStylePreset.allCases,
-                        titleForOption: { option, locale in
-                            option.localizedTitle(locale: locale)
-                        }
-                    )
-
-                    borderDesignSlider(
-                        title: AppLocalization.string("Thickness", locale: appPreferences.resolvedLocale),
-                        value: borderThicknessBinding
-                    )
-
-                    borderDesignSlider(
-                        title: AppLocalization.string("Depth", locale: appPreferences.resolvedLocale),
-                        value: borderDepthBinding
-                    )
-
-                    borderDesignSlider(
-                        title: AppLocalization.string("Color", locale: appPreferences.resolvedLocale),
-                        value: borderHueBinding
-                    )
-
-                    borderDesignPreview
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
-            }
-        }
-        .animation(.easeInOut(duration: 0.16), value: isBorderDesignExpanded)
-        .animation(.easeInOut(duration: 0.16), value: appPreferences.borderDesign)
-    }
-
-    private var borderDesignPreview: some View {
-        HStack(spacing: UIConstants.Spacing.standard) {
-            borderPreviewSwatch(role: .homeCard, width: 76, height: 44)
-            borderPreviewSwatch(role: .panel, width: 58, height: 44)
-            borderPreviewSwatch(role: .control, width: 44, height: 44)
-
-            Spacer(minLength: UIConstants.Spacing.standard)
-
-            Text("\(Int((appPreferences.borderDesign.thickness * 100).rounded()))%")
-                .font(.caption.weight(.bold).monospacedDigit())
-                .foregroundStyle(themeManager.textSecondary)
-        }
-        .padding(.top, 2)
-    }
-
-    private var borderPreviewAccentColor: Color {
-        Color(
-            hue: appPreferences.borderDesign.hue,
-            saturation: colorScheme == .dark ? 0.52 : 0.46,
-            brightness: colorScheme == .dark ? 0.78 : 0.52
-        )
-    }
-
-    private func borderPreviewSwatch(
-        role: AppBorderSurfaceRole,
-        width: CGFloat,
-        height: CGFloat
-    ) -> some View {
-        let shape = RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
-
-        return shape
-            .fill(themeManager.roleColor(.widgetSurfaceFill).opacity(0.72))
-            .frame(width: width, height: height)
-            .overlay {
-                shape
-                    .strokeBorder(
-                        AppBorderRenderer.color(
-                            for: role,
-                            preferences: appPreferences.borderDesign,
-                            colorScheme: colorScheme
-                        ),
-                        lineWidth: AppBorderRenderer.lineWidth(
-                            for: role,
-                            preferences: appPreferences.borderDesign
-                        )
-                    )
-            }
-    }
-
-    private func borderDesignSlider(
-        title: String,
-        value: Binding<Double>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                Text(title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.textSecondary)
-
-                Spacer(minLength: UIConstants.Spacing.standard)
-
-                Text("\(Int((value.wrappedValue * 100).rounded()))")
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(themeManager.textPrimary)
-            }
-
-            Slider(
-                value: value,
-                in: AppBorderDesignPreferences.valueRange,
-                step: 0.01
-            )
-            .tint(borderPreviewAccentColor)
-        }
-    }
-
     private func formattedMicroUSD(_ value: Int) -> String {
         let amount = Double(max(value, 0)) / 1_000_000
         return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
@@ -1324,42 +1194,6 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.zoneSurfaceStyle },
             set: { appPreferences.zoneSurfaceStyle = $0 }
-        )
-    }
-
-    private var borderPresetBinding: Binding<AppBorderStylePreset> {
-        Binding(
-            get: { appPreferences.borderDesign.preset },
-            set: { newValue in
-                appPreferences.borderDesign = appPreferences.borderDesign.updating { design in
-                    design.preset = newValue
-                }
-            }
-        )
-    }
-
-    private var borderThicknessBinding: Binding<Double> {
-        borderDesignBinding(\.thickness)
-    }
-
-    private var borderDepthBinding: Binding<Double> {
-        borderDesignBinding(\.depth)
-    }
-
-    private var borderHueBinding: Binding<Double> {
-        borderDesignBinding(\.hue)
-    }
-
-    private func borderDesignBinding(
-        _ keyPath: WritableKeyPath<AppBorderDesignPreferences, Double>
-    ) -> Binding<Double> {
-        Binding(
-            get: { appPreferences.borderDesign[keyPath: keyPath] },
-            set: { newValue in
-                appPreferences.borderDesign = appPreferences.borderDesign.updating { design in
-                    design[keyPath: keyPath] = newValue
-                }
-            }
         )
     }
 

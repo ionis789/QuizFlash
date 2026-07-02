@@ -101,6 +101,7 @@
 "Active days" = "Zile active";
 "Active-recall question and answer cards." = "Carduri de întrebare și răspuns pentru memorare activă.";
 "Activity" = "Activitate";
+"Activity card, recent decks, folders." = "Card activitate, deckuri recente, foldere.";
 "Add a question before saving." = "Adaugă întrebarea înainte de salvare.";
 "Add Above" = "Adaugă deasupra";
 "Add an exam to track readiness across linked decks and mark that day in the Home calendar." = "Adăugați un examen pentru a urmări pregătirea în deckuri conectate și marcați ziua respectivă în calendarul Acasă.";
@@ -157,6 +158,9 @@
 "Blur Tuner" = "Reglaj blur";
 "Body" = "Corp";
 "Border" = "Bordură";
+"Border Controls" = "Controale bordură";
+"Border Design" = "Design bordură";
+"Border system for Home, cards, settings, and controls." = "Sistem de borduri pentru Home, carduri, setări și controale.";
 "Border Type" = "Tip bordură";
 "Bold" = "Aldin";
 "Bottom" = "Jos";
@@ -173,6 +177,7 @@
 "Card %@" = "Card %@";
 "Card %d" = "Card %d";
 "Card Content" = "Conținut card";
+"Changes the border color family." = "Schimbă familia de culoare a bordurii.";
 "Card Distribution" = "Distribuția cardurilor";
 "card moved" = "card mutat";
 "Card Text" = "Text card";
@@ -185,6 +190,7 @@
 "Cellular Respiration" = "Respirația celulară";
 "Center" = "Centru";
 "Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately." = "Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.";
+"Change these values once. Every preview below updates live." = "Schimbă o dată valorile. Toate previzualizările de mai jos se actualizează live.";
 "Check your email" = "Verifică emailul";
 "Check your internet connection and try again." = "Verifică conexiunea la internet și încearcă din nou.";
 "Choice %@" = "Alegere %@";
@@ -222,6 +228,8 @@
 "Continue where you left off." = "Continuă de unde ai rămas.";
 "Continue with Google" = "Continuă cu Google";
 "Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported." = "Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.";
+"Controls how thick every border is." = "Controlează grosimea tuturor bordurilor.";
+"Controls how visible the border color is." = "Controlează cât de vizibilă este culoarea bordurii.";
 "Copied!" = "Copiat!";
 "Copy and share with Codex" = "Copiați și partajați cu Codex";
 "Correct" = "Corect";
@@ -359,6 +367,7 @@
 "Green" = "Verde";
 "Group By" = "Grupează după";
 "Group by Card Type" = "Grupează după tipul cardului";
+"Global border style" = "Stil global bordură";
 "GUIDED BRIEFING" = "BRIEFING DIRIGAT";
 "Hard" = "Greu";
 "Header Blur" = "Încețoșare antet";
@@ -371,6 +380,7 @@
 "Highlight" = "Evidențiere";
 "History" = "Istoric";
 "Home" = "Acasă";
+"Home dashboard" = "Dashboard Home";
 "How does changing text size affect a study card?" = "Cum afectează schimbarea dimensiunii textului un card de studiu?";
 "Image" = "Imagine";
 "Image Size" = "Dimensiune imagine";
@@ -502,10 +512,12 @@
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Opțional. Utilizați acest lucru pentru câmpurile de corp specifice furnizorului, cum ar fi raționamentul OpenRouter. Exemplu: {\"resoning\":{\"enabled\":true}}";
 "or" = "sau";
 "Orange" = "Portocaliu";
+"Panels" = "Panouri";
 "Overflow Behaviour" = "Comportament de overflow";
 "Owner: %@" = "Proprietar: %@";
 "Pace" = "Ritm";
 "Password" = "Parolă";
+"Pills, chips, compact controls." = "Pastile, chipuri, controale compacte.";
 "Password reset link sent." = "Linkul de resetare a fost trimis.";
 "Passwords do not match." = "Parolele nu coincid.";
 "Paused" = "Pe pauză";
@@ -622,6 +634,7 @@
 "Send Reset Link" = "Trimite link";
 "Serif" = "Serif";
 "Settings" = "Setări";
+"Settings rows, sheets, grouped surfaces." = "Rânduri de setări, sheet-uri, suprafețe grupate.";
 "Shadow Color" = "Culoare umbră";
 "Shadow Tuner" = "Reglaj umbră";
 "Shape" = "Formă";
@@ -641,6 +654,7 @@
 "Single correct answer" = "Un singur răspuns corect";
 "Sketch" = "Schiță";
 "Small" = "Mic";
+"Small controls" = "Controale mici";
 "Something went wrong" = "Ceva nu a mers bine";
 "Sort By" = "Sortează după";
 "Sort Cards" = "Sortează cardurile";
@@ -660,6 +674,7 @@
 "Stored Answer" = "Răspuns salvat";
 "Streak" = "Serie";
 "Strong" = "Puternică";
+"Study cards and widget cards." = "Carduri de studiu și carduri widget.";
 "Sunday" = "Duminică";
 "Suspended" = "Suspendat";
 "Swipe HUD" = "Glisați HUD";
@@ -751,6 +766,7 @@
 "Weakest linked deck: %@" = "Cele mai slabe legături deck: %@";
 "Weekly Momentum" = "Momentum săptămânal";
 "Welcome back" = "Bine ai revenit";
+"Where it changes" = "Unde se schimbă";
 "What is eventual consistency?" = "Ce este consistenta eventuala?";
 "Widget Border Radius" = "Raza chenarului widgetului";
 "XP" = "XP";
