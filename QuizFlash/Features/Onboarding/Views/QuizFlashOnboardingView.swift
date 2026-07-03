@@ -383,23 +383,84 @@ private enum QuizFlashOnboardingPageKind: Hashable {
 // MARK: - Pages
 
 private struct WelcomeOnboardingPage: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        VStack(spacing: UIConstants.Spacing.huge) {
-            Text(AppLocalization.string("Welcome to QuizFlash", locale: appPreferences.resolvedLocale))
-                .font(.system(size: 54, weight: .black, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .minimumScaleFactor(0.58)
+        GeometryReader { proxy in
+            let isPadLayout = horizontalSizeClass == .regular || proxy.size.width >= 700
+            let titleSize = welcomeTitleSize(width: proxy.size.width, isPadLayout: isPadLayout)
+            let titleLines = welcomeTitleLines(locale: appPreferences.resolvedLocale)
+            let contentSpacing = welcomeContentSpacing(availableHeight: proxy.size.height, isPadLayout: isPadLayout)
+            let demoHeight = welcomeDemoHeight(availableHeight: proxy.size.height, isPadLayout: isPadLayout)
+            let demoMaxWidth = welcomeDemoMaxWidth(width: proxy.size.width, isPadLayout: isPadLayout)
 
-            WelcomeCardForms()
+            VStack(spacing: contentSpacing) {
+                VStack(spacing: isPadLayout ? 2 : 0) {
+                    ForEach(titleLines.indices, id: \.self) { index in
+                        Text(titleLines[index])
+                            .font(.system(size: titleSize, weight: .black, design: .rounded))
+                            .foregroundStyle(themeManager.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: isPadLayout ? 760 : 360)
+
+                WelcomeCardForms(maxWidth: demoMaxWidth, height: demoHeight)
+            }
+            .padding(.horizontal, isPadLayout ? 44 : UIConstants.Spacing.extraLarge)
+            .padding(.vertical, UIConstants.Spacing.huge)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
-        .padding(.horizontal, UIConstants.Spacing.extraLarge)
-        .padding(.vertical, UIConstants.Spacing.huge)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private func welcomeTitleSize(width: CGFloat, isPadLayout: Bool) -> CGFloat {
+        if isPadLayout {
+            return min(max(width * 0.060, 56), 68)
+        }
+
+        return min(max(width * 0.118, 42), 50)
+    }
+
+    private func welcomeTitleLines(locale: Locale) -> [String] {
+        let title = AppLocalization.string("Welcome to QuizFlash", locale: locale)
+
+        if let range = title.range(of: " to ", options: .caseInsensitive) {
+            let firstLine = String(title[..<range.lowerBound])
+            let secondLine = "to " + String(title[range.upperBound...])
+
+            return [firstLine, secondLine]
+        }
+
+        return [title]
+    }
+
+    private func welcomeContentSpacing(availableHeight: CGFloat, isPadLayout: Bool) -> CGFloat {
+        if isPadLayout {
+            return min(max(availableHeight * 0.042, 34), 50)
+        }
+
+        return min(max(availableHeight * 0.032, 22), 34)
+    }
+
+    private func welcomeDemoHeight(availableHeight: CGFloat, isPadLayout: Bool) -> CGFloat {
+        if isPadLayout {
+            return min(max(availableHeight * 0.50, 460), 570)
+        }
+
+        return min(max(availableHeight * 0.42, 320), 410)
+    }
+
+    private func welcomeDemoMaxWidth(width: CGFloat, isPadLayout: Bool) -> CGFloat {
+        if isPadLayout {
+            return min(width * 0.78, 780)
+        }
+
+        return min(width * 0.92, 540)
     }
 }
 
@@ -407,16 +468,20 @@ private struct WelcomeCardForms: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ThemeManager.self) private var themeManager
 
+    let maxWidth: CGFloat
+    let height: CGFloat
+
     @State private var phase: WelcomeCardDemoPhase = .resting
 
     var body: some View {
         GeometryReader { proxy in
-            let width = min(proxy.size.width, 520)
+            let width = min(proxy.size.width, maxWidth)
             let height = max(proxy.size.height, 340)
-            let cardWidth = min(width * 0.45, 240)
+            let contentScale = min(max(width / 520, 0.95), 1.30)
+            let cardWidth = min(width * 0.48, height * 0.52, 310)
             let cardHeight = cardWidth * 1.42
-            let quizWidth = min(width * 0.72, 360)
-            let quizHeight = min(height * 0.72, 292)
+            let quizWidth = min(width * 0.82, 560)
+            let quizHeight = min(height * 0.78, 380)
 
             ZStack {
                 if phase.showsTapRipple && !reduceMotion {
@@ -432,7 +497,7 @@ private struct WelcomeCardForms: View {
                     .opacity(phase.cardOpacity)
                     .shadow(color: themeManager.accentColor.color.opacity(0.20), radius: 26, y: 14)
 
-                quizDemo(width: quizWidth, height: quizHeight)
+                quizDemo(width: quizWidth, height: quizHeight, contentScale: contentScale)
                     .scaleEffect(phase.quizScale)
                     .offset(y: phase.quizOffsetY)
                     .opacity(phase.quizOpacity)
@@ -460,7 +525,7 @@ private struct WelcomeCardForms: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 360)
+        .frame(height: height)
         .task(id: reduceMotion) {
             guard !reduceMotion else {
                 phase = .resting
@@ -584,25 +649,25 @@ private struct WelcomeCardForms: View {
             .opacity(phase == .tapPress ? 0.55 : 0)
     }
 
-    private func quizDemo(width: CGFloat, height: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 10) {
-                cardLine(width: width * 0.62, height: 13, opacity: 0.52)
-                cardLine(width: width * 0.78, height: 11, opacity: 0.38)
-                cardLine(width: width * 0.45, height: 11, opacity: 0.26)
+    private func quizDemo(width: CGFloat, height: CGFloat, contentScale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 16 * contentScale) {
+            VStack(alignment: .leading, spacing: 10 * contentScale) {
+                cardLine(width: width * 0.62, height: 13 * contentScale, opacity: 0.52)
+                cardLine(width: width * 0.78, height: 11 * contentScale, opacity: 0.38)
+                cardLine(width: width * 0.45, height: 11 * contentScale, opacity: 0.26)
             }
-            .padding(.bottom, 3)
+            .padding(.bottom, 3 * contentScale)
 
-            VStack(spacing: 10) {
-                quizAnswerRow(width: width, index: 0, state: phase.answerState(for: 0))
-                quizAnswerRow(width: width, index: 1, state: phase.answerState(for: 1))
-                quizAnswerRow(width: width, index: 2, state: phase.answerState(for: 2))
+            VStack(spacing: 10 * contentScale) {
+                quizAnswerRow(width: width, index: 0, state: phase.answerState(for: 0), contentScale: contentScale)
+                quizAnswerRow(width: width, index: 1, state: phase.answerState(for: 1), contentScale: contentScale)
+                quizAnswerRow(width: width, index: 2, state: phase.answerState(for: 2), contentScale: contentScale)
             }
         }
         .frame(width: width, height: height, alignment: .center)
     }
 
-    private func quizAnswerRow(width: CGFloat, index: Int, state: WelcomeQuizAnswerState) -> some View {
+    private func quizAnswerRow(width: CGFloat, index: Int, state: WelcomeQuizAnswerState, contentScale: CGFloat) -> some View {
         let isWrong = state == .wrong
         let isCorrect = state == .correct
         let color: Color = if isWrong {
@@ -616,34 +681,34 @@ private struct WelcomeCardForms: View {
         return HStack(spacing: 10) {
             Circle()
                 .fill(color.opacity(isWrong || isCorrect ? 0.95 : 0.28))
-                .frame(width: 15, height: 15)
+                .frame(width: 15 * contentScale, height: 15 * contentScale)
                 .overlay {
                     if isWrong {
                         Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .black))
+                            .font(.system(size: 8 * contentScale, weight: .black))
                             .foregroundStyle(.white)
                     } else if isCorrect {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .black))
+                            .font(.system(size: 8 * contentScale, weight: .black))
                             .foregroundStyle(.white)
                     }
                 }
 
-            VStack(alignment: .leading, spacing: 7) {
-                cardLine(width: width * (index == 1 ? 0.43 : 0.52), height: 9, opacity: state == .neutral ? 0.34 : 0.54)
-                cardLine(width: width * (index == 2 ? 0.38 : 0.47), height: 8, opacity: state == .neutral ? 0.22 : 0.34)
+            VStack(alignment: .leading, spacing: 7 * contentScale) {
+                cardLine(width: width * (index == 1 ? 0.43 : 0.52), height: 9 * contentScale, opacity: state == .neutral ? 0.34 : 0.54)
+                cardLine(width: width * (index == 2 ? 0.38 : 0.47), height: 8 * contentScale, opacity: state == .neutral ? 0.22 : 0.34)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .frame(height: 52)
+        .padding(.horizontal, 14 * contentScale)
+        .frame(height: 52 * contentScale)
         .background(
             color.opacity(isWrong || isCorrect ? 0.16 : 0.055),
-            in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 17 * contentScale, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
+            RoundedRectangle(cornerRadius: 17 * contentScale, style: .continuous)
                 .strokeBorder(color.opacity(isWrong || isCorrect ? 0.70 : 0.18), lineWidth: isWrong || isCorrect ? 1.5 : 1)
         }
         .scaleEffect(phase.pressedAnswerIndex == index ? 0.965 : (isCorrect ? 1.025 : 1), anchor: .center)
