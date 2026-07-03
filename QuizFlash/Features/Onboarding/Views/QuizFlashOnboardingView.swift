@@ -404,95 +404,157 @@ private struct WelcomeOnboardingPage: View {
 }
 
 private struct WelcomeCardForms: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ThemeManager.self) private var themeManager
+
+    @State private var phase: WelcomeCardDemoPhase = .resting
 
     var body: some View {
         GeometryReader { proxy in
-            let width = min(proxy.size.width, 560)
-            let height = max(proxy.size.height, 230)
-            let cardWidth = min(width * 0.62, 330)
-            let cardHeight = cardWidth * 0.62
+            let width = min(proxy.size.width, 520)
+            let height = max(proxy.size.height, 340)
+            let cardWidth = min(width * 0.45, 240)
+            let cardHeight = cardWidth * 1.42
 
             ZStack {
-                decorativeCard(
-                    width: cardWidth * 0.78,
-                    height: cardHeight * 0.82,
-                    opacity: 0.42,
-                    offsetX: -cardWidth * 0.42,
-                    offsetY: cardHeight * 0.34
-                )
+                if phase.showsTapRipple && !reduceMotion {
+                    tapRipple(size: cardWidth * 0.32)
+                        .offset(x: cardWidth * 0.13, y: cardHeight * 0.06)
+                }
 
-                decorativeCard(
-                    width: cardWidth * 0.72,
-                    height: cardHeight * 0.78,
-                    opacity: 0.34,
-                    offsetX: cardWidth * 0.42,
-                    offsetY: cardHeight * 0.34
-                )
+                demoCard(width: cardWidth, height: cardHeight)
+                    .rotation3DEffect(.degrees(phase.cardFlipDegrees), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
+                    .scaleEffect(phase.cardScale)
+                    .rotationEffect(.degrees(phase.cardTiltDegrees))
+                    .offset(x: phase.cardOffsetX(cardWidth: cardWidth), y: 0)
+                    .opacity(phase.cardOpacity)
+                    .shadow(color: themeManager.accentColor.color.opacity(0.20), radius: 26, y: 14)
 
-                primaryCard(width: cardWidth, height: cardHeight)
-                    .shadow(color: themeManager.accentColor.color.opacity(0.18), radius: 26, y: 14)
+                if phase.showsHand && !reduceMotion {
+                    Image(systemName: "hand.tap.fill")
+                        .font(.system(size: 44, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(themeManager.textPrimary.opacity(0.92))
+                        .shadow(color: .black.opacity(0.34), radius: 12, y: 8)
+                        .scaleEffect(phase.handScale)
+                        .rotationEffect(.degrees(phase.handRotationDegrees))
+                        .offset(phase.handOffset(cardWidth: cardWidth, cardHeight: cardHeight))
+                        .accessibilityHidden(true)
+                }
             }
             .frame(width: width, height: height)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 280)
+        .frame(height: 360)
+        .task(id: reduceMotion) {
+            guard !reduceMotion else {
+                phase = .resting
+                return
+            }
+
+            await runDemoLoop()
+        }
     }
 
-    private func primaryCard(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 34, style: .continuous)
-            .fill(themeManager.accentColor.color.opacity(0.16))
-            .overlay {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                    .strokeBorder(themeManager.accentColor.color.opacity(0.48), lineWidth: 1.4)
+    @MainActor
+    private func runDemoLoop() async {
+        phase = .resting
+
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(650))
+            await animate(to: .tapApproach, duration: 0.70)
+            try? await Task.sleep(for: .milliseconds(220))
+            await animate(to: .tapPress, duration: 0.18)
+            try? await Task.sleep(for: .milliseconds(180))
+            await animate(to: .flipped, duration: 0.62)
+            try? await Task.sleep(for: .milliseconds(680))
+            await animate(to: .swipeReady, duration: 0.42)
+            try? await Task.sleep(for: .milliseconds(170))
+            await animate(to: .swiping, duration: 0.62)
+            try? await Task.sleep(for: .milliseconds(360))
+
+            withAnimation(.easeOut(duration: 0.16)) {
+                phase = .resetting
             }
-            .overlay {
-                VStack(alignment: .leading, spacing: 15) {
-                    HStack(spacing: 10) {
-                        cardLine(width: width * 0.34, height: 16, opacity: 0.52)
-                        cardLine(width: width * 0.16, height: 16, opacity: 0.34)
-                    }
+            try? await Task.sleep(for: .milliseconds(190))
 
-                    cardLine(width: width * 0.68, height: 13, opacity: 0.42)
-                    cardLine(width: width * 0.48, height: 13, opacity: 0.30)
-
-                    Spacer(minLength: 0)
-
-                    HStack(spacing: 9) {
-                        cardPill(width: width * 0.16)
-                        cardPill(width: width * 0.12)
-                        cardPill(width: width * 0.20)
-                    }
-                }
-                .padding(24)
+            withTransaction(Transaction(animation: nil)) {
+                phase = .resting
             }
-            .frame(width: width, height: height)
+        }
     }
 
-    private func decorativeCard(
-        width: CGFloat,
-        height: CGFloat,
-        opacity: Double,
-        offsetX: CGFloat,
-        offsetY: CGFloat
-    ) -> some View {
-        RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(themeManager.textPrimary.opacity(0.045))
+    @MainActor
+    private func animate(to newPhase: WelcomeCardDemoPhase, duration: TimeInterval) async {
+        guard !Task.isCancelled else { return }
+
+        withAnimation(.smooth(duration: duration, extraBounce: 0.03)) {
+            phase = newPhase
+        }
+    }
+
+    private func demoCard(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            cardFace(width: width, height: height, isBack: false)
+                .opacity(phase.showsBackFace ? 0 : 1)
+
+            cardFace(width: width, height: height, isBack: true)
+                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
+                .opacity(phase.showsBackFace ? 1 : 0)
+        }
+        .frame(width: width, height: height)
+    }
+
+    private func cardFace(width: CGFloat, height: CGFloat, isBack: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(themeManager.accentColor.color.opacity(isBack ? 0.20 : 0.16))
             .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .strokeBorder(themeManager.textPrimary.opacity(opacity * 0.32), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .strokeBorder(themeManager.accentColor.color.opacity(isBack ? 0.62 : 0.48), lineWidth: 1.4)
             }
             .overlay {
-                VStack(alignment: .leading, spacing: 12) {
-                    cardLine(width: width * 0.58, height: 12, opacity: opacity)
-                    cardLine(width: width * 0.40, height: 12, opacity: opacity * 0.72)
-                    Spacer(minLength: 0)
+                if isBack {
+                    VStack(spacing: 16) {
+                        cardLine(width: width * 0.52, height: 15, opacity: 0.50)
+                        cardLine(width: width * 0.66, height: 12, opacity: 0.34)
+                        cardLine(width: width * 0.48, height: 12, opacity: 0.28)
+                        Spacer(minLength: 0)
+                        cardPill(width: width * 0.36)
+                    }
+                    .padding(.top, 44)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                } else {
+                    VStack(alignment: .leading, spacing: 15) {
+                        HStack(spacing: 10) {
+                            cardLine(width: width * 0.46, height: 15, opacity: 0.52)
+                            cardLine(width: width * 0.22, height: 15, opacity: 0.34)
+                        }
+
+                        cardLine(width: width * 0.72, height: 12, opacity: 0.42)
+                        cardLine(width: width * 0.56, height: 12, opacity: 0.30)
+                        cardLine(width: width * 0.38, height: 12, opacity: 0.22)
+
+                        Spacer(minLength: 0)
+
+                        HStack(spacing: 9) {
+                            cardPill(width: width * 0.24)
+                            cardPill(width: width * 0.18)
+                            cardPill(width: width * 0.26)
+                        }
+                    }
+                    .padding(24)
                 }
-                .padding(22)
             }
-            .frame(width: width, height: height)
-            .offset(x: offsetX, y: offsetY)
+    }
+
+    private func tapRipple(size: CGFloat) -> some View {
+        Circle()
+            .strokeBorder(themeManager.accentColor.color.opacity(0.55), lineWidth: 2)
+            .frame(width: size, height: size)
+            .scaleEffect(phase == .tapPress ? 1.18 : 0.72)
+            .opacity(phase == .tapPress ? 0.55 : 0)
     }
 
     private func cardLine(width: CGFloat, height: CGFloat, opacity: Double) -> some View {
@@ -505,6 +567,111 @@ private struct WelcomeCardForms: View {
         Capsule()
             .fill(themeManager.accentColor.color.opacity(0.34))
             .frame(width: width, height: 18)
+    }
+}
+
+private enum WelcomeCardDemoPhase: Equatable {
+    case resting
+    case tapApproach
+    case tapPress
+    case flipped
+    case swipeReady
+    case swiping
+    case resetting
+
+    var showsHand: Bool {
+        switch self {
+        case .tapApproach, .tapPress, .flipped, .swipeReady, .swiping:
+            true
+        case .resting, .resetting:
+            false
+        }
+    }
+
+    var showsTapRipple: Bool {
+        self == .tapPress
+    }
+
+    var showsBackFace: Bool {
+        switch self {
+        case .flipped, .swipeReady, .swiping:
+            true
+        case .resting, .tapApproach, .tapPress, .resetting:
+            false
+        }
+    }
+
+    var cardFlipDegrees: Double {
+        showsBackFace ? 180 : 0
+    }
+
+    var cardScale: CGFloat {
+        switch self {
+        case .tapPress:
+            0.975
+        case .swiping:
+            0.96
+        case .resetting:
+            0.92
+        case .resting, .tapApproach, .flipped, .swipeReady:
+            1
+        }
+    }
+
+    var cardTiltDegrees: Double {
+        self == .swiping ? 6 : 0
+    }
+
+    var cardOpacity: Double {
+        self == .resetting ? 0 : 1
+    }
+
+    var handScale: CGFloat {
+        switch self {
+        case .tapPress:
+            0.88
+        case .swiping:
+            0.96
+        case .resting, .tapApproach, .flipped, .swipeReady, .resetting:
+            1
+        }
+    }
+
+    var handRotationDegrees: Double {
+        switch self {
+        case .swiping:
+            -10
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .resetting:
+            -18
+        }
+    }
+
+    func cardOffsetX(cardWidth: CGFloat) -> CGFloat {
+        switch self {
+        case .swiping:
+            cardWidth * 1.38
+        case .resetting:
+            -cardWidth * 0.32
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady:
+            0
+        }
+    }
+
+    func handOffset(cardWidth: CGFloat, cardHeight: CGFloat) -> CGSize {
+        switch self {
+        case .tapApproach:
+            CGSize(width: cardWidth * 0.44, height: cardHeight * 0.34)
+        case .tapPress:
+            CGSize(width: cardWidth * 0.20, height: cardHeight * 0.10)
+        case .flipped:
+            CGSize(width: cardWidth * 0.28, height: cardHeight * 0.20)
+        case .swipeReady:
+            CGSize(width: cardWidth * 0.08, height: cardHeight * 0.18)
+        case .swiping:
+            CGSize(width: cardWidth * 1.26, height: cardHeight * 0.08)
+        case .resting, .resetting:
+            CGSize(width: cardWidth * 0.58, height: cardHeight * 0.42)
+        }
     }
 }
 
