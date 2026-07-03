@@ -223,6 +223,27 @@ final class FullHitTextView: UITextView {
         return super.hitTest(point, with: event)
     }
 
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: text ?? "")
+        let hasSelection = selectedRange.length > 0
+
+        switch action {
+        case #selector(UIResponderStandardEditActions.copy(_:)):
+            return hasSelection
+        case #selector(UIResponderStandardEditActions.cut(_:)),
+             #selector(UIResponderStandardEditActions.delete(_:)):
+            return isEditable && hasSelection
+        case #selector(UIResponderStandardEditActions.paste(_:)):
+            return isEditable && UIPasteboard.general.hasStrings
+        case #selector(UIResponderStandardEditActions.select(_:)):
+            return editableLength > 0 && selectedRange.length == 0
+        case #selector(UIResponderStandardEditActions.selectAll(_:)):
+            return editableLength > 0 && selectedRange.length < editableLength
+        default:
+            return super.canPerformAction(action, withSender: sender)
+        }
+    }
+
     override func scrollRectToVisible(_ rect: CGRect, animated: Bool) {
         recordNativeScrollRequest(
             "text.scroll-rect-to-visible",
@@ -359,7 +380,7 @@ final class ZoneEditorDebugStore {
     private var isRecordingEnabled = false
     private let startedAt = Date()
 
-    private init() { }
+    private init() {}
 
     var hudLines: [String] {
         [
@@ -373,7 +394,7 @@ final class ZoneEditorDebugStore {
             tapLine,
             alignmentLine,
             caretLine,
-            dismissLine
+            dismissLine,
         ]
     }
 
@@ -386,7 +407,7 @@ final class ZoneEditorDebugStore {
             toolbarLine,
             caretLine,
             dismissLine,
-            "rates \(counterSummary)"
+            "rates \(counterSummary)",
         ]
     }
 
@@ -925,7 +946,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var maximumVisibleHeight: CGFloat?
     var forcedLineBreakTintColor: UIColor = .systemPurple
     fileprivate var lastAppliedStylingSignature: ZoneTextViewStylingSignature?
-    
+
     private var lastText: String = ""
     private var lastAcceptedText: String = ""
     private var lastAcceptedSelectedRange: NSRange = NSRange(location: 0, length: 0)
@@ -947,7 +968,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var caretTraceSequence = 0
     private var lastForcedLineBreakTrace: (id: Int, timestamp: CFTimeInterval)?
     fileprivate var focusSyncState: FocusSyncState = .idle
-    
+
     override init() {
         super.init()
         focusObserver = NotificationCenter.default.addObserver(
@@ -995,7 +1016,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             self.insertForcedLineBreak(in: textView)
         }
     }
-    
+
     deinit {
         caretReportGeneration += 1
         if let observer = focusObserver {
@@ -1105,7 +1126,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             "caretWin=\(caretRects.window)",
             "first=\(caretRects.first)",
             "tail=\(tail)",
-            extra
+            extra,
         ]
         .filter { !$0.isEmpty }
         .joined(separator: " ")
@@ -1311,7 +1332,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         reportCursorPosition(from: textView, includeCaretAnchor: false, source: caretSource)
         scheduleSettledCaretReport(from: textView, source: caretSource)
     }
-    
+
     func textViewDidChangeSelection(_ textView: UITextView) {
         recordCaretProbe("caret.selection-change-start", textView: textView)
         guard !isUpdating else { return }
@@ -1370,7 +1391,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             object: zoneID
         )
     }
-    
+
     private func reportCursorPosition(
         from textView: UITextView,
         includeCaretAnchor: Bool,
@@ -1778,8 +1799,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         let width = textView.bounds.width > 1
             ? textView.bounds.width
             : textView.textContainer.size.width
-                + textView.textContainerInset.left
-                + textView.textContainerInset.right
+            + textView.textContainerInset.left
+            + textView.textContainerInset.right
         let targetSize = CGSize(
             width: max(width, 1),
             height: UIView.layoutFittingCompressedSize.height
@@ -1806,7 +1827,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         var userInfo: [String: Any] = [
             ZoneEditorNewlineLayoutShiftNotification.layoutDeltaYKey: deltaY,
-            ZoneEditorNewlineLayoutShiftNotification.forcedBreakIDKey: forcedBreakID
+            ZoneEditorNewlineLayoutShiftNotification.forcedBreakIDKey: forcedBreakID,
         ]
         if let caretRectInWindow {
             userInfo[ZoneEditorNewlineLayoutShiftNotification.caretRectInWindowKey] = NSValue(cgRect: caretRectInWindow)
@@ -1971,12 +1992,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             markerColor: forcedLineBreakTintColor
         )
     }
-    
+
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
         let lines = ZoneForcedLineBreak.renderText(text).components(separatedBy: "\n")
         let totalLines = lines.count
         guard location >= 0 else { return (0, totalLines) }
-        
+
         var currentIndex = 0
         for (index, line) in lines.enumerated() {
             let lineLength = (line as NSString).length + 1
@@ -2005,7 +2026,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         return [
             .font: font,
             .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
     }
 }
@@ -2032,7 +2053,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource, String) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
-    
+
     func makeUIView(context: Context) -> UITextView {
         // Use custom class that detects tap everywhere
         let textView = FullHitTextView()
@@ -2047,7 +2068,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
-        
+
         textView.font = font
         textView.textColor = textColor
         textView.textAlignment = textAlignment
@@ -2066,7 +2087,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.textContainerInset = contentInset
         textView.allowsEditingTextAttributes = false
         textView.usesCompactCaret = true
-        
+
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
@@ -2098,10 +2119,10 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         updateStyling(of: textView)
         updateScrollBehavior(of: textView)
         context.coordinator.lastAppliedStylingSignature = stylingSignatureForCurrentState
-        
+
         return textView
     }
-    
+
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.zoneID = zoneID
         context.coordinator.onTextChange = onTextChange
@@ -2220,8 +2241,8 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             modelText: text
         )
         if selectedRange.location != NSNotFound &&
-           displayRange.location <= (displayText as NSString).length &&
-           textView.selectedRange != displayRange {
+            displayRange.location <= (displayText as NSString).length &&
+            textView.selectedRange != displayRange {
             textView.selectedRange = displayRange
         }
         context.coordinator.recordCaretProbe(
@@ -2254,7 +2275,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
     }
-    
+
     private func syncFocus(textView: UITextView, isFirstResponder: Bool, context: Context) {
         if isFirstResponder && !textView.isFirstResponder {
             guard context.coordinator.focusSyncState != .becomingFirstResponder else { return }
@@ -2301,13 +2322,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             }
         }
     }
-    
+
     func makeCoordinator() -> ZoneTextViewCoordinator {
         let coordinator = ZoneTextViewCoordinator()
         coordinator.zoneID = zoneID
         return coordinator
     }
-    
+
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize {
         let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
         let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
@@ -2351,7 +2372,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         guard value.isFinite else { return value.description }
         return String(format: "%.1f", Double(value))
     }
-    
+
     private func updateStyling(of textView: UITextView) {
         if let textView = textView as? FullHitTextView {
             textView.estimatedLineAdvanceY = font.lineHeight + max(lineSpacing, 0)
@@ -2397,7 +2418,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         return [
             .font: font,
             .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
     }
 
@@ -2542,7 +2563,7 @@ struct ZonePlainTextViewRepresentable: UIViewRepresentable {
         return [
             .font: font,
             .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
     }
 }
@@ -2555,17 +2576,17 @@ extension String {
         guard index >= 0 && index < lines.count else { return nil }
         return lines[index]
     }
-    
+
     var lines: [String] {
         components(separatedBy: "\n")
     }
-    
+
     func lineIndex(for characterOffset: Int) -> Int {
         guard characterOffset >= 0 else { return 0 }
-        
+
         var currentIndex = 0
         let linesArray = lines
-        
+
         for (index, line) in linesArray.enumerated() {
             let lineLength = line.count + 1
             if characterOffset < currentIndex + lineLength {
@@ -2573,21 +2594,21 @@ extension String {
             }
             currentIndex += lineLength
         }
-        
+
         return max(0, linesArray.count - 1)
     }
-    
+
     func splitAtLine(_ lineIndex: Int) -> (before: String, after: String) {
         let linesArray = lines
         guard lineIndex >= 0 && lineIndex < linesArray.count else {
             return (self, "")
         }
-        
-        let before = linesArray[0...lineIndex].joined(separator: "\n")
-        let after = lineIndex < linesArray.count - 1 
+
+        let before = linesArray[0 ... lineIndex].joined(separator: "\n")
+        let after = lineIndex < linesArray.count - 1
             ? linesArray[(lineIndex + 1)...].joined(separator: "\n")
             : ""
-        
+
         return (before, after)
     }
 }
