@@ -120,7 +120,11 @@ struct QuizFlashOnboardingView: View {
 
     private var bottomControls: some View {
         VStack(spacing: UIConstants.Spacing.medium) {
-            textContent
+            if items[currentIndex].kind == .welcome {
+                Spacer(minLength: 0)
+            } else {
+                textContent
+            }
             indicatorView
             continueButton
         }
@@ -413,19 +417,17 @@ private struct WelcomeCardForms: View {
                 decorativeCard(
                     width: cardWidth * 0.78,
                     height: cardHeight * 0.82,
-                    rotation: -12,
                     opacity: 0.42,
-                    offsetX: -cardWidth * 0.46,
-                    offsetY: cardHeight * 0.20
+                    offsetX: -cardWidth * 0.42,
+                    offsetY: cardHeight * 0.34
                 )
 
                 decorativeCard(
                     width: cardWidth * 0.72,
                     height: cardHeight * 0.78,
-                    rotation: 11,
                     opacity: 0.34,
-                    offsetX: cardWidth * 0.48,
-                    offsetY: cardHeight * 0.27
+                    offsetX: cardWidth * 0.42,
+                    offsetY: cardHeight * 0.34
                 )
 
                 primaryCard(width: cardWidth, height: cardHeight)
@@ -471,7 +473,6 @@ private struct WelcomeCardForms: View {
     private func decorativeCard(
         width: CGFloat,
         height: CGFloat,
-        rotation: Double,
         opacity: Double,
         offsetX: CGFloat,
         offsetY: CGFloat
@@ -491,7 +492,6 @@ private struct WelcomeCardForms: View {
                 .padding(22)
             }
             .frame(width: width, height: height)
-            .rotationEffect(.degrees(rotation))
             .offset(x: offsetX, y: offsetY)
     }
 
