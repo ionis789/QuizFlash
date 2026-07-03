@@ -1419,6 +1419,30 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
         String(format: "%.1f", Double(value))
     }
 
+    private func menuElementSummary(_ elements: [UIMenuElement], depth: Int = 0) -> String {
+        guard !elements.isEmpty else { return "[]" }
+
+        return elements
+            .prefix(18)
+            .map { element in
+                let typeName = String(describing: type(of: element))
+                let title = debugEscaped(element.title)
+                let indent = depth > 0 ? String(repeating: ".", count: depth) : ""
+
+                if let action = element as? UIAction {
+                    return "\(indent)\(typeName)(title=\"\(title)\",id=\(action.identifier.rawValue),attr=\(action.attributes.rawValue),state=\(action.state.rawValue))"
+                }
+
+                if let menu = element as? UIMenu {
+                    let children = menuElementSummary(menu.children, depth: depth + 1)
+                    return "\(indent)\(typeName)(title=\"\(title)\",id=\(menu.identifier.rawValue),children=\(children))"
+                }
+
+                return "\(indent)\(typeName)(title=\"\(title)\")"
+            }
+            .joined(separator: " | ")
+    }
+
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
         guard !ZoneFocusManager.shared.isSuppressingFocusRequests else {
             ZoneEditorDebugStore.shared.recordFocusEvent("textView shouldBegin ignored", zoneID: zoneID)
@@ -1442,6 +1466,67 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
             details: "result=1"
         )
         return true
+    }
+
+    func textView(
+        _ textView: UITextView,
+        editMenuForTextIn range: NSRange,
+        suggestedActions: [UIMenuElement]
+    ) -> UIMenu? {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.edit-menu-request",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "range=\(range.location):\(range.length) suggestedCount=\(suggestedActions.count) suggested=\(menuElementSummary(suggestedActions)) result=default"
+        )
+        return nil
+    }
+
+    @available(iOS 26.0, *)
+    func textView(
+        _ textView: UITextView,
+        editMenuForTextInRanges ranges: [NSValue],
+        suggestedActions: [UIMenuElement]
+    ) -> UIMenu? {
+        let rangeList = ranges
+            .map(\.rangeValue)
+            .map { "\($0.location):\($0.length)" }
+            .joined(separator: ",")
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.edit-menu-request-ranges",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "ranges=\(rangeList) suggestedCount=\(suggestedActions.count) suggested=\(menuElementSummary(suggestedActions)) result=default"
+        )
+        return nil
+    }
+
+    func textView(
+        _ textView: UITextView,
+        willPresentEditMenuWith animator: UIEditMenuInteractionAnimating
+    ) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.edit-menu-will-present",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "animator=\(String(describing: type(of: animator)))"
+        )
+    }
+
+    func textView(
+        _ textView: UITextView,
+        willDismissEditMenuWith animator: UIEditMenuInteractionAnimating
+    ) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.edit-menu-will-dismiss",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "animator=\(String(describing: type(of: animator)))"
+        )
     }
 
     func textView(
@@ -2337,6 +2422,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             pathID: pathID,
             textView: textView,
             details: "reason=nativeUITextViewGesturesOwnTapLongPressSelection"
+        )
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.interactions-installed",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "interactions=\(textView.interactions.map { String(describing: type(of: $0)) }.joined(separator: "|"))"
         )
 
         textView.text = ZoneTextViewEmptyCaret.displayText(for: text)
