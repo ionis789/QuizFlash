@@ -103,7 +103,6 @@
 "28-Day Activity" = "28-Day Activity";
 "8 sessions this week" = "8 sessions this week";
 "A distributed-system model where replicas converge over time instead of synchronizing immediately." = "A distributed-system model where replicas converge over time instead of synchronizing immediately.";
-"A few defaults make the editor, game, and Home screen feel right from the start." = "A few defaults make the editor, game, and Home screen feel right from the start.";
 "A sign-in window is already open." = "A sign-in window is already open.";
 "Accent" = "Accent";
 "Accuracy" = "Accuracy";
@@ -261,7 +260,6 @@
 "Create a deck" = "Create a deck";
 "Create a deck to start studying from Home." = "Create a deck to start studying from Home.";
 "Create Account" = "Create Account";
-"Create and edit cards fast." = "Create and edit cards fast.";
 "Create Deck" = "Create Deck";
 "Create one from the section header." = "Create one from the section header.";
 "Create your first deck" = "Create your first deck";
@@ -426,7 +424,6 @@
 "Italic" = "Italic";
 "just now" = "just now";
 "Keep %d received cards" = "Keep %d received cards";
-"Keep decks organized." = "Keep decks organized.";
 "Keep Editing" = "Keep Editing";
 "Keeping the current list stable while the next result set is prepared." = "Keeping the current list stable while the next result set is prepared.";
 "Label Color" = "Label Color";
@@ -533,9 +530,6 @@
 "Nothing landed on %@" = "Nothing landed on %@";
 "OK" = "OK";
 "Oldest" = "Oldest";
-"Onboarding feature: Editor" = "Editor";
-"Onboarding feature: Library" = "Library";
-"Onboarding feature: Play" = "Play";
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.";
 "Open a play mode to generate live activity in this deck." = "Open a play mode to generate live activity in this deck.";
 "Open activity history" = "Open activity history";
@@ -636,7 +630,6 @@
 "RETRY" = "RETRY";
 "Retry %d" = "Retry %d";
 "Retry cards" = "Retry";
-"Review every day with a clear target." = "Review every day with a clear target.";
 "Reviewed" = "Reviewed";
 "Reviews" = "Reviews";
 "Right" = "Right";
@@ -676,7 +669,7 @@
 "Send Reset Link" = "Send Reset Link";
 "Serif" = "Serif";
 "Session" = "Session";
-"Set up QuizFlash" = "Set up QuizFlash";
+"Set your defaults in a few quick steps." = "Set your defaults in a few quick steps.";
 "Set your daily target" = "Set your daily target";
 "Settings" = "Settings";
 "Settings rows, sheets, grouped surfaces." = "Settings rows, sheets, grouped surfaces.";
@@ -818,6 +811,7 @@
 "Weakest linked deck: %@" = "Weakest linked deck: %@";
 "Weekly Momentum" = "Weekly Momentum";
 "Welcome back" = "Welcome back";
+"Welcome to QuizFlash" = "Welcome to QuizFlash";
 "What is active recall?" = "What is active recall?";
 "What is eventual consistency?" = "What is eventual consistency?";
 "Where it changes" = "Where it changes";

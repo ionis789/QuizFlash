@@ -55,10 +55,10 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
+%d deck	%d deck	%d pachet	%d колода
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -104,7 +104,6 @@ key	en	ro	ru
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
 A distributed-system model where replicas converge over time instead of synchronizing immediately.	A distributed-system model where replicas converge over time instead of synchronizing immediately.	Un model de sistem distribuit în care replicile converg în timp în loc să se sincronizeze imediat.	Модель распределенной системы, в которой реплики сходятся во времени, а не синхронизируются немедленно.
-A few defaults make the editor, game, and Home screen feel right from the start.	A few defaults make the editor, game, and Home screen feel right from the start.	Câteva setări implicite fac editorul, jocul și ecranul Acasă să se simtă corect de la început.	Несколько настроек по умолчанию сразу делают редактор, игру и главный экран удобными.
 A sign-in window is already open.	A sign-in window is already open.	O fereastră de conectare este deja deschisă.	Окно входа уже открыто.
 Accent	Accent	Accent	Акцент
 Accuracy	Accuracy	Acuratețe	Точность
@@ -147,8 +146,8 @@ Almost ready	Almost ready	Aproape gata	Почти готово
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer from memory before checking the card.	Answer from memory before checking the card.	Răspunde din memorie înainte să verifici cardul.	Ответьте по памяти перед проверкой карточки.
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
@@ -167,8 +166,8 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -262,7 +261,6 @@ Create	Create	Creează	Создать
 Create a deck	Create a deck	Creați un deck	Создать колоду
 Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
 Create Account	Create Account	Creează cont	Создать аккаунт
-Create and edit cards fast.	Create and edit cards fast.	Creează și editează carduri rapid.	Быстро создавайте и редактируйте карточки.
 Create Deck	Create Deck	Creează deck	Создать колоду
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
@@ -370,8 +368,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate or request cards with LaTeX symbols without friction.	Generate or request cards with LaTeX symbols without friction.	Poți genera sau cere carduri cu simboluri LaTeX fără probleme.	Можно без проблем генерировать или запрашивать карточки с символами LaTeX.
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
@@ -427,7 +425,6 @@ Interval	Interval	Interval	Интервал
 Italic	Italic	Cursiv	Курсив
 just now	just now	chiar acum	только что
 Keep %d received cards	Keep %d received cards	Păstrează %d carduri primite	Оставить %d полученных карточек
-Keep decks organized.	Keep decks organized.	Păstrează deckurile organizate.	Держите колоды в порядке.
 Keep Editing	Keep Editing	Continuă editarea	Продолжить редактирование
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
 Label Color	Label Color	Culoare etichetă	Цвет метки
@@ -512,8 +509,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
+No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -534,9 +531,6 @@ Nothing in the shared UI registry matches â%@â.	Nothing in the shared 
 Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ничего не попало
 OK	OK	OK	OK
 Oldest	Oldest	Cele mai vechi	Сначала старые
-Onboarding feature: Editor	Editor	Editor	Редактор
-Onboarding feature: Library	Library	Bibliotecă	Библиотека
-Onboarding feature: Play	Play	Joc	Игра
 Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.	Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.
 Open a play mode to generate live activity in this deck.	Open a play mode to generate live activity in this deck.	Deschide un mod de joc pentru a genera activitate în acest deck.	Откройте режим игры, чтобы в этой колоде появилась активность.
 Open activity history	Open activity history	Deschide istoricul activității	Открыть историю активности
@@ -588,14 +582,14 @@ Preparing Quiz	Preparing Quiz	Se pregătește quizul	Подготовка кви
 Preparing request	Preparing request	Se pregătește cererea	Подготовка запроса
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt	Prompt	Enunț	Задание
+PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
@@ -633,11 +627,10 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
-Review every day with a clear target.	Review every day with a clear target.	Repetă zilnic cu o țintă clară.	Повторяйте каждый день с понятной целью.
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
 Right	Right	Corect	Верно
@@ -677,8 +670,8 @@ Selected Text	Selected Text	Text selectat	Выделенный текст
 Send Reset Link	Send Reset Link	Trimite link	Отправить ссылку
 Serif	Serif	Serif	С засечками
 Session	Session	Sesiune	Сессия
-Set up QuizFlash	Set up QuizFlash	Configurează QuizFlash	Настройте QuizFlash
 Set your daily target	Set your daily target	Setează ținta zilnică	Задайте ежедневную цель
+Set your defaults in a few quick steps.	Set your defaults in a few quick steps.	Setează preferințele în câțiva pași rapizi.	Настройте предпочтения за несколько быстрых шагов.
 Settings	Settings	Setări	Настройки
 Settings rows, sheets, grouped surfaces.	Settings rows, sheets, grouped surfaces.	Rânduri de setări, sheet-uri, suprafețe grupate.	Строки настроек, листы, сгруппированные поверхности.
 Shadow Color	Shadow Color	Culoare umbră	Цвет тени
@@ -819,6 +812,7 @@ Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая 
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
 Welcome back	Welcome back	Bine ai revenit	С возвращением
+Welcome to QuizFlash	Welcome to QuizFlash	Bun venit în QuizFlash	Добро пожаловать в QuizFlash
 What is active recall?	What is active recall?	Ce este memorarea activă?	Что такое активное припоминание?
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
 Where it changes	Where it changes	Unde se schimbă	Где меняется

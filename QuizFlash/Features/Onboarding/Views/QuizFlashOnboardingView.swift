@@ -75,10 +75,13 @@ struct QuizFlashOnboardingView: View {
             HStack(spacing: UIConstants.Spacing.medium) {
                 ForEach(items.indices, id: \.self) { index in
                     onboardingPage(for: items[index])
+                        .scaleEffect(pageScale(for: index))
+                        .opacity(pageOpacity(for: index))
                         .frame(width: size.width, height: size.height)
                 }
             }
             .offset(x: -CGFloat(currentIndex) * (size.width + UIConstants.Spacing.medium))
+            .animation(animation, value: currentIndex)
         }
         .clipShape(shape)
         .overlay {
@@ -311,6 +314,14 @@ struct QuizFlashOnboardingView: View {
     private var animation: Animation {
         reduceMotion ? .easeInOut(duration: 0.22) : .interpolatingSpring(duration: 0.65, bounce: 0, initialVelocity: 0)
     }
+
+    private func pageScale(for index: Int) -> CGFloat {
+        index == currentIndex ? 1 : 0.88
+    }
+
+    private func pageOpacity(for index: Int) -> Double {
+        index == currentIndex ? 1 : 0.74
+    }
 }
 
 // MARK: - Item
@@ -326,8 +337,8 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
     static let defaultItems: [QuizFlashOnboardingItem] = [
         .init(
             id: 0,
-            titleKey: "Set up QuizFlash",
-            subtitleKey: "A few defaults make the editor, game, and Home screen feel right from the start.",
+            titleKey: "Welcome to QuizFlash",
+            subtitleKey: "Set your defaults in a few quick steps.",
             kind: .welcome
         ),
         .init(
@@ -372,34 +383,128 @@ private struct WelcomeOnboardingPage: View {
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(AppLocalization.string("Set up QuizFlash", locale: appPreferences.resolvedLocale))
-                .font(.system(size: 48, weight: .black, design: .rounded))
+        VStack(spacing: UIConstants.Spacing.huge) {
+            Text(AppLocalization.string("Welcome to QuizFlash", locale: appPreferences.resolvedLocale))
+                .font(.system(size: 54, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.58)
 
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                featureLine("Onboarding feature: Library", valueKey: "Keep decks organized.")
-                featureLine("Onboarding feature: Editor", valueKey: "Create and edit cards fast.")
-                featureLine("Onboarding feature: Play", valueKey: "Review every day with a clear target.")
-            }
+            WelcomeCardForms()
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .padding(.vertical, UIConstants.Spacing.huge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+}
+
+private struct WelcomeCardForms: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = min(proxy.size.width, 560)
+            let height = max(proxy.size.height, 230)
+            let cardWidth = min(width * 0.62, 330)
+            let cardHeight = cardWidth * 0.62
+
+            ZStack {
+                decorativeCard(
+                    width: cardWidth * 0.78,
+                    height: cardHeight * 0.82,
+                    rotation: -12,
+                    opacity: 0.42,
+                    offsetX: -cardWidth * 0.46,
+                    offsetY: cardHeight * 0.20
+                )
+
+                decorativeCard(
+                    width: cardWidth * 0.72,
+                    height: cardHeight * 0.78,
+                    rotation: 11,
+                    opacity: 0.34,
+                    offsetX: cardWidth * 0.48,
+                    offsetY: cardHeight * 0.27
+                )
+
+                primaryCard(width: cardWidth, height: cardHeight)
+                    .shadow(color: themeManager.accentColor.color.opacity(0.18), radius: 26, y: 14)
+            }
+            .frame(width: width, height: height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 280)
     }
 
-    private func featureLine(_ titleKey: String, valueKey: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(AppLocalization.string(titleKey, locale: appPreferences.resolvedLocale))
-                .font(.title3.weight(.black))
-                .foregroundStyle(themeManager.textPrimary)
+    private func primaryCard(width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 34, style: .continuous)
+            .fill(themeManager.accentColor.color.opacity(0.16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .strokeBorder(themeManager.accentColor.color.opacity(0.48), lineWidth: 1.4)
+            }
+            .overlay {
+                VStack(alignment: .leading, spacing: 15) {
+                    HStack(spacing: 10) {
+                        cardLine(width: width * 0.34, height: 16, opacity: 0.52)
+                        cardLine(width: width * 0.16, height: 16, opacity: 0.34)
+                    }
 
-            Text(AppLocalization.string(valueKey, locale: appPreferences.resolvedLocale))
-                .font(.body.weight(.medium))
-                .foregroundStyle(themeManager.textSecondary)
-        }
+                    cardLine(width: width * 0.68, height: 13, opacity: 0.42)
+                    cardLine(width: width * 0.48, height: 13, opacity: 0.30)
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: 9) {
+                        cardPill(width: width * 0.16)
+                        cardPill(width: width * 0.12)
+                        cardPill(width: width * 0.20)
+                    }
+                }
+                .padding(24)
+            }
+            .frame(width: width, height: height)
+    }
+
+    private func decorativeCard(
+        width: CGFloat,
+        height: CGFloat,
+        rotation: Double,
+        opacity: Double,
+        offsetX: CGFloat,
+        offsetY: CGFloat
+    ) -> some View {
+        RoundedRectangle(cornerRadius: 30, style: .continuous)
+            .fill(themeManager.textPrimary.opacity(0.045))
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(themeManager.textPrimary.opacity(opacity * 0.32), lineWidth: 1)
+            }
+            .overlay {
+                VStack(alignment: .leading, spacing: 12) {
+                    cardLine(width: width * 0.58, height: 12, opacity: opacity)
+                    cardLine(width: width * 0.40, height: 12, opacity: opacity * 0.72)
+                    Spacer(minLength: 0)
+                }
+                .padding(22)
+            }
+            .frame(width: width, height: height)
+            .rotationEffect(.degrees(rotation))
+            .offset(x: offsetX, y: offsetY)
+    }
+
+    private func cardLine(width: CGFloat, height: CGFloat, opacity: Double) -> some View {
+        Capsule()
+            .fill(themeManager.textPrimary.opacity(opacity))
+            .frame(width: width, height: height)
+    }
+
+    private func cardPill(width: CGFloat) -> some View {
+        Capsule()
+            .fill(themeManager.accentColor.color.opacity(0.34))
+            .frame(width: width, height: 18)
     }
 }
 

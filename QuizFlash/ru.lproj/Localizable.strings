@@ -103,7 +103,6 @@
 "28-Day Activity" = "28-дневная активность";
 "8 sessions this week" = "8 занятий на этой неделе";
 "A distributed-system model where replicas converge over time instead of synchronizing immediately." = "Модель распределенной системы, в которой реплики сходятся во времени, а не синхронизируются немедленно.";
-"A few defaults make the editor, game, and Home screen feel right from the start." = "Несколько настроек по умолчанию сразу делают редактор, игру и главный экран удобными.";
 "A sign-in window is already open." = "Окно входа уже открыто.";
 "Accent" = "Акцент";
 "Accuracy" = "Точность";
@@ -261,7 +260,6 @@
 "Create a deck" = "Создать колоду";
 "Create a deck to start studying from Home." = "Создайте колоду, чтобы начать учиться с главного экрана.";
 "Create Account" = "Создать аккаунт";
-"Create and edit cards fast." = "Быстро создавайте и редактируйте карточки.";
 "Create Deck" = "Создать колоду";
 "Create one from the section header." = "Создайте его из заголовка раздела.";
 "Create your first deck" = "Создайте свою первую колоду";
@@ -426,7 +424,6 @@
 "Italic" = "Курсив";
 "just now" = "только что";
 "Keep %d received cards" = "Оставить %d полученных карточек";
-"Keep decks organized." = "Держите колоды в порядке.";
 "Keep Editing" = "Продолжить редактирование";
 "Keeping the current list stable while the next result set is prepared." = "Текущий список остается стабильным, пока готовится следующий набор результатов.";
 "Label Color" = "Цвет метки";
@@ -533,9 +530,6 @@
 "Nothing landed on %@" = "На %@ ничего не попало";
 "OK" = "OK";
 "Oldest" = "Сначала старые";
-"Onboarding feature: Editor" = "Редактор";
-"Onboarding feature: Library" = "Библиотека";
-"Onboarding feature: Play" = "Игра";
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.";
 "Open a play mode to generate live activity in this deck." = "Откройте режим игры, чтобы в этой колоде появилась активность.";
 "Open activity history" = "Открыть историю активности";
@@ -636,7 +630,6 @@
 "RETRY" = "ПОВТОРИТЬ";
 "Retry %d" = "Повтор %d";
 "Retry cards" = "Повторить";
-"Review every day with a clear target." = "Повторяйте каждый день с понятной целью.";
 "Reviewed" = "Пройдено";
 "Reviews" = "Повторы";
 "Right" = "Верно";
@@ -676,7 +669,7 @@
 "Send Reset Link" = "Отправить ссылку";
 "Serif" = "С засечками";
 "Session" = "Сессия";
-"Set up QuizFlash" = "Настройте QuizFlash";
+"Set your defaults in a few quick steps." = "Настройте предпочтения за несколько быстрых шагов.";
 "Set your daily target" = "Задайте ежедневную цель";
 "Settings" = "Настройки";
 "Settings rows, sheets, grouped surfaces." = "Строки настроек, листы, сгруппированные поверхности.";
@@ -818,6 +811,7 @@
 "Weakest linked deck: %@" = "Самая слабая связанная колода: %@";
 "Weekly Momentum" = "Еженедельный импульс";
 "Welcome back" = "С возвращением";
+"Welcome to QuizFlash" = "Добро пожаловать в QuizFlash";
 "What is active recall?" = "Что такое активное припоминание?";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
 "Where it changes" = "Где меняется";

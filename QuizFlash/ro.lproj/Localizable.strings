@@ -103,7 +103,6 @@
 "28-Day Activity" = "Activitate de 28 de zile";
 "8 sessions this week" = "8 sedinte saptamana aceasta";
 "A distributed-system model where replicas converge over time instead of synchronizing immediately." = "Un model de sistem distribuit în care replicile converg în timp în loc să se sincronizeze imediat.";
-"A few defaults make the editor, game, and Home screen feel right from the start." = "Câteva setări implicite fac editorul, jocul și ecranul Acasă să se simtă corect de la început.";
 "A sign-in window is already open." = "O fereastră de conectare este deja deschisă.";
 "Accent" = "Accent";
 "Accuracy" = "Acuratețe";
@@ -261,7 +260,6 @@
 "Create a deck" = "Creați un deck";
 "Create a deck to start studying from Home." = "Creează un deck ca să începi să studiezi din Acasă.";
 "Create Account" = "Creează cont";
-"Create and edit cards fast." = "Creează și editează carduri rapid.";
 "Create Deck" = "Creează deck";
 "Create one from the section header." = "Creați unul din antetul secțiunii.";
 "Create your first deck" = "Creează primul tău deck";
@@ -426,7 +424,6 @@
 "Italic" = "Cursiv";
 "just now" = "chiar acum";
 "Keep %d received cards" = "Păstrează %d carduri primite";
-"Keep decks organized." = "Păstrează deckurile organizate.";
 "Keep Editing" = "Continuă editarea";
 "Keeping the current list stable while the next result set is prepared." = "Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.";
 "Label Color" = "Culoare etichetă";
@@ -533,9 +530,6 @@
 "Nothing landed on %@" = "Nimic nu a aterizat pe %@";
 "OK" = "OK";
 "Oldest" = "Cele mai vechi";
-"Onboarding feature: Editor" = "Editor";
-"Onboarding feature: Library" = "Bibliotecă";
-"Onboarding feature: Play" = "Joc";
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.";
 "Open a play mode to generate live activity in this deck." = "Deschide un mod de joc pentru a genera activitate în acest deck.";
 "Open activity history" = "Deschide istoricul activității";
@@ -636,7 +630,6 @@
 "RETRY" = "ÎNCERCAȚI";
 "Retry %d" = "Reîncearcă %d";
 "Retry cards" = "De repetat";
-"Review every day with a clear target." = "Repetă zilnic cu o țintă clară.";
 "Reviewed" = "Revizuite";
 "Reviews" = "Repetări";
 "Right" = "Corect";
@@ -676,7 +669,7 @@
 "Send Reset Link" = "Trimite link";
 "Serif" = "Serif";
 "Session" = "Sesiune";
-"Set up QuizFlash" = "Configurează QuizFlash";
+"Set your defaults in a few quick steps." = "Setează preferințele în câțiva pași rapizi.";
 "Set your daily target" = "Setează ținta zilnică";
 "Settings" = "Setări";
 "Settings rows, sheets, grouped surfaces." = "Rânduri de setări, sheet-uri, suprafețe grupate.";
@@ -818,6 +811,7 @@
 "Weakest linked deck: %@" = "Cele mai slabe legături deck: %@";
 "Weekly Momentum" = "Momentum săptămânal";
 "Welcome back" = "Bine ai revenit";
+"Welcome to QuizFlash" = "Bun venit în QuizFlash";
 "What is active recall?" = "Ce este memorarea activă?";
 "What is eventual consistency?" = "Ce este consistenta eventuala?";
 "Where it changes" = "Unde se schimbă";
