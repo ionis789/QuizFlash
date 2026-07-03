@@ -18,7 +18,6 @@ struct CardTypeMenuLabel: View {
             Text(title)
         } icon: {
             Image(systemName: kind.menuSystemImage)
-                .rotationEffect(kind.menuIconRotation)
         }
     }
 }
@@ -27,18 +26,9 @@ private extension CardKind {
     var menuSystemImage: String {
         switch self {
         case .flashcard:
-            return "rectangle.on.rectangle.angled"
+            return "rectangle.portrait.on.rectangle.portrait.angled"
         case .quiz:
             return "questionmark.square.dashed"
-        }
-    }
-
-    var menuIconRotation: Angle {
-        switch self {
-        case .flashcard:
-            return .degrees(90)
-        case .quiz:
-            return .zero
         }
     }
 }
