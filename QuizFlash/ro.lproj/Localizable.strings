@@ -783,6 +783,17 @@
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";
+"Adjust goals, text size, navigation, and visual preferences." = "Ajustează obiectivele, mărimea textului, navigarea și preferințele vizuale.";
+"Build from sources" = "Construiește din surse";
+"Create faster" = "Creează mai rapid";
+"Generate cards with AI or add content manually when you need control." = "Generează carduri cu AI sau adaugă conținut manual când vrei control.";
+"Keep every deck easy to find with a clean layout." = "Păstrează fiecare deck ușor de găsit într-un layout curat.";
+"Organize your library" = "Organizează biblioteca";
+"Personalize the app" = "Personalizează aplicația";
+"Preview Onboarding" = "Previzualizează onboarding";
+"Review activity, goals, and recent decks from a focused dashboard." = "Vezi activitatea, obiectivele și deck-urile recente într-un dashboard concentrat.";
+"Track your progress" = "Urmărește progresul";
+"Turn documents into flashcards with adjustable source coverage." = "Transformă documentele în flashcard-uri cu acoperire ajustabilă a sursei.";
 "%d / %d cards reviewed" = "%d / %d carduri revizuite";
 "%d active days" = "%d zile active";
 "%d cards reviewed" = "%d carduri revizuite";

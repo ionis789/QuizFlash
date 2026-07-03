@@ -40,6 +40,7 @@ struct QuizFlashApp: App {
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var cloudUserProfileService = CloudUserProfileService.shared
     @State private var cloudSyncCoordinator = CloudSyncCoordinator.shared
+    @State private var onboardingStateStore = OnboardingStateStore.shared
 
     init() {
         AppLocalization.applyLanguageOverride(AppPreferences.shared.appLanguage)
@@ -59,6 +60,7 @@ struct QuizFlashApp: App {
                 .environment(subscriptionManager)
                 .environment(cloudUserProfileService)
                 .environment(cloudSyncCoordinator)
+                .environment(onboardingStateStore)
                 .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)

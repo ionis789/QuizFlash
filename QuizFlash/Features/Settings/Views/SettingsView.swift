@@ -14,6 +14,7 @@ import UIKit
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
@@ -496,7 +497,6 @@ struct SettingsView: View {
                     icon: "square.dashed",
                     tint: themeManager.accentColor.color,
                     title: "Zone Style",
-                    detail: "Visual surface only.",
                     selection: zoneSurfaceStyleBinding,
                     options: AppZoneSurfaceStyle.allCases,
                     titleForOption: { option, locale in
@@ -563,6 +563,21 @@ struct SettingsView: View {
                     }
                     .noPressEffectButtonStyle()
                 }
+            }
+
+            settingsBlock {
+                Button {
+                    onboardingStateStore.presentPreview()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "sparkles.rectangle.stack",
+                        tint: themeManager.accentColor.color,
+                        title: SettingsTextContent.verbatim(AppLocalization.string("Preview Onboarding", locale: appPreferences.resolvedLocale)),
+                        detail: nil,
+                        value: nil
+                    )
+                }
+                .noPressEffectButtonStyle()
             }
 
             settingsBlock {
@@ -1210,6 +1225,7 @@ struct SettingsView: View {
         .environment(AuthManager.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)
+        .environment(OnboardingStateStore.shared)
         .environment(SubscriptionManager.shared)
         .environment(CloudUserProfileService.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)

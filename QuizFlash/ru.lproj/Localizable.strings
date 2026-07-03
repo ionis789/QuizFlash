@@ -783,6 +783,17 @@
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";
+"Adjust goals, text size, navigation, and visual preferences." = "Настройте цели, размер текста, навигацию и визуальные параметры.";
+"Build from sources" = "Создавайте из источников";
+"Create faster" = "Создавайте быстрее";
+"Generate cards with AI or add content manually when you need control." = "Генерируйте карточки с AI или добавляйте контент вручную, когда нужен контроль.";
+"Keep every deck easy to find with a clean layout." = "Держите каждую колоду под рукой в чистом интерфейсе.";
+"Organize your library" = "Организуйте библиотеку";
+"Personalize the app" = "Настройте приложение";
+"Preview Onboarding" = "Предпросмотр онбординга";
+"Review activity, goals, and recent decks from a focused dashboard." = "Отслеживайте активность, цели и недавние колоды на удобном дашборде.";
+"Track your progress" = "Отслеживайте прогресс";
+"Turn documents into flashcards with adjustable source coverage." = "Превращайте документы во flashcards с настраиваемым охватом источника.";
 "%d / %d cards reviewed" = "%d / %d карточек пройдено";
 "%d active days" = "%d активных дней";
 "%d cards reviewed" = "%d карточек пройдено";

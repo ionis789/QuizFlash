@@ -56,8 +56,8 @@ key	en	ro	ru
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -129,6 +129,7 @@ Add Range	Add Range	Adaugă interval	Добавить диапазон
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
+Adjust goals, text size, navigation, and visual preferences.	Adjust goals, text size, navigation, and visual preferences.	Ajustează obiectivele, mărimea textului, navigarea și preferințele vizuale.	Настройте цели, размер текста, навигацию и визуальные параметры.
 Adjust only study content, keeping app chrome and controls stable.	Adjust only study content, keeping app chrome and controls stable.	Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.	Настраивает только учебный контент, оставляя интерфейс приложения стабильным.
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
 AI usage	AI usage	Utilizare AI	Использование AI
@@ -179,6 +180,7 @@ Border system for Home, cards, settings, and controls.	Border system for Home, c
 Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
+Build from sources	Build from sources	Construiește din surse	Создавайте из источников
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
@@ -214,8 +216,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -258,6 +260,7 @@ Create a deck	Create a deck	Creați un deck	Создать колоду
 Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
 Create Account	Create Account	Creează cont	Создать аккаунт
 Create Deck	Create Deck	Creează deck	Создать колоду
+Create faster	Create faster	Creează mai rapid	Создавайте быстрее
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
 Create your first deck and start learning.	Create your first deck and start learning.	Creează primul tău deck și începe să înveți.	Создайте первую колоду и начните учиться.
@@ -363,6 +366,7 @@ Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI or add content manually when you need control.	Generate cards with AI or add content manually when you need control.	Generează carduri cu AI sau adaugă conținut manual când vrei control.	Генерируйте карточки с AI или добавляйте контент вручную, когда нужен контроль.
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -417,6 +421,7 @@ Italic	Italic	Cursiv	Курсив
 just now	just now	chiar acum	только что
 Keep %d received cards	Keep %d received cards	Păstrează %d carduri primite	Оставить %d полученных карточек
 Keep Editing	Keep Editing	Continuă editarea	Продолжить редактирование
+Keep every deck easy to find with a clean layout.	Keep every deck easy to find with a clean layout.	Păstrează fiecare deck ușor de găsit într-un layout curat.	Держите каждую колоду под рукой в чистом интерфейсе.
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
 Label Color	Label Color	Culoare etichetă	Цвет метки
 Labs	Labs	Laborator	Лабы
@@ -534,6 +539,7 @@ Optional rationale	Optional rationale	Explicație opțională	Необязате
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Opțional. Utilizați acest lucru pentru câmpurile de corp specifice furnizorului, cum ar fi raționamentul OpenRouter. Exemplu: {""resoning"":{""enabled"":true}}"	"Необязательный. Используйте это для полей тела, специфичных для поставщика, таких как рассуждения OpenRouter. Пример: {""рассуждение"":{""включено"":true}}"
 or	or	sau	или
 Orange	Orange	Portocaliu	Оранжевый
+Organize your library	Organize your library	Organizează biblioteca	Организуйте библиотеку
 Overflow Behaviour	Overflow Behaviour	Comportament de overflow	Поведение при переполнении
 Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
 Pace	Pace	Ritm	Темп
@@ -544,6 +550,7 @@ Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Парол�
 Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
 Paused	Paused	Pe pauză	На паузе
 Performance	Performance	Performanță	Прогресс
+Personalize the app	Personalize the app	Personalizează aplicația	Настройте приложение
 Photos or PDF	Photos or PDF	Poze sau PDF	Фото или PDF
 Pick a deck	Pick a deck	Alege un deck	Выберите колоду
 Pick a deck and continue.	Pick a deck and continue.	Alege un deck și continuă.	Выберите колоду и продолжайте.
@@ -573,6 +580,7 @@ Preparing your material	Preparing your material	Pregătirea materialului dvs	П�
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
+Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
@@ -580,8 +588,8 @@ Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -618,6 +626,7 @@ Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
+Review activity, goals, and recent decks from a focused dashboard.	Review activity, goals, and recent decks from a focused dashboard.	Vezi activitatea, obiectivele și deck-urile recente într-un dashboard concentrat.	Отслеживайте активность, цели и недавние колоды на удобном дашборде.
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
 Right	Right	Corect	Верно
@@ -742,8 +751,8 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This week	This week	Săptămâna aceasta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This week	This week	Săptămâna aceasta	Эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
@@ -764,11 +773,13 @@ Total cards for auto distribution.	Total cards for auto distribution.	Total card
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
 Trace Log	Trace Log	Log trace	Лог трассировки
 Trace Sessions	Trace Sessions	Sesiuni trace	Trace-сессии
+Track your progress	Track your progress	Urmărește progresul	Отслеживайте прогресс
 Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.	Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».
 Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка
 Tune Shadow	Tune Shadow	Ajustează umbra	Настроить тень
 Tune Tab Blur	Tune Tab Blur	Ajustează blurul tabbarului	Настроить размытие вкладок
+Turn documents into flashcards with adjustable source coverage.	Turn documents into flashcards with adjustable source coverage.	Transformă documentele în flashcard-uri cu acoperire ajustabilă a sursei.	Превращайте документы во flashcards с настраиваемым охватом источника.
 Type	Type	Tip	Тип
 Unavailable	Unavailable	Indisponibil	Недоступно
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения

@@ -205,11 +205,12 @@ final class AuthManager {
         applySignInSuccess(user)
     }
 
+    @discardableResult
     func createAccount(
         email: String,
         password: String,
         confirmation: String
-    ) async throws {
+    ) async throws -> AuthUserSnapshot {
         guard password == confirmation else {
             throw AuthManagerError.passwordConfirmationMismatch
         }
@@ -219,6 +220,7 @@ final class AuthManager {
             password: password
         )
         apply(user)
+        return user
     }
 
     func updateDisplayName(_ displayName: String?) async throws {

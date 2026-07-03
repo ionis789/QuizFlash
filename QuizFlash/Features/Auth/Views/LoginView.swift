@@ -14,6 +14,7 @@ import UIKit
 struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
 
     @State private var email = ""
@@ -219,6 +220,16 @@ struct LoginView: View {
                 .font(.callout)
                 .frame(maxWidth: .infinity)
                 .padding(.top, UIConstants.Spacing.small)
+
+                Button {
+                    onboardingStateStore.presentPreview()
+                } label: {
+                    Text(AppLocalization.string("Preview Onboarding", locale: locale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(themeManager.accentColor.color)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.huge)
@@ -280,6 +291,7 @@ private enum AuthSheet: Identifiable {
 private struct CreateAccountView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
@@ -331,11 +343,15 @@ private struct CreateAccountView: View {
                     tint: themeManager.accentColor.color,
                     isEnabled: canCreateAccount
                 ) {
-                    try await authManager.createAccount(
+                    let user = try await authManager.createAccount(
                         email: email,
                         password: password,
                         confirmation: passwordConfirmation
                     )
+                    onboardingStateStore.markPendingForNewAccount(uid: user.uid)
+                    if !user.requiresEmailVerification {
+                        onboardingStateStore.presentRequiredIfNeeded(for: user)
+                    }
                     dismiss()
                 } onError: { error in
                     onError(error)
@@ -593,5 +609,6 @@ private struct EmailVerificationRequiredView: View {
     LoginView()
         .environment(AuthManager.shared)
         .environment(AppPreferences.shared)
+        .environment(OnboardingStateStore.shared)
         .environment(ThemeManager.shared)
 }

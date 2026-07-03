@@ -783,6 +783,17 @@
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";
+"Adjust goals, text size, navigation, and visual preferences." = "Adjust goals, text size, navigation, and visual preferences.";
+"Build from sources" = "Build from sources";
+"Create faster" = "Create faster";
+"Generate cards with AI or add content manually when you need control." = "Generate cards with AI or add content manually when you need control.";
+"Keep every deck easy to find with a clean layout." = "Keep every deck easy to find with a clean layout.";
+"Organize your library" = "Organize your library";
+"Personalize the app" = "Personalize the app";
+"Preview Onboarding" = "Preview Onboarding";
+"Review activity, goals, and recent decks from a focused dashboard." = "Review activity, goals, and recent decks from a focused dashboard.";
+"Track your progress" = "Track your progress";
+"Turn documents into flashcards with adjustable source coverage." = "Turn documents into flashcards with adjustable source coverage.";
 "%d / %d cards reviewed" = "%d / %d cards reviewed";
 "%d active days" = "%d active days";
 "%d cards reviewed" = "%d cards reviewed";

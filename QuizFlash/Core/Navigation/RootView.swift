@@ -6,6 +6,7 @@ struct RootView: View {
 
     @Environment(AuthManager.self) var authManager
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
 
     @State private var hasStartedLaunchAnimation = false
@@ -42,9 +43,36 @@ struct RootView: View {
                 .transition(.opacity)
                 .zIndex(2)
             }
+
+            if let presentation = onboardingStateStore.presentation {
+                QuizFlashOnboardingView(
+                    presentation: presentation,
+                    onComplete: { completedPresentation in
+                        onboardingStateStore.complete(completedPresentation)
+                    },
+                    onClose: { closedPresentation in
+                        onboardingStateStore.closePreview(closedPresentation)
+                    }
+                )
+                .id(presentation.id)
+                .transition(.opacity)
+                .zIndex(3)
+            }
         }
         .task {
             await playLaunchAnimationIfNeeded()
+            presentOnboardingIfNeeded()
+        }
+        .onChange(of: authManager.sessionState) { _, _ in
+            presentOnboardingIfNeeded()
+        }
+    }
+
+    private func presentOnboardingIfNeeded() {
+        if case .signedIn(let user) = authManager.sessionState {
+            onboardingStateStore.presentRequiredIfNeeded(for: user)
+        } else if case .required = onboardingStateStore.presentation {
+            onboardingStateStore.presentRequiredIfNeeded(for: nil)
         }
     }
 
@@ -142,5 +170,6 @@ private struct QuizFlashLaunchAnimationView: View {
 #Preview {
     RootView()
         .environment(AuthManager.shared)
+        .environment(OnboardingStateStore.shared)
         .environment(ThemeManager.shared)
 }
