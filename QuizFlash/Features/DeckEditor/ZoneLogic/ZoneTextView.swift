@@ -1145,7 +1145,7 @@ final class ZoneEditorDebugStore {
 
 // MARK: - Zone Text View Coordinator
 
-final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
     var zoneID: UUID?
     var pathID: String?
     var onTextChange: ((String) -> Void)?
@@ -1241,78 +1241,6 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             NotificationCenter.default.removeObserver(observer)
         }
     }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        let location = textView.map { touch.location(in: $0) } ?? .zero
-        let preflightDetails = "name=\(gestureRecognizer.name ?? "nil") type=\(String(describing: type(of: gestureRecognizer))) state=\(gestureStateName(gestureRecognizer.state)) touchPhase=\(touchPhaseName(touch.phase)) taps=\(touch.tapCount) loc=\(debugPoint(location))"
-        guard gestureRecognizer.name != Self.doubleTapPassthroughRecognizerName else {
-            ZoneEditorDebugStore.shared.recordNativeTextEvent(
-                "text.gesture-should-receive",
-                zoneID: zoneID,
-                pathID: pathID,
-                textView: textView,
-                details: "\(preflightDetails) result=1 reason=doubleTapPassthrough"
-            )
-            return true
-        }
-
-        guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
-              let textView,
-              textView.selectedRange.length > 0 else {
-            ZoneEditorDebugStore.shared.recordNativeTextEvent(
-                "text.gesture-should-receive",
-                zoneID: zoneID,
-                pathID: pathID,
-                textView: self.textView,
-                details: "\(preflightDetails) result=0 reason=notSelectionCollapseOrNoSelection"
-            )
-            return false
-        }
-
-        let result = textView.bounds.contains(touch.location(in: textView))
-        ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.gesture-should-receive",
-            zoneID: zoneID,
-            pathID: pathID,
-            textView: textView,
-            details: "\(preflightDetails) result=\(result ? 1 : 0) reason=selectionCollapse"
-        )
-        return result
-    }
-
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-    ) -> Bool {
-        ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.gesture-simultaneous",
-            zoneID: zoneID,
-            pathID: pathID,
-            textView: textView,
-            details: "gesture=\(gestureRecognizer.name ?? String(describing: type(of: gestureRecognizer))):\(gestureStateName(gestureRecognizer.state)) other=\(otherGestureRecognizer.name ?? String(describing: type(of: otherGestureRecognizer))):\(gestureStateName(otherGestureRecognizer.state)) result=1"
-        )
-        return true
-    }
-
-    @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
-        ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.selection-collapse-tap",
-            zoneID: zoneID,
-            pathID: pathID,
-            textView: textView,
-            details: "state=\(gestureStateName(recognizer.state)) loc=\(textView.map { debugPoint(recognizer.location(in: $0)) } ?? "nil")"
-        )
-        guard recognizer.state == .ended,
-              let textView,
-              textView.selectedRange.length > 0 else {
-            return
-        }
-
-        placeCaret(at: recognizer.location(in: textView), in: textView)
-    }
-
-    static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
-    static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     fileprivate func recordCaretProbe(
         _ stage: String,
@@ -1489,32 +1417,6 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
     private func debugValue(_ value: CGFloat) -> String {
         String(format: "%.1f", Double(value))
-    }
-
-    private func touchPhaseName(_ phase: UITouch.Phase) -> String {
-        switch phase {
-        case .began: "began"
-        case .moved: "moved"
-        case .stationary: "stationary"
-        case .ended: "ended"
-        case .cancelled: "cancelled"
-        case .regionEntered: "regionEntered"
-        case .regionMoved: "regionMoved"
-        case .regionExited: "regionExited"
-        @unknown default: "unknown"
-        }
-    }
-
-    private func gestureStateName(_ state: UIGestureRecognizer.State) -> String {
-        switch state {
-        case .possible: "possible"
-        case .began: "began"
-        case .changed: "changed"
-        case .ended: "ended"
-        case .cancelled: "cancelled"
-        case .failed: "failed"
-        @unknown default: "unknown"
-        }
     }
 
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
@@ -1981,20 +1883,6 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         }
     }
 
-    private func placeCaret(at point: CGPoint, in textView: UITextView) {
-        guard let position = textView.closestPosition(to: point) else { return }
-
-        let location = textView.offset(from: textView.beginningOfDocument, to: position)
-        let textLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
-        let clampedLocation = min(max(location, 0), textLength)
-        let range = NSRange(location: clampedLocation, length: 0)
-        textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
-            ? NSRange(location: 0, length: 0)
-            : range
-        reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
-        scheduleSettledCaretReport(from: textView, source: .selectionTap)
-    }
-
     private func clampSelectionToEditableContent(in textView: UITextView) -> Bool {
         let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
         let selection = textView.selectedRange
@@ -2443,24 +2331,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let doubleTapRecognizer = UITapGestureRecognizer()
-        doubleTapRecognizer.name = ZoneTextViewCoordinator.doubleTapPassthroughRecognizerName
-        doubleTapRecognizer.numberOfTapsRequired = 2
-        doubleTapRecognizer.cancelsTouchesInView = false
-        doubleTapRecognizer.delegate = context.coordinator
-
-        let selectionCollapseTapRecognizer = UITapGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(ZoneTextViewCoordinator.handleSelectionCollapseTap(_:))
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.custom-gestures-disabled",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "reason=nativeUITextViewGesturesOwnTapLongPressSelection"
         )
-        selectionCollapseTapRecognizer.name = ZoneTextViewCoordinator.selectionCollapseTapRecognizerName
-        selectionCollapseTapRecognizer.numberOfTapsRequired = 1
-        selectionCollapseTapRecognizer.cancelsTouchesInView = false
-        selectionCollapseTapRecognizer.delegate = context.coordinator
-        selectionCollapseTapRecognizer.require(toFail: doubleTapRecognizer)
-
-        textView.addGestureRecognizer(doubleTapRecognizer)
-        textView.addGestureRecognizer(selectionCollapseTapRecognizer)
 
         textView.text = ZoneTextViewEmptyCaret.displayText(for: text)
         textView.selectedRange = ZoneTextViewEmptyCaret.displayRange(
