@@ -149,6 +149,24 @@ struct CustomContextMenuTouchTrackerAttachment: UIViewRepresentable {
             let typeName = String(describing: type(of: otherGestureRecognizer))
             return typeName.contains("Scroll")
         }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            !isNativeTextInputTouch(touch.view)
+        }
+
+        private func isNativeTextInputTouch(_ view: UIView?) -> Bool {
+            var currentView = view
+            while let view = currentView {
+                if view is UITextView || view is UITextField {
+                    return true
+                }
+                currentView = view.superview
+            }
+            return false
+        }
     }
 
     final class TrackingView: UIView {
