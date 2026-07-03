@@ -446,11 +446,22 @@ struct DeckActionOverlay: View {
             .animation(.snappy(duration: 0.18, extraBounce: 0), value: selectedCount)
         } else {
             Menu {
-                Button(localized("Flashcard")) {
+                Button {
                     onAddCard(.flashcard)
+                } label: {
+                    CardTypeMenuLabel(
+                        kind: .flashcard,
+                        title: localized("Flashcard")
+                    )
                 }
-                Button(localized("Quiz")) {
+
+                Button {
                     onAddCard(.quiz)
+                } label: {
+                    CardTypeMenuLabel(
+                        kind: .quiz,
+                        title: localized("Quiz")
+                    )
                 }
             } label: {
                 ChromeSoftCircleSymbol(

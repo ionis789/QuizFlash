@@ -173,11 +173,11 @@ extension DeckWorkspaceView {
     var headerMetadataRow: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             generationMetadataActionRow
-            .frame(minHeight: UIConstants.Size.capsuleHeight)
-            .animation(.easeInOut(duration: UIConstants.Animation.standard), value: shouldShowGenerationHeaderStatus)
-            .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
-            .animation(generationPhaseAnimation, value: shouldRevealAIGenerateActions)
-            .animation(generationPhaseAnimation, value: viewModel.draftCards.isEmpty)
+                .frame(minHeight: UIConstants.Size.capsuleHeight)
+                .animation(.easeInOut(duration: UIConstants.Animation.standard), value: shouldShowGenerationHeaderStatus)
+                .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
+                .animation(generationPhaseAnimation, value: shouldRevealAIGenerateActions)
+                .animation(generationPhaseAnimation, value: viewModel.draftCards.isEmpty)
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
@@ -501,9 +501,9 @@ extension DeckWorkspaceView {
                 animation: generationPhaseAnimation,
                 tint: showsDoneStatus ? tint : nil
             )
-                .font(.system(size: 20, weight: .heavy))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+            .font(.system(size: 20, weight: .heavy))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
 
             if !showsDoneStatus {
                 ProgressActivityDots(color: tint)
@@ -680,13 +680,19 @@ extension DeckWorkspaceView {
             Button {
                 openCardEditor(for: .flashcard)
             } label: {
-                Label(localized("Flashcard"), systemImage: "rectangle.on.rectangle.angled")
+                CardTypeMenuLabel(
+                    kind: .flashcard,
+                    title: localized("Flashcard")
+                )
             }
 
             Button {
                 openCardEditor(for: .quiz)
             } label: {
-                Label(localized("Quiz"), systemImage: "questionmark.square.dashed")
+                CardTypeMenuLabel(
+                    kind: .quiz,
+                    title: localized("Quiz")
+                )
             }
         }
     }

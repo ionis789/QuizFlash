@@ -34,7 +34,6 @@ struct HomeAnalyticsSelectedDayStats: Sendable {
 
 /// Background repository that serves Home from lightweight persisted aggregates.
 actor HomeAnalyticsRepository {
-
     // MARK: - Accumulators
 
     private struct DailyAccumulator {
@@ -148,6 +147,7 @@ actor HomeAnalyticsRepository {
 
         let selectedDayAggregate = fetchDailyStudyAggregate(dayKey: selectedDayKey)
         let weekEnd = calendar.date(byAdding: .day, value: 7, to: normalizedWeekStart) ?? normalizedSelectedDate
+        let normalizedToday = HomeAnalyticsDayKey.normalizedDay(for: Date())
 
         let weeklyAggregates = fetchDailyStudyAggregates(
             start: normalizedWeekStart,
@@ -155,7 +155,7 @@ actor HomeAnalyticsRepository {
         )
         let aggregatesByKey = Dictionary(uniqueKeysWithValues: weeklyAggregates.map { ($0.dayKey, $0) })
 
-        let daySummaries: [HomeWeeklyDaySummary] = (0..<7).compactMap { offset in
+        let daySummaries: [HomeWeeklyDaySummary] = (0 ..< 7).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: normalizedWeekStart) else {
                 return nil
             }
@@ -181,7 +181,8 @@ actor HomeAnalyticsRepository {
                 intensityFraction: intensityFraction,
                 didStudy: cardsReviewed > 0 || xpEarned > 0,
                 didReachGoal: dayGoal.map { cardsReviewed >= $0 } ?? false,
-                isSelectedDay: calendar.isDate(day, inSameDayAs: normalizedSelectedDate)
+                isSelectedDay: calendar.isDate(day, inSameDayAs: normalizedSelectedDate),
+                isToday: calendar.isDate(day, inSameDayAs: normalizedToday)
             )
         }
 
@@ -635,7 +636,7 @@ actor HomeAnalyticsRepository {
         let normalizedDisplayEndDate = displayEndDate.map { HomeAnalyticsDayKey.normalizedDay(for: $0) }
         Self.shortWeekdayFormatter.locale = AppPreferences.persistedResolvedLocale
 
-        return (0..<7).compactMap { offset in
+        return (0 ..< 7).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else {
                 return nil
             }
@@ -897,5 +898,4 @@ actor HomeAnalyticsRepository {
         let fallback = snapshot.trimmingCharacters(in: .whitespacesAndNewlines)
         return fallback.isEmpty ? "Untitled Card" : fallback
     }
-
 }

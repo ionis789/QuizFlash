@@ -663,6 +663,18 @@ private struct HomeWeeklyMomentumBar: View {
         return baseHeight + (variableHeight * day.intensityFraction)
     }
 
+    private var borderColor: Color {
+        if day.isToday { return accentColor.opacity(0.9) }
+        if day.isSelectedDay { return Color.white.opacity(0.42) }
+        return .clear
+    }
+
+    private var borderWidth: CGFloat {
+        if day.isToday { return 2 }
+        if day.isSelectedDay { return 1.25 }
+        return 0
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             Text(day.shortWeekday)
@@ -672,11 +684,9 @@ private struct HomeWeeklyMomentumBar: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(fillColor)
                 .frame(width: usesRegularMetrics ? 32 : 28, height: barHeight)
-                .overlay(alignment: .bottom) {
-                    if day.isSelectedDay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                    }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(borderColor, lineWidth: borderWidth)
                 }
 
             Text("\(day.cardsReviewed)")

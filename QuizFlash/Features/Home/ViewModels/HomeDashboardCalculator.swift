@@ -414,7 +414,7 @@ extension HomeViewModel {
         let cacheKey = [
             selectedDateKey,
             profileSignature(for: userProfile),
-            "\(logsCacheRevision)"
+            "\(logsCacheRevision)",
         ].joined(separator: "||")
 
         if let cached = selectedDayOverviewCache[cacheKey] {
@@ -486,14 +486,15 @@ extension HomeViewModel {
         let weekKey = Self.dateKeyFormatter.string(from: weekStart)
         let cacheKey = [
             weekKey,
-            "\(logsCacheRevision)"
+            "\(logsCacheRevision)",
         ].joined(separator: "||")
 
         if let cached = weeklyMomentumCache[cacheKey] {
             return cached
         }
 
-        let daySummaries: [HomeWeeklyDaySummary] = (0..<7).compactMap { index in
+        let today = calendar.startOfDay(for: Date())
+        let daySummaries: [HomeWeeklyDaySummary] = (0 ..< 7).compactMap { index in
             guard let day = calendar.date(byAdding: .day, value: index, to: weekStart) else { return nil }
             let dayKey = Self.dateKeyFormatter.string(from: day)
             let reviewAggregate = buildDailyReviewAggregate(
@@ -519,7 +520,8 @@ extension HomeViewModel {
                 intensityFraction: intensityFraction,
                 didStudy: cardsReviewed > 0 || xpEarned > 0,
                 didReachGoal: goal.map { cardsReviewed >= $0 } ?? false,
-                isSelectedDay: calendar.isDate(day, inSameDayAs: startOfSelectedDay)
+                isSelectedDay: calendar.isDate(day, inSameDayAs: startOfSelectedDay),
+                isToday: calendar.isDate(day, inSameDayAs: today)
             )
         }
 
@@ -674,7 +676,7 @@ extension HomeViewModel {
             selectedDayOverview.detailLine,
             "\(selectedDayOverview.cardsReviewed)",
             "\(selectedDayOverview.remainingCardsToGoal)",
-            "\(weeklyMomentum.averageCardsPerActiveDay)"
+            "\(weeklyMomentum.averageCardsPerActiveDay)",
         ].joined(separator: "||")
 
         if let cached = selectedDayInsightCache[cacheKey] {
@@ -790,8 +792,8 @@ extension HomeViewModel {
             ?? (report.dueCards > 0
                 ? "Start with due cards before adding anything new."
                 : report.newCards > 0
-                    ? "Introduce a few new cards and build first-pass familiarity."
-                    : "Use a short review pass to keep the deck warm.")
+                ? "Introduce a few new cards and build first-pass familiarity."
+                : "Use a short review pass to keep the deck warm.")
 
         return HomeDeckHealthSummary(
             id: deck.persistentModelID,
@@ -872,7 +874,7 @@ extension HomeViewModel {
             profileSignature(for: userProfile),
             "\(analyticsRevision)",
             "\(deckRevision)",
-            dailyCardsGoal.map(String.init) ?? "no-goal"
+            dailyCardsGoal.map(String.init) ?? "no-goal",
         ].joined(separator: "||")
     }
 
@@ -887,7 +889,7 @@ extension HomeViewModel {
             profileSignature(for: userProfile),
             "\(logsCacheRevision)",
             "\(analyticsRevision)",
-            dailyCardsGoal.map(String.init) ?? "no-goal"
+            dailyCardsGoal.map(String.init) ?? "no-goal",
         ].joined(separator: "||")
     }
 
@@ -904,7 +906,7 @@ extension HomeViewModel {
                     $0.colorHex,
                     "\($0.cardCount)",
                     "\($0.editedAt.timeIntervalSince1970)",
-                    "\($0.lastOpenedAt?.timeIntervalSince1970 ?? 0)"
+                    "\($0.lastOpenedAt?.timeIntervalSince1970 ?? 0)",
                 ].joined(separator: "|")
             }
             .sorted()
@@ -917,7 +919,7 @@ extension HomeViewModel {
         return [
             Self.dateKeyFormatter.string(from: referenceDate),
             deckSignature,
-            recentSignature
+            recentSignature,
         ].joined(separator: "||")
     }
 
@@ -938,7 +940,7 @@ extension HomeViewModel {
         guard normalizedLastActive <= normalizedReference else { return [] }
 
         let streakLength = max(userProfile.currentStreak, 0)
-        return Set((0..<streakLength).compactMap { offset in
+        return Set((0 ..< streakLength).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: -offset, to: normalizedLastActive) else {
                 return nil
             }
@@ -951,14 +953,14 @@ extension HomeViewModel {
         let normalizedReference = calendar.startOfDay(for: referenceDate)
         let cacheKey = [
             Self.dateKeyFormatter.string(from: normalizedReference),
-            "\(logsCacheRevision)"
+            "\(logsCacheRevision)",
         ].joined(separator: "||")
 
         if let cached = recentStudyDayCountCache[cacheKey] {
             return cached
         }
 
-        let count = (0..<7).reduce(into: 0) { count, offset in
+        let count = (0 ..< 7).reduce(into: 0) { count, offset in
             guard let day = calendar.date(byAdding: .day, value: -offset, to: normalizedReference) else {
                 return
             }
@@ -991,7 +993,7 @@ extension HomeViewModel {
                 "\($0.totalXP)",
                 "\($0.currentStreak)",
                 "\($0.longestStreak)",
-                "\($0.lastActiveDate?.timeIntervalSince1970 ?? 0)"
+                "\($0.lastActiveDate?.timeIntervalSince1970 ?? 0)",
             ].joined(separator: "|")
         } ?? "no-profile"
     }
@@ -1018,11 +1020,11 @@ extension HomeViewModel {
     static func greetingPhase(for referenceDate: Date) -> HomeGreetingPhase {
         let hour = Calendar.current.component(.hour, from: referenceDate)
         switch hour {
-        case 5..<12:
+        case 5 ..< 12:
             return .morning
-        case 12..<17:
+        case 12 ..< 17:
             return .afternoon
-        case 17..<22:
+        case 17 ..< 22:
             return .evening
         default:
             return .night

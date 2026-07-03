@@ -87,6 +87,7 @@ struct HomeWeeklyDaySummary: Identifiable, Equatable, Sendable {
     let didStudy: Bool
     let didReachGoal: Bool
     let isSelectedDay: Bool
+    let isToday: Bool
 
     var hasGoal: Bool {
         dailyGoal != nil
