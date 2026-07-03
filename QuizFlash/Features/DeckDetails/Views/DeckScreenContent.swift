@@ -251,9 +251,8 @@ extension DeckContentView {
                 exitSelectionModeForExternalAction()
                 dismiss()
             },
-            onAdd: {
-                exitSelectionModeForExternalAction()
-                showAddCardTypeDialog = true
+            onAddCard: { kind in
+                presentCardEditor(for: kind)
             },
             onSetSelectedPinnedState: { isPinned in
                 viewModel.setSelectedCardsPinned(

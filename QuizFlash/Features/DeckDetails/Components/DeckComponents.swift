@@ -390,8 +390,8 @@ struct DeckActionOverlay: View {
     @Binding var sortOrder: SortOrder
     /// Current deck grouping mode shown in the native overflow menu.
     @Binding var groupingMode: DeckCardGroupingMode
-    /// Called when the user taps the "+" button.
-    let onAdd: () -> Void
+    /// Called when the user chooses a card type from the "+" add menu.
+    let onAddCard: (CardKind) -> Void
     /// Called when the user taps the top pin action while selecting.
     let onSetSelectedPinnedState: (Bool) -> Void
     /// Called when the user taps "Select Cards" in the menu.
@@ -432,17 +432,36 @@ struct DeckActionOverlay: View {
 
     // MARK: - Add Button
 
+    @ViewBuilder
     private var addButton: some View {
-        ChromeSoftCircleSymbolButton(
-            systemName: isSelecting ? selectionPinSymbolName : "plus",
-            accessibilityLabel: isSelecting ? selectionPinAccessibilityLabel : localized("Add card"),
-            action: isSelecting ? { onSetSelectedPinnedState(selectionPinTargetState) } : onAdd,
-            tint: isSelecting ? themeManager.accentColor.color : themeManager.roleColor(.buttonDangerForeground)
-        )
-        .disabled(isSelecting && selectedCount == 0)
-        .opacity(isSelecting && selectedCount == 0 ? 0.42 : 1)
-        .animation(.snappy(duration: 0.18, extraBounce: 0), value: isSelecting)
-        .animation(.snappy(duration: 0.18, extraBounce: 0), value: selectedCount)
+        if isSelecting {
+            ChromeSoftCircleSymbolButton(
+                systemName: selectionPinSymbolName,
+                accessibilityLabel: selectionPinAccessibilityLabel,
+                action: { onSetSelectedPinnedState(selectionPinTargetState) },
+                tint: themeManager.accentColor.color
+            )
+            .disabled(selectedCount == 0)
+            .opacity(selectedCount == 0 ? 0.42 : 1)
+            .animation(.snappy(duration: 0.18, extraBounce: 0), value: selectedCount)
+        } else {
+            Menu {
+                Button(localized("Flashcard")) {
+                    onAddCard(.flashcard)
+                }
+                Button(localized("Quiz")) {
+                    onAddCard(.quiz)
+                }
+            } label: {
+                ChromeSoftCircleSymbol(
+                    systemName: "plus",
+                    size: UIConstants.Size.actionButton,
+                    tint: themeManager.roleColor(.buttonDangerForeground)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("Add card"))
+        }
     }
 
     // MARK: - Menu Button

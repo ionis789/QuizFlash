@@ -49,7 +49,6 @@ struct DeckContentView: View {
     @State var deckEditorPresentation: DeckEditorSheetPresentation? = nil
     @State var cardEditorDestination: CardEditorDestination? = nil
     @State var unavailablePlayMode: DeckPlayModeDestination? = nil
-    @State var showAddCardTypeDialog = false
     @State var pendingDeleteCardID: PersistentIdentifier? = nil
     @State var playModeSettingsMeasuredSheetHeight: CGFloat = 0
     @State var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
@@ -60,8 +59,8 @@ struct DeckContentView: View {
     @State var hasLoadedInitialSnapshot = false
     @State var navigationBarHeight: CGFloat =
         UIConstants.Layout.deckNavigationTopPadding
-        + UIConstants.Size.capsuleHeight
-        + UIConstants.Spacing.small
+            + UIConstants.Size.capsuleHeight
+            + UIConstants.Spacing.small
     @State var navigationBarBottomY: CGFloat = 0
 
     /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state.
@@ -223,7 +222,7 @@ struct DeckContentView: View {
                 ),
                 isPresented: $viewModel.showDeleteConfirmation
             ) {
-                Button(localized("Cancel"), role: .cancel) { }
+                Button(localized("Cancel"), role: .cancel) {}
                 Button(localized("Delete"), role: .destructive) {
                     withBottomChromeAnimation {
                         viewModel.deleteSelectedCards(from: deck, context: context)
@@ -252,19 +251,12 @@ struct DeckContentView: View {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
             }
             .alert(localized("Export Error"), isPresented: $viewModel.showExportError) {
-                Button(localized("OK"), role: .cancel) { }
+                Button(localized("OK"), role: .cancel) {}
             } message: { Text(viewModel.exportErrorMessage) }
             .alert(localized("Save Error"), isPresented: $viewModel.showMutationError) {
-                Button(localized("OK"), role: .cancel) { }
+                Button(localized("OK"), role: .cancel) {}
             } message: {
                 Text(viewModel.mutationErrorMessage)
-            }
-            .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
-                Button(localized("Flashcard")) { presentCardEditor(for: .flashcard) }
-                Button(localized("Quiz")) { presentCardEditor(for: .quiz) }
-                Button(localized("Cancel"), role: .cancel) { }
-            } message: {
-                Text(localized("Pick the type of card you want to add to this deck."))
             }
             .overlay { exportingOverlay }
     }

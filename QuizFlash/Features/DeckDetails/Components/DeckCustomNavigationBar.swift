@@ -39,8 +39,8 @@ struct DeckCustomNavigationBar: View {
 
     /// Called when the user taps the back button.
     let onBack: () -> Void
-    /// Called when the user taps the "+" add button.
-    let onAdd: () -> Void
+    /// Called when the user chooses a card type from the "+" add menu.
+    let onAddCard: (CardKind) -> Void
     /// Called when the user taps the pin/unpin button while selecting.
     let onSetSelectedPinnedState: (Bool) -> Void
     /// Called when the user taps "Select Cards" in the menu.
@@ -91,7 +91,7 @@ struct DeckCustomNavigationBar: View {
                 selectedCardsAreAllPinned: selectedCardsAreAllPinned,
                 sortOrder: $sortOrder,
                 groupingMode: $groupingMode,
-                onAdd: onAdd,
+                onAddCard: onAddCard,
                 onSetSelectedPinnedState: onSetSelectedPinnedState,
                 onStartSelection: onStartSelection,
                 onDoneSelection: onDoneSelection,

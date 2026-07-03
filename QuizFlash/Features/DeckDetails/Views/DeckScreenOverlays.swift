@@ -114,7 +114,6 @@ extension DeckContentView {
 
     func presentCardEditor(for kind: CardKind) {
         exitSelectionModeForExternalAction()
-        showAddCardTypeDialog = false
         cardEditorDestination = .create(kind: kind)
     }
 
@@ -241,5 +240,4 @@ extension DeckContentView {
             .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         }
     }
-
 }
