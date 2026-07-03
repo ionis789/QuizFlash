@@ -1247,7 +1247,7 @@ struct ZoneContentView: View {
 
         ZStack(alignment: .topLeading) {
             ZoneTextViewRepresentable(
-                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, maximumVisibleHeight: nil, cursorTintColor: UIColor(accent), forcedLineBreakTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
+                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, maximumVisibleHeight: nil, cursorTintColor: UIColor(accent), forcedLineBreakTintColor: UIColor(accent), zoneID: zoneID, pathID: currentPath.id, isFirstResponder: isFocused,
                 onTextChange: { newText in
                     if currentContentType == .text || currentContentType == .empty || currentContentType == .code {
                         highlightContext?.dismiss()

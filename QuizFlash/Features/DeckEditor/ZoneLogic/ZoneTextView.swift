@@ -92,6 +92,7 @@ private enum ZoneTextViewEmptyCaret {
 final class FullHitTextView: UITextView {
     var usesCompactCaret: Bool = true
     var debugZoneID: UUID?
+    var debugPathID: String?
     var estimatedLineAdvanceY: CGFloat = 0
     private var lastStableCaretRect: CGRect?
     private var transientTailCaretSynthesisDeadline: CFTimeInterval = 0
@@ -217,31 +218,128 @@ final class FullHitTextView: UITextView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hitView = bounds.contains(point) ? self : super.hitTest(point, with: event)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.hit-test",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "point=\(debugPoint(point)) hit=\(hitView.map { String(describing: type(of: $0)) } ?? "nil") boundsContains=\(bounds.contains(point) ? 1 : 0)"
+        )
         if self.bounds.contains(point) {
             return self
         }
-        return super.hitTest(point, with: event)
+        return hitView
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: text ?? "")
         let hasSelection = selectedRange.length > 0
+        let result: Bool
 
         switch action {
         case #selector(UIResponderStandardEditActions.copy(_:)):
-            return hasSelection
+            result = hasSelection
         case #selector(UIResponderStandardEditActions.cut(_:)),
              #selector(UIResponderStandardEditActions.delete(_:)):
-            return isEditable && hasSelection
+            result = isEditable && hasSelection
         case #selector(UIResponderStandardEditActions.paste(_:)):
-            return isEditable && UIPasteboard.general.hasStrings
+            result = isEditable && UIPasteboard.general.hasStrings
         case #selector(UIResponderStandardEditActions.select(_:)):
-            return editableLength > 0 && selectedRange.length == 0
+            result = editableLength > 0 && selectedRange.length == 0
         case #selector(UIResponderStandardEditActions.selectAll(_:)):
-            return editableLength > 0 && selectedRange.length < editableLength
+            result = editableLength > 0 && selectedRange.length < editableLength
         default:
-            return super.canPerformAction(action, withSender: sender)
+            result = super.canPerformAction(action, withSender: sender)
         }
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.can-perform-action",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "selector=\(NSStringFromSelector(action)) result=\(result ? 1 : 0) editableLen=\(editableLength) hasSelection=\(hasSelection ? 1 : 0) pasteboardStrings=\(UIPasteboard.general.hasStrings ? 1 : 0)"
+        )
+        return result
+    }
+
+    override func target(forAction action: Selector, withSender sender: Any?) -> Any? {
+        let target = super.target(forAction: action, withSender: sender)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.target-for-action",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "selector=\(NSStringFromSelector(action)) target=\(target.map { String(describing: type(of: $0 as AnyObject)) } ?? "nil")"
+        )
+        return target
+    }
+
+    override func buildMenu(with builder: UIMenuBuilder) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.build-menu-before",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "builder=\(String(describing: type(of: builder)))"
+        )
+        super.buildMenu(with: builder)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.build-menu-after",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "builder=\(String(describing: type(of: builder)))"
+        )
+    }
+
+    override func copy(_ sender: Any?) {
+        recordEditAction("copy")
+        super.copy(sender)
+    }
+
+    override func cut(_ sender: Any?) {
+        recordEditAction("cut")
+        super.cut(sender)
+    }
+
+    override func paste(_ sender: Any?) {
+        recordEditAction("paste")
+        super.paste(sender)
+    }
+
+    override func select(_ sender: Any?) {
+        recordEditAction("select")
+        super.select(sender)
+    }
+
+    override func selectAll(_ sender: Any?) {
+        recordEditAction("selectAll")
+        super.selectAll(sender)
+    }
+
+    override func delete(_ sender: Any?) {
+        recordEditAction("delete")
+        super.delete(sender)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        recordTouches("text.touches-began", touches: touches, event: event)
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        recordTouches("text.touches-moved", touches: touches, event: event)
+        super.touchesMoved(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        recordTouches("text.touches-ended", touches: touches, event: event)
+        super.touchesEnded(touches, with: event)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        recordTouches("text.touches-cancelled", touches: touches, event: event)
+        super.touchesCancelled(touches, with: event)
     }
 
     override func scrollRectToVisible(_ rect: CGRect, animated: Bool) {
@@ -309,6 +407,72 @@ final class FullHitTextView: UITextView {
         return nil
     }
 
+    private func recordEditAction(_ name: String) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.action-\(name)",
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "pasteboardStrings=\(UIPasteboard.general.hasStrings ? 1 : 0)"
+        )
+    }
+
+    private func recordTouches(_ stage: String, touches: Set<UITouch>, event: UIEvent?) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        let descriptions = touches.map { touch in
+            let location = touch.location(in: self)
+            let previous = touch.previousLocation(in: self)
+            return "phase=\(touchPhaseName(touch.phase)) taps=\(touch.tapCount) loc=\(debugPoint(location)) prev=\(debugPoint(previous)) type=\(touchTypeName(touch.type))"
+        }
+        .joined(separator: " | ")
+        let gestureSummary = (gestureRecognizers ?? [])
+            .map { "\(String(describing: type(of: $0))):\(gestureStateName($0.state)):\($0.isEnabled ? "E" : "-")\($0.cancelsTouchesInView ? "C" : "-")" }
+            .joined(separator: ",")
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            stage,
+            zoneID: debugZoneID,
+            pathID: debugPathID,
+            textView: self,
+            details: "touches=[\(descriptions)] eventType=\(event.map { String(describing: $0.type) } ?? "nil") gestures=\(gestureSummary.isEmpty ? "none" : gestureSummary)"
+        )
+    }
+
+    private func touchPhaseName(_ phase: UITouch.Phase) -> String {
+        switch phase {
+        case .began: "began"
+        case .moved: "moved"
+        case .stationary: "stationary"
+        case .ended: "ended"
+        case .cancelled: "cancelled"
+        case .regionEntered: "regionEntered"
+        case .regionMoved: "regionMoved"
+        case .regionExited: "regionExited"
+        @unknown default: "unknown"
+        }
+    }
+
+    private func touchTypeName(_ type: UITouch.TouchType) -> String {
+        switch type {
+        case .direct: "direct"
+        case .indirect: "indirect"
+        case .pencil: "pencil"
+        case .indirectPointer: "indirectPointer"
+        @unknown default: "unknown"
+        }
+    }
+
+    private func gestureStateName(_ state: UIGestureRecognizer.State) -> String {
+        switch state {
+        case .possible: "possible"
+        case .began: "began"
+        case .changed: "changed"
+        case .ended: "ended"
+        case .cancelled: "cancelled"
+        case .failed: "failed"
+        @unknown default: "unknown"
+        }
+    }
+
     private func debugRect(_ rect: CGRect) -> String {
         "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
     }
@@ -365,11 +529,13 @@ final class ZoneEditorDebugStore {
     private(set) var dismissFlowEvents: [String] = []
     private(set) var sheetDismissTraceEvents: [String] = []
     private(set) var editorStateEvents: [String] = []
+    private(set) var nativeTextEvents: [String] = []
     private var layoutEventIndex = 0
     private var toolbarLifecycleEventIndex = 0
     private var dismissFlowEventIndex = 0
     private var sheetDismissTraceEventIndex = 0
     private var editorStateEventIndex = 0
+    private var nativeTextEventIndex = 0
     private var sheetDismissTraceActiveUntil: Date?
     private var activeSheetDismissTraceSessionID: Int?
     private var sheetDismissTraceSessionIndex = 0
@@ -609,6 +775,7 @@ final class ZoneEditorDebugStore {
         let dismissEvents = dismissFlowEvents.isEmpty ? "<none>" : dismissFlowEvents.joined(separator: "\n")
         let sheetDismissEvents = sheetDismissTraceSessions.isEmpty ? "<none>" : sheetDismissTraceHistoryReport
         let stateEvents = editorStateEvents.isEmpty ? "<none>" : editorStateEvents.joined(separator: "\n")
+        let nativeEvents = nativeTextEvents.isEmpty ? "<none>" : nativeTextEvents.joined(separator: "\n")
         return """
         LIVE SNAPSHOT
         \(hudLines.joined(separator: "\n"))
@@ -624,6 +791,9 @@ final class ZoneEditorDebugStore {
 
         EDITOR STATE FLOW
         \(stateEvents)
+
+        NATIVE TEXT INTERACTION FLOW
+        \(nativeEvents)
 
         KEYBOARD / TOOLBAR LIFECYCLE
         \(toolbarEvents)
@@ -643,7 +813,7 @@ final class ZoneEditorDebugStore {
     }
 
     var eventCount: Int {
-        layoutEvents.count + toolbarLifecycleEvents.count + dismissFlowEvents.count + sheetDismissTraceEvents.count + editorStateEvents.count
+        layoutEvents.count + toolbarLifecycleEvents.count + dismissFlowEvents.count + sheetDismissTraceEvents.count + editorStateEvents.count + nativeTextEvents.count
     }
 
     var latestLayoutLines: [String] {
@@ -881,6 +1051,33 @@ final class ZoneEditorDebugStore {
         )
     }
 
+    func recordNativeTextEvent(
+        _ stage: String,
+        zoneID: UUID?,
+        pathID: String?,
+        textView: UITextView?,
+        details: @autoclosure () -> String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        nativeTextEventIndex += 1
+        eventCounters["native.\(stage)", default: 0] += 1
+        refreshCounterSummaryIfNeeded(for: "native.\(stage)")
+
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let snapshot = nativeTextSnapshot(textView)
+        let path = pathID.map { " path=\($0)" } ?? ""
+        let detailText = details()
+        let line = detailText.isEmpty
+            ? "N\(nativeTextEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(snapshot)"
+            : "N\(nativeTextEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(snapshot) \(detailText)"
+        nativeTextEvents.append(line)
+        if nativeTextEvents.count > 900 {
+            nativeTextEvents.removeFirst(nativeTextEvents.count - 900)
+        }
+        recordEvent("native.\(stage)")
+    }
+
     func recordScrollDecision(
         _ stage: String,
         zoneID: UUID?,
@@ -914,6 +1111,23 @@ final class ZoneEditorDebugStore {
         storage = value
     }
 
+    private func nativeTextSnapshot(_ textView: UITextView?) -> String {
+        let focus = ZoneFocusManager.shared
+        guard let textView else {
+            return "fr=nil selected=nil len=nil focus=\(shortID(focus.focusedZoneID)) pending=\(shortID(focus.pendingFocusZoneID)) retain=\(flag(focus.shouldRetainKeyboard))"
+        }
+
+        let displayText = textView.text ?? ""
+        let displayLength = (displayText as NSString).length
+        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: displayText)
+        let modelRange = ZoneTextViewEmptyCaret.modelRange(
+            from: textView.selectedRange,
+            displayText: displayText
+        )
+        let windowName = textView.window.map { String(describing: type(of: $0)) } ?? "nil"
+        return "fr=\(flag(textView.isFirstResponder)) editable=\(flag(textView.isEditable)) selectable=\(flag(textView.isSelectable)) selected=\(textView.selectedRange.location):\(textView.selectedRange.length) modelSelected=\(modelRange.location):\(modelRange.length) len=\(displayLength)/editable=\(editableLength) marked=\(textView.markedTextRange == nil ? "0" : "1") window=\(windowName) focus=\(shortID(focus.focusedZoneID)) pending=\(shortID(focus.pendingFocusZoneID)) retain=\(flag(focus.shouldRetainKeyboard)) suppress=\(flag(focus.isSuppressingFocusRequests))"
+    }
+
     private func shortID(_ id: UUID?) -> String {
         guard let id else { return "nil" }
         return String(id.uuidString.prefix(6))
@@ -933,6 +1147,7 @@ final class ZoneEditorDebugStore {
 
 final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
     var zoneID: UUID?
+    var pathID: String?
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
@@ -1028,27 +1243,65 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        let location = textView.map { touch.location(in: $0) } ?? .zero
+        let preflightDetails = "name=\(gestureRecognizer.name ?? "nil") type=\(String(describing: type(of: gestureRecognizer))) state=\(gestureStateName(gestureRecognizer.state)) touchPhase=\(touchPhaseName(touch.phase)) taps=\(touch.tapCount) loc=\(debugPoint(location))"
         guard gestureRecognizer.name != Self.doubleTapPassthroughRecognizerName else {
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.gesture-should-receive",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "\(preflightDetails) result=1 reason=doubleTapPassthrough"
+            )
             return true
         }
 
         guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
               let textView,
               textView.selectedRange.length > 0 else {
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.gesture-should-receive",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: self.textView,
+                details: "\(preflightDetails) result=0 reason=notSelectionCollapseOrNoSelection"
+            )
             return false
         }
 
-        return textView.bounds.contains(touch.location(in: textView))
+        let result = textView.bounds.contains(touch.location(in: textView))
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.gesture-should-receive",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "\(preflightDetails) result=\(result ? 1 : 0) reason=selectionCollapse"
+        )
+        return result
     }
 
     func gestureRecognizer(
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
-        true
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.gesture-simultaneous",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "gesture=\(gestureRecognizer.name ?? String(describing: type(of: gestureRecognizer))):\(gestureStateName(gestureRecognizer.state)) other=\(otherGestureRecognizer.name ?? String(describing: type(of: otherGestureRecognizer))):\(gestureStateName(otherGestureRecognizer.state)) result=1"
+        )
+        return true
     }
 
     @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.selection-collapse-tap",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "state=\(gestureStateName(recognizer.state)) loc=\(textView.map { debugPoint(recognizer.location(in: $0)) } ?? "nil")"
+        )
         guard recognizer.state == .ended,
               let textView,
               textView.selectedRange.length > 0 else {
@@ -1238,14 +1491,54 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         String(format: "%.1f", Double(value))
     }
 
+    private func touchPhaseName(_ phase: UITouch.Phase) -> String {
+        switch phase {
+        case .began: "began"
+        case .moved: "moved"
+        case .stationary: "stationary"
+        case .ended: "ended"
+        case .cancelled: "cancelled"
+        case .regionEntered: "regionEntered"
+        case .regionMoved: "regionMoved"
+        case .regionExited: "regionExited"
+        @unknown default: "unknown"
+        }
+    }
+
+    private func gestureStateName(_ state: UIGestureRecognizer.State) -> String {
+        switch state {
+        case .possible: "possible"
+        case .began: "began"
+        case .changed: "changed"
+        case .ended: "ended"
+        case .cancelled: "cancelled"
+        case .failed: "failed"
+        @unknown default: "unknown"
+        }
+    }
+
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
         guard !ZoneFocusManager.shared.isSuppressingFocusRequests else {
             ZoneEditorDebugStore.shared.recordFocusEvent("textView shouldBegin ignored", zoneID: zoneID)
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.should-begin-editing",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "result=0 reason=suppressingFocus"
+            )
             return false
         }
         if let zoneID {
             postWillFocusNotification(for: zoneID)
         }
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.should-begin-editing",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "result=1"
+        )
         return true
     }
 
@@ -1282,6 +1575,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func textViewDidChange(_ textView: UITextView) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.did-change",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "isUpdating=\(isUpdating ? 1 : 0)"
+        )
         recordCaretProbe("caret.did-change-start", textView: textView)
         normalizePlaceholderIfNeeded(in: textView)
         guard let displayText = textView.text else { return }
@@ -1334,6 +1634,14 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
+        let beforeClamp = textView.selectedRange
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.did-change-selection",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "beforeClamp=\(beforeClamp.location):\(beforeClamp.length) isUpdating=\(isUpdating ? 1 : 0)"
+        )
         recordCaretProbe("caret.selection-change-start", textView: textView)
         guard !isUpdating else { return }
         guard textView.isFirstResponder else { return }
@@ -1361,6 +1669,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewDidBeginEditing(_ textView: UITextView) {
         focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.did-begin-editing",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView
+        )
         recordCaretProbe("caret.did-begin-editing", textView: textView)
         _ = clampSelectionToEditableContent(in: textView)
         if let zoneID {
@@ -1380,6 +1694,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewDidEndEditing(_ textView: UITextView) {
         focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.did-end-editing",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView
+        )
         recordCaretProbe("caret.did-end-editing", textView: textView)
         onFocusChange?(false)
     }
@@ -1485,6 +1805,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func rememberAcceptedText(_ modelText: String, selectedRange: NSRange) {
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.remember-accepted",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "modelLen=\((modelText as NSString).length) selectedDisplay=\(selectedRange.location):\(selectedRange.length)"
+        )
         lastAcceptedText = modelText
         lastAcceptedSelectedRange = ZoneTextViewEmptyCaret.modelRange(
             from: selectedRange,
@@ -1534,6 +1861,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         if displayRange.location <= (textView.text as NSString).length {
             textView.selectedRange = displayRange
         }
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.normalize-placeholder",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "original=\(originalRange.location):\(originalRange.length) applied=\(displayRange.location):\(displayRange.length)"
+        )
     }
 
     private func textOverflowRejectionDetails(_ modelText: String, in textView: UITextView) -> (rejects: Bool, details: String) {
@@ -1573,6 +1907,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         if displayRange.location <= (displayText as NSString).length {
             textView.selectedRange = displayRange
         }
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.restore-last-accepted",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "restoredLen=\((lastAcceptedText as NSString).length) applied=\(displayRange.location):\(displayRange.length)"
+        )
     }
 
     private func scheduleSettledCaretReport(from textView: UITextView, source: ZoneEditorCaretScrollSource) {
@@ -1665,6 +2006,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         isUpdating = true
         textView.selectedRange = clampedRange
         isUpdating = false
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.selection-clamped",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "from=\(selection.location):\(selection.length) to=\(clampedRange.location):\(clampedRange.length) editableLen=\(editableLength)"
+        )
         return true
     }
 
@@ -2046,6 +2394,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var cursorTintColor: UIColor = .systemPurple
     var forcedLineBreakTintColor: UIColor = .systemPurple
     let zoneID: UUID
+    let pathID: String
     let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
@@ -2059,9 +2408,12 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let textView = FullHitTextView()
         textView.delegate = context.coordinator
         textView.debugZoneID = zoneID
+        textView.debugPathID = pathID
         context.coordinator.textView = textView
         context.coordinator.zoneID = zoneID
+        context.coordinator.pathID = pathID
         textView.debugZoneID = zoneID
+        textView.debugPathID = pathID
         context.coordinator.font = font
         context.coordinator.textColor = textColor
         context.coordinator.lineSpacing = lineSpacing
@@ -2125,6 +2477,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.zoneID = zoneID
+        context.coordinator.pathID = pathID
         context.coordinator.onTextChange = onTextChange
         context.coordinator.onCursorChange = onCursorChange
         context.coordinator.onFocusLineChange = onFocusLineChange
@@ -2137,6 +2490,10 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
+        if let fullHitTextView = textView as? FullHitTextView {
+            fullHitTextView.debugZoneID = zoneID
+            fullHitTextView.debugPathID = pathID
+        }
         (textView as? FullHitTextView)?.usesCompactCaret = true
 
         let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
@@ -2145,6 +2502,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let needsFocusSync = textView.isFirstResponder != isFirstResponder
 
         guard textView.text != displayText || needsStylingUpdate || needsFocusSync else {
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.updateUIView-skip",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "reason=unchanged needsStyle=0 needsFocus=0"
+            )
             return
         }
 
@@ -2167,6 +2531,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
 
         guard textView.text != displayText else {
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.updateUIView-unchanged",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "needsStyle=\(needsStylingUpdate ? 1 : 0) needsFocus=\(needsFocusSync ? 1 : 0)"
+            )
             if needsStylingUpdate {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
@@ -2198,6 +2569,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             uiModelText: uiModelText,
             textView: textView
         ) {
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.updateUIView-defer-live-ui",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "incomingModelLen=\((text as NSString).length) uiModelLen=\((uiModelText as NSString).length) needsStyle=\(needsStylingUpdate ? 1 : 0) needsFocus=\(needsFocusSync ? 1 : 0)"
+            )
             if needsStylingUpdate {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
@@ -2232,6 +2610,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             textView: textView,
             extra: "incomingModelLen=\((text as NSString).length) selectedModel=\(selectedRange.location):\(selectedRange.length)"
         )
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.updateUIView-before-apply-model",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "incomingModelLen=\((text as NSString).length) uiModelLen=\((uiModelText as NSString).length) selectedModel=\(selectedRange.location):\(selectedRange.length)"
+        )
         context.coordinator.isUpdating = true
         textView.text = displayText
         context.coordinator.isUpdating = false
@@ -2244,11 +2629,25 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             displayRange.location <= (displayText as NSString).length &&
             textView.selectedRange != displayRange {
             textView.selectedRange = displayRange
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.updateUIView-restore-selection",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "appliedDisplay=\(displayRange.location):\(displayRange.length)"
+            )
         }
         context.coordinator.recordCaretProbe(
             "caret.ui-update-after-apply-model",
             textView: textView,
             extra: "incomingModelLen=\((text as NSString).length) appliedDisplay=\(displayRange.location):\(displayRange.length)"
+        )
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.updateUIView-after-apply-model",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "incomingModelLen=\((text as NSString).length) appliedDisplay=\(displayRange.location):\(displayRange.length)"
         )
 
         if needsStylingUpdate || displayText.contains(ZoneForcedLineBreak.marker) {
@@ -2280,21 +2679,48 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         if isFirstResponder && !textView.isFirstResponder {
             guard context.coordinator.focusSyncState != .becomingFirstResponder else { return }
             context.coordinator.focusSyncState = .becomingFirstResponder
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.sync-focus-schedule-become",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView
+            )
             DispatchQueue.main.async {
                 let manager = ZoneFocusManager.shared
                 defer { context.coordinator.focusSyncState = .idle }
                 guard !manager.isSuppressingFocusRequests else {
                     ZoneEditorDebugStore.shared.recordFocusEvent("sync become ignored", zoneID: zoneID)
+                    ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                        "text.sync-focus-become-ignored",
+                        zoneID: zoneID,
+                        pathID: pathID,
+                        textView: textView,
+                        details: "reason=suppressingFocus"
+                    )
                     return
                 }
                 guard manager.focusedZoneID == self.zoneID || manager.pendingFocusZoneID == self.zoneID else {
+                    ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                        "text.sync-focus-become-ignored",
+                        zoneID: zoneID,
+                        pathID: pathID,
+                        textView: textView,
+                        details: "reason=managerTargetMismatch focused=\(manager.focusedZoneID?.uuidString.prefix(6) ?? "nil") pending=\(manager.pendingFocusZoneID?.uuidString.prefix(6) ?? "nil")"
+                    )
                     return
                 }
                 NotificationCenter.default.post(
                     name: .zoneEditorWillFocusTextView,
                     object: self.zoneID
                 )
-                _ = textView.becomeFirstResponder()
+                let result = textView.becomeFirstResponder()
+                ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                    "text.sync-focus-become",
+                    zoneID: zoneID,
+                    pathID: pathID,
+                    textView: textView,
+                    details: "result=\(result ? 1 : 0)"
+                )
             }
             return
         }
@@ -2309,16 +2735,35 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             }
             guard context.coordinator.focusSyncState != .resigningFirstResponder else { return }
             context.coordinator.focusSyncState = .resigningFirstResponder
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.sync-focus-schedule-resign",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView
+            )
             DispatchQueue.main.async {
                 defer { context.coordinator.focusSyncState = .idle }
                 guard ZoneFocusManager.shared.focusedZoneID == nil,
                       ZoneFocusManager.shared.pendingFocusZoneID == nil,
                       !ZoneFocusManager.shared.shouldRetainKeyboard,
                       textView.isFirstResponder else {
+                    ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                        "text.sync-focus-resign-ignored",
+                        zoneID: zoneID,
+                        pathID: pathID,
+                        textView: textView
+                    )
                     return
                 }
                 ZoneEditorDebugStore.shared.recordFocusEvent("sync resign explicit", zoneID: zoneID)
-                textView.resignFirstResponder()
+                let result = textView.resignFirstResponder()
+                ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                    "text.sync-focus-resign",
+                    zoneID: zoneID,
+                    pathID: pathID,
+                    textView: textView,
+                    details: "result=\(result ? 1 : 0)"
+                )
             }
         }
     }
@@ -2326,6 +2771,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     func makeCoordinator() -> ZoneTextViewCoordinator {
         let coordinator = ZoneTextViewCoordinator()
         coordinator.zoneID = zoneID
+        coordinator.pathID = pathID
         return coordinator
     }
 

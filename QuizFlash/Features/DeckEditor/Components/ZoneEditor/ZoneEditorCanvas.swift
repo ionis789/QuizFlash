@@ -2508,12 +2508,21 @@ struct ZoneEditorCanvas: View {
         ZoneEditorDebugStore.shared.recordTap(
             "window \(snapshot.phase) hit=\(snapshot.hitViewName) gestures=\(snapshot.gestureCount)"
         )
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "canvas.window-touch",
+            zoneID: selectedZone?.id,
+            pathID: selectedPath?.id,
+            textView: nil,
+            details: "mode=\(rendersRichText ? "render" : "raw") phase=\(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount) chain=\(snapshot.hitViewChain) gestureLines=\(snapshot.gestureLines.joined(separator: " | "))"
+        )
         recordInteractionTrace(
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
             "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) scroll=\(Int(effectiveScrollOffsetY)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) screenCandidates=\(screenCandidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") screenGroup=\(screenGroupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismissMenu ? "DISMISS_MENU" : menuIsOpen ? "KEEP_MENU_OPEN" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : "KEEP")"
         )
+
+        guard rendersRichText else { return }
 
         if shouldSelectGroup, let groupHit = groupHitForSelection {
             let anchor = screenGroupHit == nil
@@ -2616,7 +2625,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var windowTouchProbeBackground: AnyView {
-        guard rendersRichText else {
+        guard showsDebugTools else {
             return AnyView(Color.clear)
         }
 
