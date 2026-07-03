@@ -415,6 +415,8 @@ private struct WelcomeCardForms: View {
             let height = max(proxy.size.height, 340)
             let cardWidth = min(width * 0.45, 240)
             let cardHeight = cardWidth * 1.42
+            let quizWidth = min(width * 0.72, 360)
+            let quizHeight = min(height * 0.72, 292)
 
             ZStack {
                 if phase.showsTapRipple && !reduceMotion {
@@ -430,11 +432,10 @@ private struct WelcomeCardForms: View {
                     .opacity(phase.cardOpacity)
                     .shadow(color: themeManager.accentColor.color.opacity(0.20), radius: 26, y: 14)
 
-                quizDemo(width: min(width * 0.72, 360), height: min(height * 0.72, 292))
+                quizDemo(width: quizWidth, height: quizHeight)
                     .scaleEffect(phase.quizScale)
                     .offset(y: phase.quizOffsetY)
                     .opacity(phase.quizOpacity)
-                    .shadow(color: themeManager.accentColor.color.opacity(0.16), radius: 24, y: 14)
 
                 if phase.showsHand && !reduceMotion {
                     Image(systemName: "hand.tap.fill")
@@ -444,7 +445,14 @@ private struct WelcomeCardForms: View {
                         .shadow(color: .black.opacity(0.34), radius: 12, y: 8)
                         .scaleEffect(phase.handScale)
                         .rotationEffect(.degrees(phase.handRotationDegrees))
-                        .offset(phase.handOffset(cardWidth: cardWidth, cardHeight: cardHeight))
+                        .offset(
+                            phase.handOffset(
+                                cardWidth: cardWidth,
+                                cardHeight: cardHeight,
+                                quizWidth: quizWidth,
+                                quizHeight: quizHeight
+                            )
+                        )
                         .accessibilityHidden(true)
                 }
             }
@@ -577,30 +585,21 @@ private struct WelcomeCardForms: View {
     }
 
     private func quizDemo(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(themeManager.accentColor.color.opacity(0.14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .strokeBorder(themeManager.accentColor.color.opacity(0.44), lineWidth: 1.3)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                cardLine(width: width * 0.62, height: 13, opacity: 0.52)
+                cardLine(width: width * 0.78, height: 11, opacity: 0.38)
+                cardLine(width: width * 0.45, height: 11, opacity: 0.26)
             }
-            .overlay {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        cardLine(width: width * 0.62, height: 13, opacity: 0.52)
-                        cardLine(width: width * 0.78, height: 11, opacity: 0.38)
-                        cardLine(width: width * 0.45, height: 11, opacity: 0.26)
-                    }
-                    .padding(.bottom, 3)
+            .padding(.bottom, 3)
 
-                    VStack(spacing: 10) {
-                        quizAnswerRow(width: width, index: 0, state: phase.answerState(for: 0))
-                        quizAnswerRow(width: width, index: 1, state: phase.answerState(for: 1))
-                        quizAnswerRow(width: width, index: 2, state: phase.answerState(for: 2))
-                    }
-                }
-                .padding(22)
+            VStack(spacing: 10) {
+                quizAnswerRow(width: width, index: 0, state: phase.answerState(for: 0))
+                quizAnswerRow(width: width, index: 1, state: phase.answerState(for: 1))
+                quizAnswerRow(width: width, index: 2, state: phase.answerState(for: 2))
             }
-            .frame(width: width, height: height)
+        }
+        .frame(width: width, height: height, alignment: .center)
     }
 
     private func quizAnswerRow(width: CGFloat, index: Int, state: WelcomeQuizAnswerState) -> some View {
@@ -954,7 +953,7 @@ private enum WelcomeCardDemoPhase: Equatable {
         }
     }
 
-    func handOffset(cardWidth: CGFloat, cardHeight: CGFloat) -> CGSize {
+    func handOffset(cardWidth: CGFloat, cardHeight: CGFloat, quizWidth: CGFloat, quizHeight: CGFloat) -> CGSize {
         switch self {
         case .tapApproach:
             CGSize(width: cardWidth * 0.44, height: cardHeight * 0.34)
@@ -967,13 +966,13 @@ private enum WelcomeCardDemoPhase: Equatable {
         case .swiping:
             CGSize(width: cardWidth * 1.55, height: cardHeight * 0.05)
         case .quizWrongApproach:
-            CGSize(width: cardWidth * 0.58, height: cardHeight * 0.30)
+            CGSize(width: quizWidth * 0.40, height: quizHeight * 0.12)
         case .quizWrongPress, .quizWrongResult:
-            CGSize(width: -cardWidth * 0.10, height: cardHeight * 0.19)
+            CGSize(width: quizWidth * 0.08, height: -quizHeight * 0.03)
         case .quizCorrectApproach:
-            CGSize(width: cardWidth * 0.50, height: cardHeight * 0.44)
+            CGSize(width: quizWidth * 0.40, height: quizHeight * 0.34)
         case .quizCorrectPress, .quizCorrectResult:
-            CGSize(width: -cardWidth * 0.06, height: cardHeight * 0.39)
+            CGSize(width: quizWidth * 0.08, height: quizHeight * 0.18)
         case .resting, .quizAppearing, .quizLeaving, .cardReturnHidden:
             CGSize(width: cardWidth * 0.58, height: cardHeight * 0.42)
         }
