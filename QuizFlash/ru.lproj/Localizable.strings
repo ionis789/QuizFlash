@@ -285,6 +285,7 @@
 "Default %@" = "По умолчанию %@";
 "Defined" = "Чёткая";
 "Delete" = "Удалить";
+"Derivative practice" = "Практика производных";
 "Delete \"%@\"?" = "Удалить \"%@\"?";
 "Delete %d card?" = "Удалить %d карточку?";
 "Delete %d cards?" = "Удалить %d карточки?";
@@ -364,8 +365,10 @@
 "Forgot Password?" = "Забыли пароль?";
 "Freed" = "Фрид";
 "Full Width" = "На всю ширину";
+"Full LaTeX support" = "Полная поддержка LaTeX";
 "Gallery" = "Галерея";
 "Generate" = "Генерировать";
+"Generate or request cards with LaTeX symbols without friction." = "Можно без проблем генерировать или запрашивать карточки с символами LaTeX.";
 "Generate a starter set with AI, or add cards manually." = "Сгенерируйте стартовый набор с AI или добавьте карточки вручную.";
 "Generate Cards with AI" = "Сгенерировать карточки с AI";
 "Generate cards with AI" = "Сгенерировать карточки с AI";
@@ -406,6 +409,7 @@
 "Home" = "Главная";
 "Home dashboard" = "Главный дашборд";
 "How does changing text size affect a study card?" = "Как изменение размера текста влияет на учебную карточку?";
+"If $f(x)=x^2$, what is $f'(x)$?" = "Если $f(x)=x^2$, чему равно $f'(x)$?";
 "Image" = "Изображение";
 "Image Size" = "Размер изображения";
 "Import" = "Импорт";
@@ -429,6 +433,7 @@
 "Labs" = "Лабы";
 "Landed" = "Уверенно";
 "Language" = "Язык";
+"LaTeX preview formula" = "$\\int_a^b f(x)\\,dx = F(b)-F(a)$";
 "Large" = "Крупный";
 "Last Interaction" = "Последнее взаимодействие";
 "Last opened %@." = "Последний раз открывали %@.";
@@ -457,6 +462,7 @@
 "Mark Correct" = "Отметить верным";
 "Marked as correct" = "Отмечено как верное";
 "Mastered" = "Освоенные";
+"Math stays readable in play mode." = "Математика остается читаемой в режиме игры.";
 "Medium" = "Средний";
 "Minimal" = "Минимальная";
 "Mock AI" = "Мок ИИ";

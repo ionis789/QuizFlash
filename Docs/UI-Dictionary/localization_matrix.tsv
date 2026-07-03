@@ -55,8 +55,8 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
+%d Deck	%d Deck	%d deck	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -147,8 +147,8 @@ Almost ready	Almost ready	Aproape gata	Почти готово
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer from memory before checking the card.	Answer from memory before checking the card.	Răspunde din memorie înainte să verifici cardul.	Ответьте по памяти перед проверкой карточки.
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
@@ -217,8 +217,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose how many cards you want to finish each day.	Choose how many cards you want to finish each day.	Alege câte carduri vrei să termini în fiecare zi.	Выберите, сколько карточек хотите проходить каждый день.
@@ -297,6 +297,7 @@ Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete?	Delete?	Ștergi?	Удалить?
 Depth	Depth	Intensitate	Глубина
+Derivative practice	Derivative practice	Exercițiu cu derivate	Практика производных
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
@@ -336,8 +337,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -364,13 +365,15 @@ Font	Font	Font	Шрифт
 Force Line Break	Force Line Break	Forțează rând nou	Принудительный перенос
 Forgot Password?	Forgot Password?	Ai uitat parola?	Забыли пароль?
 Freed	Freed	Eliberat	Фрид
+Full LaTeX support	Full LaTeX support	Suport complet LaTeX	Полная поддержка LaTeX
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
+Generate or request cards with LaTeX symbols without friction.	Generate or request cards with LaTeX symbols without friction.	Poți genera sau cere carduri cu simboluri LaTeX fără probleme.	Можно без проблем генерировать или запрашивать карточки с символами LaTeX.
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -407,6 +410,7 @@ History	History	Istoric	История
 Home	Home	Acasă	Главная
 Home dashboard	Home dashboard	Dashboard Home	Главный дашборд
 How does changing text size affect a study card?	How does changing text size affect a study card?	Cum afectează schimbarea dimensiunii textului un card de studiu?	Как изменение размера текста влияет на учебную карточку?
+If $f(x)=x^2$, what is $f'(x)$?	If $f(x)=x^2$, what is $f'(x)$?	Dacă $f(x)=x^2$, cât este $f'(x)$?	Если $f(x)=x^2$, чему равно $f'(x)$?
 Image	Image	Imagine	Изображение
 Image Size	Image Size	Dimensiune imagine	Размер изображения
 Import	Import	Importă	Импорт
@@ -434,6 +438,7 @@ Large	Large	Mare	Крупный
 Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
+LaTeX preview formula	$\int_a^b f(x)\,dx = F(b)-F(a)$	$\int_a^b f(x)\,dx = F(b)-F(a)$	$\int_a^b f(x)\,dx = F(b)-F(a)$
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
@@ -458,6 +463,7 @@ Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
 Marked as correct	Marked as correct	Marcat ca corect	Отмечено как верное
 Mastered	Mastered	Stăpânite	Освоенные
+Math stays readable in play mode.	Math stays readable in play mode.	Matematica rămâne lizibilă în joc.	Математика остается читаемой в режиме игры.
 Medium	Medium	Mediu	Средний
 Minimal	Minimal	Minimală	Минимальная
 Mock AI	Mock AI	Simulare AI	Мок ИИ
@@ -506,8 +512,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
+No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -627,8 +633,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Review every day with a clear target.	Review every day with a clear target.	Repetă zilnic cu o țintă clară.	Повторяйте каждый день с понятной целью.
@@ -761,9 +767,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+This week	This week	Săptămâna aceasta	Эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
-This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@

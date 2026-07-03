@@ -285,6 +285,7 @@
 "Default %@" = "Default %@";
 "Defined" = "Defined";
 "Delete" = "Delete";
+"Derivative practice" = "Derivative practice";
 "Delete \"%@\"?" = "Delete \"%@\"?";
 "Delete %d card?" = "Delete %d card?";
 "Delete %d cards?" = "Delete %d cards?";
@@ -364,8 +365,10 @@
 "Forgot Password?" = "Forgot Password?";
 "Freed" = "Freed";
 "Full Width" = "Full Width";
+"Full LaTeX support" = "Full LaTeX support";
 "Gallery" = "Gallery";
 "Generate" = "Generate";
+"Generate or request cards with LaTeX symbols without friction." = "Generate or request cards with LaTeX symbols without friction.";
 "Generate a starter set with AI, or add cards manually." = "Generate a starter set with AI, or add cards manually.";
 "Generate Cards with AI" = "Generate Cards with AI";
 "Generate cards with AI" = "Generate cards with AI";
@@ -406,6 +409,7 @@
 "Home" = "Home";
 "Home dashboard" = "Home dashboard";
 "How does changing text size affect a study card?" = "How does changing text size affect a study card?";
+"If $f(x)=x^2$, what is $f'(x)$?" = "If $f(x)=x^2$, what is $f'(x)$?";
 "Image" = "Image";
 "Image Size" = "Image Size";
 "Import" = "Import";
@@ -429,6 +433,7 @@
 "Labs" = "Labs";
 "Landed" = "Landed";
 "Language" = "Language";
+"LaTeX preview formula" = "$\\int_a^b f(x)\\,dx = F(b)-F(a)$";
 "Large" = "Large";
 "Last Interaction" = "Last Interaction";
 "Last opened %@." = "Last opened %@.";
@@ -457,6 +462,7 @@
 "Mark Correct" = "Mark Correct";
 "Marked as correct" = "Marked as correct";
 "Mastered" = "Mastered";
+"Math stays readable in play mode." = "Math stays readable in play mode.";
 "Medium" = "Medium";
 "Minimal" = "Minimal";
 "Mock AI" = "Mock AI";

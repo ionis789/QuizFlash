@@ -106,6 +106,8 @@ struct QuizFlashOnboardingView: View {
             WelcomeOnboardingPage()
         case .zoneStyle:
             ZoneStyleOnboardingPage(selectedStyle: zoneSurfaceStyleBinding)
+        case .latexSupport:
+            LatexSupportOnboardingPage()
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
         case .textSize:
@@ -336,12 +338,18 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
         ),
         .init(
             id: 2,
+            titleKey: "Full LaTeX support",
+            subtitleKey: "Generate or request cards with LaTeX symbols without friction.",
+            kind: .latexSupport
+        ),
+        .init(
+            id: 3,
             titleKey: "Set your daily target",
             subtitleKey: "Choose how many cards you want to finish each day.",
             kind: .cardsTarget
         ),
         .init(
-            id: 3,
+            id: 4,
             titleKey: "Pick your card text size",
             subtitleKey: "This preview uses the same scale as the editor and play mode.",
             kind: .textSize
@@ -352,6 +360,7 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
 private enum QuizFlashOnboardingPageKind: Hashable {
     case welcome
     case zoneStyle
+    case latexSupport
     case cardsTarget
     case textSize
 }
@@ -419,7 +428,11 @@ private struct ZoneStyleOnboardingPage: View {
                                 .foregroundStyle(selectedStyle == style ? themeManager.accentColor.color : themeManager.textSecondary)
                         }
 
-                        ZoneStylePreview(style: style)
+                        OnboardingGameCardPreview(
+                            style: style,
+                            textSize: appPreferences.defaultTextSize,
+                            sample: .zoneStyle
+                        )
                     }
                     .padding(UIConstants.Spacing.large)
                     .background(
@@ -444,6 +457,35 @@ private struct ZoneStyleOnboardingPage: View {
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .padding(.vertical, UIConstants.Spacing.huge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct LatexSupportOnboardingPage: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(AppLocalization.string("Full LaTeX support", locale: appPreferences.resolvedLocale))
+                .font(.system(size: 46, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text(AppLocalization.string("Generate or request cards with LaTeX symbols without friction.", locale: appPreferences.resolvedLocale))
+                .font(.title3.weight(.medium))
+                .foregroundStyle(themeManager.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            OnboardingGameCardPreview(
+                style: appPreferences.zoneSurfaceStyle,
+                textSize: appPreferences.defaultTextSize,
+                sample: .latex
+            )
+        }
+        .padding(.horizontal, UIConstants.Spacing.extraLarge)
+        .padding(.vertical, UIConstants.Spacing.huge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
@@ -513,7 +555,11 @@ private struct TextSizeOnboardingPage: View {
 
     var body: some View {
         VStack(spacing: UIConstants.Spacing.large) {
-            TextSizePreview(textSize: textSize)
+            OnboardingGameCardPreview(
+                style: appPreferences.zoneSurfaceStyle,
+                textSize: textSize,
+                sample: .textSize
+            )
 
             TickValuePicker(
                 value: textSize.step,
@@ -538,79 +584,149 @@ private struct TextSizeOnboardingPage: View {
     }
 }
 
-// MARK: - Previews
+// MARK: - Real Card Preview
 
-private struct ZoneStylePreview: View {
-    @Environment(ThemeManager.self) private var themeManager
+private struct OnboardingGameCardPreview: View {
+    @Environment(AppPreferences.self) private var appPreferences
 
     let style: AppZoneSurfaceStyle
+    let textSize: FlashcardTextSize
+    let sample: OnboardingGameCardSample
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                previewZone(width: 94)
-                previewZone(width: 54)
-            }
+        GeometryReader { proxy in
+            let contentWidth = max(proxy.size.width - 28, 1)
 
-            previewZone(width: 168)
+            QuizPlaybackZoneContent(
+                zone: sample.zone(locale: appPreferences.resolvedLocale),
+                fontScale: CGFloat(textSize.playModeScale),
+                availableWidth: contentWidth,
+                centersLeafBlocks: true,
+                showsZoneSurfaces: style.showsZoneSurfaces,
+                zoneHighlightStrokeStyle: StrokeStyle(lineWidth: style == .rounded ? 1.6 : 1.0),
+                showsLayoutDebug: false
+            )
+            .frame(width: contentWidth, alignment: .center)
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIConstants.Spacing.medium)
-        .background(Color.black.opacity(0.20), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func previewZone(width: CGFloat) -> some View {
-        let radius: CGFloat = style == .rounded ? 14 : 4
-        let fillOpacity: Double = style == .rounded ? 0.18 : 0.04
-        let strokeOpacity: Double = style == .rounded ? 0.46 : 0.16
-
-        return RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(themeManager.accentColor.color.opacity(fillOpacity))
-            .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(themeManager.accentColor.color.opacity(strokeOpacity), lineWidth: style == .rounded ? 1.4 : 0.8)
-            }
-            .frame(width: width, height: 42)
+        .frame(maxWidth: .infinity, minHeight: sample.minimumHeight)
+        .background(
+            Color(red: 0.068, green: 0.068, blue: 0.068),
+            in: RoundedRectangle(cornerRadius: 34, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
     }
 }
 
-private struct TextSizePreview: View {
-    @Environment(ThemeManager.self) private var themeManager
-    @Environment(AppPreferences.self) private var appPreferences
+private enum OnboardingGameCardSample {
+    case zoneStyle
+    case textSize
+    case latex
 
-    let textSize: FlashcardTextSize
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text(AppLocalization.string("Editor preview", locale: appPreferences.resolvedLocale))
-                .font(.caption.weight(.bold))
-                .foregroundStyle(themeManager.textSecondary)
-                .textCase(.uppercase)
-
-            Text(AppLocalization.string("What is active recall?", locale: appPreferences.resolvedLocale))
-                .font(.system(size: previewFontSize, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(3)
-                .minimumScaleFactor(0.70)
-
-            Text(AppLocalization.string("Answer from memory before checking the card.", locale: appPreferences.resolvedLocale))
-                .font(.system(size: max(17, previewFontSize * 0.62), weight: .medium, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .lineLimit(3)
-                .minimumScaleFactor(0.78)
-        }
-        .frame(maxWidth: .infinity, minHeight: 190, alignment: .leading)
-        .padding(UIConstants.Spacing.large)
-        .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+    var minimumHeight: CGFloat {
+        switch self {
+        case .zoneStyle:
+            return 128
+        case .textSize:
+            return 220
+        case .latex:
+            return 240
         }
     }
 
-    private var previewFontSize: CGFloat {
-        22 * CGFloat(textSize.playModeScale)
+    func zone(locale: Locale) -> ZoneModel {
+        switch self {
+        case .zoneStyle:
+            return containerZone(
+                id: Self.zoneStyleRootID,
+                children: [
+                    textZone(
+                        id: Self.zoneStyleTitleID,
+                        AppLocalization.string("Derivative practice", locale: locale),
+                        style: .title,
+                        isBold: true
+                    ),
+                    textZone(
+                        id: Self.zoneStyleBodyID,
+                        AppLocalization.string("If $f(x)=x^2$, what is $f'(x)$?", locale: locale)
+                    ),
+                ]
+            )
+        case .textSize:
+            return containerZone(
+                id: Self.textSizeRootID,
+                children: [
+                    textZone(
+                        id: Self.textSizeTitleID,
+                        AppLocalization.string("What is active recall?", locale: locale),
+                        style: .title,
+                        isBold: true
+                    ),
+                    textZone(
+                        id: Self.textSizeBodyID,
+                        AppLocalization.string("Answer from memory before checking the card.", locale: locale)
+                    ),
+                ]
+            )
+        case .latex:
+            return containerZone(
+                id: Self.latexRootID,
+                children: [
+                    textZone(
+                        id: Self.latexTitleID,
+                        AppLocalization.string("Math stays readable in play mode.", locale: locale),
+                        style: .title,
+                        isBold: true
+                    ),
+                    textZone(
+                        id: Self.latexFormulaID,
+                        AppLocalization.string("LaTeX preview formula", locale: locale)
+                    ),
+                ]
+            )
+        }
     }
+
+    private func containerZone(id: UUID, children: [ZoneModel]) -> ZoneModel {
+        ZoneModel(
+            id: id,
+            children: children,
+            direction: .vertical
+        )
+    }
+
+    private func textZone(
+        id: UUID,
+        _ text: String,
+        style: TextBlockStyle = .body,
+        isBold: Bool = false
+    ) -> ZoneModel {
+        ZoneModel(
+            id: id,
+            contentType: .text,
+            text: text,
+            textStyle: style,
+            sizeMode: .fillWidth,
+            blockAlignment: .center,
+            textColor: .primary,
+            isBold: isBold
+        )
+    }
+
+    private static let zoneStyleRootID = UUID(uuidString: "ACFB2293-3371-42D6-9A5E-64C515D2F761")!
+    private static let zoneStyleTitleID = UUID(uuidString: "D58D1922-2D4F-455F-98E3-371D42E7A101")!
+    private static let zoneStyleBodyID = UUID(uuidString: "3AF9CFA0-BD2F-4497-97F4-B60E1FBA8D23")!
+    private static let textSizeRootID = UUID(uuidString: "6CF2C69E-269B-4C78-B389-47FE1359F4F5")!
+    private static let textSizeTitleID = UUID(uuidString: "C55C9D29-E07F-43E8-BBC5-9EE833B84923")!
+    private static let textSizeBodyID = UUID(uuidString: "78C6CE96-9A92-49B1-BE68-7F84AB7D5301")!
+    private static let latexRootID = UUID(uuidString: "5180A001-E38E-48D6-9F1E-F26971E3BA67")!
+    private static let latexTitleID = UUID(uuidString: "1D540706-56B5-43CF-A54C-64397A08AC3A")!
+    private static let latexFormulaID = UUID(uuidString: "7D4AA0BA-9BA3-4335-BE2F-EAD820E87E5C")!
 }
 
 // MARK: - Metrics

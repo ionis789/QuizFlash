@@ -285,6 +285,7 @@
 "Default %@" = "%@ implicit";
 "Defined" = "Definită";
 "Delete" = "Șterge";
+"Derivative practice" = "Exercițiu cu derivate";
 "Delete \"%@\"?" = "Ștergi „%@”?";
 "Delete %d card?" = "Ștergi %d card?";
 "Delete %d cards?" = "Ștergi %d carduri?";
@@ -364,8 +365,10 @@
 "Forgot Password?" = "Ai uitat parola?";
 "Freed" = "Eliberat";
 "Full Width" = "Lățime completă";
+"Full LaTeX support" = "Suport complet LaTeX";
 "Gallery" = "Galerie";
 "Generate" = "Genera";
+"Generate or request cards with LaTeX symbols without friction." = "Poți genera sau cere carduri cu simboluri LaTeX fără probleme.";
 "Generate a starter set with AI, or add cards manually." = "Generează un set inițial cu AI sau adaugă carduri manual.";
 "Generate Cards with AI" = "Generează carduri cu AI";
 "Generate cards with AI" = "Generează carduri cu AI";
@@ -406,6 +409,7 @@
 "Home" = "Acasă";
 "Home dashboard" = "Dashboard Home";
 "How does changing text size affect a study card?" = "Cum afectează schimbarea dimensiunii textului un card de studiu?";
+"If $f(x)=x^2$, what is $f'(x)$?" = "Dacă $f(x)=x^2$, cât este $f'(x)$?";
 "Image" = "Imagine";
 "Image Size" = "Dimensiune imagine";
 "Import" = "Importă";
@@ -429,6 +433,7 @@
 "Labs" = "Laborator";
 "Landed" = "Reușite";
 "Language" = "Limbă";
+"LaTeX preview formula" = "$\\int_a^b f(x)\\,dx = F(b)-F(a)$";
 "Large" = "Mare";
 "Last Interaction" = "Ultima interacțiune";
 "Last opened %@." = "Deschis ultima dată %@.";
@@ -457,6 +462,7 @@
 "Mark Correct" = "Marchează corect";
 "Marked as correct" = "Marcat ca corect";
 "Mastered" = "Stăpânite";
+"Math stays readable in play mode." = "Matematica rămâne lizibilă în joc.";
 "Medium" = "Mediu";
 "Minimal" = "Minimală";
 "Mock AI" = "Simulare AI";
