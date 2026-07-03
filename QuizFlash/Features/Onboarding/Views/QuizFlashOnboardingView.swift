@@ -426,9 +426,15 @@ private struct WelcomeCardForms: View {
                     .rotation3DEffect(.degrees(phase.cardFlipDegrees), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
                     .scaleEffect(phase.cardScale)
                     .rotationEffect(.degrees(phase.cardTiltDegrees))
-                    .offset(x: phase.cardOffsetX(cardWidth: cardWidth), y: 0)
+                    .offset(x: phase.cardOffsetX(cardWidth: cardWidth, containerWidth: width), y: phase.cardOffsetY)
                     .opacity(phase.cardOpacity)
                     .shadow(color: themeManager.accentColor.color.opacity(0.20), radius: 26, y: 14)
+
+                quizDemo(width: min(width * 0.72, 360), height: min(height * 0.72, 292))
+                    .scaleEffect(phase.quizScale)
+                    .offset(y: phase.quizOffsetY)
+                    .opacity(phase.quizOpacity)
+                    .shadow(color: themeManager.accentColor.color.opacity(0.16), radius: 24, y: 14)
 
                 if phase.showsHand && !reduceMotion {
                     Image(systemName: "hand.tap.fill")
@@ -470,18 +476,31 @@ private struct WelcomeCardForms: View {
             await animate(to: .flipped, duration: 0.62)
             try? await Task.sleep(for: .milliseconds(680))
             await animate(to: .swipeReady, duration: 0.42)
-            try? await Task.sleep(for: .milliseconds(170))
-            await animate(to: .swiping, duration: 0.62)
-            try? await Task.sleep(for: .milliseconds(360))
+            try? await Task.sleep(for: .milliseconds(180))
+            await animate(to: .swiping, duration: 0.86)
+            try? await Task.sleep(for: .milliseconds(180))
+            await animate(to: .quizAppearing, duration: 0.56)
+            try? await Task.sleep(for: .milliseconds(420))
+            await animate(to: .quizWrongApproach, duration: 0.48)
+            try? await Task.sleep(for: .milliseconds(160))
+            await animate(to: .quizWrongPress, duration: 0.14)
+            try? await Task.sleep(for: .milliseconds(120))
+            await animate(to: .quizWrongResult, duration: 0.34)
+            try? await Task.sleep(for: .milliseconds(640))
+            await animate(to: .quizCorrectApproach, duration: 0.50)
+            try? await Task.sleep(for: .milliseconds(160))
+            await animate(to: .quizCorrectPress, duration: 0.14)
+            try? await Task.sleep(for: .milliseconds(120))
+            await animate(to: .quizCorrectResult, duration: 0.38)
+            try? await Task.sleep(for: .milliseconds(850))
 
-            withAnimation(.easeOut(duration: 0.16)) {
-                phase = .resetting
-            }
-            try? await Task.sleep(for: .milliseconds(190))
+            await animate(to: .quizLeaving, duration: 0.32)
+            try? await Task.sleep(for: .milliseconds(210))
 
             withTransaction(Transaction(animation: nil)) {
-                phase = .resting
+                phase = .cardReturnHidden
             }
+            await animate(to: .resting, duration: 0.48)
         }
     }
 
@@ -557,6 +576,81 @@ private struct WelcomeCardForms: View {
             .opacity(phase == .tapPress ? 0.55 : 0)
     }
 
+    private func quizDemo(width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 30, style: .continuous)
+            .fill(themeManager.accentColor.color.opacity(0.14))
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(themeManager.accentColor.color.opacity(0.44), lineWidth: 1.3)
+            }
+            .overlay {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        cardLine(width: width * 0.62, height: 13, opacity: 0.52)
+                        cardLine(width: width * 0.78, height: 11, opacity: 0.38)
+                        cardLine(width: width * 0.45, height: 11, opacity: 0.26)
+                    }
+                    .padding(.bottom, 3)
+
+                    VStack(spacing: 10) {
+                        quizAnswerRow(width: width, index: 0, state: phase.answerState(for: 0))
+                        quizAnswerRow(width: width, index: 1, state: phase.answerState(for: 1))
+                        quizAnswerRow(width: width, index: 2, state: phase.answerState(for: 2))
+                    }
+                }
+                .padding(22)
+            }
+            .frame(width: width, height: height)
+    }
+
+    private func quizAnswerRow(width: CGFloat, index: Int, state: WelcomeQuizAnswerState) -> some View {
+        let isWrong = state == .wrong
+        let isCorrect = state == .correct
+        let color: Color = if isWrong {
+            .red
+        } else if isCorrect {
+            .green
+        } else {
+            themeManager.accentColor.color
+        }
+
+        return HStack(spacing: 10) {
+            Circle()
+                .fill(color.opacity(isWrong || isCorrect ? 0.95 : 0.28))
+                .frame(width: 15, height: 15)
+                .overlay {
+                    if isWrong {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundStyle(.white)
+                    } else if isCorrect {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundStyle(.white)
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 7) {
+                cardLine(width: width * (index == 1 ? 0.43 : 0.52), height: 9, opacity: state == .neutral ? 0.34 : 0.54)
+                cardLine(width: width * (index == 2 ? 0.38 : 0.47), height: 8, opacity: state == .neutral ? 0.22 : 0.34)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 52)
+        .background(
+            color.opacity(isWrong || isCorrect ? 0.16 : 0.055),
+            in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .strokeBorder(color.opacity(isWrong || isCorrect ? 0.70 : 0.18), lineWidth: isWrong || isCorrect ? 1.5 : 1)
+        }
+        .scaleEffect(phase.pressedAnswerIndex == index ? 0.965 : (isCorrect ? 1.025 : 1), anchor: .center)
+        .offset(x: isWrong ? phase.wrongAnswerOffset : 0)
+    }
+
     private func cardLine(width: CGFloat, height: CGFloat, opacity: Double) -> some View {
         Capsule()
             .fill(themeManager.textPrimary.opacity(opacity))
@@ -577,13 +671,31 @@ private enum WelcomeCardDemoPhase: Equatable {
     case flipped
     case swipeReady
     case swiping
-    case resetting
+    case quizAppearing
+    case quizWrongApproach
+    case quizWrongPress
+    case quizWrongResult
+    case quizCorrectApproach
+    case quizCorrectPress
+    case quizCorrectResult
+    case quizLeaving
+    case cardReturnHidden
 
     var showsHand: Bool {
         switch self {
-        case .tapApproach, .tapPress, .flipped, .swipeReady, .swiping:
+        case .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult:
             true
-        case .resting, .resetting:
+        case .resting, .quizAppearing, .quizLeaving, .cardReturnHidden:
             false
         }
     }
@@ -596,7 +708,18 @@ private enum WelcomeCardDemoPhase: Equatable {
         switch self {
         case .flipped, .swipeReady, .swiping:
             true
-        case .resting, .tapApproach, .tapPress, .resetting:
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
             false
         }
     }
@@ -610,29 +733,119 @@ private enum WelcomeCardDemoPhase: Equatable {
         case .tapPress:
             0.975
         case .swiping:
-            0.96
-        case .resetting:
             0.92
-        case .resting, .tapApproach, .flipped, .swipeReady:
+        case .cardReturnHidden:
+            0.94
+        case .resting,
+             .tapApproach,
+             .flipped,
+             .swipeReady,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving:
             1
         }
     }
 
     var cardTiltDegrees: Double {
-        self == .swiping ? 6 : 0
+        self == .swiping ? 8 : 0
     }
 
     var cardOpacity: Double {
-        self == .resetting ? 0 : 1
+        switch self {
+        case .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
+            0
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .swiping:
+            1
+        }
+    }
+
+    var cardOffsetY: CGFloat {
+        self == .cardReturnHidden ? 12 : 0
+    }
+
+    var quizOpacity: Double {
+        switch self {
+        case .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult:
+            1
+        case .quizLeaving:
+            0
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .swiping, .cardReturnHidden:
+            0
+        }
+    }
+
+    var quizScale: CGFloat {
+        switch self {
+        case .quizAppearing:
+            1
+        case .quizWrongPress, .quizCorrectPress:
+            0.992
+        case .quizLeaving:
+            0.965
+        case .quizWrongApproach,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectResult:
+            1
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .swiping, .cardReturnHidden:
+            0.94
+        }
+    }
+
+    var quizOffsetY: CGFloat {
+        switch self {
+        case .quizLeaving:
+            -18
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .swiping, .cardReturnHidden:
+            20
+        case .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult:
+            0
+        }
     }
 
     var handScale: CGFloat {
         switch self {
-        case .tapPress:
+        case .tapPress, .quizWrongPress, .quizCorrectPress:
             0.88
         case .swiping:
             0.96
-        case .resting, .tapApproach, .flipped, .swipeReady, .resetting:
+        case .resting,
+             .tapApproach,
+             .flipped,
+             .swipeReady,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
             1
         }
     }
@@ -641,18 +854,102 @@ private enum WelcomeCardDemoPhase: Equatable {
         switch self {
         case .swiping:
             -10
-        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .resetting:
+        case .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult:
+            -14
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .quizAppearing, .quizLeaving, .cardReturnHidden:
             -18
         }
     }
 
-    func cardOffsetX(cardWidth: CGFloat) -> CGFloat {
+    var pressedAnswerIndex: Int? {
+        switch self {
+        case .quizWrongPress:
+            0
+        case .quizCorrectPress:
+            1
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
+            nil
+        }
+    }
+
+    var wrongAnswerOffset: CGFloat {
+        switch self {
+        case .quizWrongResult:
+            7
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
+            0
+        }
+    }
+
+    func answerState(for index: Int) -> WelcomeQuizAnswerState {
+        switch self {
+        case .quizWrongResult, .quizCorrectApproach, .quizCorrectPress, .quizCorrectResult:
+            if index == 0 {
+                return .wrong
+            }
+            if index == 1, self == .quizCorrectResult {
+                return .correct
+            }
+            return .neutral
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizLeaving,
+             .cardReturnHidden:
+            return .neutral
+        }
+    }
+
+    func cardOffsetX(cardWidth: CGFloat, containerWidth: CGFloat) -> CGFloat {
         switch self {
         case .swiping:
-            cardWidth * 1.38
-        case .resetting:
-            -cardWidth * 0.32
-        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady:
+            (containerWidth * 0.5) + (cardWidth * 0.72)
+        case .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving:
+            (containerWidth * 0.5) + (cardWidth * 0.86)
+        case .resting, .tapApproach, .tapPress, .flipped, .swipeReady, .cardReturnHidden:
             0
         }
     }
@@ -668,11 +965,25 @@ private enum WelcomeCardDemoPhase: Equatable {
         case .swipeReady:
             CGSize(width: cardWidth * 0.08, height: cardHeight * 0.18)
         case .swiping:
-            CGSize(width: cardWidth * 1.26, height: cardHeight * 0.08)
-        case .resting, .resetting:
+            CGSize(width: cardWidth * 1.55, height: cardHeight * 0.05)
+        case .quizWrongApproach:
+            CGSize(width: cardWidth * 0.58, height: cardHeight * 0.30)
+        case .quizWrongPress, .quizWrongResult:
+            CGSize(width: -cardWidth * 0.10, height: cardHeight * 0.19)
+        case .quizCorrectApproach:
+            CGSize(width: cardWidth * 0.50, height: cardHeight * 0.44)
+        case .quizCorrectPress, .quizCorrectResult:
+            CGSize(width: -cardWidth * 0.06, height: cardHeight * 0.39)
+        case .resting, .quizAppearing, .quizLeaving, .cardReturnHidden:
             CGSize(width: cardWidth * 0.58, height: cardHeight * 0.42)
         }
     }
+}
+
+private enum WelcomeQuizAnswerState {
+    case neutral
+    case wrong
+    case correct
 }
 
 private struct ZoneStyleOnboardingPage: View {
