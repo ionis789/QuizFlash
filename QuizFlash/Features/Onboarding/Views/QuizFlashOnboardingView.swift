@@ -392,9 +392,22 @@ private struct WelcomeOnboardingPage: View {
             let isPadLayout = horizontalSizeClass == .regular || proxy.size.width >= 700
             let titleSize = welcomeTitleSize(width: proxy.size.width, isPadLayout: isPadLayout)
             let titleLines = welcomeTitleLines(locale: appPreferences.resolvedLocale)
+            let horizontalPadding = welcomeHorizontalPadding(isPadLayout: isPadLayout)
+            let verticalPadding = welcomeVerticalPadding(isPadLayout: isPadLayout)
             let contentSpacing = welcomeContentSpacing(availableHeight: proxy.size.height, isPadLayout: isPadLayout)
-            let demoHeight = welcomeDemoHeight(availableHeight: proxy.size.height, isPadLayout: isPadLayout)
-            let demoMaxWidth = welcomeDemoMaxWidth(width: proxy.size.width, isPadLayout: isPadLayout)
+            let titleHeight = welcomeTitleHeight(lineCount: titleLines.count, titleSize: titleSize, isPadLayout: isPadLayout)
+            let demoHeight = welcomeDemoHeight(
+                availableHeight: proxy.size.height,
+                titleHeight: titleHeight,
+                contentSpacing: contentSpacing,
+                verticalPadding: verticalPadding,
+                isPadLayout: isPadLayout
+            )
+            let demoMaxWidth = welcomeDemoMaxWidth(
+                width: proxy.size.width,
+                horizontalPadding: horizontalPadding,
+                isPadLayout: isPadLayout
+            )
 
             VStack(spacing: contentSpacing) {
                 VStack(spacing: isPadLayout ? 2 : 0) {
@@ -407,12 +420,12 @@ private struct WelcomeOnboardingPage: View {
                     }
                 }
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: isPadLayout ? 760 : 360)
+                .frame(maxWidth: isPadLayout ? 900 : 360)
 
                 WelcomeCardForms(maxWidth: demoMaxWidth, height: demoHeight)
             }
-            .padding(.horizontal, isPadLayout ? 44 : UIConstants.Spacing.extraLarge)
-            .padding(.vertical, UIConstants.Spacing.huge)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -420,10 +433,10 @@ private struct WelcomeOnboardingPage: View {
 
     private func welcomeTitleSize(width: CGFloat, isPadLayout: Bool) -> CGFloat {
         if isPadLayout {
-            return min(max(width * 0.060, 56), 68)
+            return min(max(width * 0.074, 68), 84)
         }
 
-        return min(max(width * 0.118, 42), 50)
+        return min(max(width * 0.124, 44), 54)
     }
 
     private func welcomeTitleLines(locale: Locale) -> [String] {
@@ -439,28 +452,51 @@ private struct WelcomeOnboardingPage: View {
         return [title]
     }
 
+    private func welcomeHorizontalPadding(isPadLayout: Bool) -> CGFloat {
+        isPadLayout ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.medium
+    }
+
+    private func welcomeVerticalPadding(isPadLayout: Bool) -> CGFloat {
+        isPadLayout ? UIConstants.Spacing.large : UIConstants.Spacing.medium
+    }
+
     private func welcomeContentSpacing(availableHeight: CGFloat, isPadLayout: Bool) -> CGFloat {
         if isPadLayout {
-            return min(max(availableHeight * 0.042, 34), 50)
+            return min(max(availableHeight * 0.050, 44), 66)
         }
 
-        return min(max(availableHeight * 0.032, 22), 34)
+        return min(max(availableHeight * 0.036, 24), 38)
     }
 
-    private func welcomeDemoHeight(availableHeight: CGFloat, isPadLayout: Bool) -> CGFloat {
-        if isPadLayout {
-            return min(max(availableHeight * 0.50, 460), 570)
-        }
-
-        return min(max(availableHeight * 0.42, 320), 410)
+    private func welcomeTitleHeight(lineCount: Int, titleSize: CGFloat, isPadLayout: Bool) -> CGFloat {
+        let lineSpacing: CGFloat = isPadLayout ? 2 : 0
+        return (titleSize * 1.04 * CGFloat(lineCount)) + (lineSpacing * CGFloat(max(lineCount - 1, 0)))
     }
 
-    private func welcomeDemoMaxWidth(width: CGFloat, isPadLayout: Bool) -> CGFloat {
+    private func welcomeDemoHeight(
+        availableHeight: CGFloat,
+        titleHeight: CGFloat,
+        contentSpacing: CGFloat,
+        verticalPadding: CGFloat,
+        isPadLayout: Bool
+    ) -> CGFloat {
+        let remainingHeight = availableHeight - titleHeight - contentSpacing - (verticalPadding * 2)
+
         if isPadLayout {
-            return min(width * 0.78, 780)
+            return min(max(remainingHeight, 560), 780)
         }
 
-        return min(width * 0.92, 540)
+        return min(max(remainingHeight, 360), 500)
+    }
+
+    private func welcomeDemoMaxWidth(width: CGFloat, horizontalPadding: CGFloat, isPadLayout: Bool) -> CGFloat {
+        let availableWidth = width - (horizontalPadding * 2)
+
+        if isPadLayout {
+            return min(max(availableWidth, 720), 980)
+        }
+
+        return min(max(availableWidth, 330), 620)
     }
 }
 
@@ -477,11 +513,11 @@ private struct WelcomeCardForms: View {
         GeometryReader { proxy in
             let width = min(proxy.size.width, maxWidth)
             let height = max(proxy.size.height, 340)
-            let contentScale = min(max(width / 520, 0.95), 1.30)
-            let cardWidth = min(width * 0.48, height * 0.52, 310)
+            let contentScale = min(max(width / 520, 0.98), 1.70)
+            let cardWidth = min(width * 0.52, height * 0.58, 410)
             let cardHeight = cardWidth * 1.42
-            let quizWidth = min(width * 0.82, 560)
-            let quizHeight = min(height * 0.78, 380)
+            let quizWidth = min(width * 0.90, 820)
+            let quizHeight = min(height * 0.86, 560)
 
             ZStack {
                 if phase.showsTapRipple && !reduceMotion {
@@ -504,7 +540,7 @@ private struct WelcomeCardForms: View {
 
                 if phase.showsHand && !reduceMotion {
                     Image(systemName: "hand.tap.fill")
-                        .font(.system(size: 44, weight: .semibold))
+                        .font(.system(size: 44 * contentScale, weight: .semibold))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(themeManager.textPrimary.opacity(0.92))
                         .shadow(color: .black.opacity(0.34), radius: 12, y: 8)
