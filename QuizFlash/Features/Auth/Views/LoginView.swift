@@ -18,17 +18,19 @@ struct LoginView: View {
     @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var email = ""
     @State private var password = ""
     @State private var passwordConfirmation = ""
     @State private var authSheetMode: AuthSheetMode = .actions
-    @State private var isAuthSheetPresented = true
+    @State private var isAuthSheetPresented = false
     @State private var activeSheet: AuthSheet?
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showAlert = false
     @State private var presentingViewController: UIViewController?
+    @State private var authSheetPresentationTask: Task<Void, Never>?
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -122,7 +124,15 @@ struct LoginView: View {
     private var loginForm: some View {
         authLanding
             .onAppear {
-                isAuthSheetPresented = true
+                presentAuthSheetIfNeeded()
+            }
+            .onDisappear {
+                authSheetPresentationTask?.cancel()
+                authSheetPresentationTask = nil
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                restoreAuthSheetAfterAppActivation()
             }
     }
 
@@ -260,6 +270,54 @@ struct LoginView: View {
             && error.code == ASAuthorizationError.canceled.rawValue
     }
 
+    private var canPresentAuthSheet: Bool {
+        switch authManager.sessionState {
+        case .signedOut, .signedIn:
+            true
+        default:
+            false
+        }
+    }
+
+    private func presentAuthSheetIfNeeded() {
+        guard canPresentAuthSheet else { return }
+        authSheetPresentationTask?.cancel()
+
+        authSheetPresentationTask = Task { @MainActor in
+            guard !Task.isCancelled else { return }
+
+            if !isAuthSheetPresented {
+                withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
+                    isAuthSheetPresented = true
+                }
+            }
+
+            authSheetPresentationTask = nil
+        }
+    }
+
+    private func restoreAuthSheetAfterAppActivation() {
+        guard canPresentAuthSheet else { return }
+        authSheetPresentationTask?.cancel()
+
+        authSheetPresentationTask = Task { @MainActor in
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+
+            withTransaction(transaction) {
+                isAuthSheetPresented = false
+            }
+
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
+                isAuthSheetPresented = true
+            }
+
+            authSheetPresentationTask = nil
+        }
+    }
 }
 
 private enum AuthSheetMode: Equatable {
