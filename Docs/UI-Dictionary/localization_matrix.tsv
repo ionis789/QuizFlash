@@ -165,6 +165,7 @@ Auto keeps the full source covered, then balances density by text weight.	Auto k
 Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
+Back	Back	Înapoi	Назад
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
 Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
@@ -182,6 +183,7 @@ Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
+Build decks. Review faster.	Build decks. Review faster.	Creează deckuri. Repetă mai repede.	Создавайте колоды. Повторяйте быстрее.
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
 Calendar	Calendar	Calendar	Календарь
@@ -330,6 +332,7 @@ Enabled	Enabled	Activ	Включено
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
 English	English	Engleză	Английский
 Enter a valid email address.	Enter a valid email address.	Introdu o adresă de email validă.	Введите корректный email.
+Enter your password	Enter your password	Introdu parola	Введите пароль
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
 Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
@@ -441,6 +444,7 @@ Launches a live `fullScreenSheet` playground. Change the controls inside the she
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
 Learn faster. Stay productive.	Learn faster. Stay productive.	Învață mai eficient. Rămâi productiv.	Учитесь быстрее. Оставайтесь продуктивными.
+Let's learn	Let's learn	Hai să învățăm	Начнём учиться
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
@@ -451,6 +455,7 @@ List	List	Listă	Список
 Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
 Location: %@	Location: %@	Locație: %@	Расположение: %@
+Log in or sign up	Log in or sign up	Conectează-te sau înscrie-te	Войти или создать аккаунт
 Log Out	Log Out	Deconectare	Выйти
 Manual	Manual	Manual	Вручную
 Manual input	Manual input	Introducere manuală	Ручной ввод

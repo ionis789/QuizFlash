@@ -164,6 +164,7 @@
 "Backend Trace" = "Backend Trace";
 "Background Color" = "Background Color";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Background is rendered inside the shared sheet surface and clipped by the top corner radius.";
+"Back" = "Back";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.";
 "BLANK" = "BLANK";
 "Blank" = "Blank";
@@ -181,6 +182,7 @@
 "Bottom" = "Bottom";
 "Bottom chrome visible" = "Bottom chrome visible";
 "Building the deck briefing" = "Building the deck briefing";
+"Build decks. Review faster." = "Build decks. Review faster.";
 "Bullet List" = "Bullet List";
 "By Deck" = "By Deck";
 "Calendar" = "Calendar";
@@ -329,6 +331,7 @@
 "Endpoint: %@" = "Endpoint: %@";
 "English" = "English";
 "Enter a valid email address." = "Enter a valid email address.";
+"Enter your password" = "Enter your password";
 "Example: Capital of France" = "Example: Capital of France";
 "Example: Paris" = "Example: Paris";
 "Expand" = "Expand";
@@ -440,6 +443,7 @@
 "Layout" = "Layout";
 "Learn fast and effectively." = "Learn fast and effectively.";
 "Learn faster. Stay productive." = "Learn faster. Stay productive.";
+"Let's learn" = "Let's learn";
 "Learning" = "Learning";
 "LEARNING PROGRESS" = "LEARNING PROGRESS";
 "Left" = "Left";
@@ -450,6 +454,7 @@
 "Live Preview" = "Live Preview";
 "Live Swipe HUD" = "Live Swipe HUD";
 "Location: %@" = "Location: %@";
+"Log in or sign up" = "Log in or sign up";
 "Log Out" = "Log Out";
 "Manual" = "Manual";
 "Manual input" = "Manual input";
