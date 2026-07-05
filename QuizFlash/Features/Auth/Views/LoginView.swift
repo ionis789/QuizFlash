@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 import GoogleSignIn
 import UIKit
 
@@ -16,11 +17,11 @@ struct LoginView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var email = ""
     @State private var password = ""
-    @State private var passwordConfirmation = ""
-    @State private var authStep: AuthStep = .landing
+    @State private var showsCredentialForm = false
     @State private var activeSheet: AuthSheet?
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -119,44 +120,46 @@ struct LoginView: View {
 
     private var loginForm: some View {
         ZStack {
-            Color.black
-                .ignoresSafeArea()
-
-            switch authStep {
-            case .landing:
+            if showsCredentialForm {
+                credentialForm
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
                 authLanding
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            case .email:
-                authEmailStep
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            case .password:
-                authPasswordStep
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            case .createAccount:
-                authCreateAccountStep
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.28), value: authStep)
-        .dismissKeyboardOnBackgroundTap()
+        .animation(.easeInOut(duration: 0.28), value: showsCredentialForm)
     }
 
     private var authLanding: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                Spacer(minLength: proxy.size.height * 0.24)
+                Spacer(minLength: proxy.size.height * 0.26)
 
-                LoginMotivationText(phrases: loginMotivationPhrases)
-                    .frame(maxWidth: 620)
-                    .padding(.horizontal, UIConstants.Spacing.large)
+                AuthWalkthroughText(
+                    phrases: walkthroughPhrases,
+                    symbolColor: themeManager.accentColor.color,
+                    reduceMotion: reduceMotion
+                )
+                .padding(.horizontal, UIConstants.Spacing.extraLarge)
 
                 Spacer(minLength: UIConstants.Spacing.large)
 
                 VStack(spacing: UIConstants.Spacing.medium) {
-                    AuthFlowAsyncButton(
+                    AuthLandingAsyncButton(
+                        title: AppLocalization.string("Continue with Apple", locale: locale),
+                        systemImage: "applelogo",
+                        style: .light
+                    ) {
+                        try await authManager.signInWithApple()
+                    } onError: { error in
+                        presentError(error)
+                    }
+
+                    AuthLandingAsyncButton(
                         title: AppLocalization.string("Continue with Google", locale: locale),
-                        icon: .google,
-                        style: .secondary
+                        textIcon: "G",
+                        style: .dark
                     ) {
                         try await authManager.signInWithGoogle(
                             presentingViewController: presentingViewController
@@ -165,36 +168,23 @@ struct LoginView: View {
                         presentError(error)
                     }
 
-                    AuthFlowButton(
+                    AuthLandingButton(
                         title: AppLocalization.string("Log in or sign up", locale: locale),
-                        style: .primary
+                        style: .dark
                     ) {
-                        withAnimation(.easeInOut(duration: 0.28)) {
-                            authStep = .email
-                        }
+                        showsCredentialForm = true
                     }
-
-                    Button {
-                        onboardingStateStore.presentPreview()
-                    } label: {
-                        Text(AppLocalization.string("Preview Onboarding", locale: locale))
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.68))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, UIConstants.Spacing.small)
                 }
                 .padding(.horizontal, UIConstants.Spacing.large)
                 .padding(.top, UIConstants.Spacing.large)
                 .padding(.bottom, max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
-                .frame(maxWidth: 520)
+                .frame(maxWidth: 540)
                 .frame(maxWidth: .infinity)
                 .background(alignment: .bottom) {
                     UnevenRoundedRectangle(
                         cornerRadii: RectangleCornerRadii(
-                            topLeading: 44,
-                            topTrailing: 44
+                            topLeading: UIConstants.Radius.maximum,
+                            topTrailing: UIConstants.Radius.maximum
                         ),
                         style: .continuous
                     )
@@ -202,58 +192,95 @@ struct LoginView: View {
                     .ignoresSafeArea(edges: .bottom)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.ignoresSafeArea())
         }
     }
 
-    private var authEmailStep: some View {
-        AuthFlowSurface {
-            authTopBar(
-                showsBack: false,
-                onBack: {},
-                onClose: closeAuthFlow
-            )
+    private var credentialForm: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                Button {
+                    showsCredentialForm = false
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
+                        .duoControlSurface(cornerRadius: UIConstants.Size.buttonHeight / 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(AppLocalization.string("Back", locale: locale))
+                .padding(.bottom, UIConstants.Spacing.small)
 
-            Spacer(minLength: UIConstants.Spacing.extraLarge)
+                Spacer(minLength: UIConstants.Spacing.huge)
 
-            AuthFlowMark()
+                Text(AppLocalization.string("Log in or sign up", locale: locale))
+                    .font(.system(size: 36, weight: .heavy))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                    .padding(.bottom, UIConstants.Spacing.large)
 
-            Text(AppLocalization.string("Log in or sign up", locale: locale))
-                .font(.system(size: 34, weight: .regular))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.82)
+                VStack(spacing: UIConstants.Spacing.medium) {
+                    AuthIconTextField(
+                        title: AppLocalization.string("Email Address", locale: locale),
+                        icon: "envelope",
+                        text: $email
+                    )
+                    .keyboardType(.emailAddress)
+                    .textContentType(.username)
 
-            Text(AppLocalization.string("Build decks. Review faster.", locale: locale))
-                .font(.title3)
-                .foregroundStyle(.white.opacity(0.66))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.top, -UIConstants.Spacing.small)
-
-            VStack(spacing: UIConstants.Spacing.standard) {
-                AuthFlowTextField(
-                    title: AppLocalization.string("Email", locale: locale),
-                    keyboardType: .emailAddress,
-                    textContentType: .username,
-                    text: $email
-                )
-
-                AuthFlowButton(
-                    title: AppLocalization.string("Continue", locale: locale),
-                    style: .primary,
-                    isEnabled: canContinueFromEmail
-                ) {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        authStep = .password
-                    }
+                    AuthIconTextField(
+                        title: AppLocalization.string("Password", locale: locale),
+                        icon: "lock",
+                        isPassword: true,
+                        text: $password
+                    )
                 }
 
-                authDivider
+                Button {
+                    activeSheet = .forgotPassword
+                } label: {
+                    Text(AppLocalization.string("Forgot Password?", locale: locale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .buttonStyle(.plain)
 
-                AuthFlowAsyncButton(
+                AuthAsyncButton(
+                    title: AppLocalization.string("Sign In", locale: locale),
+                    icon: nil,
+                    tint: themeManager.accentColor.color,
+                    isEnabled: canSignIn
+                ) {
+                    try await authManager.signIn(email: email, password: password)
+                } onError: { error in
+                    presentError(error)
+                }
+                .padding(.top, UIConstants.Spacing.small)
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(height: 1)
+
+                    Text(AppLocalization.string("or", locale: locale))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(height: 1)
+                }
+                .padding(.vertical, UIConstants.Spacing.small)
+
+                AuthAsyncButton(
                     title: AppLocalization.string("Continue with Google", locale: locale),
-                    icon: .google,
-                    style: .outline
+                    icon: "globe",
+                    tint: Color.primary.opacity(0.08),
+                    foreground: .primary
                 ) {
                     try await authManager.signInWithGoogle(
                         presentingViewController: presentingViewController
@@ -262,164 +289,42 @@ struct LoginView: View {
                     presentError(error)
                 }
 
-                AuthFlowButton(
-                    title: AppLocalization.string("Create Account", locale: locale),
-                    style: .outline
-                ) {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        authStep = .createAccount
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(AppLocalization.string("Don't have an account?", locale: locale))
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        activeSheet = .createAccount
+                    } label: {
+                        Text(AppLocalization.string("Sign Up", locale: locale))
+                            .fontWeight(.semibold)
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(themeManager.accentColor.color)
                 }
-            }
-            .padding(.top, UIConstants.Spacing.huge)
-
-            Spacer(minLength: UIConstants.Spacing.huge)
-        }
-    }
-
-    private var authPasswordStep: some View {
-        AuthFlowSurface {
-            authTopBar(
-                showsBack: true,
-                onBack: {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        authStep = .email
-                    }
-                },
-                onClose: closeAuthFlow
-            )
-
-            Spacer(minLength: UIConstants.Spacing.extraLarge)
-
-            AuthFlowMark()
-
-            Text(AppLocalization.string("Enter your password", locale: locale))
-                .font(.system(size: 34, weight: .regular))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.82)
-
-            VStack(spacing: UIConstants.Spacing.medium) {
-                AuthFlowStaticField(
-                    title: AppLocalization.string("Email", locale: locale),
-                    value: email.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-
-                AuthFlowPasswordField(
-                    title: AppLocalization.string("Password", locale: locale),
-                    text: $password
-                )
-
-                AuthFlowAsyncButton(
-                    title: AppLocalization.string("Continue", locale: locale),
-                    icon: nil,
-                    style: .primary,
-                    isEnabled: canSignIn
-                ) {
-                    try await authManager.signIn(email: email, password: password)
-                } onError: { error in
-                    presentError(error)
-                }
-                .padding(.top, UIConstants.Spacing.standard)
+                .font(.callout)
+                .frame(maxWidth: .infinity)
+                .padding(.top, UIConstants.Spacing.small)
 
                 Button {
-                    activeSheet = .forgotPassword
+                    onboardingStateStore.presentPreview()
                 } label: {
-                    Text(AppLocalization.string("Forgot Password?", locale: locale))
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
+                    Text(AppLocalization.string("Preview Onboarding", locale: locale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(themeManager.accentColor.color)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                .padding(.top, UIConstants.Spacing.small)
             }
+            .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.huge)
-
-            Spacer(minLength: UIConstants.Spacing.huge)
+            .padding(.bottom, UIConstants.Spacing.huge * 3)
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
         }
-    }
-
-    private var authCreateAccountStep: some View {
-        AuthFlowSurface {
-            authTopBar(
-                showsBack: true,
-                onBack: {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        authStep = .email
-                    }
-                },
-                onClose: closeAuthFlow
-            )
-
-            Spacer(minLength: UIConstants.Spacing.extraLarge)
-
-            AuthFlowMark()
-
-            Text(AppLocalization.string("Create Account", locale: locale))
-                .font(.system(size: 34, weight: .regular))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.82)
-
-            VStack(spacing: UIConstants.Spacing.medium) {
-                AuthFlowTextField(
-                    title: AppLocalization.string("Email", locale: locale),
-                    keyboardType: .emailAddress,
-                    textContentType: .username,
-                    text: $email
-                )
-
-                AuthFlowPasswordField(
-                    title: AppLocalization.string("Password", locale: locale),
-                    text: $password
-                )
-
-                AuthFlowPasswordField(
-                    title: AppLocalization.string("Confirm Password", locale: locale),
-                    text: $passwordConfirmation
-                )
-
-                AuthFlowAsyncButton(
-                    title: AppLocalization.string("Continue", locale: locale),
-                    icon: nil,
-                    style: .primary,
-                    isEnabled: canCreateAccount
-                ) {
-                    let user = try await authManager.createAccount(
-                        email: email,
-                        password: password,
-                        confirmation: passwordConfirmation
-                    )
-                    onboardingStateStore.markPendingForNewAccount(uid: user.uid)
-                    if !user.requiresEmailVerification {
-                        onboardingStateStore.presentRequiredIfNeeded(for: user)
-                    }
-                } onError: { error in
-                    presentError(error)
-                }
-                .padding(.top, UIConstants.Spacing.standard)
-            }
-            .padding(.top, UIConstants.Spacing.huge)
-
-            Spacer(minLength: UIConstants.Spacing.huge)
-        }
-    }
-
-    private var authDivider: some View {
-        HStack(spacing: UIConstants.Spacing.large) {
-            Rectangle()
-                .fill(Color.white.opacity(0.10))
-                .frame(height: 1)
-
-            Text(AppLocalization.string("or", locale: locale).uppercased())
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.white.opacity(0.82))
-
-            Rectangle()
-                .fill(Color.white.opacity(0.10))
-                .frame(height: 1)
-        }
-        .padding(.vertical, UIConstants.Spacing.small)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.never)
+        .dismissKeyboardOnBackgroundTap()
     }
 
     private var canSignIn: Bool {
@@ -427,22 +332,12 @@ struct LoginView: View {
             && !password.isEmpty
     }
 
-    private var canContinueFromEmail: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var canCreateAccount: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !password.isEmpty
-            && password == passwordConfirmation
-    }
-
-    private var loginMotivationPhrases: [String] {
+    private var walkthroughPhrases: [String] {
         [
-            AppLocalization.string("Let's learn", locale: locale),
-            AppLocalization.string("Stay productive", locale: locale),
-            AppLocalization.string("Study smarter", locale: locale),
-            AppLocalization.string("Keep your focus", locale: locale)
+            AppLocalization.string("Let's study", locale: locale),
+            AppLocalization.string("Let's review", locale: locale),
+            AppLocalization.string("Let's master", locale: locale),
+            AppLocalization.string("Let's focus", locale: locale)
         ]
     }
 
@@ -466,230 +361,142 @@ struct LoginView: View {
 
     private func isUserCancelledSignIn(_ error: Error) -> Bool {
         let error = error as NSError
-        return error.domain == kGIDSignInErrorDomain
-            && error.code == GIDSignInError.canceled.rawValue
-    }
-
-    private func closeAuthFlow() {
-        withAnimation(.easeInOut(duration: 0.28)) {
-            authStep = .landing
-            password = ""
-            passwordConfirmation = ""
+        if error.domain == kGIDSignInErrorDomain
+            && error.code == GIDSignInError.canceled.rawValue {
+            return true
         }
-    }
 
-    @ViewBuilder
-    private func authTopBar(
-        showsBack: Bool,
-        onBack: @escaping () -> Void,
-        onClose: @escaping () -> Void
-    ) -> some View {
-        HStack {
-            if showsBack {
-                AuthFlowCircleButton(
-                    icon: "chevron.left",
-                    title: AppLocalization.string("Back", locale: locale),
-                    action: onBack
-                )
-            } else {
-                Color.clear
-                    .frame(width: 56, height: 56)
-            }
-
-            Spacer()
-
-            AuthFlowCircleButton(
-                icon: "xmark",
-                title: AppLocalization.string("Close", locale: locale),
-                action: onClose
-            )
-        }
+        return error.domain == ASAuthorizationError.errorDomain
+            && error.code == ASAuthorizationError.canceled.rawValue
     }
 }
 
-// MARK: - Auth Step
+// MARK: - Auth Walkthrough Text
 
-private enum AuthStep: Equatable {
-    case landing
-    case email
-    case password
-    case createAccount
-}
-
-// MARK: - Login Motivation Text
-
-private struct LoginMotivationText: View {
+private struct AuthWalkthroughText: View {
     let phrases: [String]
+    let symbolColor: Color
+    let reduceMotion: Bool
 
     @State private var currentIndex = 0
+    @State private var textOffset: CGFloat = 0
+    @State private var symbolOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: UIConstants.Spacing.small) {
-            ZStack {
-                ForEach(Array(phrases.enumerated()), id: \.offset) { index, phrase in
-                    if index == visibleIndex {
-                        Text(phrase)
-                            .font(.system(size: 46, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.72)
-                            .multilineTextAlignment(.center)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                                    removal: .move(edge: .top).combined(with: .opacity)
-                                )
-                            )
-                    }
-                }
-            }
+            Text(currentPhrase)
+                .font(.system(size: 44, weight: .heavy))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .offset(x: textOffset)
 
-            Circle()
-                .fill(.white)
-                .frame(width: 52, height: 52)
-                .scaleEffect(visibleIndex.isMultiple(of: 2) ? 1 : 0.82)
-                .animation(.easeInOut(duration: 0.42), value: visibleIndex)
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 48, weight: .heavy))
+                .foregroundStyle(symbolColor)
+                .offset(x: -symbolOffset)
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 120, alignment: .center)
+        .frame(height: 86)
         .clipped()
         .task(id: phrases.joined(separator: "|")) {
             currentIndex = 0
-            guard phrases.count > 1 else { return }
+            textOffset = 0
+            symbolOffset = 0
+            guard phrases.count > 1, !reduceMotion else { return }
 
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(1800))
+                try? await Task.sleep(for: .milliseconds(1450))
                 guard !Task.isCancelled else { return }
 
-                withAnimation(.easeInOut(duration: 0.42)) {
-                    currentIndex = (currentIndex + 1) % phrases.count
+                let travel = measuredTextWidth(currentPhrase) + 34
+                withAnimation(.snappy(duration: 0.58)) {
+                    textOffset = -travel
+                    symbolOffset = -travel / 2
+                }
+
+                try? await Task.sleep(for: .milliseconds(580))
+                guard !Task.isCancelled else { return }
+
+                currentIndex = (currentIndex + 1) % phrases.count
+                textOffset = measuredTextWidth(currentPhrase) + 34
+                symbolOffset = 0
+
+                withAnimation(.snappy(duration: 0.52)) {
+                    textOffset = 0
+                }
+
+                try? await Task.sleep(for: .milliseconds(520))
+                guard !Task.isCancelled else { return }
+
+                withAnimation(.snappy(duration: 0.32)) {
+                    symbolOffset = 0
                 }
             }
         }
     }
 
-    private var visibleIndex: Int {
-        guard !phrases.isEmpty else { return 0 }
-        return min(currentIndex, phrases.count - 1)
+    private var currentPhrase: String {
+        guard !phrases.isEmpty else { return "" }
+        return phrases[min(currentIndex, phrases.count - 1)]
+    }
+
+    private func measuredTextWidth(_ text: String) -> CGFloat {
+        NSString(string: text).size(
+            withAttributes: [
+                .font: UIFont.systemFont(ofSize: 44, weight: .heavy)
+            ]
+        ).width
     }
 }
 
-// MARK: - Auth Flow Surface
+// MARK: - Auth Landing Buttons
 
-private struct AuthFlowSurface<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: UIConstants.Spacing.large) {
-                    content
-                }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, max(proxy.safeAreaInsets.top, UIConstants.Spacing.large))
-                .padding(.bottom, max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.huge))
-                .frame(maxWidth: 520)
-                .frame(minHeight: proxy.size.height, alignment: .top)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollDismissesKeyboard(.interactively)
-            .background {
-                RoundedRectangle(cornerRadius: 52, style: .continuous)
-                    .fill(Color.white.opacity(0.12))
-                    .padding(.top, proxy.safeAreaInsets.top + UIConstants.Spacing.small)
-                    .ignoresSafeArea(edges: .bottom)
-            }
-        }
-    }
-}
-
-// MARK: - Auth Flow Mark
-
-private struct AuthFlowMark: View {
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.32), lineWidth: 2)
-                .frame(width: 62, height: 62)
-
-            Image(systemName: "sparkles")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Auth Flow Controls
-
-private enum AuthFlowButtonStyle {
-    case primary
-    case secondary
-    case outline
+private enum AuthLandingButtonStyle {
+    case light
+    case dark
 
     var background: Color {
         switch self {
-        case .primary:
-            .white
-        case .secondary:
-            .white.opacity(0.10)
-        case .outline:
-            .clear
+        case .light: .white
+        case .dark: Color.white.opacity(0.08)
         }
     }
 
     var foreground: Color {
         switch self {
-        case .primary:
-            .black
-        case .secondary, .outline:
-            .white
-        }
-    }
-
-    var border: Color {
-        switch self {
-        case .primary:
-            .clear
-        case .secondary:
-            .white.opacity(0.08)
-        case .outline:
-            .white.opacity(0.22)
+        case .light: .black
+        case .dark: .white
         }
     }
 }
 
-private enum AuthFlowProviderIcon {
-    case google
-}
-
-private struct AuthFlowButton: View {
+private struct AuthLandingButton: View {
     let title: String
-    var icon: AuthFlowProviderIcon?
-    var style: AuthFlowButtonStyle
-    var isEnabled = true
+    var systemImage: String?
+    var textIcon: String?
+    var style: AuthLandingButtonStyle
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            AuthFlowButtonLabel(title: title, icon: icon, style: style, isLoading: false)
+            AuthLandingButtonLabel(
+                title: title,
+                systemImage: systemImage,
+                textIcon: textIcon,
+                style: style,
+                isLoading: false
+            )
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.44)
     }
 }
 
-private struct AuthFlowAsyncButton: View {
+private struct AuthLandingAsyncButton: View {
     let title: String
-    var icon: AuthFlowProviderIcon?
-    var style: AuthFlowButtonStyle
-    var isEnabled = true
+    var systemImage: String?
+    var textIcon: String?
+    var style: AuthLandingButtonStyle
     let action: @MainActor @Sendable () async throws -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
@@ -698,6 +505,7 @@ private struct AuthFlowAsyncButton: View {
     var body: some View {
         Button {
             guard !isLoading else { return }
+
             Task { @MainActor in
                 isLoading = true
                 defer { isLoading = false }
@@ -709,26 +517,36 @@ private struct AuthFlowAsyncButton: View {
                 }
             }
         } label: {
-            AuthFlowButtonLabel(title: title, icon: icon, style: style, isLoading: isLoading)
+            AuthLandingButtonLabel(
+                title: title,
+                systemImage: systemImage,
+                textIcon: textIcon,
+                style: style,
+                isLoading: isLoading
+            )
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled || isLoading)
-        .opacity(isEnabled ? 1 : 0.44)
+        .disabled(isLoading)
         .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isLoading)
-        .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isEnabled)
     }
 }
 
-private struct AuthFlowButtonLabel: View {
+private struct AuthLandingButtonLabel: View {
     let title: String
-    var icon: AuthFlowProviderIcon?
-    var style: AuthFlowButtonStyle
+    var systemImage: String?
+    var textIcon: String?
+    var style: AuthLandingButtonStyle
     var isLoading: Bool
 
     var body: some View {
         HStack(spacing: UIConstants.Spacing.medium) {
-            if let icon {
-                authIcon(icon)
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.title3.weight(.bold))
+            } else if let textIcon {
+                Text(textIcon)
+                    .font(.title3.weight(.heavy))
+                    .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
             }
 
             Text(title)
@@ -744,146 +562,8 @@ private struct AuthFlowButtonLabel: View {
         }
         .foregroundStyle(style.foreground)
         .frame(maxWidth: .infinity)
-        .frame(height: 62)
-        .background(style.background, in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(style.border, lineWidth: 1.5)
-        }
-    }
-
-    @ViewBuilder
-    private func authIcon(_ icon: AuthFlowProviderIcon) -> some View {
-        switch icon {
-        case .google:
-            Text("G")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
-        }
-    }
-}
-
-private struct AuthFlowCircleButton: View {
-    let icon: String
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(Color.white.opacity(0.10), in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1.5)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-    }
-}
-
-private struct AuthFlowTextField: View {
-    let title: String
-    var keyboardType: UIKeyboardType = .default
-    var textContentType: UITextContentType?
-    @Binding var text: String
-
-    var body: some View {
-        TextField(title, text: $text)
-            .keyboardType(keyboardType)
-            .textContentType(textContentType)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .font(.title3)
-            .foregroundStyle(.white)
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .frame(height: 66)
-            .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.26), lineWidth: 1.5)
-            }
-    }
-}
-
-private struct AuthFlowStaticField: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
-            Text(title)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.white.opacity(0.58))
-
-            Text(value)
-                .font(.title3)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 66)
-        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 1.5)
-        }
-    }
-}
-
-private struct AuthFlowPasswordField: View {
-    @Environment(AppPreferences.self) private var appPreferences
-
-    let title: String
-    @Binding var text: String
-
-    @State private var isVisible = false
-
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            Group {
-                if isVisible {
-                    TextField(title, text: $text)
-                } else {
-                    SecureField(title, text: $text)
-                }
-            }
-            .textContentType(.password)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .font(.title3)
-            .foregroundStyle(.white)
-
-            Button {
-                withAnimation(.easeInOut(duration: UIConstants.Animation.instant)) {
-                    isVisible.toggle()
-                }
-            } label: {
-                Image(systemName: isVisible ? "eye.slash" : "eye")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(passwordVisibilityTitle)
-        }
-        .padding(.leading, UIConstants.Spacing.standard)
-        .padding(.trailing, UIConstants.Spacing.small)
-        .frame(height: 66)
-        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(text.isEmpty ? 0.26 : 0.18), lineWidth: 1.5)
-        }
-    }
-
-    private var passwordVisibilityTitle: String {
-        AppLocalization.string(isVisible ? "Hide" : "Show", locale: appPreferences.resolvedLocale)
+        .frame(height: 58)
+        .background(style.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

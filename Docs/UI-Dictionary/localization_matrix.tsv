@@ -146,8 +146,8 @@ Almost ready	Almost ready	Aproape gata	Почти готово
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer from memory before checking the card.	Answer from memory before checking the card.	Răspunde din memorie înainte să verifici cardul.	Ответьте по памяти перед проверкой карточки.
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
@@ -162,10 +162,10 @@ Attempts %d	Attempts %d	Încercări %d	Попытки %d
 Auto	Auto	Auto	Авто
 Auto Block	Auto Block	Bloc auto	Автоблок
 Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
+Back	Back	Înapoi	Назад
 Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
-Back	Back	Înapoi	Назад
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
 Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
@@ -183,7 +183,6 @@ Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
-Build decks. Review faster.	Build decks. Review faster.	Creează deckuri. Repetă mai repede.	Создавайте колоды. Повторяйте быстрее.
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
 Calendar	Calendar	Calendar	Календарь
@@ -218,8 +217,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose how many cards you want to finish each day.	Choose how many cards you want to finish each day.	Alege câte carduri vrei să termini în fiecare zi.	Выберите, сколько карточек хотите проходить каждый день.
@@ -247,6 +246,7 @@ Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue playing	Continue playing	Continuă jocul	Продолжить игру
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
+Continue with Apple	Continue with Apple	Continuă cu Apple	Продолжить с Apple
 Continue with Google	Continue with Google	Continuă cu Google	Продолжить с Google
 Controls how thick every border is.	Controls how thick every border is.	Controlează grosimea tuturor bordurilor.	Управляет толщиной всех границ.
 Controls how visible the border color is.	Controls how visible the border color is.	Controlează cât de vizibilă este culoarea bordurii.	Управляет заметностью цвета границы.
@@ -332,14 +332,13 @@ Enabled	Enabled	Activ	Включено
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
 English	English	Engleză	Английский
 Enter a valid email address.	Enter a valid email address.	Introdu o adresă de email validă.	Введите корректный email.
-Enter your password	Enter your password	Introdu parola	Введите пароль
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
 Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -444,11 +443,14 @@ Launches a live `fullScreenSheet` playground. Change the controls inside the she
 Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
 Learn faster. Stay productive.	Learn faster. Stay productive.	Învață mai eficient. Rămâi productiv.	Учитесь быстрее. Оставайтесь продуктивными.
-Let's learn	Let's learn	Hai să învățăm	Начнём учиться
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
 Less	Less	Mai puțin	Меньше
+Let's focus	Let's focus	Hai să ne concentrăm	Сфокусируемся
+Let's master	Let's master	Hai să stăpânim	Освоим
+Let's review	Let's review	Hai să repetăm	Повторим
+Let's study	Let's study	Hai să studiem	Начнём учиться
 Library	Library	Bibliotecă	Библиотека
 Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
 List	List	Listă	Список
@@ -515,8 +517,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
+No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -588,8 +590,8 @@ Preparing Quiz	Preparing Quiz	Se pregătește quizul	Подготовка кви
 Preparing request	Preparing request	Se pregătește cererea	Подготовка запроса
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
@@ -769,9 +771,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+this week	this week	săptămâna asta	эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
-this week	this week	săptămâna asta	эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@

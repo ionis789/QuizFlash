@@ -182,7 +182,6 @@
 "Bottom" = "Jos";
 "Bottom chrome visible" = "Parte de jos crom vizibil";
 "Building the deck briefing" = "Crearea briefing-ului deck";
-"Build decks. Review faster." = "Creează deckuri. Repetă mai repede.";
 "Bullet List" = "Listă cu marcatori";
 "By Deck" = "De Deck";
 "Calendar" = "Calendar";
@@ -246,6 +245,7 @@
 "Continue from the last completed batch when you're ready." = "Continuă de la ultimul lot finalizat când ești gata.";
 "Continue playing" = "Continuă jocul";
 "Continue where you left off." = "Continuă de unde ai rămas.";
+"Continue with Apple" = "Continuă cu Apple";
 "Continue with Google" = "Continuă cu Google";
 "Controls how thick every border is." = "Controlează grosimea tuturor bordurilor.";
 "Controls how visible the border color is." = "Controlează cât de vizibilă este culoarea bordurii.";
@@ -331,7 +331,6 @@
 "Endpoint: %@" = "Punct final: %@";
 "English" = "Engleză";
 "Enter a valid email address." = "Introdu o adresă de email validă.";
-"Enter your password" = "Introdu parola";
 "Example: Capital of France" = "Exemplu: Capitala Franței";
 "Example: Paris" = "Exemplu: Paris";
 "Expand" = "Extinde";
@@ -443,7 +442,10 @@
 "Layout" = "Aranjare";
 "Learn fast and effectively." = "Învață rapid și eficient.";
 "Learn faster. Stay productive." = "Învață mai eficient. Rămâi productiv.";
-"Let's learn" = "Hai să învățăm";
+"Let's focus" = "Hai să ne concentrăm";
+"Let's master" = "Hai să stăpânim";
+"Let's review" = "Hai să repetăm";
+"Let's study" = "Hai să studiem";
 "Learning" = "În învățare";
 "LEARNING PROGRESS" = "PROGRESUL DE ÎNVĂȚARE";
 "Left" = "Stânga";

@@ -182,7 +182,6 @@
 "Bottom" = "Bottom";
 "Bottom chrome visible" = "Bottom chrome visible";
 "Building the deck briefing" = "Building the deck briefing";
-"Build decks. Review faster." = "Build decks. Review faster.";
 "Bullet List" = "Bullet List";
 "By Deck" = "By Deck";
 "Calendar" = "Calendar";
@@ -246,6 +245,7 @@
 "Continue from the last completed batch when you're ready." = "Continue from the last completed batch when you're ready.";
 "Continue playing" = "Continue playing";
 "Continue where you left off." = "Continue where you left off.";
+"Continue with Apple" = "Continue with Apple";
 "Continue with Google" = "Continue with Google";
 "Controls how thick every border is." = "Controls how thick every border is.";
 "Controls how visible the border color is." = "Controls how visible the border color is.";
@@ -331,7 +331,6 @@
 "Endpoint: %@" = "Endpoint: %@";
 "English" = "English";
 "Enter a valid email address." = "Enter a valid email address.";
-"Enter your password" = "Enter your password";
 "Example: Capital of France" = "Example: Capital of France";
 "Example: Paris" = "Example: Paris";
 "Expand" = "Expand";
@@ -443,7 +442,10 @@
 "Layout" = "Layout";
 "Learn fast and effectively." = "Learn fast and effectively.";
 "Learn faster. Stay productive." = "Learn faster. Stay productive.";
-"Let's learn" = "Let's learn";
+"Let's focus" = "Let's focus";
+"Let's master" = "Let's master";
+"Let's review" = "Let's review";
+"Let's study" = "Let's study";
 "Learning" = "Learning";
 "LEARNING PROGRESS" = "LEARNING PROGRESS";
 "Left" = "Left";

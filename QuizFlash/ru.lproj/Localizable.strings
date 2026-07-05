@@ -182,7 +182,6 @@
 "Bottom" = "Снизу";
 "Bottom chrome visible" = "Виден нижний хром";
 "Building the deck briefing" = "Брифинг по составлению колоды";
-"Build decks. Review faster." = "Создавайте колоды. Повторяйте быстрее.";
 "Bullet List" = "Маркированный список";
 "By Deck" = "По колоде";
 "Calendar" = "Календарь";
@@ -246,6 +245,7 @@
 "Continue from the last completed batch when you're ready." = "Продолжите с последнего завершённого пакета, когда будете готовы.";
 "Continue playing" = "Продолжить игру";
 "Continue where you left off." = "Продолжайте с того места, где остановились.";
+"Continue with Apple" = "Продолжить с Apple";
 "Continue with Google" = "Продолжить с Google";
 "Controls how thick every border is." = "Управляет толщиной всех границ.";
 "Controls how visible the border color is." = "Управляет заметностью цвета границы.";
@@ -331,7 +331,6 @@
 "Endpoint: %@" = "Конечная точка: %@";
 "English" = "Английский";
 "Enter a valid email address." = "Введите корректный email.";
-"Enter your password" = "Введите пароль";
 "Example: Capital of France" = "Пример: столица Франции";
 "Example: Paris" = "Пример: Париж";
 "Expand" = "Развернуть";
@@ -443,7 +442,10 @@
 "Layout" = "Разметка";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
 "Learn faster. Stay productive." = "Учитесь быстрее. Оставайтесь продуктивными.";
-"Let's learn" = "Начнём учиться";
+"Let's focus" = "Сфокусируемся";
+"Let's master" = "Освоим";
+"Let's review" = "Повторим";
+"Let's study" = "Начнём учиться";
 "Learning" = "В изучении";
 "LEARNING PROGRESS" = "ПРОГРЕСС ОБУЧЕНИЯ";
 "Left" = "Левый";
