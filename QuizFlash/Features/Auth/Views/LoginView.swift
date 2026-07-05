@@ -193,7 +193,6 @@ struct LoginView: View {
                 },
                 onError: presentError
             )
-                .authSheetDismissLocked()
         } background: {
             AuthLoginSheetBackground()
         }
@@ -426,7 +425,7 @@ private struct AuthLoginSheetContent: View {
 
     private var loginFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            header(title: AppLocalization.string("Continue with email", locale: locale))
+            header
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -471,7 +470,7 @@ private struct AuthLoginSheetContent: View {
 
     private var signUpFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            header(title: AppLocalization.string("Continue with email", locale: locale))
+            header
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -597,7 +596,7 @@ private struct AuthLoginSheetContent: View {
         }
     }
 
-    private func header(title: String) -> some View {
+    private var header: some View {
         HStack(spacing: UIConstants.Spacing.standard) {
             Button {
                 setMode(.actions)
@@ -610,12 +609,6 @@ private struct AuthLoginSheetContent: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AppLocalization.string("Back", locale: locale))
-
-            Text(title)
-                .font(.title.weight(.bold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
 
             Spacer(minLength: 0)
         }
@@ -861,26 +854,6 @@ private struct AuthLoginSheetBackground: View {
     var body: some View {
         Color.black
             .overlay(Color.white.opacity(0.10))
-    }
-}
-
-private struct AuthSheetDismissLockModifier: ViewModifier {
-    @Environment(\.fullScreenSheetDismissCoordinator) private var dismissCoordinator
-
-    func body(content: Content) -> some View {
-        content
-            .onAppear {
-                dismissCoordinator?.shouldAllowDismiss = { false }
-            }
-            .onDisappear {
-                dismissCoordinator?.shouldAllowDismiss = nil
-            }
-    }
-}
-
-private extension View {
-    func authSheetDismissLocked() -> some View {
-        modifier(AuthSheetDismissLockModifier())
     }
 }
 

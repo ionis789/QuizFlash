@@ -575,6 +575,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let isFullHeightSheet = sheetTopY <= 0.5
         let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
         let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
+        let sheetBottomOverscan = isFullHeightSheet ? 0 : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
         let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
             sheetTopY: sheetTopY,
             additionalTopInset: dragIndicatorInset
@@ -648,6 +649,14 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
+        .background(alignment: .bottom) {
+            if sheetBottomOverscan > 0 {
+                backgroundView(dragProgress: dragProgress)
+                    .frame(width: containerWidth, height: sheetBottomOverscan)
+                    .offset(y: sheetBottomOverscan)
+                    .allowsHitTesting(false)
+            }
+        }
         .offset(y: visibleSheetOffset)
 
         let baseView = ZStack(alignment: .bottom) {
