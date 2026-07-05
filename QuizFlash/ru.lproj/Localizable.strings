@@ -425,6 +425,7 @@
 "just now" = "только что";
 "Keep %d received cards" = "Оставить %d полученных карточек";
 "Keep Editing" = "Продолжить редактирование";
+"Keep your focus" = "Сохраняйте фокус";
 "Keeping the current list stable while the next result set is prepared." = "Текущий список остается стабильным, пока готовится следующий набор результатов.";
 "Label Color" = "Цвет метки";
 "Labs" = "Лабы";
@@ -703,9 +704,11 @@
 "Stable this week" = "Стабильно на этой неделе";
 "Start" = "Старт";
 "Start today's goal from this deck." = "Начните сегодняшнюю цель с этой колоды.";
+"Start to learn faster" = "Начните учиться быстрее";
 "Start with one focused block and let the ring fill with you." = "Начни с короткого блока и заполни кольцо.";
 "State" = "Состояние";
 "Status" = "Статус";
+"Stay productive" = "Оставайтесь продуктивными";
 "Stop AI generation?" = "Остановить AI генерацию?";
 "Stop generation" = "Остановить генерацию";
 "Storage" = "Хранилище";
@@ -713,6 +716,7 @@
 "Streak" = "Серия";
 "Strong" = "Сильная";
 "Study cards and widget cards." = "Учебные карточки и виджеты.";
+"Study smarter" = "Учитесь умнее";
 "Sunday" = "Воскресенье";
 "Suspended" = "Приостановлена";
 "Swipe HUD" = "Проведите по интерфейсу";

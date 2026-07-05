@@ -425,6 +425,7 @@
 "just now" = "just now";
 "Keep %d received cards" = "Keep %d received cards";
 "Keep Editing" = "Keep Editing";
+"Keep your focus" = "Keep your focus";
 "Keeping the current list stable while the next result set is prepared." = "Keeping the current list stable while the next result set is prepared.";
 "Label Color" = "Label Color";
 "Labs" = "Labs";
@@ -703,9 +704,11 @@
 "Stable this week" = "Stable this week";
 "Start" = "Start";
 "Start today's goal from this deck." = "Start today's goal from this deck.";
+"Start to learn faster" = "Start to learn faster";
 "Start with one focused block and let the ring fill with you." = "Start with one focused block and let the ring fill with you.";
 "State" = "State";
 "Status" = "Status";
+"Stay productive" = "Stay productive";
 "Stop AI generation?" = "Stop AI generation?";
 "Stop generation" = "Stop generation";
 "Storage" = "Storage";
@@ -713,6 +716,7 @@
 "Streak" = "Streak";
 "Strong" = "Strong";
 "Study cards and widget cards." = "Study cards and widget cards.";
+"Study smarter" = "Study smarter";
 "Sunday" = "Sunday";
 "Suspended" = "Suspended";
 "Swipe HUD" = "Swipe HUD";

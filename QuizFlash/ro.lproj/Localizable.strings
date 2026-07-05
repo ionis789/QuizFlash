@@ -425,6 +425,7 @@
 "just now" = "chiar acum";
 "Keep %d received cards" = "Păstrează %d carduri primite";
 "Keep Editing" = "Continuă editarea";
+"Keep your focus" = "Păstrează-ți focusul";
 "Keeping the current list stable while the next result set is prepared." = "Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.";
 "Label Color" = "Culoare etichetă";
 "Labs" = "Laborator";
@@ -703,9 +704,11 @@
 "Stable this week" = "Stabil săptămâna asta";
 "Start" = "Începe";
 "Start today's goal from this deck." = "Începe obiectivul de azi din acest deck.";
+"Start to learn faster" = "Începe să înveți mai repede";
 "Start with one focused block and let the ring fill with you." = "Începe cu un bloc scurt și umple inelul.";
 "State" = "Stare";
 "Status" = "Status";
+"Stay productive" = "Rămâi productiv";
 "Stop AI generation?" = "Oprești generarea AI?";
 "Stop generation" = "Oprește generarea";
 "Storage" = "Depozitare";
@@ -713,6 +716,7 @@
 "Streak" = "Serie";
 "Strong" = "Puternică";
 "Study cards and widget cards." = "Carduri de studiu și carduri widget.";
+"Study smarter" = "Studiază mai inteligent";
 "Sunday" = "Duminică";
 "Suspended" = "Suspendat";
 "Swipe HUD" = "Glisați HUD";

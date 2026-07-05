@@ -120,21 +120,7 @@ struct LoginView: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 Spacer(minLength: UIConstants.Spacing.huge)
 
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 42, weight: .heavy))
-                            .foregroundStyle(themeManager.accentColor.color)
-
-                        Text("QuizFlash")
-                            .font(.system(size: 40, weight: .heavy))
-                            .foregroundStyle(.primary)
-                    }
-
-                    Text(AppLocalization.string("Learn faster. Stay productive.", locale: locale))
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+                LoginMotivationText(phrases: loginMotivationPhrases)
                 .padding(.bottom, UIConstants.Spacing.large)
 
                 VStack(spacing: UIConstants.Spacing.medium) {
@@ -247,6 +233,15 @@ struct LoginView: View {
             && !password.isEmpty
     }
 
+    private var loginMotivationPhrases: [String] {
+        [
+            AppLocalization.string("Start to learn faster", locale: locale),
+            AppLocalization.string("Stay productive", locale: locale),
+            AppLocalization.string("Study smarter", locale: locale),
+            AppLocalization.string("Keep your focus", locale: locale)
+        ]
+    }
+
     private func presentError(_ error: Error) {
         guard !isUserCancelledSignIn(error) else { return }
 
@@ -269,6 +264,56 @@ struct LoginView: View {
         let error = error as NSError
         return error.domain == kGIDSignInErrorDomain
             && error.code == GIDSignInError.canceled.rawValue
+    }
+}
+
+// MARK: - Login Motivation Text
+
+private struct LoginMotivationText: View {
+    let phrases: [String]
+
+    @State private var currentIndex = 0
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(Array(phrases.enumerated()), id: \.offset) { index, phrase in
+                if index == visibleIndex {
+                    Text(phrase)
+                        .font(.system(size: 40, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.78)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            )
+                        )
+                }
+            }
+        }
+        .frame(minHeight: 104, alignment: .center)
+        .clipped()
+        .task(id: phrases.joined(separator: "|")) {
+            currentIndex = 0
+            guard phrases.count > 1 else { return }
+
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(1800))
+                guard !Task.isCancelled else { return }
+
+                withAnimation(.easeInOut(duration: 0.42)) {
+                    currentIndex = (currentIndex + 1) % phrases.count
+                }
+            }
+        }
+    }
+
+    private var visibleIndex: Int {
+        guard !phrases.isEmpty else { return 0 }
+        return min(currentIndex, phrases.count - 1)
     }
 }
 
