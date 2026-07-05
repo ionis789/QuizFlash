@@ -90,7 +90,10 @@ struct LoginView: View {
             }
             .frame(width: 0, height: 0)
         }
-        .sheet(item: $activeSheet) { sheet in
+        .fullScreenSheet(
+            item: $activeSheet,
+            configuration: secondaryAuthSheetConfiguration
+        ) { sheet, _ in
             switch sheet {
             case .forgotPassword:
                 ForgotPasswordView(
@@ -102,9 +105,9 @@ struct LoginView: View {
                     },
                     onError: presentError
                 )
-                .presentationDetents([.height(300), .medium])
-                .presentationBackground(.background)
             }
+        } background: {
+            AuthLoginSheetBackground()
         }
         .alert(
             alertTitle,
@@ -152,6 +155,7 @@ struct LoginView: View {
                 safeAreaInsets: safeAreaInsets,
                 locale: locale,
                 accentColor: themeManager.accentColor.color,
+                reduceMotion: reduceMotion,
                 onAppleSignIn: {
                     try await authManager.signInWithApple()
                 },
@@ -191,6 +195,17 @@ struct LoginView: View {
             heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.88),
             dragActivationArea: .fixed(0),
             showsBackdropBlur: false,
+            showsDefaultTopProgressiveBlur: false,
+            hidesTabBar: false
+        )
+    }
+
+    private var secondaryAuthSheetConfiguration: FullScreenSheetConfiguration {
+        .sheet(
+            heightMode: .adaptiveAbsolute(380, maxFraction: 0.62),
+            dragActivationArea: .fullSurface,
+            showsDragIndicator: true,
+            showsBackdropBlur: true,
             showsDefaultTopProgressiveBlur: false,
             hidesTabBar: false
         )
@@ -264,6 +279,7 @@ private struct AuthLoginSheetContent: View {
     let safeAreaInsets: UIEdgeInsets
     let locale: Locale
     let accentColor: Color
+    let reduceMotion: Bool
     let onAppleSignIn: @MainActor @Sendable () async throws -> Void
     let onGoogleSignIn: @MainActor @Sendable () async throws -> Void
     let onForgotPassword: @MainActor @Sendable () -> Void
@@ -271,31 +287,55 @@ private struct AuthLoginSheetContent: View {
     let onCreateAccount: @MainActor @Sendable (String, String, String) async throws -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
+    @State private var displayedMode: AuthSheetMode = .actions
+    @State private var isContentVisible = true
+    @State private var modeTransitionTask: Task<Void, Never>?
+
+    private var contentHiddenScale: CGFloat { 0.952 }
+    private var contentTransition: Animation {
+        reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.36, dampingFraction: 0.84)
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                switch mode {
-                case .actions:
-                    actionButtons
-                case .login:
-                    loginFields
-                case .signUp:
-                    signUpFields
+                Group {
+                    switch displayedMode {
+                    case .actions:
+                        actionButtons
+                    case .login:
+                        loginFields
+                    case .signUp:
+                        signUpFields
+                    }
                 }
+                .opacity(isContentVisible ? 1 : 0.001)
+                .scaleEffect(isContentVisible ? 1 : contentHiddenScale, anchor: .center)
+                .allowsHitTesting(isContentVisible)
+                .animation(contentTransition, value: isContentVisible)
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.extraLarge)
             .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
             .frame(maxWidth: 460)
             .frame(maxWidth: .infinity)
-            .transaction { transaction in
-                transaction.disablesAnimations = true
-                transaction.animation = nil
-            }
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnBackgroundTap()
+        .onAppear {
+            displayedMode = mode
+            isContentVisible = true
+        }
+        .onDisappear {
+            modeTransitionTask?.cancel()
+            modeTransitionTask = nil
+        }
+        .onChange(of: mode) { _, newMode in
+            guard newMode != displayedMode else { return }
+            displayedMode = newMode
+            isContentVisible = true
+        }
     }
 
     private var actionButtons: some View {
@@ -471,7 +511,36 @@ private struct AuthLoginSheetContent: View {
     }
 
     private func setMode(_ newMode: AuthSheetMode) {
-        mode = newMode
+        guard newMode != displayedMode else { return }
+
+        modeTransitionTask?.cancel()
+        modeTransitionTask = Task { @MainActor in
+            defer { modeTransitionTask = nil }
+
+            withAnimation(contentTransition) {
+                isContentVisible = false
+            }
+
+            guard !reduceMotion else {
+                displayedMode = newMode
+                mode = newMode
+                isContentVisible = true
+                return
+            }
+
+            try? await Task.sleep(for: .milliseconds(130))
+            guard !Task.isCancelled else { return }
+
+            displayedMode = newMode
+            mode = newMode
+
+            try? await Task.sleep(for: .milliseconds(35))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(contentTransition) {
+                isContentVisible = true
+            }
+        }
     }
 
     private func header(title: String) -> some View {
@@ -779,7 +848,7 @@ private struct ForgotPasswordView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
 
     @State private var email = ""
 
@@ -816,9 +885,13 @@ private struct ForgotPasswordView: View {
                     isEnabled: !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ) {
                     try await authManager.sendPasswordReset(email: email)
-                    dismiss()
-                    try? await Task.sleep(for: .milliseconds(250))
-                    onSuccess()
+                    if let fullScreenSheetDismiss {
+                        fullScreenSheetDismiss {
+                            onSuccess()
+                        }
+                    } else {
+                        onSuccess()
+                    }
                 } onError: { error in
                     onError(error)
                 }
