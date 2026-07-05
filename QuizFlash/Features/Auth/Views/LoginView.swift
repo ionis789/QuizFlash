@@ -135,6 +135,7 @@ struct LoginView: View {
                 guard newPhase == .active else { return }
                 restoreAuthSheetAfterAppActivation()
             }
+            .ignoresSafeArea(.keyboard, edges: activeSheet == nil ? [] : .bottom)
     }
 
     private var authLanding: some View {
@@ -915,8 +916,10 @@ private struct ForgotPasswordView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetDismissCoordinator) private var dismissCoordinator
 
     @State private var email = ""
+    @State private var keyboardMonitor = KeyboardMonitor.shared
 
     let onSuccess: @MainActor @Sendable () -> Void
     let onError: @MainActor @Sendable (Error) -> Void
@@ -969,6 +972,34 @@ private struct ForgotPasswordView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.never)
         .dismissKeyboardOnBackgroundTap()
+        .onAppear {
+            configureDismissCoordinator()
+        }
+        .onDisappear {
+            dismissCoordinator?.shouldAllowDismiss = nil
+            dismissCoordinator?.onBlockedDismiss = nil
+        }
+        .onChange(of: keyboardMonitor.isVisible) {
+            configureDismissCoordinator()
+        }
+    }
+
+    private func configureDismissCoordinator() {
+        dismissCoordinator?.shouldAllowDismiss = {
+            !keyboardMonitor.isVisible
+        }
+        dismissCoordinator?.onBlockedDismiss = {
+            dismissKeyboard()
+        }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }
 
