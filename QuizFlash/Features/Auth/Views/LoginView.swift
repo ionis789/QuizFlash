@@ -277,13 +277,10 @@ private struct AuthLoginSheetContent: View {
                 switch mode {
                 case .actions:
                     actionButtons
-                        .transition(.move(edge: .bottom))
                 case .login:
                     loginFields
-                        .transition(.move(edge: .trailing))
                 case .signUp:
                     signUpFields
-                        .transition(.move(edge: .trailing))
                 }
             }
             .padding(.horizontal, UIConstants.Spacing.large)
@@ -291,11 +288,14 @@ private struct AuthLoginSheetContent: View {
             .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
             .frame(maxWidth: 460)
             .frame(maxWidth: .infinity)
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+                transaction.animation = nil
+            }
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnBackgroundTap()
-        .animation(.smooth(duration: 0.34, extraBounce: 0), value: mode)
     }
 
     private var actionButtons: some View {
@@ -471,9 +471,7 @@ private struct AuthLoginSheetContent: View {
     }
 
     private func setMode(_ newMode: AuthSheetMode) {
-        withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
-            mode = newMode
-        }
+        mode = newMode
     }
 
     private func header(title: String) -> some View {
