@@ -149,6 +149,14 @@ extension Animation {
         .spring(response: 0.32, dampingFraction: 0.9)
     }
 
+    /// Shared spring for the app's Scale Reveal motion.
+    ///
+    /// Use this for compact screen/content swaps where one mounted view should
+    /// gently tuck away, swap content while hidden, then return at full scale.
+    static var scaleRevealSpring: Animation {
+        .spring(response: 0.36, dampingFraction: 0.84)
+    }
+
     /// Shared animation used while a context-menu source compresses under the finger.
     static var contextMenuPressIn: Animation {
         .timingCurve(0.42, 0.0, 0.20, 1.0, duration: 0.22)
@@ -192,6 +200,22 @@ extension Animation {
     /// Shared spring used when the main context-menu card pops in under the source preview.
     static var contextMenuMenuPopSpring: Animation {
         .circularProgressSpring.speed(3.6)
+    }
+}
+
+// MARK: - Scale Reveal Motion
+
+/// Standard QuizFlash motion for compact content swaps.
+///
+/// Product name: Scale Reveal. Use `scaleRevealMotion(...)` when a view should
+/// appear with the same subtle scale treatment used by quiz content transitions.
+enum ScaleRevealMotion {
+    static let hiddenScale: CGFloat = 0.952
+    static let contentSwapDelay: Duration = .milliseconds(130)
+    static let revealDelay: Duration = .milliseconds(35)
+
+    static func animation(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .linear(duration: 0.01) : .scaleRevealSpring
     }
 }
 
@@ -794,6 +818,23 @@ private struct StatusTextMotionModifier<Trigger: Equatable>: ViewModifier {
     }
 }
 
+// MARK: - ScaleRevealMotionModifier
+
+/// Applies Scale Reveal visibility treatment without mounting a second content copy.
+private struct ScaleRevealMotionModifier: ViewModifier {
+    let isVisible: Bool
+    let reduceMotion: Bool
+    let anchor: UnitPoint
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0.001)
+            .scaleEffect(isVisible ? 1 : ScaleRevealMotion.hiddenScale, anchor: anchor)
+            .allowsHitTesting(isVisible)
+            .animation(ScaleRevealMotion.animation(reduceMotion: reduceMotion), value: isVisible)
+    }
+}
+
 // MARK: - BottomChromeVisibilityModifier
 
 /// Applies the shared show/hide treatment for the floating tab bar and other persistent bottom chrome.
@@ -994,6 +1035,21 @@ extension View {
     /// Applies the shared animated status-label treatment for counters and short live state text.
     func statusTextMotion<Trigger: Equatable>(trigger: Trigger) -> some View {
         modifier(StatusTextMotionModifier(trigger: trigger))
+    }
+
+    /// Applies Scale Reveal, the standard QuizFlash motion for compact content swaps.
+    func scaleRevealMotion(
+        isVisible: Bool,
+        reduceMotion: Bool,
+        anchor: UnitPoint = .center
+    ) -> some View {
+        modifier(
+            ScaleRevealMotionModifier(
+                isVisible: isVisible,
+                reduceMotion: reduceMotion,
+                anchor: anchor
+            )
+        )
     }
 
     /// Applies the standard visibility motion used when bottom chrome appears or yields to selection bars.

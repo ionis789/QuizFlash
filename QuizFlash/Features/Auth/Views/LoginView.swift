@@ -291,9 +291,8 @@ private struct AuthLoginSheetContent: View {
     @State private var isContentVisible = true
     @State private var modeTransitionTask: Task<Void, Never>?
 
-    private var contentHiddenScale: CGFloat { 0.952 }
     private var contentTransition: Animation {
-        reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.36, dampingFraction: 0.84)
+        ScaleRevealMotion.animation(reduceMotion: reduceMotion)
     }
 
     var body: some View {
@@ -309,10 +308,7 @@ private struct AuthLoginSheetContent: View {
                         signUpFields
                     }
                 }
-                .opacity(isContentVisible ? 1 : 0.001)
-                .scaleEffect(isContentVisible ? 1 : contentHiddenScale, anchor: .center)
-                .allowsHitTesting(isContentVisible)
-                .animation(contentTransition, value: isContentVisible)
+                .scaleRevealMotion(isVisible: isContentVisible, reduceMotion: reduceMotion)
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.extraLarge)
@@ -528,13 +524,13 @@ private struct AuthLoginSheetContent: View {
                 return
             }
 
-            try? await Task.sleep(for: .milliseconds(130))
+            try? await Task.sleep(for: ScaleRevealMotion.contentSwapDelay)
             guard !Task.isCancelled else { return }
 
             displayedMode = newMode
             mode = newMode
 
-            try? await Task.sleep(for: .milliseconds(35))
+            try? await Task.sleep(for: ScaleRevealMotion.revealDelay)
             guard !Task.isCancelled else { return }
 
             withAnimation(contentTransition) {
