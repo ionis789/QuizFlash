@@ -110,6 +110,7 @@ extension EnvironmentValues {
 
 final class FullScreenSheetDismissCoordinator {
     var shouldAllowDismiss: (() -> Bool)?
+    var onBlockedDismiss: (() -> Void)?
 }
 
 @MainActor
@@ -930,6 +931,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     ) {
         guard !isAnimatingDismiss else { return }
         guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
+            dismissCoordinator.onBlockedDismiss?()
             withAnimation(dismissalAnimation) { offset = 0 }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))

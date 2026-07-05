@@ -328,6 +328,8 @@ private enum AuthSheetMode: Equatable {
 // MARK: - Auth Login Sheet Content
 
 private struct AuthLoginSheetContent: View {
+    @Environment(\.fullScreenSheetDismissCoordinator) private var dismissCoordinator
+
     @Binding var mode: AuthSheetMode
     @Binding var email: String
     @Binding var password: String
@@ -379,15 +381,19 @@ private struct AuthLoginSheetContent: View {
         .onAppear {
             displayedMode = mode
             isContentVisible = true
+            configureDismissCoordinator()
         }
         .onDisappear {
             modeTransitionTask?.cancel()
             modeTransitionTask = nil
+            dismissCoordinator?.shouldAllowDismiss = nil
+            dismissCoordinator?.onBlockedDismiss = nil
         }
         .onChange(of: mode) { _, newMode in
             guard newMode != displayedMode else { return }
             displayedMode = newMode
             isContentVisible = true
+            configureDismissCoordinator()
         }
     }
 
@@ -577,6 +583,7 @@ private struct AuthLoginSheetContent: View {
             guard !reduceMotion else {
                 displayedMode = newMode
                 mode = newMode
+                configureDismissCoordinator()
                 isContentVisible = true
                 return
             }
@@ -586,6 +593,7 @@ private struct AuthLoginSheetContent: View {
 
             displayedMode = newMode
             mode = newMode
+            configureDismissCoordinator()
 
             try? await Task.sleep(for: ScaleRevealMotion.revealDelay)
             guard !Task.isCancelled else { return }
@@ -593,6 +601,16 @@ private struct AuthLoginSheetContent: View {
             withAnimation(contentTransition) {
                 isContentVisible = true
             }
+        }
+    }
+
+    private func configureDismissCoordinator() {
+        dismissCoordinator?.shouldAllowDismiss = {
+            mode == .actions
+        }
+        dismissCoordinator?.onBlockedDismiss = {
+            guard mode != .actions else { return }
+            setMode(.actions)
         }
     }
 
