@@ -277,13 +277,13 @@ private struct AuthLoginSheetContent: View {
                 switch mode {
                 case .actions:
                     actionButtons
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .transition(.move(edge: .bottom))
                 case .login:
                     loginFields
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                        .transition(.move(edge: .trailing))
                 case .signUp:
                     signUpFields
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                        .transition(.move(edge: .trailing))
                 }
             }
             .padding(.horizontal, UIConstants.Spacing.large)
@@ -333,7 +333,6 @@ private struct AuthLoginSheetContent: View {
     private var loginFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             header(title: AppLocalization.string("Continue with email", locale: locale))
-            emailModePicker
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -371,13 +370,14 @@ private struct AuthLoginSheetContent: View {
                 onError(error)
             }
             .padding(.top, UIConstants.Spacing.small)
+
+            switchToSignUpPrompt
         }
     }
 
     private var signUpFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             header(title: AppLocalization.string("Continue with email", locale: locale))
-            emailModePicker
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -416,42 +416,47 @@ private struct AuthLoginSheetContent: View {
                 onError(error)
             }
             .padding(.top, UIConstants.Spacing.small)
+
+            switchToSignInPrompt
         }
     }
 
-    private var emailModePicker: some View {
-        HStack(spacing: UIConstants.Spacing.tiny) {
-            emailModeButton(
-                title: AppLocalization.string("Sign In", locale: locale),
-                mode: .login
-            )
-            emailModeButton(
-                title: AppLocalization.string("Sign Up", locale: locale),
-                mode: .signUp
-            )
+    private var switchToSignUpPrompt: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            Text(AppLocalization.string("Don't have an account?", locale: locale))
+                .foregroundStyle(Color.white.opacity(0.56))
+
+            Button {
+                setMode(.signUp)
+            } label: {
+                Text(AppLocalization.string("Sign Up", locale: locale))
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(accentColor)
         }
-        .padding(UIConstants.Spacing.tiny)
-        .background(Color.white.opacity(0.08), in: Capsule())
-        .padding(.bottom, UIConstants.Spacing.small)
+        .font(.callout)
+        .frame(maxWidth: .infinity)
+        .padding(.top, UIConstants.Spacing.small)
     }
 
-    private func emailModeButton(title: String, mode targetMode: AuthSheetMode) -> some View {
-        let isSelected = mode == targetMode
+    private var switchToSignInPrompt: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            Text(AppLocalization.string("Already have an account?", locale: locale))
+                .foregroundStyle(Color.white.opacity(0.56))
 
-        return Button {
-            setMode(targetMode)
-        } label: {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.72))
-                .frame(maxWidth: .infinity)
-                .frame(height: 38)
-                .background(
-                    isSelected ? Color.white : Color.clear,
-                    in: Capsule()
-                )
+            Button {
+                setMode(.login)
+            } label: {
+                Text(AppLocalization.string("Sign In", locale: locale))
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(accentColor)
         }
-        .buttonStyle(.plain)
+        .font(.callout)
+        .frame(maxWidth: .infinity)
+        .padding(.top, UIConstants.Spacing.small)
     }
 
     private var canSignIn: Bool {
