@@ -21,7 +21,9 @@ struct LoginView: View {
 
     @State private var email = ""
     @State private var password = ""
-    @State private var showsCredentialForm = false
+    @State private var passwordConfirmation = ""
+    @State private var authSheetMode: AuthSheetMode = .actions
+    @State private var isAuthSheetPresented = true
     @State private var activeSheet: AuthSheet?
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -90,10 +92,6 @@ struct LoginView: View {
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
-            case .createAccount:
-                CreateAccountView(onError: presentError)
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.background)
             case .forgotPassword:
                 ForgotPasswordView(
                     onSuccess: {
@@ -119,16 +117,10 @@ struct LoginView: View {
     }
 
     private var loginForm: some View {
-        ZStack {
-            if showsCredentialForm {
-                credentialForm
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else {
-                authLanding
-                    .transition(.opacity)
+        authLanding
+            .onAppear {
+                isAuthSheetPresented = true
             }
-        }
-        .animation(.easeInOut(duration: 0.28), value: showsCredentialForm)
     }
 
     private var authLanding: some View {
@@ -143,193 +135,76 @@ struct LoginView: View {
                 )
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
 
-                Spacer(minLength: UIConstants.Spacing.large)
-
-                VStack(spacing: UIConstants.Spacing.medium) {
-                    AuthLandingAsyncButton(
-                        title: AppLocalization.string("Continue with Apple", locale: locale),
-                        systemImage: "applelogo",
-                        style: .light
-                    ) {
-                        try await authManager.signInWithApple()
-                    } onError: { error in
-                        presentError(error)
-                    }
-
-                    AuthLandingAsyncButton(
-                        title: AppLocalization.string("Continue with Google", locale: locale),
-                        textIcon: "G",
-                        style: .dark
-                    ) {
-                        try await authManager.signInWithGoogle(
-                            presentingViewController: presentingViewController
-                        )
-                    } onError: { error in
-                        presentError(error)
-                    }
-
-                    AuthLandingButton(
-                        title: AppLocalization.string("Log in or sign up", locale: locale),
-                        style: .dark
-                    ) {
-                        showsCredentialForm = true
-                    }
-                }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
-                .frame(maxWidth: 540)
-                .frame(maxWidth: .infinity)
-                .background(alignment: .bottom) {
-                    UnevenRoundedRectangle(
-                        cornerRadii: RectangleCornerRadii(
-                            topLeading: UIConstants.Radius.maximum,
-                            topTrailing: UIConstants.Radius.maximum
-                        ),
-                        style: .continuous
-                    )
-                    .fill(Color.white.opacity(0.12))
-                    .ignoresSafeArea(edges: .bottom)
-                }
+                Spacer(minLength: proxy.size.height * 0.34)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.ignoresSafeArea())
         }
-    }
-
-    private var credentialForm: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                Button {
-                    showsCredentialForm = false
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
-                        .duoControlSurface(cornerRadius: UIConstants.Size.buttonHeight / 2)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(AppLocalization.string("Back", locale: locale))
-                .padding(.bottom, UIConstants.Spacing.small)
-
-                Spacer(minLength: UIConstants.Spacing.huge)
-
-                Text(AppLocalization.string("Log in or sign up", locale: locale))
-                    .font(.system(size: 36, weight: .heavy))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
-                    .padding(.bottom, UIConstants.Spacing.large)
-
-                VStack(spacing: UIConstants.Spacing.medium) {
-                    AuthIconTextField(
-                        title: AppLocalization.string("Email Address", locale: locale),
-                        icon: "envelope",
-                        text: $email
-                    )
-                    .keyboardType(.emailAddress)
-                    .textContentType(.username)
-
-                    AuthIconTextField(
-                        title: AppLocalization.string("Password", locale: locale),
-                        icon: "lock",
-                        isPassword: true,
-                        text: $password
-                    )
-                }
-
-                Button {
-                    activeSheet = .forgotPassword
-                } label: {
-                    Text(AppLocalization.string("Forgot Password?", locale: locale))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .buttonStyle(.plain)
-
-                AuthAsyncButton(
-                    title: AppLocalization.string("Sign In", locale: locale),
-                    icon: nil,
-                    tint: themeManager.accentColor.color,
-                    isEnabled: canSignIn
-                ) {
-                    try await authManager.signIn(email: email, password: password)
-                } onError: { error in
-                    presentError(error)
-                }
-                .padding(.top, UIConstants.Spacing.small)
-
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.10))
-                        .frame(height: 1)
-
-                    Text(AppLocalization.string("or", locale: locale))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.10))
-                        .frame(height: 1)
-                }
-                .padding(.vertical, UIConstants.Spacing.small)
-
-                AuthAsyncButton(
-                    title: AppLocalization.string("Continue with Google", locale: locale),
-                    icon: "globe",
-                    tint: Color.primary.opacity(0.08),
-                    foreground: .primary
-                ) {
+        .fullScreenSheet(
+            isPresented: $isAuthSheetPresented,
+            configuration: authSheetConfiguration
+        ) { safeAreaInsets in
+            AuthLoginSheetContent(
+                mode: $authSheetMode,
+                email: $email,
+                password: $password,
+                passwordConfirmation: $passwordConfirmation,
+                safeAreaInsets: safeAreaInsets,
+                locale: locale,
+                accentColor: themeManager.accentColor.color,
+                onAppleSignIn: {
+                    try await authManager.signInWithApple()
+                },
+                onGoogleSignIn: {
                     try await authManager.signInWithGoogle(
                         presentingViewController: presentingViewController
                     )
-                } onError: { error in
-                    presentError(error)
-                }
-
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Text(AppLocalization.string("Don't have an account?", locale: locale))
-                        .foregroundStyle(.secondary)
-
-                    Button {
-                        activeSheet = .createAccount
-                    } label: {
-                        Text(AppLocalization.string("Sign Up", locale: locale))
-                            .fontWeight(.semibold)
+                },
+                onForgotPassword: {
+                    activeSheet = .forgotPassword
+                },
+                onSignIn: { email, password in
+                    try await authManager.signIn(email: email, password: password)
+                },
+                onCreateAccount: { email, password, confirmation in
+                    let user = try await authManager.createAccount(
+                        email: email,
+                        password: password,
+                        confirmation: confirmation
+                    )
+                    onboardingStateStore.markPendingForNewAccount(uid: user.uid)
+                    if !user.requiresEmailVerification {
+                        onboardingStateStore.presentRequiredIfNeeded(for: user)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(themeManager.accentColor.color)
-                }
-                .font(.callout)
-                .frame(maxWidth: .infinity)
-                .padding(.top, UIConstants.Spacing.small)
-
-                Button {
-                    onboardingStateStore.presentPreview()
-                } label: {
-                    Text(AppLocalization.string("Preview Onboarding", locale: locale))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(themeManager.accentColor.color)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, UIConstants.Spacing.huge)
-            .padding(.bottom, UIConstants.Spacing.huge * 3)
-            .frame(maxWidth: 460)
-            .frame(maxWidth: .infinity)
+                },
+                onError: presentError
+            )
+                .authSheetDismissLocked()
+        } background: {
+            AuthLoginSheetBackground()
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.never)
-        .dismissKeyboardOnBackgroundTap()
+        .animation(.smooth(duration: 0.34, extraBounce: 0), value: authSheetMode)
     }
 
-    private var canSignIn: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !password.isEmpty
+    private var authSheetConfiguration: FullScreenSheetConfiguration {
+        .sheet(
+            heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.88),
+            dragActivationArea: .fixed(0),
+            showsBackdropBlur: false,
+            showsDefaultTopProgressiveBlur: false,
+            hidesTabBar: false
+        )
+    }
+
+    private var authSheetHeight: CGFloat {
+        switch authSheetMode {
+        case .actions:
+            332
+        case .login:
+            430
+        case .signUp:
+            500
+        }
     }
 
     private var walkthroughPhrases: [String] {
@@ -368,6 +243,226 @@ struct LoginView: View {
 
         return error.domain == ASAuthorizationError.errorDomain
             && error.code == ASAuthorizationError.canceled.rawValue
+    }
+
+}
+
+private enum AuthSheetMode: Equatable {
+    case actions
+    case login
+    case signUp
+}
+
+// MARK: - Auth Login Sheet Content
+
+private struct AuthLoginSheetContent: View {
+    @Binding var mode: AuthSheetMode
+    @Binding var email: String
+    @Binding var password: String
+    @Binding var passwordConfirmation: String
+
+    let safeAreaInsets: UIEdgeInsets
+    let locale: Locale
+    let accentColor: Color
+    let onAppleSignIn: @MainActor @Sendable () async throws -> Void
+    let onGoogleSignIn: @MainActor @Sendable () async throws -> Void
+    let onForgotPassword: @MainActor @Sendable () -> Void
+    let onSignIn: @MainActor @Sendable (String, String) async throws -> Void
+    let onCreateAccount: @MainActor @Sendable (String, String, String) async throws -> Void
+    let onError: @MainActor @Sendable (Error) -> Void
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                switch mode {
+                case .actions:
+                    actionButtons
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                case .login:
+                    loginFields
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                case .signUp:
+                    signUpFields
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.top, UIConstants.Spacing.extraLarge)
+            .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnBackgroundTap()
+        .animation(.smooth(duration: 0.34, extraBounce: 0), value: mode)
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: UIConstants.Spacing.medium) {
+            AuthLandingAsyncButton(
+                title: AppLocalization.string("Continue with Apple", locale: locale),
+                systemImage: "applelogo",
+                style: .light
+            ) {
+                try await onAppleSignIn()
+            } onError: { error in
+                onError(error)
+            }
+
+            AuthLandingAsyncButton(
+                title: AppLocalization.string("Continue with Google", locale: locale),
+                textIcon: "G",
+                style: .dark
+            ) {
+                try await onGoogleSignIn()
+            } onError: { error in
+                onError(error)
+            }
+
+            AuthLandingButton(
+                title: AppLocalization.string("Sign In", locale: locale),
+                style: .dark
+            ) {
+                setMode(.login)
+            }
+
+            AuthLandingButton(
+                title: AppLocalization.string("Sign Up", locale: locale),
+                style: .dark
+            ) {
+                setMode(.signUp)
+            }
+        }
+    }
+
+    private var loginFields: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            header(title: AppLocalization.string("Sign In", locale: locale))
+
+            VStack(spacing: UIConstants.Spacing.medium) {
+                AuthIconTextField(
+                    title: AppLocalization.string("Email Address", locale: locale),
+                    icon: "envelope",
+                    text: $email
+                )
+                .keyboardType(.emailAddress)
+                .textContentType(.username)
+
+                AuthIconTextField(
+                    title: AppLocalization.string("Password", locale: locale),
+                    icon: "lock",
+                    isPassword: true,
+                    text: $password
+                )
+            }
+
+            Button(action: onForgotPassword) {
+                Text(AppLocalization.string("Forgot Password?", locale: locale))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .buttonStyle(.plain)
+
+            AuthAsyncButton(
+                title: AppLocalization.string("Sign In", locale: locale),
+                icon: nil,
+                tint: accentColor,
+                isEnabled: canSignIn
+            ) {
+                try await onSignIn(email, password)
+            } onError: { error in
+                onError(error)
+            }
+            .padding(.top, UIConstants.Spacing.small)
+        }
+    }
+
+    private var signUpFields: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            header(title: AppLocalization.string("Create Account", locale: locale))
+
+            VStack(spacing: UIConstants.Spacing.medium) {
+                AuthIconTextField(
+                    title: AppLocalization.string("Email Address", locale: locale),
+                    icon: "envelope",
+                    text: $email
+                )
+                .keyboardType(.emailAddress)
+                .textContentType(.username)
+
+                AuthIconTextField(
+                    title: AppLocalization.string("Password", locale: locale),
+                    icon: "lock",
+                    isPassword: true,
+                    passwordTextContentType: .password,
+                    text: $password
+                )
+
+                AuthIconTextField(
+                    title: AppLocalization.string("Confirm Password", locale: locale),
+                    icon: "lock",
+                    isPassword: true,
+                    passwordTextContentType: .password,
+                    text: $passwordConfirmation
+                )
+            }
+
+            AuthAsyncButton(
+                title: AppLocalization.string("Create Account", locale: locale),
+                icon: "person.badge.plus",
+                tint: accentColor,
+                isEnabled: canCreateAccount
+            ) {
+                try await onCreateAccount(email, password, passwordConfirmation)
+            } onError: { error in
+                onError(error)
+            }
+            .padding(.top, UIConstants.Spacing.small)
+        }
+    }
+
+    private var canSignIn: Bool {
+        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !password.isEmpty
+    }
+
+    private var canCreateAccount: Bool {
+        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !password.isEmpty
+            && password == passwordConfirmation
+    }
+
+    private func setMode(_ newMode: AuthSheetMode) {
+        withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
+            mode = newMode
+        }
+    }
+
+    private func header(title: String) -> some View {
+        HStack(spacing: UIConstants.Spacing.standard) {
+            Button {
+                setMode(.actions)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
+                    .duoControlSurface(cornerRadius: UIConstants.Size.buttonHeight / 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.string("Back", locale: locale))
+
+            Text(title)
+                .font(.title.weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.bottom, UIConstants.Spacing.small)
     }
 }
 
@@ -603,105 +698,44 @@ private struct AuthLandingButtonLabel: View {
     }
 }
 
+// MARK: - Auth Sheet Surface
+
+private struct AuthLoginSheetBackground: View {
+    var body: some View {
+        Color.black
+            .overlay(Color.white.opacity(0.10))
+    }
+}
+
+private struct AuthSheetDismissLockModifier: ViewModifier {
+    @Environment(\.fullScreenSheetDismissCoordinator) private var dismissCoordinator
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                dismissCoordinator?.shouldAllowDismiss = { false }
+            }
+            .onDisappear {
+                dismissCoordinator?.shouldAllowDismiss = nil
+            }
+    }
+}
+
+private extension View {
+    func authSheetDismissLocked() -> some View {
+        modifier(AuthSheetDismissLockModifier())
+    }
+}
+
 // MARK: - Auth Sheet
 
 private enum AuthSheet: Identifiable {
-    case createAccount
     case forgotPassword
 
     var id: String {
         switch self {
-        case .createAccount: "createAccount"
         case .forgotPassword: "forgotPassword"
         }
-    }
-}
-
-// MARK: - Create Account View
-
-private struct CreateAccountView: View {
-    @Environment(AuthManager.self) private var authManager
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(OnboardingStateStore.self) private var onboardingStateStore
-    @Environment(ThemeManager.self) private var themeManager
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var email = ""
-    @State private var password = ""
-    @State private var passwordConfirmation = ""
-
-    let onError: @MainActor @Sendable (Error) -> Void
-
-    private var locale: Locale {
-        appPreferences.resolvedLocale
-    }
-
-    var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                Text(AppLocalization.string("Create Account", locale: locale))
-                    .font(.title.weight(.bold))
-
-                VStack(spacing: UIConstants.Spacing.medium) {
-                    AuthIconTextField(
-                        title: AppLocalization.string("Email Address", locale: locale),
-                        icon: "envelope",
-                        text: $email
-                    )
-                    .keyboardType(.emailAddress)
-                    .textContentType(.username)
-
-                    AuthIconTextField(
-                        title: AppLocalization.string("Password", locale: locale),
-                        icon: "lock",
-                        isPassword: true,
-                        passwordTextContentType: .password,
-                        text: $password
-                    )
-
-                    AuthIconTextField(
-                        title: AppLocalization.string("Confirm Password", locale: locale),
-                        icon: "lock",
-                        isPassword: true,
-                        passwordTextContentType: .password,
-                        text: $passwordConfirmation
-                    )
-                }
-
-                AuthAsyncButton(
-                    title: AppLocalization.string("Create Account", locale: locale),
-                    icon: "person.badge.plus",
-                    tint: themeManager.accentColor.color,
-                    isEnabled: canCreateAccount
-                ) {
-                    let user = try await authManager.createAccount(
-                        email: email,
-                        password: password,
-                        confirmation: passwordConfirmation
-                    )
-                    onboardingStateStore.markPendingForNewAccount(uid: user.uid)
-                    if !user.requiresEmailVerification {
-                        onboardingStateStore.presentRequiredIfNeeded(for: user)
-                    }
-                    dismiss()
-                } onError: { error in
-                    onError(error)
-                }
-                .padding(.top, UIConstants.Spacing.small)
-            }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, UIConstants.Spacing.extraLarge)
-            .padding(.bottom, UIConstants.Spacing.huge * 3)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.never)
-        .dismissKeyboardOnBackgroundTap()
-    }
-
-    private var canCreateAccount: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !password.isEmpty
-            && password == passwordConfirmation
     }
 }
 
