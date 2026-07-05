@@ -378,76 +378,112 @@ private struct AuthWalkthroughText: View {
     let symbolColor: Color
     let reduceMotion: Bool
 
-    @State private var currentIndex = 0
-    @State private var textOffset: CGFloat = 0
-    @State private var symbolOffset: CGFloat = 0
+    @State private var intros: [AuthIntro] = []
+    @State private var activeIntro: AuthIntro?
 
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            Text(currentPhrase)
-                .font(.system(size: 44, weight: .heavy))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .offset(x: textOffset)
+        GeometryReader { proxy in
+            let size = proxy.size
 
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 48, weight: .heavy))
-                .foregroundStyle(symbolColor)
-                .offset(x: -symbolOffset)
+            if let activeIntro {
+                Rectangle()
+                    .fill(activeIntro.backgroundColor)
+                    .overlay {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 38, weight: .heavy))
+                            .foregroundStyle(activeIntro.symbolColor)
+                            .frame(width: 38, height: 38)
+                            .background(alignment: .leading) {
+                                Capsule()
+                                    .fill(activeIntro.backgroundColor)
+                                    .frame(width: size.width)
+                            }
+                            .background(alignment: .leading) {
+                                Text(activeIntro.text)
+                                    .font(.largeTitle.weight(.bold))
+                                    .foregroundStyle(activeIntro.textColor)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .frame(width: textSize(activeIntro.text), alignment: .leading)
+                                    .offset(x: 10)
+                                    .offset(x: activeIntro.textOffset)
+                            }
+                            .offset(x: -activeIntro.symbolOffset)
+                    }
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 86)
         .clipped()
         .task(id: phrases.joined(separator: "|")) {
-            currentIndex = 0
-            textOffset = 0
-            symbolOffset = 0
-            guard phrases.count > 1, !reduceMotion else { return }
+            configureIntros()
+            guard activeIntro == nil else { return }
 
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(1450))
-                guard !Task.isCancelled else { return }
+            activeIntro = intros.first
+            guard intros.count > 1, !reduceMotion else { return }
 
-                let travel = measuredTextWidth(currentPhrase) + 34
-                withAnimation(.snappy(duration: 0.58)) {
-                    textOffset = -travel
-                    symbolOffset = -travel / 2
-                }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
 
-                try? await Task.sleep(for: .milliseconds(580))
-                guard !Task.isCancelled else { return }
-
-                currentIndex = (currentIndex + 1) % phrases.count
-                textOffset = measuredTextWidth(currentPhrase) + 34
-                symbolOffset = 0
-
-                withAnimation(.snappy(duration: 0.52)) {
-                    textOffset = 0
-                }
-
-                try? await Task.sleep(for: .milliseconds(520))
-                guard !Task.isCancelled else { return }
-
-                withAnimation(.snappy(duration: 0.32)) {
-                    symbolOffset = 0
-                }
-            }
+            animate(0)
         }
     }
 
-    private var currentPhrase: String {
-        guard !phrases.isEmpty else { return "" }
-        return phrases[min(currentIndex, phrases.count - 1)]
+    private func configureIntros() {
+        intros = phrases.map {
+            AuthIntro(
+                text: $0,
+                textColor: .white,
+                symbolColor: symbolColor,
+                backgroundColor: .black
+            )
+        }
+
+        if let first = intros.first {
+            intros.append(first)
+        }
     }
 
-    private func measuredTextWidth(_ text: String) -> CGFloat {
+    private func animate(_ index: Int, loop: Bool = true) {
+        if intros.indices.contains(index + 1) {
+            activeIntro?.text = intros[index].text
+            activeIntro?.textColor = intros[index].textColor
+
+            withAnimation(.snappy(duration: 1), completionCriteria: .removed) {
+                activeIntro?.textOffset = -(textSize(intros[index].text) + 20)
+                activeIntro?.symbolOffset = -(textSize(intros[index].text) + 20) / 2
+            } completion: {
+                withAnimation(.snappy(duration: 0.8), completionCriteria: .logicallyComplete) {
+                    activeIntro?.textOffset = 0
+                    activeIntro?.symbolOffset = 0
+                    activeIntro?.symbolColor = intros[index + 1].symbolColor
+                    activeIntro?.backgroundColor = intros[index + 1].backgroundColor
+                } completion: {
+                    animate(index + 1, loop: loop)
+                }
+            }
+        } else if loop {
+            animate(0, loop: loop)
+        }
+    }
+
+    private func textSize(_ text: String) -> CGFloat {
         NSString(string: text).size(
             withAttributes: [
-                .font: UIFont.systemFont(ofSize: 44, weight: .heavy)
+                .font: UIFont.preferredFont(forTextStyle: .largeTitle)
             ]
         ).width
     }
+}
+
+private struct AuthIntro: Identifiable {
+    let id = UUID()
+    var text: String
+    var textColor: Color
+    var symbolColor: Color
+    var backgroundColor: Color
+    var symbolOffset: CGFloat = 0
+    var textOffset: CGFloat = 0
 }
 
 // MARK: - Auth Landing Buttons
