@@ -199,11 +199,11 @@ struct LoginView: View {
     private var authSheetHeight: CGFloat {
         switch authSheetMode {
         case .actions:
-            332
+            280
         case .login:
-            430
-        case .signUp:
             500
+        case .signUp:
+            570
         }
     }
 
@@ -321,24 +321,19 @@ private struct AuthLoginSheetContent: View {
             }
 
             AuthLandingButton(
-                title: AppLocalization.string("Sign In", locale: locale),
+                title: AppLocalization.string("Continue with email", locale: locale),
+                systemImage: "envelope.fill",
                 style: .dark
             ) {
                 setMode(.login)
-            }
-
-            AuthLandingButton(
-                title: AppLocalization.string("Sign Up", locale: locale),
-                style: .dark
-            ) {
-                setMode(.signUp)
             }
         }
     }
 
     private var loginFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            header(title: AppLocalization.string("Sign In", locale: locale))
+            header(title: AppLocalization.string("Continue with email", locale: locale))
+            emailModePicker
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -381,7 +376,8 @@ private struct AuthLoginSheetContent: View {
 
     private var signUpFields: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            header(title: AppLocalization.string("Create Account", locale: locale))
+            header(title: AppLocalization.string("Continue with email", locale: locale))
+            emailModePicker
 
             VStack(spacing: UIConstants.Spacing.medium) {
                 AuthIconTextField(
@@ -421,6 +417,41 @@ private struct AuthLoginSheetContent: View {
             }
             .padding(.top, UIConstants.Spacing.small)
         }
+    }
+
+    private var emailModePicker: some View {
+        HStack(spacing: UIConstants.Spacing.tiny) {
+            emailModeButton(
+                title: AppLocalization.string("Sign In", locale: locale),
+                mode: .login
+            )
+            emailModeButton(
+                title: AppLocalization.string("Sign Up", locale: locale),
+                mode: .signUp
+            )
+        }
+        .padding(UIConstants.Spacing.tiny)
+        .background(Color.white.opacity(0.08), in: Capsule())
+        .padding(.bottom, UIConstants.Spacing.small)
+    }
+
+    private func emailModeButton(title: String, mode targetMode: AuthSheetMode) -> some View {
+        let isSelected = mode == targetMode
+
+        return Button {
+            setMode(targetMode)
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.72))
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(
+                    isSelected ? Color.white : Color.clear,
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var canSignIn: Bool {
