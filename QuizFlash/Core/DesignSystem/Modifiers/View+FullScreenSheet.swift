@@ -333,19 +333,6 @@ private func fullScreenSheetClampedProgress(_ progress: CGFloat) -> CGFloat {
     min(max(progress, 0), 1)
 }
 
-private struct FullScreenSheetVisualDebugSnapshot: Equatable {
-    let timestamp: TimeInterval
-    let containerFrameInWindow: CGRect
-    let hostFrameInWindow: CGRect
-    let platformFrameInWindow: CGRect
-    let platformPresentationFrameInWindow: CGRect
-    let platformBounds: CGRect
-    let platformAffineScaleX: CGFloat
-    let platformAffineScaleY: CGFloat
-    let platformLayerScaleX: CGFloat
-    let platformLayerScaleY: CGFloat
-}
-
 #if DEBUG
 private struct FullScreenSheetDebugMetrics: Equatable {
     let identifier: String?
@@ -400,91 +387,6 @@ private struct FullScreenSheetDebugProbe: View {
                 guard oldMetrics.summary != newMetrics.summary else { return }
                 fullScreenSheetDebugLog(newMetrics.identifier, "metrics.change \(newMetrics.summary)")
             }
-    }
-}
-
-private struct FullScreenSheetVisualDebugOverlay: View {
-    let expectedFrame: CGRect
-    let visibleSheetOffset: CGFloat
-    let presentationProgress: CGFloat
-    let snapshot: FullScreenSheetVisualDebugSnapshot?
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .topLeading) {
-                debugRect(expectedFrame, color: .green, lineWidth: 2)
-
-                if let snapshot {
-                    debugRect(snapshot.platformFrameInWindow, color: .red, lineWidth: 3)
-                    debugRect(snapshot.platformPresentationFrameInWindow, color: .orange, lineWidth: 2)
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("AUTH VISUAL DEBUG")
-                        .fontWeight(.heavy)
-                    ForEach(lines, id: \.self) { line in
-                        Text(line)
-                    }
-                }
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white)
-                .padding(7)
-                .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
-                )
-                .padding(.top, max(proxy.safeAreaInsets.top + 8, 48))
-                .padding(.leading, 8)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-        }
-        .allowsHitTesting(false)
-    }
-
-    private var lines: [String] {
-        var output = [
-            "green expected sheet",
-            "red host model, orange presentation",
-            "expected y=\(format(expectedFrame.minY)) h=\(format(expectedFrame.height)) bottom=\(format(expectedFrame.maxY))",
-            "offset=\(format(visibleSheetOffset)) progress=\(format(presentationProgress))"
-        ]
-
-        guard let snapshot else {
-            output.append("host snapshot=nil")
-            return output
-        }
-
-        output.append("host model y=\(format(snapshot.platformFrameInWindow.minY)) h=\(format(snapshot.platformFrameInWindow.height)) bottom=\(format(snapshot.platformFrameInWindow.maxY))")
-        output.append("host present y=\(format(snapshot.platformPresentationFrameInWindow.minY)) h=\(format(snapshot.platformPresentationFrameInWindow.height)) bottom=\(format(snapshot.platformPresentationFrameInWindow.maxY))")
-        output.append("scale affine=\(format(snapshot.platformAffineScaleX))/\(format(snapshot.platformAffineScaleY)) layer=\(format(snapshot.platformLayerScaleX))/\(format(snapshot.platformLayerScaleY))")
-        output.append("bottom delta=\(format(expectedFrame.maxY - snapshot.platformFrameInWindow.maxY)) top delta=\(format(snapshot.platformFrameInWindow.minY - expectedFrame.minY))")
-        output.append("sample=\(format(snapshot.timestamp.truncatingRemainder(dividingBy: 1000)))")
-        return output
-    }
-
-    @ViewBuilder
-    private func debugRect(_ frame: CGRect, color: Color, lineWidth: CGFloat) -> some View {
-        if frame.isFinite, frame.width > 1, frame.height > 1 {
-            Rectangle()
-                .stroke(color, lineWidth: lineWidth)
-                .frame(width: frame.width, height: frame.height)
-                .offset(x: frame.minX, y: frame.minY)
-        }
-    }
-
-    private func format(_ value: CGFloat) -> String {
-        String(format: "%.1f", value)
-    }
-
-    private func format(_ value: TimeInterval) -> String {
-        String(format: "%.2f", value)
-    }
-}
-
-private extension CGRect {
-    var isFinite: Bool {
-        minX.isFinite && minY.isFinite && width.isFinite && height.isFinite
     }
 }
 
@@ -608,6 +510,8 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
 
     @State private var tabBarVisibilityRequestID = UUID()
     @State private var presentationID = UUID()
+    @State private var isSheetMounted = false
+    @State private var externalDismissRequestID = UUID()
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
     @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
@@ -619,15 +523,23 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
     func body(content presenterContent: Content) -> some View {
         if requiresModalCover {
             presenterContent
-                .fullScreenCover(isPresented: $isPresented) {
+                .onAppear(perform: syncMountedPresentation)
+                .onChange(of: isPresented) { _, _ in
+                    syncMountedPresentation()
+                }
+                .fullScreenCover(isPresented: mountedPresentationBinding) {
                     presentedSheet
                         .presentationBackground(.clear)
                         .interactiveDismissDisabled(true)
                 }
         } else {
             presenterContent
+                .onAppear(perform: syncMountedPresentation)
+                .onChange(of: isPresented) { _, _ in
+                    syncMountedPresentation()
+                }
                 .overlay(alignment: .bottom) {
-                    if isPresented {
+                    if isSheetMounted {
                         presentedSheet
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -641,11 +553,13 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
     private var presentedSheet: some View {
         FullScreenSheetContainer<SheetContent, SheetBackground>(
             configuration: configuration,
+            externalDismissRequestID: externalDismissRequestID,
             onDismissStart: {
                 updateSheetTabBarHidden(false)
             },
             onDismiss: {
                 withTransaction(fullScreenSheetPresentationTransaction()) {
+                    isSheetMounted = false
                     isPresented = false
                 }
             },
@@ -662,6 +576,32 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
             parentPresentationCoordinator?.setChildPresentationActive(presentationID, false)
             updateSheetTabBarHidden(false)
         }
+    }
+
+    private var mountedPresentationBinding: Binding<Bool> {
+        Binding(
+            get: { isSheetMounted },
+            set: { newValue in
+                if newValue {
+                    isSheetMounted = true
+                } else {
+                    requestAnimatedExternalDismiss()
+                }
+            }
+        )
+    }
+
+    private func syncMountedPresentation() {
+        if isPresented {
+            isSheetMounted = true
+        } else if isSheetMounted {
+            requestAnimatedExternalDismiss()
+        }
+    }
+
+    private func requestAnimatedExternalDismiss() {
+        guard isSheetMounted else { return }
+        externalDismissRequestID = UUID()
     }
 
     private func updateSheetTabBarHidden(_ isHidden: Bool) {
@@ -681,6 +621,8 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
 
     @State private var tabBarVisibilityRequestID = UUID()
     @State private var presentationID = UUID()
+    @State private var mountedItem: Item?
+    @State private var externalDismissRequestID = UUID()
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
     @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
@@ -692,15 +634,23 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
     func body(content presenterContent: Content) -> some View {
         if requiresModalCover {
             presenterContent
-                .fullScreenCover(item: $item) { wrappedItem in
+                .onAppear(perform: syncMountedPresentation)
+                .onChange(of: item?.id) { _, _ in
+                    syncMountedPresentation()
+                }
+                .fullScreenCover(item: mountedItemBinding) { wrappedItem in
                     presentedSheet(for: wrappedItem)
                         .presentationBackground(.clear)
                         .interactiveDismissDisabled(true)
                 }
         } else {
             presenterContent
+                .onAppear(perform: syncMountedPresentation)
+                .onChange(of: item?.id) { _, _ in
+                    syncMountedPresentation()
+                }
                 .overlay(alignment: .bottom) {
-                    if let wrappedItem = item {
+                    if let wrappedItem = item ?? mountedItem {
                         presentedSheet(for: wrappedItem)
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -714,11 +664,13 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
     private func presentedSheet(for wrappedItem: Item) -> some View {
         FullScreenSheetContainer<SheetContent, SheetBackground>(
             configuration: configuration,
+            externalDismissRequestID: externalDismissRequestID,
             onDismissStart: {
                 updateSheetTabBarHidden(false)
             },
             onDismiss: {
                 withTransaction(fullScreenSheetPresentationTransaction()) {
+                    mountedItem = nil
                     item = nil
                 }
             },
@@ -740,6 +692,32 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
         }
     }
 
+    private var mountedItemBinding: Binding<Item?> {
+        Binding(
+            get: { item ?? mountedItem },
+            set: { newValue in
+                if let newValue {
+                    mountedItem = newValue
+                } else {
+                    requestAnimatedExternalDismiss()
+                }
+            }
+        )
+    }
+
+    private func syncMountedPresentation() {
+        if let item {
+            mountedItem = item
+        } else if mountedItem != nil {
+            requestAnimatedExternalDismiss()
+        }
+    }
+
+    private func requestAnimatedExternalDismiss() {
+        guard mountedItem != nil else { return }
+        externalDismissRequestID = UUID()
+    }
+
     private func updateSheetTabBarHidden(_ isHidden: Bool) {
         guard configuration.hidesTabBar else { return }
         tabBarSheetVisibilityAction.setHidden(isHidden, for: tabBarVisibilityRequestID)
@@ -753,6 +731,7 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
 
 private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     let configuration: FullScreenSheetConfiguration
+    let externalDismissRequestID: UUID
     let onDismissStart: () -> Void
     let onDismiss: () -> Void
     @ViewBuilder var content: (UIEdgeInsets) -> Content
@@ -773,7 +752,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
     @State private var childPresentationCoordinator = FullScreenSheetPresentationCoordinator()
     @State private var activeChildPresentationIDs: Set<UUID> = []
-    @State private var visualDebugSnapshot: FullScreenSheetVisualDebugSnapshot?
 
     private var dismissalAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
@@ -856,9 +834,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 onStableLayout: {
                     isHostedContentLaidOut = true
                 },
-                onDebugSnapshotChange: { snapshot in
-                    visualDebugSnapshot = snapshot
-                },
                 makeRootView: {
                     hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
                 }
@@ -934,20 +909,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             sheetSurface
 
 #if DEBUG
-            if configuration.debugIdentifier == "auth.primary" {
-                FullScreenSheetVisualDebugOverlay(
-                    expectedFrame: CGRect(
-                        x: 0,
-                        y: sheetTopY + visibleSheetOffset,
-                        width: containerWidth,
-                        height: sheetHeight
-                    ),
-                    visibleSheetOffset: visibleSheetOffset,
-                    presentationProgress: presentationProgress,
-                    snapshot: visualDebugSnapshot
-                )
-            }
-
             if developmentPreferences.customSheetTuningEnabled {
                 CustomSheetDebugFloatingPanel(
                     settings: Binding(
@@ -1049,6 +1010,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             guard hasActiveChildPresentation else { return }
             offset = 0
             scrollDisabled = false
+        }
+        .onChange(of: externalDismissRequestID) { _, _ in
+            animateDismiss(dismissalDistance: dismissalDistance)
         }
 
         baseView.background {
@@ -1521,7 +1485,6 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
     let debugIdentifier: String?
     let onScrollOffsetChange: (CGFloat) -> Void
     let onStableLayout: () -> Void
-    let onDebugSnapshotChange: ((FullScreenSheetVisualDebugSnapshot) -> Void)?
     let makeRootView: () -> Root
 
     func makeUIViewController(context: Context) -> SheetHostingContainerController {
@@ -1530,8 +1493,7 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
             topCornerRadius: topCornerRadius,
             rootUpdateKey: rootUpdateKey,
             debugIdentifier: debugIdentifier,
-            onStableLayout: onStableLayout,
-            onDebugSnapshotChange: onDebugSnapshotChange
+            onStableLayout: onStableLayout
         )
         controller.setTrackedScrollOffsetHandler(onScrollOffsetChange)
         return controller
@@ -1571,11 +1533,9 @@ private final class SheetHostingContainerController: UIViewController {
     private var rootUpdateKey: HostedSheetContentUpdateKey
     private let debugIdentifier: String?
     private let onStableLayout: () -> Void
-    private let onDebugSnapshotChange: ((FullScreenSheetVisualDebugSnapshot) -> Void)?
     private var hasReportedStableLayout = false
 #if DEBUG
     private var lastLayoutDebugSummary: String?
-    private var visualDebugDisplayLink: CADisplayLink?
 #endif
 
     init(
@@ -1583,14 +1543,12 @@ private final class SheetHostingContainerController: UIViewController {
         topCornerRadius: CGFloat,
         rootUpdateKey: HostedSheetContentUpdateKey,
         debugIdentifier: String?,
-        onStableLayout: @escaping () -> Void,
-        onDebugSnapshotChange: ((FullScreenSheetVisualDebugSnapshot) -> Void)?
+        onStableLayout: @escaping () -> Void
     ) {
         self.hostingController = SheetHostingController(rootView: rootView)
         self.rootUpdateKey = rootUpdateKey
         self.debugIdentifier = debugIdentifier
         self.onStableLayout = onStableLayout
-        self.onDebugSnapshotChange = onDebugSnapshotChange
         super.init(nibName: nil, bundle: nil)
         updateTopCornerRadius(topCornerRadius)
     }
@@ -1628,7 +1586,6 @@ private final class SheetHostingContainerController: UIViewController {
         super.viewDidLayoutSubviews()
         reportStableLayoutIfNeeded()
 #if DEBUG
-        emitVisualDebugSnapshot()
         let summary = [
             "containerBounds=\(debugFrame(view.bounds))",
             "containerFrame=\(debugFrame(view.frame))",
@@ -1642,22 +1599,6 @@ private final class SheetHostingContainerController: UIViewController {
         }
 #endif
     }
-
-#if DEBUG
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        startVisualDebugDisplayLinkIfNeeded()
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        stopVisualDebugDisplayLink()
-    }
-
-    deinit {
-        stopVisualDebugDisplayLink()
-    }
-#endif
 
     func setSheetInteractionDisabled(_ disabled: Bool) {
         hostingController.setSheetInteractionDisabled(disabled)
@@ -1694,67 +1635,6 @@ private final class SheetHostingContainerController: UIViewController {
             onStableLayout()
         }
     }
-
-#if DEBUG
-    private func startVisualDebugDisplayLinkIfNeeded() {
-        guard onDebugSnapshotChange != nil else { return }
-        guard visualDebugDisplayLink == nil else { return }
-
-        let displayLink = CADisplayLink(
-            target: self,
-            selector: #selector(handleVisualDebugDisplayLink)
-        )
-        displayLink.add(to: .main, forMode: .common)
-        visualDebugDisplayLink = displayLink
-        emitVisualDebugSnapshot()
-    }
-
-    private func stopVisualDebugDisplayLink() {
-        visualDebugDisplayLink?.invalidate()
-        visualDebugDisplayLink = nil
-    }
-
-    @objc private func handleVisualDebugDisplayLink() {
-        emitVisualDebugSnapshot()
-    }
-
-    private func emitVisualDebugSnapshot() {
-        guard let onDebugSnapshotChange else { return }
-        guard let snapshot = visualDebugSnapshot() else { return }
-
-        onDebugSnapshotChange(snapshot)
-    }
-
-    private func visualDebugSnapshot() -> FullScreenSheetVisualDebugSnapshot? {
-        guard let window = view.window else { return nil }
-        guard let platformHost = view.superview else { return nil }
-
-        let platformPresentationFrame = platformHost.layer.presentation()?.frame ?? .null
-        let platformPresentationFrameInWindow: CGRect
-        if platformPresentationFrame.isFinite,
-           let platformSuperview = platformHost.superview {
-            platformPresentationFrameInWindow = platformSuperview.convert(
-                platformPresentationFrame,
-                to: window
-            )
-        } else {
-            platformPresentationFrameInWindow = .null
-        }
-
-        return FullScreenSheetVisualDebugSnapshot(
-            timestamp: CACurrentMediaTime(),
-            containerFrameInWindow: view.convert(view.bounds, to: window),
-            hostFrameInWindow: hostingController.view.convert(hostingController.view.bounds, to: window),
-            platformFrameInWindow: platformHost.convert(platformHost.bounds, to: window),
-            platformPresentationFrameInWindow: platformPresentationFrameInWindow,
-            platformBounds: platformHost.bounds,
-            platformAffineScaleX: platformHost.transform.a,
-            platformAffineScaleY: platformHost.transform.d,
-            platformLayerScaleX: platformHost.layer.transform.m11,
-            platformLayerScaleY: platformHost.layer.transform.m22
-        )
-    }
-#endif
 
     func updateRootViewIfNeeded(
         rootUpdateKey: HostedSheetContentUpdateKey,
