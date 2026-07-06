@@ -10,6 +10,12 @@ import AuthenticationServices
 import GoogleSignIn
 import UIKit
 
+#if DEBUG
+private func authSheetDebugLog(_ message: String) {
+    print("AUTH_SHEET_DEBUG \(String(format: "%.3f", Date().timeIntervalSince1970)) login \(message)")
+}
+#endif
+
 // MARK: - Login View
 
 struct LoginView: View {
@@ -241,7 +247,8 @@ struct LoginView: View {
             dragActivationArea: .fixed(0),
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
-            hidesTabBar: false
+            hidesTabBar: false,
+            debugIdentifier: "auth.primary"
         )
     }
 
@@ -252,7 +259,8 @@ struct LoginView: View {
             showsDragIndicator: true,
             showsBackdropBlur: true,
             showsDefaultTopProgressiveBlur: false,
-            hidesTabBar: false
+            hidesTabBar: false,
+            debugIdentifier: "auth.secondary"
         )
     }
 
@@ -321,6 +329,11 @@ struct LoginView: View {
     private func presentAuthSheetIfNeeded() {
         guard canPresentAuthSheet else { return }
         authSheetPresentationTask?.cancel()
+#if DEBUG
+        authSheetDebugLog(
+            "presentAuthSheetIfNeeded begin isPresented=\(isAuthSheetPresented) mode=\(authSheetMode)"
+        )
+#endif
 
         authSheetPresentationTask = Task { @MainActor in
             guard !Task.isCancelled else { return }
@@ -330,12 +343,22 @@ struct LoginView: View {
             }
 
             authSheetPresentationTask = nil
+#if DEBUG
+            authSheetDebugLog(
+                "presentAuthSheetIfNeeded end isPresented=\(isAuthSheetPresented) mode=\(authSheetMode)"
+            )
+#endif
         }
     }
 
     private func restoreAuthSheetAfterAppActivation() {
         guard canPresentAuthSheet else { return }
         authSheetPresentationTask?.cancel()
+#if DEBUG
+        authSheetDebugLog(
+            "restoreAuthSheetAfterAppActivation begin isPresented=\(isAuthSheetPresented) mode=\(authSheetMode)"
+        )
+#endif
 
         authSheetPresentationTask = Task { @MainActor in
             var transaction = Transaction()
@@ -344,6 +367,9 @@ struct LoginView: View {
             withTransaction(transaction) {
                 isAuthSheetPresented = false
             }
+#if DEBUG
+            authSheetDebugLog("restoreAuthSheetAfterAppActivation forced hidden")
+#endif
 
             await Task.yield()
             guard !Task.isCancelled else { return }
@@ -351,10 +377,18 @@ struct LoginView: View {
             setAuthSheetPresentedWithoutExternalAnimation(true)
 
             authSheetPresentationTask = nil
+#if DEBUG
+            authSheetDebugLog(
+                "restoreAuthSheetAfterAppActivation end isPresented=\(isAuthSheetPresented) mode=\(authSheetMode)"
+            )
+#endif
         }
     }
 
     private func setAuthSheetPresentedWithoutExternalAnimation(_ isPresented: Bool) {
+#if DEBUG
+        authSheetDebugLog("setAuthSheetPresentedWithoutExternalAnimation \(isPresented)")
+#endif
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -419,7 +453,13 @@ private struct AuthLoginSheetContent: View {
             .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
             .frame(maxWidth: 460)
             .frame(maxWidth: .infinity)
+#if DEBUG
+            .authSheetDebugFrame("content.stack.\(displayedMode)")
+#endif
         }
+#if DEBUG
+        .authSheetDebugFrame("content.scrollView.\(displayedMode)")
+#endif
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnBackgroundTap()
@@ -476,6 +516,9 @@ private struct AuthLoginSheetContent: View {
                 setMode(.login)
             }
         }
+#if DEBUG
+        .authSheetDebugFrame("content.actionsButtons")
+#endif
     }
 
     private var loginFields: some View {
@@ -1041,6 +1084,75 @@ private struct SignInSuccessView: View {
         }
     }
 }
+
+#if DEBUG
+private struct AuthSheetDebugFrame: Equatable {
+    let label: String
+    let minX: CGFloat
+    let minY: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+
+    init(label: String, frame: CGRect) {
+        self.label = label
+        self.minX = frame.minX.rounded()
+        self.minY = frame.minY.rounded()
+        self.width = frame.width.rounded()
+        self.height = frame.height.rounded()
+    }
+
+    var summary: String {
+        "\(label) x=\(format(minX)) y=\(format(minY)) w=\(format(width)) h=\(format(height))"
+    }
+
+    private func format(_ value: CGFloat) -> String {
+        String(format: "%.0f", value)
+    }
+}
+
+private struct AuthSheetDebugFramePreferenceKey: PreferenceKey {
+    static let defaultValue: AuthSheetDebugFrame? = nil
+
+    static func reduce(value: inout AuthSheetDebugFrame?, nextValue: () -> AuthSheetDebugFrame?) {
+        if let next = nextValue() {
+            value = next
+        }
+    }
+}
+
+private struct AuthSheetDebugFrameModifier: ViewModifier {
+    let label: String
+    @State private var lastFrame: AuthSheetDebugFrame?
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(
+                            key: AuthSheetDebugFramePreferenceKey.self,
+                            value: AuthSheetDebugFrame(
+                                label: label,
+                                frame: proxy.frame(in: .global)
+                            )
+                        )
+                }
+                .allowsHitTesting(false)
+            }
+            .onPreferenceChange(AuthSheetDebugFramePreferenceKey.self) { frame in
+                guard let frame, frame != lastFrame else { return }
+                lastFrame = frame
+                authSheetDebugLog("frame \(frame.summary)")
+            }
+    }
+}
+
+private extension View {
+    func authSheetDebugFrame(_ label: String) -> some View {
+        modifier(AuthSheetDebugFrameModifier(label: label))
+    }
+}
+#endif
 
 // MARK: - Email Verification Success View
 

@@ -188,6 +188,7 @@ struct FullScreenSheetConfiguration: Sendable {
     var appliesDefaultDragTopOverlay: Bool = false
     var hidesTabBar: Bool = true
     var coversTabBar: Bool = false
+    var debugIdentifier: String? = nil
 
     /// Standard rounded QuizFlash sheet with drag indicator and clipped top corners.
     static func sheet(
@@ -202,9 +203,10 @@ struct FullScreenSheetConfiguration: Sendable {
         showsDefaultTopProgressiveBlur: Bool = true,
         showsCloseButton: Bool = false,
         hidesTabBar: Bool = true,
-        coversTabBar: Bool = false
+        coversTabBar: Bool = false,
+        debugIdentifier: String? = nil
     ) -> FullScreenSheetConfiguration {
-        FullScreenSheetConfiguration(
+        var configuration = FullScreenSheetConfiguration(
             ignoresSafeArea: ignoresSafeArea,
             heightMode: heightMode,
             topCornerRadius: topCornerRadius,
@@ -219,6 +221,8 @@ struct FullScreenSheetConfiguration: Sendable {
             hidesTabBar: hidesTabBar,
             coversTabBar: coversTabBar
         )
+        configuration.debugIdentifier = debugIdentifier
+        return configuration
     }
 
     /// Full-height rounded sheet used by immersive surfaces that already own their top chrome.
@@ -232,9 +236,10 @@ struct FullScreenSheetConfiguration: Sendable {
         showsDefaultTopProgressiveBlur: Bool = false,
         showsCloseButton: Bool = false,
         hidesTabBar: Bool = true,
-        coversTabBar: Bool = false
+        coversTabBar: Bool = false,
+        debugIdentifier: String? = nil
     ) -> FullScreenSheetConfiguration {
-        FullScreenSheetConfiguration(
+        var configuration = FullScreenSheetConfiguration(
             ignoresSafeArea: ignoresSafeArea,
             heightMode: heightMode,
             topCornerRadius: topCornerRadius,
@@ -249,6 +254,8 @@ struct FullScreenSheetConfiguration: Sendable {
             hidesTabBar: hidesTabBar,
             coversTabBar: coversTabBar
         )
+        configuration.debugIdentifier = debugIdentifier
+        return configuration
     }
 }
 
@@ -325,6 +332,81 @@ private func fullScreenSheetPresentationTransaction() -> Transaction {
 private func fullScreenSheetClampedProgress(_ progress: CGFloat) -> CGFloat {
     min(max(progress, 0), 1)
 }
+
+#if DEBUG
+private struct FullScreenSheetDebugMetrics: Equatable {
+    let identifier: String?
+    let containerHeight: CGFloat
+    let containerWidth: CGFloat
+    let sheetHeight: CGFloat
+    let sheetTopY: CGFloat
+    let visibleSheetOffset: CGFloat
+    let presentationProgress: CGFloat
+    let contentSafeTop: CGFloat
+    let contentSafeBottom: CGFloat
+    let windowSafeBottom: CGFloat
+    let sheetBottomOverscan: CGFloat
+    let contentScrollOffset: CGFloat
+    let hasActiveChildPresentation: Bool
+
+    var summary: String {
+        [
+            "container=\(format(containerWidth))x\(format(containerHeight))",
+            "sheetHeight=\(format(sheetHeight))",
+            "sheetTopY=\(format(sheetTopY))",
+            "visibleOffset=\(format(visibleSheetOffset))",
+            "progress=\(format(presentationProgress))",
+            "safeTop=\(format(contentSafeTop))",
+            "safeBottom=\(format(contentSafeBottom))",
+            "windowSafeBottom=\(format(windowSafeBottom))",
+            "overscan=\(format(sheetBottomOverscan))",
+            "scrollOffset=\(format(contentScrollOffset))",
+            "hasChild=\(hasActiveChildPresentation)"
+        ].joined(separator: " ")
+    }
+
+    private func format(_ value: CGFloat) -> String {
+        String(format: "%.2f", value)
+    }
+}
+
+private struct FullScreenSheetDebugProbe: View {
+    let metrics: FullScreenSheetDebugMetrics
+
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .onAppear {
+                fullScreenSheetDebugLog(metrics.identifier, "container.metrics appear \(metrics.summary)")
+            }
+            .onChange(of: metrics) { oldMetrics, newMetrics in
+                guard oldMetrics.summary != newMetrics.summary else { return }
+                fullScreenSheetDebugLog(newMetrics.identifier, "container.metrics change \(newMetrics.summary)")
+            }
+    }
+}
+
+private func fullScreenSheetDebugLog(_ identifier: String?, _ message: String) {
+    guard let identifier else { return }
+    print("AUTH_SHEET_DEBUG \(debugTimestamp()) sheet=\(identifier) \(message)")
+}
+
+private func debugTimestamp() -> String {
+    String(format: "%.3f", Date().timeIntervalSince1970)
+}
+
+private func debugFrame(_ frame: CGRect) -> String {
+    "x=\(debugFormat(frame.minX)),y=\(debugFormat(frame.minY)),w=\(debugFormat(frame.width)),h=\(debugFormat(frame.height))"
+}
+
+private func debugSize(_ size: CGSize) -> String {
+    "w=\(debugFormat(size.width)),h=\(debugFormat(size.height))"
+}
+
+private func debugFormat(_ value: CGFloat) -> String {
+    String(format: "%.2f", value)
+}
+#endif
 
 // MARK: - View Extension
 
@@ -613,6 +695,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 topCornerRadius: configuration.topCornerRadius,
                 interactionDisabled: scrollDisabled,
                 rootUpdateKey: hostedContentUpdateKey(contentSafeAreaInsets: contentSafeAreaInsets),
+                debugIdentifier: configuration.debugIdentifier,
                 onScrollOffsetChange: { newOffset in
                     if abs(contentScrollOffset - newOffset) > 0.5 {
                         contentScrollOffset = newOffset
@@ -722,7 +805,31 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
             preferredDragActivationHeight = $0
         }
+#if DEBUG
+        .background {
+            FullScreenSheetDebugProbe(
+                metrics: FullScreenSheetDebugMetrics(
+                    identifier: configuration.debugIdentifier,
+                    containerHeight: containerHeight,
+                    containerWidth: containerWidth,
+                    sheetHeight: sheetHeight,
+                    sheetTopY: sheetTopY,
+                    visibleSheetOffset: visibleSheetOffset,
+                    presentationProgress: presentationProgress,
+                    contentSafeTop: contentSafeAreaInsets.top,
+                    contentSafeBottom: contentSafeAreaInsets.bottom,
+                    windowSafeBottom: windowSafeAreaInsets.bottom,
+                    sheetBottomOverscan: sheetBottomOverscan,
+                    contentScrollOffset: contentScrollOffset,
+                    hasActiveChildPresentation: hasActiveChildPresentation
+                )
+            )
+        }
+#endif
         .onAppear {
+#if DEBUG
+            fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onAppear reset state")
+#endif
             offset = 0
             scrollDisabled = false
             isAnimatingDismiss = false
@@ -738,12 +845,18 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
             Task { @MainActor in
                 await Task.yield()
+#if DEBUG
+                fullScreenSheetDebugLog(configuration.debugIdentifier, "container.presentation animation start")
+#endif
                 withAnimation(presentationAnimation) {
                     presentationProgress = 1
                 }
             }
         }
         .onDisappear {
+#if DEBUG
+            fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onDisappear")
+#endif
             childPresentationCoordinator.childPresentationHandler = nil
             activeChildPresentationIDs.removeAll()
         }
@@ -1203,6 +1316,7 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
     let topCornerRadius: CGFloat
     let interactionDisabled: Bool
     let rootUpdateKey: HostedSheetContentUpdateKey
+    let debugIdentifier: String?
     let onScrollOffsetChange: (CGFloat) -> Void
     let makeRootView: () -> Root
 
@@ -1210,7 +1324,8 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
         let controller = SheetHostingContainerController(
             rootView: hostedRootView,
             topCornerRadius: topCornerRadius,
-            rootUpdateKey: rootUpdateKey
+            rootUpdateKey: rootUpdateKey,
+            debugIdentifier: debugIdentifier
         )
         controller.setTrackedScrollOffsetHandler(onScrollOffsetChange)
         return controller
@@ -1248,14 +1363,20 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
 private final class SheetHostingContainerController: UIViewController {
     private let hostingController: SheetHostingController
     private var rootUpdateKey: HostedSheetContentUpdateKey
+    private let debugIdentifier: String?
+#if DEBUG
+    private var lastLayoutDebugSummary: String?
+#endif
 
     init(
         rootView: AnyView,
         topCornerRadius: CGFloat,
-        rootUpdateKey: HostedSheetContentUpdateKey
+        rootUpdateKey: HostedSheetContentUpdateKey,
+        debugIdentifier: String?
     ) {
         self.hostingController = SheetHostingController(rootView: rootView)
         self.rootUpdateKey = rootUpdateKey
+        self.debugIdentifier = debugIdentifier
         super.init(nibName: nil, bundle: nil)
         updateTopCornerRadius(topCornerRadius)
     }
@@ -1287,6 +1408,21 @@ private final class SheetHostingContainerController: UIViewController {
             hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         hostingController.didMove(toParent: self)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+#if DEBUG
+        let summary = [
+            "containerBounds=\(debugFrame(view.bounds))",
+            "hostFrame=\(debugFrame(hostingController.view.frame))",
+            hostingController.debugTrackedScrollSummary()
+        ].joined(separator: " ")
+        if summary != lastLayoutDebugSummary {
+            lastLayoutDebugSummary = summary
+            fullScreenSheetDebugLog(debugIdentifier, "hosting.layout \(summary)")
+        }
+#endif
     }
 
     func setSheetInteractionDisabled(_ disabled: Bool) {
@@ -1367,6 +1503,23 @@ private final class SheetHostingController: UIHostingController<AnyView> {
             reportTrackedScrollOffset(0)
         }
     }
+
+#if DEBUG
+    func debugTrackedScrollSummary() -> String {
+        guard let trackedScrollView else {
+            return "scrollView=nil"
+        }
+
+        return [
+            "scrollFrame=\(debugFrame(trackedScrollView.frame))",
+            "scrollBounds=\(debugFrame(trackedScrollView.bounds))",
+            "contentSize=\(debugSize(trackedScrollView.contentSize))",
+            "contentOffsetY=\(debugFormat(trackedScrollView.contentOffset.y))",
+            "adjustedInsetTop=\(debugFormat(trackedScrollView.adjustedContentInset.top))",
+            "adjustedInsetBottom=\(debugFormat(trackedScrollView.adjustedContentInset.bottom))"
+        ].joined(separator: " ")
+    }
+#endif
 
     private func freezeNestedScrollViews() {
         for scrollView in nestedVerticalScrollViews(in: view) {
