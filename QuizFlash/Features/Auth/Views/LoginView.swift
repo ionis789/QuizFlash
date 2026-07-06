@@ -666,7 +666,7 @@ private struct AuthLoginSheetContent: View {
 
     private func configureDismissCoordinator() {
         dismissCoordinator?.shouldAllowDismiss = {
-            mode == .actions
+            false
         }
         dismissCoordinator?.onBlockedDismiss = {
             guard mode != .actions else { return }
