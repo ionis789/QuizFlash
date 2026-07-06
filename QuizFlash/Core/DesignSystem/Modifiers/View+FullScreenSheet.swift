@@ -763,6 +763,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(\.fullScreenSheetDragProgress, dragProgress)
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
 
             if configuration.showsDefaultTopProgressiveBlur {
                 defaultTopProgressiveBlur(
