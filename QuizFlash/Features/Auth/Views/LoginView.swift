@@ -147,7 +147,7 @@ struct LoginView: View {
                     return
                 }
 
-                presentAuthSheetIfNeeded(after: .milliseconds(620))
+                presentAuthSheetIfNeeded()
             }
             .ignoresSafeArea(.keyboard, edges: activeSheet == nil ? [] : .bottom)
     }
@@ -256,6 +256,7 @@ struct LoginView: View {
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
             hidesTabBar: false,
+            coversTabBar: true,
             debugIdentifier: "auth.primary"
         )
     }
@@ -336,7 +337,7 @@ struct LoginView: View {
         }
     }
 
-    private func presentAuthSheetIfNeeded(after delay: Duration? = nil) {
+    private func presentAuthSheetIfNeeded() {
         guard canPresentAuthSheet else {
             authSheetPresentationTask?.cancel()
             authSheetPresentationTask = nil
@@ -346,10 +347,6 @@ struct LoginView: View {
         authSheetPresentationTask?.cancel()
 
         authSheetPresentationTask = Task { @MainActor in
-            if let delay {
-                try? await Task.sleep(for: delay)
-            }
-
             await Task.yield()
             await Task.yield()
             guard !Task.isCancelled, canPresentAuthSheet else { return }
