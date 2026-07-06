@@ -10,6 +10,12 @@ import AuthenticationServices
 import GoogleSignIn
 import UIKit
 
+#if DEBUG
+private func authLayoutDebugLog(_ message: String) {
+    print("AUTH_LAYOUT_DEBUG \(String(format: "%.3f", Date().timeIntervalSince1970)) login \(message)")
+}
+#endif
+
 // MARK: - Login View
 
 struct LoginView: View {
@@ -241,7 +247,8 @@ struct LoginView: View {
             dragActivationArea: .fixed(0),
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
-            hidesTabBar: false
+            hidesTabBar: false,
+            debugIdentifier: "auth.primary"
         )
     }
 
@@ -252,7 +259,8 @@ struct LoginView: View {
             showsDragIndicator: true,
             showsBackdropBlur: true,
             showsDefaultTopProgressiveBlur: false,
-            hidesTabBar: false
+            hidesTabBar: false,
+            debugIdentifier: "auth.secondary"
         )
     }
 
@@ -414,7 +422,15 @@ private struct AuthLoginSheetContent: View {
                 .dismissKeyboardOnBackgroundTap()
             }
         }
+#if DEBUG
+        .authLayoutDebugFrame("content.root.\(displayedMode)")
+#endif
         .onAppear {
+#if DEBUG
+            authLayoutDebugLog(
+                "content.onAppear mode=\(mode) displayedMode=\(displayedMode) visible=\(isContentVisible) safeTop=\(safeAreaInsets.top) safeBottom=\(safeAreaInsets.bottom) reduceMotion=\(reduceMotion)"
+            )
+#endif
             displayedMode = mode
             isContentVisible = true
             configureDismissCoordinator()
@@ -427,6 +443,9 @@ private struct AuthLoginSheetContent: View {
         }
         .onChange(of: mode) { _, newMode in
             guard newMode != displayedMode else { return }
+#if DEBUG
+            authLayoutDebugLog("content.modeChange direct oldDisplayed=\(displayedMode) newMode=\(newMode)")
+#endif
             displayedMode = newMode
             isContentVisible = true
             configureDismissCoordinator()
@@ -447,6 +466,9 @@ private struct AuthLoginSheetContent: View {
         .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.extraLarge))
         .frame(maxWidth: 460)
         .frame(maxWidth: .infinity)
+#if DEBUG
+        .authLayoutDebugFrame("content.stack.\(displayedMode)")
+#endif
     }
 
     @ViewBuilder
@@ -491,6 +513,9 @@ private struct AuthLoginSheetContent: View {
                 setMode(.login)
             }
         }
+#if DEBUG
+        .authLayoutDebugFrame("content.actions")
+#endif
     }
 
     private var loginFields: some View {
@@ -636,6 +661,9 @@ private struct AuthLoginSheetContent: View {
         modeTransitionTask = Task { @MainActor in
             defer { modeTransitionTask = nil }
 
+#if DEBUG
+            authLayoutDebugLog("setMode begin from=\(displayedMode) to=\(newMode) mode=\(mode)")
+#endif
             withAnimation(contentTransition) {
                 isContentVisible = false
             }
@@ -645,6 +673,9 @@ private struct AuthLoginSheetContent: View {
                 mode = newMode
                 configureDismissCoordinator()
                 isContentVisible = true
+#if DEBUG
+                authLayoutDebugLog("setMode reduceMotion applied displayedMode=\(displayedMode) mode=\(mode)")
+#endif
                 return
             }
 
@@ -654,6 +685,9 @@ private struct AuthLoginSheetContent: View {
             displayedMode = newMode
             mode = newMode
             configureDismissCoordinator()
+#if DEBUG
+            authLayoutDebugLog("setMode swapped displayedMode=\(displayedMode) mode=\(mode)")
+#endif
 
             try? await Task.sleep(for: ScaleRevealMotion.revealDelay)
             guard !Task.isCancelled else { return }
@@ -661,6 +695,9 @@ private struct AuthLoginSheetContent: View {
             withAnimation(contentTransition) {
                 isContentVisible = true
             }
+#if DEBUG
+            authLayoutDebugLog("setMode reveal visible=\(isContentVisible) displayedMode=\(displayedMode) mode=\(mode)")
+#endif
         }
     }
 
@@ -1056,6 +1093,86 @@ private struct SignInSuccessView: View {
         }
     }
 }
+
+#if DEBUG
+private struct AuthLayoutDebugFrameProbe: UIViewRepresentable {
+    let label: String
+
+    func makeUIView(context: Context) -> AuthLayoutDebugFrameProbeView {
+        AuthLayoutDebugFrameProbeView(label: label)
+    }
+
+    func updateUIView(_ uiView: AuthLayoutDebugFrameProbeView, context: Context) {
+        uiView.label = label
+        uiView.setNeedsLayout()
+    }
+}
+
+private final class AuthLayoutDebugFrameProbeView: UIView {
+    var label: String
+    private var lastSummary: String?
+
+    init(label: String) {
+        self.label = label
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        logFrame()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        logFrame()
+    }
+
+    private func logFrame() {
+        let globalFrame: CGRect
+        if let window {
+            globalFrame = convert(bounds, to: window)
+        } else {
+            globalFrame = frame
+        }
+
+        let summary = [
+            "frame.\(label)",
+            "global=\(format(globalFrame))",
+            "bounds=\(format(bounds))",
+            "super=\(format(superview?.bounds ?? .zero))",
+            "window=\(format(window?.bounds ?? .zero))"
+        ].joined(separator: " ")
+
+        guard summary != lastSummary else { return }
+        lastSummary = summary
+        authLayoutDebugLog(summary)
+    }
+
+    private func format(_ frame: CGRect) -> String {
+        "x=\(format(frame.minX)),y=\(format(frame.minY)),w=\(format(frame.width)),h=\(format(frame.height))"
+    }
+
+    private func format(_ value: CGFloat) -> String {
+        String(format: "%.2f", value)
+    }
+}
+
+private extension View {
+    func authLayoutDebugFrame(_ label: String) -> some View {
+        background {
+            AuthLayoutDebugFrameProbe(label: label)
+                .allowsHitTesting(false)
+        }
+    }
+}
+#endif
 
 // MARK: - Email Verification Success View
 
