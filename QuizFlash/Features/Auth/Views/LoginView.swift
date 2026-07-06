@@ -92,7 +92,6 @@ struct LoginView: View {
                 loginForm
             }
         }
-        .animation(.easeInOut(duration: 0.32), value: authManager.sessionState)
         .background {
             AuthPresentingViewControllerReader { controller in
                 presentingViewController = controller
@@ -330,6 +329,8 @@ struct LoginView: View {
         authSheetPresentationTask?.cancel()
 
         authSheetPresentationTask = Task { @MainActor in
+            await Task.yield()
+            await Task.yield()
             guard !Task.isCancelled else { return }
 
             if !isAuthSheetPresented {
