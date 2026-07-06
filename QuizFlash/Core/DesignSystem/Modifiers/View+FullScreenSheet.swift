@@ -1408,10 +1408,14 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var windowSize: CGSize {
-        if let size = keyWindow?.bounds.size, size != .zero {
+        if let size = keyWindow?.bounds.size,
+           size.width > 10,
+           size.height > 10 {
             return size
         }
-        return activeWindowScene?.screen.bounds.size ?? .zero
+        return activeWindowScene?.coordinateSpace.bounds.size
+            ?? activeWindowScene?.screen.bounds.size
+            ?? .zero
     }
 
     private var windowSafeAreaInsets: UIEdgeInsets {
@@ -1419,9 +1423,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var activeWindowScene: UIWindowScene? {
-        UIApplication.shared.connectedScenes
+        let windowScenes = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .first(where: { $0.activationState == .foregroundActive })
+
+        return windowScenes.first(where: { $0.activationState == .foregroundActive })
+            ?? windowScenes.first(where: { $0.activationState == .foregroundInactive })
     }
 
     private var keyWindow: UIWindow? {
