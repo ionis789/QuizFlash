@@ -138,7 +138,7 @@ struct LoginView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
-                restoreAuthSheetAfterAppActivation()
+                presentAuthSheetIfNeeded()
             }
             .onChange(of: onboardingStateStore.presentation?.id) { _, presentationID in
                 guard presentationID == nil else {
@@ -256,7 +256,6 @@ struct LoginView: View {
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
             hidesTabBar: false,
-            coversTabBar: true,
             debugIdentifier: "auth.primary"
         )
     }
@@ -354,27 +353,6 @@ struct LoginView: View {
             if !isAuthSheetPresented {
                 setAuthSheetPresentedWithoutExternalAnimation(true)
             }
-
-            authSheetPresentationTask = nil
-        }
-    }
-
-    private func restoreAuthSheetAfterAppActivation() {
-        guard canPresentAuthSheet else { return }
-        authSheetPresentationTask?.cancel()
-
-        authSheetPresentationTask = Task { @MainActor in
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-
-            withTransaction(transaction) {
-                isAuthSheetPresented = false
-            }
-
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-
-            setAuthSheetPresentedWithoutExternalAnimation(true)
 
             authSheetPresentationTask = nil
         }
