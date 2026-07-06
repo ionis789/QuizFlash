@@ -152,7 +152,7 @@ struct LoginView: View {
                     phrases: walkthroughPhrases,
                     symbolColor: themeManager.accentColor.color,
                     reduceMotion: reduceMotion,
-                    animates: !isAuthSheetPresented
+                    animates: true
                 )
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
 

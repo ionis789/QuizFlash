@@ -407,6 +407,51 @@ private func debugSize(_ size: CGSize) -> String {
     "w=\(debugFormat(size.width)),h=\(debugFormat(size.height))"
 }
 
+private func debugTransformSummary(for view: UIView) -> String {
+    var parts: [String] = []
+    var current: UIView? = view
+
+    while let candidate = current, !(candidate is UIWindow), parts.count < 4 {
+        let transform = candidate.transform
+        let layer = candidate.layer
+        let presentationFrame = layer.presentation()?.frame ?? .null
+        parts.append(
+            [
+                "\(String(describing: type(of: candidate))){",
+                "frame=\(debugFrame(candidate.frame))",
+                "bounds=\(debugFrame(candidate.bounds))",
+                "presentation=\(debugFrame(presentationFrame))",
+                "affine=\(debugAffineTransform(transform))",
+                "layer=\(debugLayerTransform(layer.transform))"
+            ].joined(separator: " ")
+            + "}"
+        )
+        current = candidate.superview
+    }
+
+    return "transforms=[" + parts.joined(separator: " -> ") + "]"
+}
+
+private func debugAffineTransform(_ transform: CGAffineTransform) -> String {
+    [
+        "a=\(debugFormat(transform.a))",
+        "b=\(debugFormat(transform.b))",
+        "c=\(debugFormat(transform.c))",
+        "d=\(debugFormat(transform.d))",
+        "tx=\(debugFormat(transform.tx))",
+        "ty=\(debugFormat(transform.ty))"
+    ].joined(separator: ",")
+}
+
+private func debugLayerTransform(_ transform: CATransform3D) -> String {
+    [
+        "m11=\(debugFormat(transform.m11))",
+        "m22=\(debugFormat(transform.m22))",
+        "m41=\(debugFormat(transform.m41))",
+        "m42=\(debugFormat(transform.m42))"
+    ].joined(separator: ",")
+}
+
 private func debugFormat(_ value: CGFloat) -> String {
     String(format: "%.2f", value)
 }
@@ -488,6 +533,7 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
                         presentedSheet
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .transition(.identity)
                             .zIndex(1)
                     }
                 }
@@ -560,6 +606,7 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
                         presentedSheet(for: wrappedItem)
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .transition(.identity)
                             .zIndex(1)
                     }
                 }
@@ -623,6 +670,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var presentationProgress: CGFloat = 0
     @State private var contentScrollOffset: CGFloat = 0
     @State private var preferredDragActivationHeight: CGFloat? = nil
+    @State private var isHostedContentLaidOut = false
+    @State private var hasStartedPresentationAnimation = false
     @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
     @State private var childPresentationCoordinator = FullScreenSheetPresentationCoordinator()
     @State private var activeChildPresentationIDs: Set<UUID> = []
@@ -704,6 +753,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     if abs(contentScrollOffset - newOffset) > 0.5 {
                         contentScrollOffset = newOffset
                     }
+                },
+                onStableLayout: {
+                    isHostedContentLaidOut = true
                 },
                 makeRootView: {
                     hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
@@ -841,6 +893,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             isAnimatingDismiss = false
             presentationProgress = 0
             contentScrollOffset = 0
+            hasStartedPresentationAnimation = false
             childPresentationCoordinator.childPresentationHandler = { id, isActive in
                 if isActive {
                     activeChildPresentationIDs.insert(id)
@@ -851,13 +904,19 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
             Task { @MainActor in
                 await Task.yield()
+                guard !hasStartedPresentationAnimation else { return }
+                guard isHostedContentLaidOut else {
 #if DEBUG
-                fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.animation.start")
+                    fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.waitingForStableLayout")
 #endif
-                withAnimation(presentationAnimation) {
-                    presentationProgress = 1
+                    return
                 }
+                startPresentationAnimationIfNeeded()
             }
+        }
+        .onChange(of: isHostedContentLaidOut) { _, isLaidOut in
+            guard isLaidOut else { return }
+            startPresentationAnimationIfNeeded()
         }
         .onDisappear {
 #if DEBUG
@@ -911,6 +970,17 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 }
             }
             .frame(width: 0, height: 0)
+        }
+    }
+
+    private func startPresentationAnimationIfNeeded() {
+        guard !hasStartedPresentationAnimation else { return }
+        hasStartedPresentationAnimation = true
+#if DEBUG
+        fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.animation.start")
+#endif
+        withAnimation(presentationAnimation) {
+            presentationProgress = 1
         }
     }
 
@@ -1324,6 +1394,7 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
     let rootUpdateKey: HostedSheetContentUpdateKey
     let debugIdentifier: String?
     let onScrollOffsetChange: (CGFloat) -> Void
+    let onStableLayout: () -> Void
     let makeRootView: () -> Root
 
     func makeUIViewController(context: Context) -> SheetHostingContainerController {
@@ -1331,7 +1402,8 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
             rootView: hostedRootView,
             topCornerRadius: topCornerRadius,
             rootUpdateKey: rootUpdateKey,
-            debugIdentifier: debugIdentifier
+            debugIdentifier: debugIdentifier,
+            onStableLayout: onStableLayout
         )
         controller.setTrackedScrollOffsetHandler(onScrollOffsetChange)
         return controller
@@ -1370,6 +1442,8 @@ private final class SheetHostingContainerController: UIViewController {
     private let hostingController: SheetHostingController
     private var rootUpdateKey: HostedSheetContentUpdateKey
     private let debugIdentifier: String?
+    private let onStableLayout: () -> Void
+    private var hasReportedStableLayout = false
 #if DEBUG
     private var lastLayoutDebugSummary: String?
 #endif
@@ -1378,11 +1452,13 @@ private final class SheetHostingContainerController: UIViewController {
         rootView: AnyView,
         topCornerRadius: CGFloat,
         rootUpdateKey: HostedSheetContentUpdateKey,
-        debugIdentifier: String?
+        debugIdentifier: String?,
+        onStableLayout: @escaping () -> Void
     ) {
         self.hostingController = SheetHostingController(rootView: rootView)
         self.rootUpdateKey = rootUpdateKey
         self.debugIdentifier = debugIdentifier
+        self.onStableLayout = onStableLayout
         super.init(nibName: nil, bundle: nil)
         updateTopCornerRadius(topCornerRadius)
     }
@@ -1418,11 +1494,13 @@ private final class SheetHostingContainerController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        reportStableLayoutIfNeeded()
 #if DEBUG
         let summary = [
             "containerBounds=\(debugFrame(view.bounds))",
             "containerFrame=\(debugFrame(view.frame))",
             "hostFrame=\(debugFrame(hostingController.view.frame))",
+            debugTransformSummary(for: view),
             hostingController.debugTrackedScrollSummary()
         ].joined(separator: " ")
         if summary != lastLayoutDebugSummary {
@@ -1452,6 +1530,20 @@ private final class SheetHostingContainerController: UIViewController {
         hostingController.view.layer.cornerRadius = resolvedRadius
         hostingController.view.layer.maskedCorners = maskedCorners
         hostingController.view.layer.masksToBounds = resolvedRadius > 0
+    }
+
+    private func reportStableLayoutIfNeeded() {
+        guard !hasReportedStableLayout else { return }
+        guard view.window != nil else { return }
+        guard view.bounds.width > 1, view.bounds.height > 1 else { return }
+        guard abs(hostingController.view.bounds.width - view.bounds.width) <= 0.5,
+              abs(hostingController.view.bounds.height - view.bounds.height) <= 0.5 else {
+            return
+        }
+        hasReportedStableLayout = true
+        DispatchQueue.main.async { [onStableLayout] in
+            onStableLayout()
+        }
     }
 
     func updateRootViewIfNeeded(
