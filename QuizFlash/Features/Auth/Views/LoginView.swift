@@ -326,9 +326,7 @@ struct LoginView: View {
             guard !Task.isCancelled else { return }
 
             if !isAuthSheetPresented {
-                withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
-                    isAuthSheetPresented = true
-                }
+                setAuthSheetPresentedWithoutExternalAnimation(true)
             }
 
             authSheetPresentationTask = nil
@@ -350,11 +348,17 @@ struct LoginView: View {
             await Task.yield()
             guard !Task.isCancelled else { return }
 
-            withAnimation(.smooth(duration: 0.34, extraBounce: 0)) {
-                isAuthSheetPresented = true
-            }
+            setAuthSheetPresentedWithoutExternalAnimation(true)
 
             authSheetPresentationTask = nil
+        }
+    }
+
+    private func setAuthSheetPresentedWithoutExternalAnimation(_ isPresented: Bool) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isAuthSheetPresented = isPresented
         }
     }
 }
