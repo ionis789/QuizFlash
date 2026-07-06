@@ -208,7 +208,6 @@ struct LoginView: View {
         .overlay {
             authFloatingBackOverlay
         }
-        .animation(.smooth(duration: 0.34, extraBounce: 0), value: authSheetMode)
     }
 
     @ViewBuilder
