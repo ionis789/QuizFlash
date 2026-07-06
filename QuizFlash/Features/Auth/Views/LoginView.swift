@@ -140,6 +140,15 @@ struct LoginView: View {
                 guard newPhase == .active else { return }
                 restoreAuthSheetAfterAppActivation()
             }
+            .onChange(of: onboardingStateStore.presentation?.id) { _, presentationID in
+                guard presentationID == nil else {
+                    authSheetPresentationTask?.cancel()
+                    authSheetPresentationTask = nil
+                    return
+                }
+
+                presentAuthSheetIfNeeded(after: .milliseconds(620))
+            }
             .ignoresSafeArea(.keyboard, edges: activeSheet == nil ? [] : .bottom)
     }
 
@@ -317,22 +326,33 @@ struct LoginView: View {
     }
 
     private var canPresentAuthSheet: Bool {
+        guard onboardingStateStore.presentation == nil else { return false }
+
         switch authManager.sessionState {
         case .signedOut, .signedIn:
-            true
+            return true
         default:
-            false
+            return false
         }
     }
 
-    private func presentAuthSheetIfNeeded() {
-        guard canPresentAuthSheet else { return }
+    private func presentAuthSheetIfNeeded(after delay: Duration? = nil) {
+        guard canPresentAuthSheet else {
+            authSheetPresentationTask?.cancel()
+            authSheetPresentationTask = nil
+            return
+        }
+
         authSheetPresentationTask?.cancel()
 
         authSheetPresentationTask = Task { @MainActor in
+            if let delay {
+                try? await Task.sleep(for: delay)
+            }
+
             await Task.yield()
             await Task.yield()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, canPresentAuthSheet else { return }
 
             if !isAuthSheetPresented {
                 setAuthSheetPresentedWithoutExternalAnimation(true)
