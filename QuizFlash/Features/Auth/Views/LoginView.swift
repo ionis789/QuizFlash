@@ -151,7 +151,8 @@ struct LoginView: View {
                 AuthWalkthroughText(
                     phrases: walkthroughPhrases,
                     symbolColor: themeManager.accentColor.color,
-                    reduceMotion: reduceMotion
+                    reduceMotion: reduceMotion,
+                    animates: !isAuthSheetPresented
                 )
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
 
@@ -718,9 +719,11 @@ private struct AuthWalkthroughText: View {
     let phrases: [String]
     let symbolColor: Color
     let reduceMotion: Bool
+    let animates: Bool
 
     @State private var intros: [AuthIntro] = []
     @State private var activeIntro: AuthIntro?
+    @State private var animationRunID = UUID()
 
     var body: some View {
         GeometryReader { proxy in
@@ -756,17 +759,24 @@ private struct AuthWalkthroughText: View {
         .frame(maxWidth: .infinity)
         .frame(height: 86)
         .clipped()
-        .task(id: phrases.joined(separator: "|")) {
+        .task(id: "\(phrases.joined(separator: "|"))-\(animates)") {
+            let runID = UUID()
+            animationRunID = runID
             configureIntros()
             guard activeIntro == nil else { return }
 
             activeIntro = intros.first
-            guard intros.count > 1, !reduceMotion else { return }
+            guard animates, intros.count > 1, !reduceMotion else { return }
 
             try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
+            guard animates, animationRunID == runID, !Task.isCancelled else { return }
 
-            animate(0)
+            animate(0, runID: runID)
+        }
+        .onChange(of: animates) { _, animates in
+            animationRunID = UUID()
+            guard !animates else { return }
+            resetActiveIntroOffsets()
         }
     }
 
@@ -785,7 +795,9 @@ private struct AuthWalkthroughText: View {
         }
     }
 
-    private func animate(_ index: Int, loop: Bool = true) {
+    private func animate(_ index: Int, loop: Bool = true, runID: UUID) {
+        guard animates, animationRunID == runID else { return }
+
         if intros.indices.contains(index + 1) {
             activeIntro?.text = intros[index].text
             activeIntro?.textColor = intros[index].textColor
@@ -800,12 +812,18 @@ private struct AuthWalkthroughText: View {
                     activeIntro?.symbolColor = intros[index + 1].symbolColor
                     activeIntro?.backgroundColor = intros[index + 1].backgroundColor
                 } completion: {
-                    animate(index + 1, loop: loop)
+                    guard animates, animationRunID == runID else { return }
+                    animate(index + 1, loop: loop, runID: runID)
                 }
             }
         } else if loop {
-            animate(0, loop: loop)
+            animate(0, loop: loop, runID: runID)
         }
+    }
+
+    private func resetActiveIntroOffsets() {
+        activeIntro?.textOffset = 0
+        activeIntro?.symbolOffset = 0
     }
 
     private func textSize(_ text: String) -> CGFloat {
