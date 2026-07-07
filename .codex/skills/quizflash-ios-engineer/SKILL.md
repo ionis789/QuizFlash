@@ -29,6 +29,20 @@ Treat animation smoothness as a first-class product requirement. For visible tra
 
 After every code modification, commit the finished change before handing control back. Use a very short commit message, ideally only a few words and at most one concise sentence, describing what changed.
 
+## Local Machine Performance Guardrails
+
+Protect the user's laptop performance as a hard requirement. `MUST NOT` run broad, expensive, or unrelated commands just because they are available. Match verification scope to the task: for UI-only work, do not trigger backend builds, cloud deploys, package resolution, clean builds, or full dependency rebuilds unless the user explicitly asks for that level of verification.
+
+`MUST NOT` put Xcode `DerivedData`, build products, package caches, simulator artifacts, logs, or generated dependency output inside the repository. Never use `-derivedDataPath build/DerivedData`, `DerivedData`, `.build`, or any repo-relative path for Xcode build output. If a custom path is unavoidable, use a temporary path outside the repo and clean it up only when no related process is running.
+
+`MUST NOT` run `git add -A`, `git add .`, or any broad staging command in this repo. Stage only the exact files intentionally changed by the task. Before staging, make sure generated folders such as `build/`, `DerivedData/`, `.build/`, package caches, simulator output, and logs are not inside the working tree or included by the command.
+
+`MUST` avoid commands that recursively walk huge generated trees unless they are strictly necessary. Do not run broad `du`, `find`, `ls -R`, `git diff`, `git status --ignored`, or repository-wide scans over build artifacts. Use targeted `rg --files`, `rg`, `sed`, and file-specific `git diff -- path` reads instead.
+
+Before starting a command expected to run for more than roughly 30 seconds, `MUST` state what will run and why. For heavy verification, prefer the already-open simulator/device and the smallest relevant command. Do not boot hidden simulators, start long recordings, or keep Device Hub recordings running as a side effect of verification.
+
+After interrupting or finishing any heavy command, `MUST` check for leftover `xcodebuild`, `swiftc`, `clang`, `SWBBuildService`, runaway `git add`, simulator recording, or indexing processes related to the task, and stop only those task-owned leftovers before handing control back. If a process is stuck in uninterruptible I/O at `0% CPU`, report it clearly instead of repeatedly spawning more cleanup commands.
+
 Treat data-heavy render paths as a known QuizFlash failure mode. The Home performance incident showed that computed properties and `.task(id:)` signatures that walk SwiftData arrays can create severe CPU and allocation churn during scroll, even when there is no classic retain-cycle leak. On any screen with many decks, cards, zones, logs, aggregates, diagnostics, or summaries, do not calculate fingerprints, filters, sorts, grouped summaries, relationship counts, calendar/date formatting, or model projections inside `body` or other render-time computed properties. Cache snapshots or signatures in `@State`, a `@MainActor` view model, or a background actor, and invalidate them from cheap change signals only when source data actually changes.
 
 When animation or interaction lag survives an initial optimization, lead with an explicit debugging protocol instead of passively waiting for another symptom report. Add narrowly scoped DEBUG-only visual instrumentation when useful, tell the user exactly what gesture/video to capture, and explain which metrics will confirm or reject the current hypothesis.

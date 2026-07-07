@@ -11,7 +11,6 @@ import UIKit
 // MARK: - QuizFlash Onboarding View
 
 struct QuizFlashOnboardingView: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
@@ -22,6 +21,10 @@ struct QuizFlashOnboardingView: View {
 
     @State private var currentIndex = 0
     @State private var cardsTarget = AppPreferences.defaultDailyCardsGoal
+    @State private var welcomeDemoIsActive = true
+    @State private var welcomeDemoStopTask: Task<Void, Never>?
+    @State private var introContentIsPresented = false
+    @State private var introContentAnimationTask: Task<Void, Never>?
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -32,38 +35,78 @@ struct QuizFlashOnboardingView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            themeManager.screenBackground
-                .ignoresSafeArea()
+        if presentation.isIntro {
+            introBody
+        } else {
+            setupBody
+        }
+    }
 
-            onboardingDisplayView
-                .compositingGroup()
-                .scaleEffect(
-                    items[currentIndex].zoomScale,
-                    anchor: items[currentIndex].zoomAnchor
-                )
-                .frame(maxWidth: maxDisplayWidth)
-                .padding(.top, topContentPadding)
-                .padding(.horizontal, horizontalContentPadding)
-                .padding(.bottom, bottomControlsHeight + displayBottomSpacing)
+    private var setupBody: some View {
+        GeometryReader { proxy in
+            let metrics = QuizFlashOnboardingLayoutMetrics(containerSize: proxy.size)
 
-            bottomControls
+            ZStack(alignment: .bottom) {
+                themeManager.screenBackground
+                    .ignoresSafeArea()
 
-            if presentation.allowsClose {
-                closeButton
+                onboardingDisplayView(metrics: metrics)
+                    .compositingGroup()
+                    .scaleEffect(
+                        items[currentIndex].zoomScale,
+                        anchor: items[currentIndex].zoomAnchor
+                    )
+                    .padding(.top, metrics.topContentPadding)
+                    .padding(.horizontal, metrics.horizontalContentPadding)
+                    .padding(.bottom, metrics.bottomControlsHeight + metrics.displayBottomSpacing)
+
+                bottomControls(metrics: metrics)
+
+                backButton(metrics: metrics)
             }
-
-            backButton
         }
         .preferredColorScheme(.dark)
         .ignoresSafeArea()
         .onAppear(perform: syncStateFromPreferences)
+        .onDisappear {
+            welcomeDemoStopTask?.cancel()
+        }
+    }
+
+    private var introBody: some View {
+        GeometryReader { proxy in
+            let metrics = QuizFlashOnboardingLayoutMetrics(containerSize: proxy.size)
+
+            ZStack {
+                themeManager.screenBackground
+                    .ignoresSafeArea()
+
+                IntroWelcomePage(
+                    buttonHorizontalPadding: metrics.continueButtonHorizontalPadding,
+                    onStart: {
+                        withAnimation(introExitAnimation) {
+                            onComplete(presentation)
+                        }
+                    }
+                )
+                .scaleEffect(introContentScale, anchor: .center)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .ignoresSafeArea()
+        .onAppear(perform: startIntroContentAnimation)
+        .onDisappear {
+            introContentAnimationTask?.cancel()
+            introContentAnimationTask = nil
+            introContentIsPresented = false
+            welcomeDemoStopTask?.cancel()
+        }
     }
 
     // MARK: - Content
 
-    private var onboardingDisplayView: some View {
-        let frameMetrics = deviceFrameMetrics
+    private func onboardingDisplayView(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
+        let frameMetrics = metrics.deviceFrameMetrics
         let shape = RoundedRectangle(cornerRadius: frameMetrics.cornerRadius, style: .continuous)
 
         return GeometryReader { proxy in
@@ -74,7 +117,7 @@ struct QuizFlashOnboardingView: View {
 
             HStack(spacing: UIConstants.Spacing.medium) {
                 ForEach(items.indices, id: \.self) { index in
-                    onboardingPage(for: items[index])
+                    onboardingPage(for: items[index], isActive: index == currentIndex)
                         .scaleEffect(pageScale(for: index))
                         .opacity(pageOpacity(for: index))
                         .frame(width: size.width, height: size.height)
@@ -103,10 +146,10 @@ struct QuizFlashOnboardingView: View {
     }
 
     @ViewBuilder
-    private func onboardingPage(for item: QuizFlashOnboardingItem) -> some View {
+    private func onboardingPage(for item: QuizFlashOnboardingItem, isActive: Bool) -> some View {
         switch item.kind {
         case .welcome:
-            WelcomeOnboardingPage()
+            WelcomeOnboardingPage(isActive: isActive || welcomeDemoIsActive)
         case .zoneStyle:
             ZoneStyleOnboardingPage(selectedStyle: zoneSurfaceStyleBinding)
         case .latexSupport:
@@ -118,7 +161,7 @@ struct QuizFlashOnboardingView: View {
         }
     }
 
-    private var bottomControls: some View {
+    private func bottomControls(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
         VStack(spacing: UIConstants.Spacing.medium) {
             if items[currentIndex].kind == .welcome {
                 Spacer(minLength: 0)
@@ -126,13 +169,13 @@ struct QuizFlashOnboardingView: View {
                 textContent
             }
             indicatorView
-            continueButton
+            continueButton(horizontalPadding: metrics.continueButtonHorizontalPadding)
         }
         .padding(.top, UIConstants.Spacing.large)
         .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(maxWidth: bottomControlsMaxWidth)
-        .frame(height: bottomControlsHeight)
-        .padding(.bottom, bottomControlsBottomPadding)
+        .frame(width: metrics.bottomControlsWidth)
+        .frame(height: metrics.bottomControlsHeight)
+        .padding(.bottom, metrics.bottomControlsBottomPadding)
     }
 
     private var textContent: some View {
@@ -180,7 +223,7 @@ struct QuizFlashOnboardingView: View {
         .padding(.bottom, UIConstants.Spacing.tiny)
     }
 
-    private var continueButton: some View {
+    private func continueButton(horizontalPadding: CGFloat) -> some View {
         Button {
             applyCurrentStep()
 
@@ -189,9 +232,7 @@ struct QuizFlashOnboardingView: View {
                 return
             }
 
-            withAnimation(animation) {
-                currentIndex = min(currentIndex + 1, items.count - 1)
-            }
+            move(to: currentIndex + 1)
         } label: {
             Text(AppLocalization.string(currentIndex == items.count - 1 ? "Get started" : "Continue", locale: locale))
                 .fontWeight(.medium)
@@ -199,46 +240,22 @@ struct QuizFlashOnboardingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
         }
-        .tint(themeManager.accentColor.color)
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.capsule)
-        .padding(.horizontal, UIConstants.Spacing.huge)
+        .quizFlashButtonStyle(.primary, shape: .capsule, size: UIConstants.Size.buttonHeight)
+        .padding(.horizontal, horizontalPadding)
     }
 
-    private var backButton: some View {
+    private func backButton(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
         Button {
-            withAnimation(animation) {
-                currentIndex = max(currentIndex - 1, 0)
-            }
+            move(to: currentIndex - 1)
         } label: {
             Image(systemName: "chevron.left")
-                .font(.title3)
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
         }
-        .tint(.white)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
+        .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
         .opacity(currentIndex == 0 ? 0 : 1)
         .allowsHitTesting(currentIndex > 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.leading, UIConstants.Spacing.standard)
-        .padding(.top, UIConstants.Spacing.standard)
-    }
-
-    private var closeButton: some View {
-        Button {
-            onClose(presentation)
-        } label: {
-            Image(systemName: "xmark")
-                .font(.headline.weight(.bold))
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-        }
-        .tint(.white)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .padding(.trailing, UIConstants.Spacing.standard)
-        .padding(.top, UIConstants.Spacing.standard)
+        .padding(.leading, metrics.chromeHorizontalPadding)
+        .padding(.top, metrics.chromeTopPadding)
     }
 
     // MARK: - Actions
@@ -246,11 +263,43 @@ struct QuizFlashOnboardingView: View {
     private func syncStateFromPreferences() {
         cardsTarget = appPreferences.dailyCardsGoal ?? AppPreferences.defaultDailyCardsGoal
         appPreferences.dailyCardsGoal = cardsTarget
+        welcomeDemoIsActive = currentIndex == 0
     }
 
     private func applyCurrentStep() {
         guard items[currentIndex].kind == .cardsTarget else { return }
         appPreferences.dailyCardsGoal = cardsTarget
+    }
+
+    private func move(to proposedIndex: Int) {
+        let nextIndex = min(max(proposedIndex, 0), items.count - 1)
+        guard nextIndex != currentIndex else { return }
+
+        updateWelcomeDemoActivity(from: currentIndex, to: nextIndex)
+
+        withAnimation(animation) {
+            currentIndex = nextIndex
+        }
+    }
+
+    private func updateWelcomeDemoActivity(from oldIndex: Int, to newIndex: Int) {
+        welcomeDemoStopTask?.cancel()
+
+        if newIndex == 0 {
+            welcomeDemoIsActive = true
+            return
+        }
+
+        guard oldIndex == 0 else { return }
+
+        welcomeDemoIsActive = true
+        welcomeDemoStopTask = Task { @MainActor in
+            let transitionDelay: Duration = reduceMotion ? .milliseconds(260) : .milliseconds(720)
+            try? await Task.sleep(for: transitionDelay)
+
+            guard !Task.isCancelled, currentIndex != 0 else { return }
+            welcomeDemoIsActive = false
+        }
     }
 
     // MARK: - Bindings
@@ -269,54 +318,37 @@ struct QuizFlashOnboardingView: View {
         )
     }
 
-    // MARK: - Metrics
-
-    private var isPadLayout: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad || horizontalSizeClass == .regular
-    }
-
-    private var maxDisplayWidth: CGFloat? {
-        isPadLayout ? 920 : nil
-    }
-
-    private var topContentPadding: CGFloat {
-        isPadLayout ? 48 : 35
-    }
-
-    private var horizontalContentPadding: CGFloat {
-        isPadLayout ? 70 : 30
-    }
-
-    private var displayBottomSpacing: CGFloat {
-        isPadLayout ? 70 : 10
-    }
-
-    private var bottomControlsHeight: CGFloat {
-        isPadLayout ? 230 : 210
-    }
-
-    private var bottomControlsMaxWidth: CGFloat? {
-        isPadLayout ? 560 : nil
-    }
-
-    private var bottomControlsBottomPadding: CGFloat {
-        isPadLayout ? 28 : 0
-    }
-
-    private var deviceFrameMetrics: QuizFlashOnboardingDeviceFrameMetrics {
-        QuizFlashOnboardingDeviceFrameMetrics(
-            cornerRadius: isPadLayout ? 44 : 34,
-            highlightLineWidth: 4,
-            outerLineWidth: 5,
-            innerLineWidth: 4,
-            innerPadding: 5,
-            overlayPadding: -6,
-            highlightOpacity: 0.85
-        )
-    }
-
     private var animation: Animation {
         reduceMotion ? .easeInOut(duration: 0.22) : .interpolatingSpring(duration: 0.65, bounce: 0, initialVelocity: 0)
+    }
+
+    private var introExitAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.22) : .easeInOut(duration: 0.42)
+    }
+
+    private var introContentScale: CGFloat {
+        introContentIsPresented || reduceMotion ? 1 : 0.965
+    }
+
+    private func startIntroContentAnimation() {
+        introContentAnimationTask?.cancel()
+        introContentIsPresented = false
+
+        introContentAnimationTask = Task { @MainActor in
+            if !reduceMotion {
+                try? await Task.sleep(for: .milliseconds(90))
+            }
+
+            guard !Task.isCancelled else { return }
+
+            let presentationAnimation: Animation = reduceMotion
+                ? .easeInOut(duration: 0.01)
+                : .spring(response: 0.52, dampingFraction: 0.90)
+
+            withAnimation(presentationAnimation) {
+                introContentIsPresented = true
+            }
+        }
     }
 
     private func pageScale(for index: Int) -> CGFloat {
@@ -327,6 +359,197 @@ struct QuizFlashOnboardingView: View {
         index == currentIndex ? 1 : 0.74
     }
 }
+
+// MARK: - Layout Metrics
+
+private struct QuizFlashOnboardingLayoutMetrics {
+    let containerSize: CGSize
+
+    private var width: CGFloat {
+        max(containerSize.width, 1)
+    }
+
+    private var height: CGFloat {
+        max(containerSize.height, 1)
+    }
+
+    private var aspectRatio: CGFloat {
+        width / height
+    }
+
+    private var diagonalScale: CGFloat {
+        sqrt(width * height)
+    }
+
+    var topContentPadding: CGFloat {
+        height * 0.018
+    }
+
+    var horizontalContentPadding: CGFloat {
+        width * 0.020
+    }
+
+    var displayBottomSpacing: CGFloat {
+        height * 0.018
+    }
+
+    var bottomControlsHeight: CGFloat {
+        height * (0.20 - (aspectRatio * 0.070))
+    }
+
+    var bottomControlsWidth: CGFloat {
+        width * (0.90 - (aspectRatio * 0.18))
+    }
+
+    var bottomControlsBottomPadding: CGFloat {
+        height * 0.052
+    }
+
+    var introButtonBottomPadding: CGFloat {
+        height * 0.090
+    }
+
+    var introButtonReservedHeight: CGFloat {
+        height * 0.135
+    }
+
+    var continueButtonHorizontalPadding: CGFloat {
+        width * 0.022
+    }
+
+    var chromeHorizontalPadding: CGFloat {
+        width * 0.038
+    }
+
+    var chromeTopPadding: CGFloat {
+        height * 0.046
+    }
+
+    var deviceFrameMetrics: QuizFlashOnboardingDeviceFrameMetrics {
+        QuizFlashOnboardingDeviceFrameMetrics(
+            cornerRadius: diagonalScale * 0.035,
+            highlightLineWidth: width * 0.0036,
+            outerLineWidth: width * 0.0045,
+            innerLineWidth: width * 0.0036,
+            innerPadding: width * 0.0045,
+            overlayPadding: -(width * 0.0054),
+            highlightOpacity: 0.85
+        )
+    }
+}
+
+private struct WelcomeOnboardingLayoutMetrics {
+    let containerSize: CGSize
+    let titleLineCount: Int
+
+    private var width: CGFloat {
+        max(containerSize.width, 1)
+    }
+
+    private var height: CGFloat {
+        max(containerSize.height, 1)
+    }
+
+    var horizontalPadding: CGFloat {
+        width * 0.055
+    }
+
+    var topBreathingRoom: CGFloat {
+        height * 0.105
+    }
+
+    var titleBlockHeight: CGFloat {
+        let lineHeights = (0..<titleLineCount).reduce(CGFloat.zero) { partialHeight, index in
+            partialHeight + (titleSize(for: index) * 1.04)
+        }
+        let spacingHeight = titleLineSpacing * CGFloat(max(titleLineCount - 1, 0))
+
+        return (lineHeights + spacingHeight) * 1.08
+    }
+
+    var titleLineSpacing: CGFloat {
+        height * 0.004
+    }
+
+    func titleSize(for index: Int) -> CGFloat {
+        index == 0 ? baseTitleSize * 0.64 : baseTitleSize * 1.04
+    }
+
+    var demoHeight: CGFloat {
+        height * 0.47
+    }
+
+    var titleDemoGap: CGFloat {
+        availableVerticalRemainder * 0.58
+    }
+
+    private var baseTitleSize: CGFloat {
+        sqrt(width * height) * 0.078
+    }
+
+    private var availableVerticalRemainder: CGFloat {
+        max(height - topBreathingRoom - titleBlockHeight - demoHeight, 0)
+    }
+}
+
+private struct IntroWelcomeLayoutMetrics {
+    let containerSize: CGSize
+    let titleLineCount: Int
+
+    private var width: CGFloat {
+        max(containerSize.width, 1)
+    }
+
+    private var height: CGFloat {
+        max(containerSize.height, 1)
+    }
+
+    var horizontalPadding: CGFloat {
+        width * 0.055
+    }
+
+    var topBreathingRoom: CGFloat {
+        height * 0.205
+    }
+
+    var titleLineSpacing: CGFloat {
+        height * 0.004
+    }
+
+    var titleBlockHeight: CGFloat {
+        let lineHeights = (0..<titleLineCount).reduce(CGFloat.zero) { partialHeight, index in
+            partialHeight + (titleSize(for: index) * 1.04)
+        }
+        let spacingHeight = titleLineSpacing * CGFloat(max(titleLineCount - 1, 0))
+
+        return (lineHeights + spacingHeight) * 1.08
+    }
+
+    func titleSize(for index: Int) -> CGFloat {
+        index == 0 ? baseTitleSize * 0.64 : baseTitleSize * 1.04
+    }
+
+    var titleDemoGap: CGFloat {
+        height * 0.085
+    }
+
+    var demoHeight: CGFloat {
+        height * 0.305
+    }
+
+    var demoButtonGap: CGFloat {
+        height * 0.052
+    }
+
+    var buttonWidth: CGFloat {
+        width * 0.70
+    }
+
+    private var baseTitleSize: CGFloat {
+        sqrt(width * height) * 0.078
+    }
+}
+
 
 // MARK: - Item
 
@@ -341,30 +564,24 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
     static let defaultItems: [QuizFlashOnboardingItem] = [
         .init(
             id: 0,
-            titleKey: "Welcome to QuizFlash",
-            subtitleKey: "Set your defaults in a few quick steps.",
-            kind: .welcome
-        ),
-        .init(
-            id: 1,
             titleKey: "Choose your zone style",
             subtitleKey: "This is how zones will look inside cards.",
             kind: .zoneStyle
         ),
         .init(
-            id: 2,
+            id: 1,
             titleKey: "Full LaTeX support",
             subtitleKey: "Generate or request cards with LaTeX symbols without friction.",
             kind: .latexSupport
         ),
         .init(
-            id: 3,
+            id: 2,
             titleKey: "Set your daily target",
             subtitleKey: "Choose how many cards you want to finish each day.",
             kind: .cardsTarget
         ),
         .init(
-            id: 4,
+            id: 3,
             titleKey: "Pick your card text size",
             subtitleKey: "This preview uses the same scale as the editor and play mode.",
             kind: .textSize
@@ -382,121 +599,176 @@ private enum QuizFlashOnboardingPageKind: Hashable {
 
 // MARK: - Pages
 
-private struct WelcomeOnboardingPage: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+private struct IntroWelcomePage: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
+    let buttonHorizontalPadding: CGFloat
+    let onStart: () -> Void
+
     var body: some View {
         GeometryReader { proxy in
-            let isPadLayout = horizontalSizeClass == .regular || proxy.size.width >= 700
-            let titleSize = welcomeTitleSize(width: proxy.size.width, isPadLayout: isPadLayout)
+            let size = proxy.size
             let titleLines = welcomeTitleLines(locale: appPreferences.resolvedLocale)
-            let horizontalPadding = welcomeHorizontalPadding(isPadLayout: isPadLayout)
-            let verticalPadding = welcomeVerticalPadding(isPadLayout: isPadLayout)
-            let contentSpacing = welcomeContentSpacing(availableHeight: proxy.size.height, isPadLayout: isPadLayout)
-            let titleHeight = welcomeTitleHeight(lineCount: titleLines.count, titleSize: titleSize, isPadLayout: isPadLayout)
-            let demoHeight = welcomeDemoHeight(
-                availableHeight: proxy.size.height,
-                titleHeight: titleHeight,
-                contentSpacing: contentSpacing,
-                verticalPadding: verticalPadding,
-                isPadLayout: isPadLayout
-            )
-            let demoMaxWidth = welcomeDemoMaxWidth(
-                width: proxy.size.width,
-                horizontalPadding: horizontalPadding,
-                isPadLayout: isPadLayout
-            )
+            let metrics = IntroWelcomeLayoutMetrics(containerSize: size, titleLineCount: titleLines.count)
 
-            VStack(spacing: contentSpacing) {
-                VStack(spacing: isPadLayout ? 2 : 0) {
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                    .frame(height: metrics.topBreathingRoom)
+
+                VStack(spacing: metrics.titleLineSpacing) {
                     ForEach(titleLines.indices, id: \.self) { index in
                         Text(titleLines[index])
-                            .font(.system(size: titleSize, weight: .black, design: .rounded))
-                            .foregroundStyle(themeManager.textPrimary)
+                            .font(.system(
+                                size: metrics.titleSize(for: index),
+                                weight: .black,
+                                design: .rounded
+                            ))
+                            .foregroundStyle(titleForegroundStyle(for: index, total: titleLines.count))
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
+                            .shadow(
+                                color: themeManager.accentColor.color.opacity(index == titleLines.count - 1 ? 0.20 : 0.10),
+                                radius: 18,
+                                y: 8
+                            )
                     }
                 }
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: isPadLayout ? 900 : 360)
+                .frame(height: metrics.titleBlockHeight, alignment: .center)
 
-                WelcomeCardForms(maxWidth: demoMaxWidth, height: demoHeight)
+                Spacer(minLength: 0)
+                    .frame(height: metrics.titleDemoGap)
+
+                WelcomeCardForms(height: metrics.demoHeight, isActive: true)
+
+                Spacer(minLength: 0)
+                    .frame(height: metrics.demoButtonGap)
+
+                Button {
+                    onStart()
+                } label: {
+                    Text(AppLocalization.string("Start", locale: appPreferences.resolvedLocale))
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .quizFlashButtonStyle(.primary, shape: .capsule, size: UIConstants.Size.buttonHeight)
+                .padding(.horizontal, buttonHorizontalPadding)
+                .frame(width: metrics.buttonWidth)
+
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+            .padding(.horizontal, metrics.horizontalPadding)
+            .frame(width: size.width, height: size.height, alignment: .center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-
-    private func welcomeTitleSize(width: CGFloat, isPadLayout: Bool) -> CGFloat {
-        if isPadLayout {
-            return min(max(width * 0.074, 68), 84)
-        }
-
-        return min(max(width * 0.124, 44), 54)
     }
 
     private func welcomeTitleLines(locale: Locale) -> [String] {
         let title = AppLocalization.string("Welcome to QuizFlash", locale: locale)
 
-        if let range = title.range(of: " to ", options: .caseInsensitive) {
+        if let range = title.range(of: "QuizFlash", options: .caseInsensitive) {
             let firstLine = String(title[..<range.lowerBound])
-            let secondLine = "to " + String(title[range.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " to", with: " To", options: .caseInsensitive)
 
-            return [firstLine, secondLine]
+            return [firstLine, "QuizFlash"]
         }
 
         return [title]
     }
 
-    private func welcomeHorizontalPadding(isPadLayout: Bool) -> CGFloat {
-        isPadLayout ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.medium
-    }
-
-    private func welcomeVerticalPadding(isPadLayout: Bool) -> CGFloat {
-        isPadLayout ? UIConstants.Spacing.large : UIConstants.Spacing.medium
-    }
-
-    private func welcomeContentSpacing(availableHeight: CGFloat, isPadLayout: Bool) -> CGFloat {
-        if isPadLayout {
-            return min(max(availableHeight * 0.050, 44), 66)
+    private func titleForegroundStyle(for index: Int, total: Int) -> AnyShapeStyle {
+        guard total > 1, index == total - 1 else {
+            return AnyShapeStyle(themeManager.textPrimary)
         }
 
-        return min(max(availableHeight * 0.036, 24), 38)
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [
+                    themeManager.textPrimary,
+                    themeManager.accentColor.color.opacity(0.96)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+    }
+}
+
+private struct WelcomeOnboardingPage: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    let isActive: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let titleLines = welcomeTitleLines(locale: appPreferences.resolvedLocale)
+            let metrics = WelcomeOnboardingLayoutMetrics(
+                containerSize: proxy.size,
+                titleLineCount: titleLines.count
+            )
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                    .frame(height: metrics.topBreathingRoom)
+
+                VStack(spacing: metrics.titleLineSpacing) {
+                    ForEach(titleLines.indices, id: \.self) { index in
+                        Text(titleLines[index])
+                            .font(.system(size: metrics.titleSize(for: index), weight: .black, design: .rounded))
+                            .foregroundStyle(titleForegroundStyle(for: index, total: titleLines.count))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .shadow(color: themeManager.accentColor.color.opacity(index == titleLines.count - 1 ? 0.20 : 0.10), radius: 18, y: 8)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .frame(height: metrics.titleBlockHeight, alignment: .center)
+
+                Spacer(minLength: 0)
+                    .frame(height: metrics.titleDemoGap)
+
+                WelcomeCardForms(height: metrics.demoHeight, isActive: isActive)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, metrics.horizontalPadding)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private func welcomeTitleHeight(lineCount: Int, titleSize: CGFloat, isPadLayout: Bool) -> CGFloat {
-        let lineSpacing: CGFloat = isPadLayout ? 2 : 0
-        return (titleSize * 1.04 * CGFloat(lineCount)) + (lineSpacing * CGFloat(max(lineCount - 1, 0)))
-    }
+    private func welcomeTitleLines(locale: Locale) -> [String] {
+        let title = AppLocalization.string("Welcome to QuizFlash", locale: locale)
 
-    private func welcomeDemoHeight(
-        availableHeight: CGFloat,
-        titleHeight: CGFloat,
-        contentSpacing: CGFloat,
-        verticalPadding: CGFloat,
-        isPadLayout: Bool
-    ) -> CGFloat {
-        let remainingHeight = availableHeight - titleHeight - contentSpacing - (verticalPadding * 2)
+        if let range = title.range(of: "QuizFlash", options: .caseInsensitive) {
+            let firstLine = String(title[..<range.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " to", with: " To", options: .caseInsensitive)
 
-        if isPadLayout {
-            return min(max(remainingHeight, 560), 780)
+            return [firstLine, "QuizFlash"]
         }
 
-        return min(max(remainingHeight, 360), 500)
+        return [title]
     }
 
-    private func welcomeDemoMaxWidth(width: CGFloat, horizontalPadding: CGFloat, isPadLayout: Bool) -> CGFloat {
-        let availableWidth = width - (horizontalPadding * 2)
-
-        if isPadLayout {
-            return min(max(availableWidth, 720), 980)
+    private func titleForegroundStyle(for index: Int, total: Int) -> AnyShapeStyle {
+        guard total > 1, index == total - 1 else {
+            return AnyShapeStyle(themeManager.textPrimary)
         }
 
-        return min(max(availableWidth, 330), 620)
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [
+                    themeManager.textPrimary,
+                    themeManager.accentColor.color.opacity(0.96)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 }
 
@@ -504,25 +776,36 @@ private struct WelcomeCardForms: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ThemeManager.self) private var themeManager
 
-    let maxWidth: CGFloat
     let height: CGFloat
+    let isActive: Bool
 
     @State private var phase: WelcomeCardDemoPhase = .resting
 
     var body: some View {
         GeometryReader { proxy in
-            let width = min(proxy.size.width, maxWidth)
-            let height = max(proxy.size.height, 340)
-            let contentScale = min(max(width / 520, 0.98), 1.70)
-            let cardWidth = min(width * 0.52, height * 0.58, 410)
+            let width = proxy.size.width
+            let height = proxy.size.height
+            let contentScale = sqrt(width / 520)
+            let cardWidth = min(width * 0.64, height * 0.68)
             let cardHeight = cardWidth * 1.42
-            let quizWidth = min(width * 0.90, 820)
-            let quizHeight = min(height * 0.86, 560)
+            let quizWidth = width * 0.90
+            let quizHeight = height * 0.86
+            let handIconSize = 44 * contentScale
+            let fingerTipToSymbolCenterOffset = CGSize(
+                width: handIconSize * 0.34,
+                height: handIconSize * 0.38
+            )
 
             ZStack {
-                if phase.showsTapRipple && !reduceMotion {
-                    tapRipple(size: cardWidth * 0.32)
-                        .offset(x: cardWidth * 0.13, y: cardHeight * 0.06)
+                if let flashcardTapOffset = phase.flashcardTapRippleOffset(cardWidth: cardWidth, cardHeight: cardHeight),
+                   !reduceMotion {
+                    tapRipple(
+                        size: cardWidth * 0.32,
+                        color: themeManager.accentColor.color,
+                        scale: phase.tapRippleScale,
+                        opacity: phase.tapRippleOpacity
+                    )
+                    .offset(flashcardTapOffset)
                 }
 
                 demoCard(width: cardWidth, height: cardHeight)
@@ -538,6 +821,17 @@ private struct WelcomeCardForms: View {
                     .offset(y: phase.quizOffsetY)
                     .opacity(phase.quizOpacity)
 
+                if let quizTapOffset = phase.quizTapRippleOffset(quizWidth: quizWidth, quizHeight: quizHeight),
+                   !reduceMotion {
+                    tapRipple(
+                        size: quizWidth * 0.16,
+                        color: phase.quizTapRippleColor(accent: themeManager.accentColor.color),
+                        scale: phase.tapRippleScale,
+                        opacity: phase.tapRippleOpacity
+                    )
+                    .offset(quizTapOffset)
+                }
+
                 if phase.showsHand && !reduceMotion {
                     Image(systemName: "hand.tap.fill")
                         .font(.system(size: 44 * contentScale, weight: .semibold))
@@ -551,7 +845,8 @@ private struct WelcomeCardForms: View {
                                 cardWidth: cardWidth,
                                 cardHeight: cardHeight,
                                 quizWidth: quizWidth,
-                                quizHeight: quizHeight
+                                quizHeight: quizHeight,
+                                fingerTipToSymbolCenterOffset: fingerTipToSymbolCenterOffset
                             )
                         )
                         .accessibilityHidden(true)
@@ -562,9 +857,11 @@ private struct WelcomeCardForms: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)
-        .task(id: reduceMotion) {
-            guard !reduceMotion else {
-                phase = .resting
+        .task(id: animationTaskID) {
+            guard isActive, !reduceMotion else {
+                withTransaction(Transaction(animation: nil)) {
+                    phase = .resting
+                }
                 return
             }
 
@@ -576,40 +873,46 @@ private struct WelcomeCardForms: View {
     private func runDemoLoop() async {
         phase = .resting
 
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(650))
-            await animate(to: .tapApproach, duration: 0.70)
-            try? await Task.sleep(for: .milliseconds(220))
-            await animate(to: .tapPress, duration: 0.18)
-            try? await Task.sleep(for: .milliseconds(180))
-            await animate(to: .flipped, duration: 0.62)
-            try? await Task.sleep(for: .milliseconds(680))
-            await animate(to: .swipeReady, duration: 0.42)
-            try? await Task.sleep(for: .milliseconds(180))
-            await animate(to: .swiping, duration: 0.86)
-            try? await Task.sleep(for: .milliseconds(180))
-            await animate(to: .quizAppearing, duration: 0.56)
-            try? await Task.sleep(for: .milliseconds(420))
-            await animate(to: .quizWrongApproach, duration: 0.48)
-            try? await Task.sleep(for: .milliseconds(160))
-            await animate(to: .quizWrongPress, duration: 0.14)
-            try? await Task.sleep(for: .milliseconds(120))
-            await animate(to: .quizWrongResult, duration: 0.34)
-            try? await Task.sleep(for: .milliseconds(640))
-            await animate(to: .quizCorrectApproach, duration: 0.50)
-            try? await Task.sleep(for: .milliseconds(160))
-            await animate(to: .quizCorrectPress, duration: 0.14)
-            try? await Task.sleep(for: .milliseconds(120))
-            await animate(to: .quizCorrectResult, duration: 0.38)
-            try? await Task.sleep(for: .milliseconds(850))
+        do {
+            while !Task.isCancelled {
+                try await Task.sleep(for: .milliseconds(650))
+                await animate(to: .tapApproach, duration: 0.70)
+                try await Task.sleep(for: .milliseconds(220))
+                await animate(to: .tapPress, duration: 0.18)
+                try await Task.sleep(for: .milliseconds(180))
+                await animate(to: .flipped, duration: 0.62)
+                try await Task.sleep(for: .milliseconds(680))
+                await animate(to: .swipeReady, duration: 0.42)
+                try await Task.sleep(for: .milliseconds(180))
+                await animate(to: .swiping, duration: 0.86)
+                try await Task.sleep(for: .milliseconds(180))
+                await animate(to: .quizAppearing, duration: 0.56)
+                try await Task.sleep(for: .milliseconds(420))
+                await animate(to: .quizWrongApproach, duration: 0.48)
+                try await Task.sleep(for: .milliseconds(160))
+                await animate(to: .quizWrongPress, duration: 0.14)
+                try await Task.sleep(for: .milliseconds(120))
+                await animate(to: .quizWrongResult, duration: 0.34)
+                try await Task.sleep(for: .milliseconds(640))
+                await animate(to: .quizCorrectApproach, duration: 0.50)
+                try await Task.sleep(for: .milliseconds(160))
+                await animate(to: .quizCorrectPress, duration: 0.14)
+                try await Task.sleep(for: .milliseconds(120))
+                await animate(to: .quizCorrectResult, duration: 0.38)
+                try await Task.sleep(for: .milliseconds(850))
 
-            await animate(to: .quizLeaving, duration: 0.32)
-            try? await Task.sleep(for: .milliseconds(210))
+                await animate(to: .quizLeaving, duration: 0.32)
+                try await Task.sleep(for: .milliseconds(210))
 
-            withTransaction(Transaction(animation: nil)) {
-                phase = .cardReturnHidden
+                withTransaction(Transaction(animation: nil)) {
+                    phase = .cardReturnHidden
+                }
+                await animate(to: .resting, duration: 0.48)
             }
-            await animate(to: .resting, duration: 0.48)
+        } catch {
+            withTransaction(Transaction(animation: nil)) {
+                phase = .resting
+            }
         }
     }
 
@@ -620,6 +923,10 @@ private struct WelcomeCardForms: View {
         withAnimation(.smooth(duration: duration, extraBounce: 0.03)) {
             phase = newPhase
         }
+    }
+
+    private var animationTaskID: String {
+        "\(isActive)-\(reduceMotion)"
     }
 
     private func demoCard(width: CGFloat, height: CGFloat) -> some View {
@@ -677,12 +984,17 @@ private struct WelcomeCardForms: View {
             }
     }
 
-    private func tapRipple(size: CGFloat) -> some View {
+    private func tapRipple(size: CGFloat, color: Color, scale: CGFloat, opacity: Double) -> some View {
         Circle()
-            .strokeBorder(themeManager.accentColor.color.opacity(0.55), lineWidth: 2)
+            .strokeBorder(color.opacity(0.62), lineWidth: 2)
+            .background {
+                Circle()
+                    .fill(color.opacity(0.10))
+            }
             .frame(width: size, height: size)
-            .scaleEffect(phase == .tapPress ? 1.18 : 0.72)
-            .opacity(phase == .tapPress ? 0.55 : 0)
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .blur(radius: opacity > 0 ? 0 : 1.5)
     }
 
     private func quizDemo(width: CGFloat, height: CGFloat, contentScale: CGFloat) -> some View {
@@ -798,10 +1110,6 @@ private enum WelcomeCardDemoPhase: Equatable {
         case .resting, .quizAppearing, .quizLeaving, .cardReturnHidden:
             false
         }
-    }
-
-    var showsTapRipple: Bool {
-        self == .tapPress
     }
 
     var showsBackFace: Bool {
@@ -1011,6 +1319,40 @@ private enum WelcomeCardDemoPhase: Equatable {
         }
     }
 
+    var tapRippleScale: CGFloat {
+        switch self {
+        case .tapPress, .quizWrongPress, .quizCorrectPress:
+            0.96
+        case .flipped, .quizWrongResult, .quizCorrectResult:
+            1.30
+        case .tapApproach, .quizWrongApproach, .quizCorrectApproach:
+            0.68
+        case .resting,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizLeaving,
+             .cardReturnHidden:
+            0.68
+        }
+    }
+
+    var tapRippleOpacity: Double {
+        switch self {
+        case .tapPress, .quizWrongPress, .quizCorrectPress:
+            0.58
+        case .tapApproach, .flipped, .quizWrongApproach, .quizCorrectApproach, .quizWrongResult, .quizCorrectResult:
+            0
+        case .resting,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizLeaving,
+             .cardReturnHidden:
+            0
+        }
+    }
+
     func answerState(for index: Int) -> WelcomeQuizAnswerState {
         switch self {
         case .quizWrongResult, .quizCorrectApproach, .quizCorrectPress, .quizCorrectResult:
@@ -1036,6 +1378,25 @@ private enum WelcomeCardDemoPhase: Equatable {
         }
     }
 
+    func quizTapRippleColor(accent: Color) -> Color {
+        switch self {
+        case .quizWrongApproach, .quizWrongPress, .quizWrongResult:
+            .red
+        case .quizCorrectApproach, .quizCorrectPress, .quizCorrectResult:
+            .green
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizLeaving,
+             .cardReturnHidden:
+            accent
+        }
+    }
+
     func cardOffsetX(cardWidth: CGFloat, containerWidth: CGFloat) -> CGFloat {
         switch self {
         case .swiping:
@@ -1054,8 +1415,14 @@ private enum WelcomeCardDemoPhase: Equatable {
         }
     }
 
-    func handOffset(cardWidth: CGFloat, cardHeight: CGFloat, quizWidth: CGFloat, quizHeight: CGFloat) -> CGSize {
-        switch self {
+    func handOffset(
+        cardWidth: CGFloat,
+        cardHeight: CGFloat,
+        quizWidth: CGFloat,
+        quizHeight: CGFloat,
+        fingerTipToSymbolCenterOffset: CGSize
+    ) -> CGSize {
+        let offset = switch self {
         case .tapApproach:
             CGSize(width: cardWidth * 0.44, height: cardHeight * 0.34)
         case .tapPress:
@@ -1076,6 +1443,69 @@ private enum WelcomeCardDemoPhase: Equatable {
             CGSize(width: quizWidth * 0.08, height: quizHeight * 0.18)
         case .resting, .quizAppearing, .quizLeaving, .cardReturnHidden:
             CGSize(width: cardWidth * 0.58, height: cardHeight * 0.42)
+        }
+
+        guard usesFingerTipTarget else { return offset }
+
+        return CGSize(
+            width: offset.width + fingerTipToSymbolCenterOffset.width,
+            height: offset.height + fingerTipToSymbolCenterOffset.height
+        )
+    }
+
+    private var usesFingerTipTarget: Bool {
+        switch self {
+        case .tapApproach,
+             .tapPress,
+             .flipped,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult:
+            true
+        case .resting, .swipeReady, .swiping, .quizAppearing, .quizLeaving, .cardReturnHidden:
+            false
+        }
+    }
+
+    func flashcardTapRippleOffset(cardWidth: CGFloat, cardHeight: CGFloat) -> CGSize? {
+        switch self {
+        case .tapApproach, .tapPress, .flipped:
+            CGSize(width: cardWidth * 0.20, height: cardHeight * 0.10)
+        case .resting,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizWrongApproach,
+             .quizWrongPress,
+             .quizWrongResult,
+             .quizCorrectApproach,
+             .quizCorrectPress,
+             .quizCorrectResult,
+             .quizLeaving,
+             .cardReturnHidden:
+            nil
+        }
+    }
+
+    func quizTapRippleOffset(quizWidth: CGFloat, quizHeight: CGFloat) -> CGSize? {
+        switch self {
+        case .quizWrongApproach, .quizWrongPress, .quizWrongResult:
+            CGSize(width: quizWidth * 0.08, height: -quizHeight * 0.03)
+        case .quizCorrectApproach, .quizCorrectPress, .quizCorrectResult:
+            CGSize(width: quizWidth * 0.08, height: quizHeight * 0.18)
+        case .resting,
+             .tapApproach,
+             .tapPress,
+             .flipped,
+             .swipeReady,
+             .swiping,
+             .quizAppearing,
+             .quizLeaving,
+             .cardReturnHidden:
+            nil
         }
     }
 }
