@@ -838,12 +838,14 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
                 }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .environment(\.fullScreenSheetDragProgress, dragProgress)
             .transaction { transaction in
                 transaction.animation = nil
                 transaction.disablesAnimations = true
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(Double(effectiveBackdropProgress))
+            .animation(presentationAnimation, value: presentationProgress)
+            .environment(\.fullScreenSheetDragProgress, dragProgress)
 
             if configuration.showsDefaultTopProgressiveBlur {
                 defaultTopProgressiveBlur(
@@ -870,6 +872,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
+        .animation(presentationAnimation, value: sheetHeight)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
                 backgroundView(dragProgress: dragProgress)
@@ -1012,7 +1015,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             scrollDisabled = false
         }
         .onChange(of: externalDismissRequestID) { _, _ in
-            animateDismiss(dismissalDistance: dismissalDistance)
+            Task { @MainActor in
+                await Task.yield()
+                animateDismiss(dismissalDistance: dismissalDistance)
+            }
         }
 
         baseView.background {
@@ -1063,8 +1069,12 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 #if DEBUG
         fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.animation.start")
 #endif
-        withAnimation(presentationAnimation) {
-            presentationProgress = 1
+        Task { @MainActor in
+            await Task.yield()
+            guard hasStartedPresentationAnimation, !isAnimatingDismiss else { return }
+            withAnimation(presentationAnimation) {
+                presentationProgress = 1
+            }
         }
     }
 
