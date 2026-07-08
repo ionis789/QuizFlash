@@ -440,11 +440,9 @@ private struct AuthLoginSheetContent: View {
         .onChange(of: mode) { _, newMode in
             guard newMode != displayedMode else { return }
 #if DEBUG
-            authLayoutDebugLog("content.modeChange direct oldDisplayed=\(displayedMode) newMode=\(newMode)")
+            authLayoutDebugLog("content.modeChange animated oldDisplayed=\(displayedMode) newMode=\(newMode)")
 #endif
-            displayedMode = newMode
-            isContentVisible = true
-            configureDismissCoordinator()
+            setMode(newMode)
         }
         .onChange(of: backRequestID) {
             guard mode != .actions else { return }

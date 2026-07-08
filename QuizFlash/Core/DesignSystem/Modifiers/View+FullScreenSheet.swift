@@ -838,10 +838,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
                 }
             )
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .opacity(Double(effectiveBackdropProgress))
             .animation(presentationAnimation, value: presentationProgress)
