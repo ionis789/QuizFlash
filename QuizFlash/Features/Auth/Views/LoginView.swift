@@ -31,7 +31,6 @@ struct LoginView: View {
     @State private var passwordConfirmation = ""
     @State private var authSheetMode: AuthSheetMode = .actions
     @State private var isAuthSheetPresented = false
-    @State private var authBackRequestID = UUID()
     @State private var activeSheet: AuthSheet?
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -179,7 +178,6 @@ struct LoginView: View {
                 email: $email,
                 password: $password,
                 passwordConfirmation: $passwordConfirmation,
-                backRequestID: authBackRequestID,
                 safeAreaInsets: safeAreaInsets,
                 locale: locale,
                 accentColor: themeManager.accentColor.color,
@@ -214,39 +212,6 @@ struct LoginView: View {
         } background: {
             AuthLoginSheetBackground()
         }
-        .overlay {
-            authFloatingBackOverlay
-        }
-    }
-
-    @ViewBuilder
-    private var authFloatingBackOverlay: some View {
-        GeometryReader { proxy in
-            if isAuthSheetPresented, authSheetMode != .actions {
-                let sheetHeight = resolvedAuthSheetHeight(in: proxy.size.height)
-                let sheetTopY = max(proxy.size.height - sheetHeight, 0)
-                let buttonSize = UIConstants.Size.actionButton
-                let topChromeY = proxy.safeAreaInsets.top + UIConstants.Layout.deckNavigationTopPadding
-                let buttonTopY = max(
-                    topChromeY,
-                    sheetTopY - UIConstants.Spacing.medium - buttonSize
-                )
-
-                ChromeSoftCircleSymbolButton(
-                    systemName: "chevron.left",
-                    accessibilityLabel: AppLocalization.string("Back", locale: locale),
-                    action: {
-                        authBackRequestID = UUID()
-                    },
-                    size: buttonSize
-                )
-                .scaleRevealMotion(isVisible: true, reduceMotion: reduceMotion)
-                .position(
-                    x: UIConstants.Layout.compactScreenEdgeInset + (buttonSize / 2),
-                    y: buttonTopY + (buttonSize / 2)
-                )
-            }
-        }
     }
 
     private var authSheetConfiguration: FullScreenSheetConfiguration {
@@ -264,7 +229,7 @@ struct LoginView: View {
         .sheet(
             heightMode: .adaptiveAbsolute(380, maxFraction: 0.62),
             dragActivationArea: .fullSurface,
-            showsDragIndicator: true,
+            showsDragIndicator: false,
             showsBackdropBlur: true,
             showsDefaultTopProgressiveBlur: false,
             hidesTabBar: false,
@@ -281,10 +246,6 @@ struct LoginView: View {
         case .signUp:
             570
         }
-    }
-
-    private func resolvedAuthSheetHeight(in containerHeight: CGFloat) -> CGFloat {
-        min(max(authSheetHeight, containerHeight * 0.22), containerHeight * 0.88)
     }
 
     private var walkthroughPhrases: [String] {
@@ -383,7 +344,6 @@ private struct AuthLoginSheetContent: View {
     @Binding var password: String
     @Binding var passwordConfirmation: String
 
-    let backRequestID: UUID
     let safeAreaInsets: UIEdgeInsets
     let locale: Locale
     let accentColor: Color
@@ -444,10 +404,6 @@ private struct AuthLoginSheetContent: View {
 #endif
             setMode(newMode)
         }
-        .onChange(of: backRequestID) {
-            guard mode != .actions else { return }
-            setMode(.actions)
-        }
     }
 
     private var contentStack: some View {
@@ -456,7 +412,7 @@ private struct AuthLoginSheetContent: View {
                 .scaleRevealMotion(
                     isVisible: isContentVisible,
                     reduceMotion: reduceMotion,
-                    hiddenOpacity: 0.16
+                    hiddenOpacity: 0.3
                 )
         }
         .padding(.horizontal, UIConstants.Spacing.large)
@@ -1004,10 +960,6 @@ private struct ForgotPasswordView: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 Text(AppLocalization.string("Forgot Password?", locale: locale))
                     .font(.title.weight(.bold))
-
-                Text(AppLocalization.string("We'll send a reset link.", locale: locale))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
 
                 AuthIconTextField(
                     title: AppLocalization.string("Email Address", locale: locale),
