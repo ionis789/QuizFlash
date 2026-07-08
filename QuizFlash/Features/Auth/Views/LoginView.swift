@@ -38,6 +38,12 @@ struct LoginView: View {
     @State private var presentingViewController: UIViewController?
     @State private var authSheetPresentationTask: Task<Void, Never>?
 
+    let allowsAuthWalkthroughAnimation: Bool
+
+    init(allowsAuthWalkthroughAnimation: Bool = true) {
+        self.allowsAuthWalkthroughAnimation = allowsAuthWalkthroughAnimation
+    }
+
     private var locale: Locale {
         appPreferences.resolvedLocale
     }
@@ -160,7 +166,7 @@ struct LoginView: View {
                     phrases: walkthroughPhrases,
                     symbolColor: themeManager.accentColor.color,
                     reduceMotion: reduceMotion,
-                    animates: true
+                    animates: allowsAuthWalkthroughAnimation
                 )
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
 
@@ -716,9 +722,13 @@ private struct AuthWalkthroughText: View {
             let runID = UUID()
             animationRunID = runID
             configureIntros()
-            guard activeIntro == nil else { return }
 
-            activeIntro = intros.first
+            if activeIntro == nil {
+                activeIntro = intros.first
+            } else {
+                resetActiveIntroOffsets()
+            }
+
             guard animates, intros.count > 1, !reduceMotion else { return }
 
             try? await Task.sleep(for: .milliseconds(250))
