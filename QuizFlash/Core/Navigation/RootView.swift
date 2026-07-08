@@ -13,8 +13,6 @@ struct RootView: View {
     @State private var hasCompletedLaunchAnimation = false
     @State private var isLaunchAnimationVisible = true
     @State private var isLaunchSymbolPresented = false
-    @State private var loginContentIsPresented = true
-    @State private var loginContentAnimationTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -34,7 +32,6 @@ struct RootView: View {
                      .emailVerificationSucceeded,
                      .signInSucceeded:
                     LoginView()
-                        .opacity(loginContentOpacity)
                         .transition(.opacity)
                 }
             }
@@ -71,9 +68,6 @@ struct RootView: View {
         .onChange(of: authManager.sessionState) { _, _ in
             presentOnboardingIfNeeded()
         }
-        .onDisappear {
-            loginContentAnimationTask?.cancel()
-        }
     }
 
     private func presentOnboardingIfNeeded() {
@@ -83,8 +77,6 @@ struct RootView: View {
             onboardingStateStore.presentRequiredIfNeeded(for: user)
         } else if case .required = onboardingStateStore.presentation {
             onboardingStateStore.presentRequiredIfNeeded(for: nil)
-        } else if case .signedOut = authManager.sessionState {
-            onboardingStateStore.presentIntroIfNeeded()
         }
     }
 
@@ -92,50 +84,12 @@ struct RootView: View {
         reduceMotion ? .easeInOut(duration: 0.22) : .easeInOut(duration: 0.42)
     }
 
-    private var loginContentOpacity: Double {
-        loginContentIsPresented || reduceMotion ? 1 : 0
-    }
-
     private func onboardingTransition(for presentation: OnboardingPresentation) -> AnyTransition {
-        guard !presentation.isIntro else {
-            return .asymmetric(insertion: .identity, removal: .opacity)
-        }
-
         return .opacity.combined(with: .scale(scale: 0.985))
     }
 
     private func completeOnboarding(_ completedPresentation: OnboardingPresentation) {
-        let shouldAnimateLoginReveal = completedPresentation.isIntro
-
-        if shouldAnimateLoginReveal {
-            startLoginContentRevealAnimation()
-        }
-
         onboardingStateStore.complete(completedPresentation)
-    }
-
-    private func startLoginContentRevealAnimation() {
-        loginContentAnimationTask?.cancel()
-
-        withTransaction(Transaction(animation: nil)) {
-            loginContentIsPresented = false
-        }
-
-        loginContentAnimationTask = Task { @MainActor in
-            if !reduceMotion {
-                try? await Task.sleep(for: .milliseconds(30))
-            }
-
-            guard !Task.isCancelled else { return }
-
-            let presentationAnimation: Animation = reduceMotion
-                ? .easeInOut(duration: 0.01)
-                : .spring(response: 0.52, dampingFraction: 0.90)
-
-            withAnimation(presentationAnimation) {
-                loginContentIsPresented = true
-            }
-        }
     }
 
     @MainActor

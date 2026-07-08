@@ -23,8 +23,6 @@ struct QuizFlashOnboardingView: View {
     @State private var cardsTarget = AppPreferences.defaultDailyCardsGoal
     @State private var welcomeDemoIsActive = true
     @State private var welcomeDemoStopTask: Task<Void, Never>?
-    @State private var introContentIsPresented = false
-    @State private var introContentAnimationTask: Task<Void, Never>?
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -35,14 +33,6 @@ struct QuizFlashOnboardingView: View {
     }
 
     var body: some View {
-        if presentation.isIntro {
-            introBody
-        } else {
-            setupBody
-        }
-    }
-
-    private var setupBody: some View {
         GeometryReader { proxy in
             let metrics = QuizFlashOnboardingLayoutMetrics(containerSize: proxy.size)
 
@@ -69,36 +59,6 @@ struct QuizFlashOnboardingView: View {
         .ignoresSafeArea()
         .onAppear(perform: syncStateFromPreferences)
         .onDisappear {
-            welcomeDemoStopTask?.cancel()
-        }
-    }
-
-    private var introBody: some View {
-        GeometryReader { proxy in
-            let metrics = QuizFlashOnboardingLayoutMetrics(containerSize: proxy.size)
-
-            ZStack {
-                themeManager.screenBackground
-                    .ignoresSafeArea()
-
-                IntroWelcomePage(
-                    buttonHorizontalPadding: metrics.continueButtonHorizontalPadding,
-                    onStart: {
-                        withAnimation(introExitAnimation) {
-                            onComplete(presentation)
-                        }
-                    }
-                )
-                .scaleEffect(introContentScale, anchor: .center)
-            }
-        }
-        .preferredColorScheme(.dark)
-        .ignoresSafeArea()
-        .onAppear(perform: startIntroContentAnimation)
-        .onDisappear {
-            introContentAnimationTask?.cancel()
-            introContentAnimationTask = nil
-            introContentIsPresented = false
             welcomeDemoStopTask?.cancel()
         }
     }
@@ -322,35 +282,6 @@ struct QuizFlashOnboardingView: View {
         reduceMotion ? .easeInOut(duration: 0.22) : .interpolatingSpring(duration: 0.65, bounce: 0, initialVelocity: 0)
     }
 
-    private var introExitAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.22) : .easeInOut(duration: 0.42)
-    }
-
-    private var introContentScale: CGFloat {
-        introContentIsPresented || reduceMotion ? 1 : 0.965
-    }
-
-    private func startIntroContentAnimation() {
-        introContentAnimationTask?.cancel()
-        introContentIsPresented = false
-
-        introContentAnimationTask = Task { @MainActor in
-            if !reduceMotion {
-                try? await Task.sleep(for: .milliseconds(90))
-            }
-
-            guard !Task.isCancelled else { return }
-
-            let presentationAnimation: Animation = reduceMotion
-                ? .easeInOut(duration: 0.01)
-                : .spring(response: 0.52, dampingFraction: 0.90)
-
-            withAnimation(presentationAnimation) {
-                introContentIsPresented = true
-            }
-        }
-    }
-
     private func pageScale(for index: Int) -> CGFloat {
         index == currentIndex ? 1 : 0.88
     }
@@ -403,14 +334,6 @@ private struct QuizFlashOnboardingLayoutMetrics {
 
     var bottomControlsBottomPadding: CGFloat {
         height * 0.052
-    }
-
-    var introButtonBottomPadding: CGFloat {
-        height * 0.090
-    }
-
-    var introButtonReservedHeight: CGFloat {
-        height * 0.135
     }
 
     var continueButtonHorizontalPadding: CGFloat {
@@ -492,65 +415,6 @@ private struct WelcomeOnboardingLayoutMetrics {
     }
 }
 
-private struct IntroWelcomeLayoutMetrics {
-    let containerSize: CGSize
-    let titleLineCount: Int
-
-    private var width: CGFloat {
-        max(containerSize.width, 1)
-    }
-
-    private var height: CGFloat {
-        max(containerSize.height, 1)
-    }
-
-    var horizontalPadding: CGFloat {
-        width * 0.055
-    }
-
-    var topBreathingRoom: CGFloat {
-        height * 0.205
-    }
-
-    var titleLineSpacing: CGFloat {
-        height * 0.004
-    }
-
-    var titleBlockHeight: CGFloat {
-        let lineHeights = (0..<titleLineCount).reduce(CGFloat.zero) { partialHeight, index in
-            partialHeight + (titleSize(for: index) * 1.04)
-        }
-        let spacingHeight = titleLineSpacing * CGFloat(max(titleLineCount - 1, 0))
-
-        return (lineHeights + spacingHeight) * 1.08
-    }
-
-    func titleSize(for index: Int) -> CGFloat {
-        index == 0 ? baseTitleSize * 0.64 : baseTitleSize * 1.04
-    }
-
-    var titleDemoGap: CGFloat {
-        height * 0.085
-    }
-
-    var demoHeight: CGFloat {
-        height * 0.305
-    }
-
-    var demoButtonGap: CGFloat {
-        height * 0.052
-    }
-
-    var buttonWidth: CGFloat {
-        width * 0.70
-    }
-
-    private var baseTitleSize: CGFloat {
-        sqrt(width * height) * 0.078
-    }
-}
-
-
 // MARK: - Item
 
 private struct QuizFlashOnboardingItem: Identifiable, Hashable {
@@ -564,24 +428,30 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
     static let defaultItems: [QuizFlashOnboardingItem] = [
         .init(
             id: 0,
+            titleKey: "Welcome to QuizFlash",
+            subtitleKey: "",
+            kind: .welcome
+        ),
+        .init(
+            id: 1,
             titleKey: "Choose your zone style",
             subtitleKey: "This is how zones will look inside cards.",
             kind: .zoneStyle
         ),
         .init(
-            id: 1,
+            id: 2,
             titleKey: "Full LaTeX support",
             subtitleKey: "Generate or request cards with LaTeX symbols without friction.",
             kind: .latexSupport
         ),
         .init(
-            id: 2,
+            id: 3,
             titleKey: "Set your daily target",
             subtitleKey: "Choose how many cards you want to finish each day.",
             kind: .cardsTarget
         ),
         .init(
-            id: 3,
+            id: 4,
             titleKey: "Pick your card text size",
             subtitleKey: "This preview uses the same scale as the editor and play mode.",
             kind: .textSize
@@ -598,103 +468,6 @@ private enum QuizFlashOnboardingPageKind: Hashable {
 }
 
 // MARK: - Pages
-
-private struct IntroWelcomePage: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let buttonHorizontalPadding: CGFloat
-    let onStart: () -> Void
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            let titleLines = welcomeTitleLines(locale: appPreferences.resolvedLocale)
-            let metrics = IntroWelcomeLayoutMetrics(containerSize: size, titleLineCount: titleLines.count)
-
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                    .frame(height: metrics.topBreathingRoom)
-
-                VStack(spacing: metrics.titleLineSpacing) {
-                    ForEach(titleLines.indices, id: \.self) { index in
-                        Text(titleLines[index])
-                            .font(.system(
-                                size: metrics.titleSize(for: index),
-                                weight: .black,
-                                design: .rounded
-                            ))
-                            .foregroundStyle(titleForegroundStyle(for: index, total: titleLines.count))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                            .shadow(
-                                color: themeManager.accentColor.color.opacity(index == titleLines.count - 1 ? 0.20 : 0.10),
-                                radius: 18,
-                                y: 8
-                            )
-                    }
-                }
-                .multilineTextAlignment(.center)
-                .frame(height: metrics.titleBlockHeight, alignment: .center)
-
-                Spacer(minLength: 0)
-                    .frame(height: metrics.titleDemoGap)
-
-                WelcomeCardForms(height: metrics.demoHeight, isActive: true)
-
-                Spacer(minLength: 0)
-                    .frame(height: metrics.demoButtonGap)
-
-                Button {
-                    onStart()
-                } label: {
-                    Text(AppLocalization.string("Start", locale: appPreferences.resolvedLocale))
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .quizFlashButtonStyle(.primary, shape: .capsule, size: UIConstants.Size.buttonHeight)
-                .padding(.horizontal, buttonHorizontalPadding)
-                .frame(width: metrics.buttonWidth)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, metrics.horizontalPadding)
-            .frame(width: size.width, height: size.height, alignment: .center)
-        }
-    }
-
-    private func welcomeTitleLines(locale: Locale) -> [String] {
-        let title = AppLocalization.string("Welcome to QuizFlash", locale: locale)
-
-        if let range = title.range(of: "QuizFlash", options: .caseInsensitive) {
-            let firstLine = String(title[..<range.lowerBound])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: " to", with: " To", options: .caseInsensitive)
-
-            return [firstLine, "QuizFlash"]
-        }
-
-        return [title]
-    }
-
-    private func titleForegroundStyle(for index: Int, total: Int) -> AnyShapeStyle {
-        guard total > 1, index == total - 1 else {
-            return AnyShapeStyle(themeManager.textPrimary)
-        }
-
-        return AnyShapeStyle(
-            LinearGradient(
-                colors: [
-                    themeManager.textPrimary,
-                    themeManager.accentColor.color.opacity(0.96)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
-    }
-}
 
 private struct WelcomeOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
