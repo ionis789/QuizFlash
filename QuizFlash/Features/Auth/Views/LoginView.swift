@@ -453,7 +453,11 @@ private struct AuthLoginSheetContent: View {
     private var contentStack: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             modeContent
-                .scaleRevealMotion(isVisible: isContentVisible, reduceMotion: reduceMotion)
+                .scaleRevealMotion(
+                    isVisible: isContentVisible,
+                    reduceMotion: reduceMotion,
+                    hiddenOpacity: 0.16
+                )
         }
         .padding(.horizontal, UIConstants.Spacing.large)
         .padding(.top, UIConstants.Spacing.extraLarge)

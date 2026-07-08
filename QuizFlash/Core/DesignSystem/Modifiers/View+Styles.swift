@@ -825,10 +825,11 @@ private struct ScaleRevealMotionModifier: ViewModifier {
     let isVisible: Bool
     let reduceMotion: Bool
     let anchor: UnitPoint
+    let hiddenOpacity: Double
 
     func body(content: Content) -> some View {
         content
-            .opacity(isVisible ? 1 : 0.001)
+            .opacity(isVisible ? 1 : min(max(hiddenOpacity, 0.001), 1))
             .scaleEffect(isVisible ? 1 : ScaleRevealMotion.hiddenScale, anchor: anchor)
             .allowsHitTesting(isVisible)
             .animation(ScaleRevealMotion.animation(reduceMotion: reduceMotion), value: isVisible)
@@ -1041,13 +1042,15 @@ extension View {
     func scaleRevealMotion(
         isVisible: Bool,
         reduceMotion: Bool,
-        anchor: UnitPoint = .center
+        anchor: UnitPoint = .center,
+        hiddenOpacity: Double = 0.001
     ) -> some View {
         modifier(
             ScaleRevealMotionModifier(
                 isVisible: isVisible,
                 reduceMotion: reduceMotion,
-                anchor: anchor
+                anchor: anchor,
+                hiddenOpacity: hiddenOpacity
             )
         )
     }
