@@ -14,6 +14,7 @@ struct RootView: View {
     @State private var isLaunchAnimationVisible = true
     @State private var isLaunchSymbolPresented = false
     @State private var isLaunchSymbolHandedOff = false
+    @State private var isAuthSheetPresentationReleased = false
 
     var body: some View {
         ZStack {
@@ -32,7 +33,11 @@ struct RootView: View {
                      .emailVerificationRequired,
                      .emailVerificationSucceeded,
                      .signInSucceeded:
-                    LoginView(allowsAuthWalkthroughAnimation: !isLaunchAnimationVisible)
+                    LoginView(
+                        showsAuthWalkthrough: !isLaunchAnimationVisible,
+                        allowsAuthWalkthroughAnimation: isAuthSheetPresentationReleased,
+                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased
+                    )
                         .transition(.opacity)
                 }
             }
@@ -132,6 +137,7 @@ struct RootView: View {
         }
 
         try? await Task.sleep(for: exitDelay)
+        isAuthSheetPresentationReleased = true
     }
 }
 
@@ -147,7 +153,7 @@ private struct QuizFlashLaunchAnimationView: View {
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let symbolSize: CGFloat = isHandedOff ? 38 : 58
+            let symbolScale: CGFloat = isHandedOff ? 38 / 58 : 1
             let symbolPosition = CGPoint(
                 x: size.width / 2,
                 y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
@@ -162,7 +168,9 @@ private struct QuizFlashLaunchAnimationView: View {
                     .scaleEffect(isPresented ? 1.0 : 0.82)
                     .opacity(ambientGlowOpacity)
 
-                boltSymbol(size: symbolSize)
+                boltSymbol
+                    .frame(width: 58, height: 58)
+                    .scaleEffect(symbolScale)
                     .position(symbolPosition)
                     .opacity(isPresented ? 1.0 : 0.0)
             }
@@ -200,9 +208,9 @@ private struct QuizFlashLaunchAnimationView: View {
         .ignoresSafeArea()
     }
 
-    private func boltSymbol(size: CGFloat) -> some View {
+    private var boltSymbol: some View {
         Image(systemName: "bolt.fill")
-            .font(.system(size: size, weight: .black, design: .rounded))
+            .font(.system(size: 58, weight: .black, design: .rounded))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(boltForegroundStyle)
             .shadow(

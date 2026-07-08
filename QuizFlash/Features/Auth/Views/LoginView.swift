@@ -38,10 +38,18 @@ struct LoginView: View {
     @State private var presentingViewController: UIViewController?
     @State private var authSheetPresentationTask: Task<Void, Never>?
 
+    let showsAuthWalkthrough: Bool
     let allowsAuthWalkthroughAnimation: Bool
+    let allowsAuthSheetPresentation: Bool
 
-    init(allowsAuthWalkthroughAnimation: Bool = true) {
+    init(
+        showsAuthWalkthrough: Bool = true,
+        allowsAuthWalkthroughAnimation: Bool = true,
+        allowsAuthSheetPresentation: Bool = true
+    ) {
+        self.showsAuthWalkthrough = showsAuthWalkthrough
         self.allowsAuthWalkthroughAnimation = allowsAuthWalkthroughAnimation
+        self.allowsAuthSheetPresentation = allowsAuthSheetPresentation
     }
 
     private var locale: Locale {
@@ -145,6 +153,15 @@ struct LoginView: View {
                 guard newPhase == .active else { return }
                 presentAuthSheetIfNeeded()
             }
+            .onChange(of: allowsAuthSheetPresentation) { _, isAllowed in
+                guard isAllowed else {
+                    authSheetPresentationTask?.cancel()
+                    authSheetPresentationTask = nil
+                    return
+                }
+
+                presentAuthSheetIfNeeded()
+            }
             .onChange(of: onboardingStateStore.presentation?.id) { _, presentationID in
                 guard presentationID == nil else {
                     authSheetPresentationTask?.cancel()
@@ -162,12 +179,19 @@ struct LoginView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: proxy.size.height * 0.26)
 
-                AuthWalkthroughText(
-                    phrases: walkthroughPhrases,
-                    symbolColor: themeManager.accentColor.color,
-                    reduceMotion: reduceMotion,
-                    animates: allowsAuthWalkthroughAnimation
-                )
+                Group {
+                    if showsAuthWalkthrough {
+                        AuthWalkthroughText(
+                            phrases: walkthroughPhrases,
+                            symbolColor: themeManager.accentColor.color,
+                            reduceMotion: reduceMotion,
+                            animates: allowsAuthWalkthroughAnimation
+                        )
+                    } else {
+                        Color.clear
+                            .frame(height: 86)
+                    }
+                }
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
 
                 Spacer(minLength: proxy.size.height * 0.34)
@@ -293,6 +317,7 @@ struct LoginView: View {
     }
 
     private var canPresentAuthSheet: Bool {
+        guard allowsAuthSheetPresentation else { return false }
         guard onboardingStateStore.presentation == nil else { return false }
 
         switch authManager.sessionState {
