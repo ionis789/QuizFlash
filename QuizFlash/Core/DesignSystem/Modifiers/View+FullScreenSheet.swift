@@ -531,6 +531,7 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
                     presentedSheet
                         .presentationBackground(.clear)
                         .interactiveDismissDisabled(true)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
         } else {
             presenterContent
@@ -542,6 +543,7 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
                     if isSheetMounted {
                         presentedSheet
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+                            .ignoresSafeArea(.keyboard, edges: .bottom)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                             .transition(.identity)
                             .zIndex(1)
@@ -567,6 +569,7 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
             background: background
         )
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onAppear {
             parentPresentationCoordinator?.setChildPresentationActive(presentationID, true)
@@ -642,6 +645,7 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
                     presentedSheet(for: wrappedItem)
                         .presentationBackground(.clear)
                         .interactiveDismissDisabled(true)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
         } else {
             presenterContent
@@ -653,6 +657,7 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
                     if let wrappedItem = item ?? mountedItem {
                         presentedSheet(for: wrappedItem)
                             .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+                            .ignoresSafeArea(.keyboard, edges: .bottom)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                             .transition(.identity)
                             .zIndex(1)
@@ -681,6 +686,7 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
         )
         .id(wrappedItem.id)
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onAppear {
             parentPresentationCoordinator?.setChildPresentationActive(presentationID, true)
@@ -927,6 +933,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .frame(width: containerWidth, height: containerHeight, alignment: .bottom)
         .contentShape(.rect)
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .environment(
             \.fullScreenSheetDismiss,
             FullScreenSheetDismissAction { completion in
@@ -1530,6 +1537,7 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
             makeRootView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .ignoresSafeArea(.container, edges: .all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
         )
     }
 }
