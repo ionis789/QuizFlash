@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum AuthLaunchLayout {
+    static let walkthroughCenterYRatio: CGFloat = 0.46
+}
+
 // MARK: - Root View
 
 struct RootView: View {
@@ -34,7 +38,7 @@ struct RootView: View {
                      .emailVerificationSucceeded,
                      .signInSucceeded:
                     LoginView(
-                        showsAuthWalkthrough: !isLaunchAnimationVisible,
+                        showsAuthWalkthrough: isAuthSheetPresentationReleased,
                         allowsAuthWalkthroughAnimation: isAuthSheetPresentationReleased,
                         allowsAuthSheetPresentation: isAuthSheetPresentationReleased
                     )
@@ -107,14 +111,10 @@ struct RootView: View {
         let revealAnimation: Animation = reduceMotion
             ? .easeOut(duration: 0.18)
             : .spring(response: 0.46, dampingFraction: 0.86)
-        let exitAnimation: Animation = reduceMotion
-            ? .easeInOut(duration: 0.18)
-            : .easeInOut(duration: 0.22)
         let handoffAnimation: Animation = reduceMotion
             ? .easeInOut(duration: 0.18)
             : .smooth(duration: 0.64, extraBounce: 0)
         let handoffDelay: Duration = reduceMotion ? .milliseconds(180) : .milliseconds(640)
-        let exitDelay: Duration = reduceMotion ? .milliseconds(160) : .milliseconds(220)
 
         withAnimation(revealAnimation) {
             isLaunchSymbolPresented = true
@@ -132,12 +132,14 @@ struct RootView: View {
 
         try? await Task.sleep(for: handoffDelay)
 
-        withAnimation(exitAnimation) {
+        // The launch bolt and the login walkthrough bolt share this exact final pose.
+        // Swap their ownership without cross-fading, so only one bolt is ever visible.
+        var handoffTransaction = Transaction()
+        handoffTransaction.disablesAnimations = true
+        withTransaction(handoffTransaction) {
             isLaunchAnimationVisible = false
+            isAuthSheetPresentationReleased = true
         }
-
-        try? await Task.sleep(for: exitDelay)
-        isAuthSheetPresentationReleased = true
     }
 }
 
@@ -153,7 +155,7 @@ private struct QuizFlashLaunchAnimationView: View {
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let symbolScale: CGFloat = isHandedOff ? 38 / 58 : 1
+            let symbolScale: CGFloat = isHandedOff ? 1 : 58 / 38
             let symbolPosition = CGPoint(
                 x: size.width / 2,
                 y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
@@ -169,7 +171,7 @@ private struct QuizFlashLaunchAnimationView: View {
                     .opacity(ambientGlowOpacity)
 
                 boltSymbol
-                    .frame(width: 58, height: 58)
+                    .frame(width: 38, height: 38)
                     .scaleEffect(symbolScale)
                     .position(symbolPosition)
                     .opacity(isPresented ? 1.0 : 0.0)
@@ -186,36 +188,36 @@ private struct QuizFlashLaunchAnimationView: View {
 
     private var ambientGlowOpacity: Double {
         guard isPresented else { return 0 }
-        return isHandedOff ? 0.18 : 1
+        return isHandedOff ? 0 : 1
     }
 
     private func ambientGlow(in size: CGSize) -> some View {
         RadialGradient(
             colors: [
-                launchPurple.opacity(isHandedOff ? 0.14 : 0.26),
-                launchPurple.opacity(isHandedOff ? 0.06 : 0.12),
+                launchPurple.opacity(0.26),
+                launchPurple.opacity(0.12),
                 .clear
             ],
             center: .center,
             startRadius: 8,
-            endRadius: isHandedOff ? 96 : 190
+            endRadius: 190
         )
         .frame(width: size.width, height: size.height)
         .position(
             x: size.width / 2,
-            y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
+            y: size.height / 2
         )
         .ignoresSafeArea()
     }
 
     private var boltSymbol: some View {
         Image(systemName: "bolt.fill")
-            .font(.system(size: 58, weight: .black, design: .rounded))
+            .font(.system(size: 38, weight: .heavy, design: .default))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(boltForegroundStyle)
             .shadow(
-                color: launchPurple.opacity(isHandedOff ? 0.34 : 0.48),
-                radius: isHandedOff ? 18 : 26
+                color: launchPurple.opacity(isHandedOff ? 0 : 0.48),
+                radius: 26
             )
     }
 
@@ -238,7 +240,7 @@ private struct QuizFlashLaunchAnimationView: View {
     }
 
     private func authWalkthroughSymbolCenterY(in height: CGFloat) -> CGFloat {
-        height * 0.46
+        height * AuthLaunchLayout.walkthroughCenterYRatio
     }
 
     private var launchPurple: Color {

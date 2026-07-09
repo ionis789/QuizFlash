@@ -176,8 +176,9 @@ struct LoginView: View {
 
     private var authLanding: some View {
         GeometryReader { proxy in
-            VStack(spacing: 0) {
-                Spacer(minLength: proxy.size.height * 0.26)
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
 
                 Group {
                     if showsAuthWalkthrough {
@@ -189,15 +190,16 @@ struct LoginView: View {
                         )
                     } else {
                         Color.clear
-                            .frame(height: 86)
                     }
                 }
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
-
-                Spacer(minLength: proxy.size.height * 0.34)
+                .frame(maxWidth: .infinity)
+                .frame(height: 86)
+                .position(
+                    x: proxy.size.width / 2,
+                    y: proxy.size.height * AuthLaunchLayout.walkthroughCenterYRatio
+                )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.ignoresSafeArea())
         }
         .fullScreenSheet(
             isPresented: $isAuthSheetPresented,
