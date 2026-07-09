@@ -41,15 +41,18 @@ struct LoginView: View {
     let showsAuthWalkthrough: Bool
     let allowsAuthWalkthroughAnimation: Bool
     let allowsAuthSheetPresentation: Bool
+    let launchBoltNamespace: Namespace.ID?
 
     init(
         showsAuthWalkthrough: Bool = true,
         allowsAuthWalkthroughAnimation: Bool = true,
-        allowsAuthSheetPresentation: Bool = true
+        allowsAuthSheetPresentation: Bool = true,
+        launchBoltNamespace: Namespace.ID? = nil
     ) {
         self.showsAuthWalkthrough = showsAuthWalkthrough
         self.allowsAuthWalkthroughAnimation = allowsAuthWalkthroughAnimation
         self.allowsAuthSheetPresentation = allowsAuthSheetPresentation
+        self.launchBoltNamespace = launchBoltNamespace
     }
 
     private var locale: Locale {
@@ -186,7 +189,8 @@ struct LoginView: View {
                             phrases: walkthroughPhrases,
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation
+                            animates: allowsAuthWalkthroughAnimation,
+                            launchBoltNamespace: launchBoltNamespace
                         )
                     } else {
                         Color.clear
@@ -706,6 +710,7 @@ private struct AuthWalkthroughText: View {
     let symbolColor: Color
     let reduceMotion: Bool
     let animates: Bool
+    let launchBoltNamespace: Namespace.ID?
 
     @State private var intros: [AuthIntro] = []
     @State private var activeIntro: AuthIntro?
@@ -723,6 +728,12 @@ private struct AuthWalkthroughText: View {
                             .font(.system(size: 38, weight: .heavy))
                             .foregroundStyle(activeIntro.symbolColor)
                             .frame(width: 38, height: 38)
+                            .modifier(
+                                AuthLaunchBoltGeometryModifier(
+                                    namespace: launchBoltNamespace,
+                                    isSource: false
+                                )
+                            )
                             .background(alignment: .leading) {
                                 Capsule()
                                     .fill(activeIntro.backgroundColor)

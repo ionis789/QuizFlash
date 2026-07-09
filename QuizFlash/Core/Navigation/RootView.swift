@@ -2,6 +2,27 @@ import SwiftUI
 
 enum AuthLaunchLayout {
     static let walkthroughCenterYRatio: CGFloat = 0.46
+    static let boltID = "auth-launch-bolt"
+}
+
+struct AuthLaunchBoltGeometryModifier: ViewModifier {
+    let namespace: Namespace.ID?
+    let isSource: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedGeometryEffect(
+                id: AuthLaunchLayout.boltID,
+                in: namespace,
+                properties: [.position, .size],
+                anchor: .center,
+                isSource: isSource
+            )
+        } else {
+            content
+        }
+    }
 }
 
 // MARK: - Root View
@@ -19,6 +40,7 @@ struct RootView: View {
     @State private var isLaunchSymbolPresented = false
     @State private var isLaunchSymbolHandedOff = false
     @State private var isAuthSheetPresentationReleased = false
+    @Namespace private var authLaunchBoltNamespace
 
     var body: some View {
         ZStack {
@@ -40,7 +62,8 @@ struct RootView: View {
                     LoginView(
                         showsAuthWalkthrough: isAuthSheetPresentationReleased,
                         allowsAuthWalkthroughAnimation: isAuthSheetPresentationReleased,
-                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased
+                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased,
+                        launchBoltNamespace: authLaunchBoltNamespace
                     )
                         .transition(.opacity)
                 }
@@ -50,9 +73,9 @@ struct RootView: View {
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
                     isPresented: isLaunchSymbolPresented,
-                    isHandedOff: isLaunchSymbolHandedOff
+                    isHandedOff: isLaunchSymbolHandedOff,
+                    boltNamespace: authLaunchBoltNamespace
                 )
-                .transition(.opacity)
                 .zIndex(4)
             }
 
@@ -114,6 +137,9 @@ struct RootView: View {
         let handoffAnimation: Animation = reduceMotion
             ? .easeInOut(duration: 0.18)
             : .smooth(duration: 0.64, extraBounce: 0)
+        let ownershipTransferAnimation: Animation = reduceMotion
+            ? .easeInOut(duration: 0.12)
+            : .smooth(duration: 0.18, extraBounce: 0)
         let handoffDelay: Duration = reduceMotion ? .milliseconds(180) : .milliseconds(640)
 
         withAnimation(revealAnimation) {
@@ -132,11 +158,7 @@ struct RootView: View {
 
         try? await Task.sleep(for: handoffDelay)
 
-        // The launch bolt and the login walkthrough bolt share this exact final pose.
-        // Swap their ownership without cross-fading, so only one bolt is ever visible.
-        var handoffTransaction = Transaction()
-        handoffTransaction.disablesAnimations = true
-        withTransaction(handoffTransaction) {
+        withAnimation(ownershipTransferAnimation) {
             isLaunchAnimationVisible = false
             isAuthSheetPresentationReleased = true
         }
@@ -151,6 +173,7 @@ private struct QuizFlashLaunchAnimationView: View {
 
     let isPresented: Bool
     let isHandedOff: Bool
+    let boltNamespace: Namespace.ID
 
     var body: some View {
         GeometryReader { proxy in
@@ -161,53 +184,20 @@ private struct QuizFlashLaunchAnimationView: View {
                 y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
             )
 
-            ZStack(alignment: .topLeading) {
-                themeManager.screenBackground
-                    .opacity(backgroundOpacity)
-                    .ignoresSafeArea()
-
-                ambientGlow(in: size)
-                    .scaleEffect(isPresented ? 1.0 : 0.82)
-                    .opacity(ambientGlowOpacity)
-
-                boltSymbol
-                    .frame(width: 38, height: 38)
-                    .scaleEffect(symbolScale)
-                    .position(symbolPosition)
-                    .opacity(isPresented ? 1.0 : 0.0)
-            }
+            boltSymbol
+                .frame(width: 38, height: 38)
+                .modifier(
+                    AuthLaunchBoltGeometryModifier(
+                        namespace: boltNamespace,
+                        isSource: true
+                    )
+                )
+                .scaleEffect(symbolScale)
+                .position(symbolPosition)
+                .opacity(isPresented ? 1.0 : 0.0)
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
-    }
-
-    private var backgroundOpacity: Double {
-        guard isPresented else { return 0 }
-        return isHandedOff ? 0 : 1
-    }
-
-    private var ambientGlowOpacity: Double {
-        guard isPresented else { return 0 }
-        return isHandedOff ? 0 : 1
-    }
-
-    private func ambientGlow(in size: CGSize) -> some View {
-        RadialGradient(
-            colors: [
-                launchPurple.opacity(0.26),
-                launchPurple.opacity(0.12),
-                .clear
-            ],
-            center: .center,
-            startRadius: 8,
-            endRadius: 190
-        )
-        .frame(width: size.width, height: size.height)
-        .position(
-            x: size.width / 2,
-            y: size.height / 2
-        )
-        .ignoresSafeArea()
     }
 
     private var boltSymbol: some View {
@@ -215,10 +205,6 @@ private struct QuizFlashLaunchAnimationView: View {
             .font(.system(size: 38, weight: .heavy, design: .default))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(boltForegroundStyle)
-            .shadow(
-                color: launchPurple.opacity(isHandedOff ? 0 : 0.48),
-                radius: 26
-            )
     }
 
     private var boltForegroundStyle: AnyShapeStyle {
