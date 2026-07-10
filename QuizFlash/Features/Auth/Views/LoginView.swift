@@ -214,6 +214,7 @@ struct LoginView: View {
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
                 .frame(maxWidth: .infinity)
                 .frame(height: 86)
+                .compositingGroup()
                 .opacity(isAuthWalkthroughHiddenBySheet ? 0 : 1)
                 .animation(authWalkthroughVisibilityAnimation, value: isAuthWalkthroughHiddenBySheet)
                 .accessibilityHidden(isAuthWalkthroughHiddenBySheet)
@@ -821,6 +822,7 @@ private struct AuthWalkthroughText: View {
     @State private var intros: [AuthIntro] = []
     @State private var activeIntro: AuthIntro?
     @State private var animationRunID = UUID()
+    @State private var isTextLayerVisible = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -856,8 +858,9 @@ private struct AuthWalkthroughText: View {
                                     .frame(width: textSize(activeIntro.text), alignment: .leading)
                                     .offset(x: 10)
                                     .offset(x: activeIntro.textOffset)
-                                    .opacity(showsText ? 1 : 0)
+                                    .opacity(showsText && isTextLayerVisible ? 1 : 0)
                                     .animation(nil, value: showsText)
+                                    .animation(nil, value: isTextLayerVisible)
                             }
                             .offset(x: -activeIntro.symbolOffset)
                     }
@@ -869,6 +872,7 @@ private struct AuthWalkthroughText: View {
         .task(id: "\(phrases.joined(separator: "|"))-\(animates)") {
             let runID = UUID()
             animationRunID = runID
+            isTextLayerVisible = false
             configureIntros()
 
             if activeIntro == nil {
@@ -886,11 +890,13 @@ private struct AuthWalkthroughText: View {
             try? await Task.sleep(for: .milliseconds(250))
             guard animates, animationRunID == runID, !Task.isCancelled else { return }
 
+            isTextLayerVisible = true
             animate(0, runID: runID)
         }
         .onChange(of: animates) { _, animates in
             animationRunID = UUID()
             guard !animates else { return }
+            isTextLayerVisible = false
             resetActiveIntroState()
         }
     }
