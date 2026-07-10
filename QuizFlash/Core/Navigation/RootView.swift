@@ -54,7 +54,6 @@ struct RootView: View {
     @State private var isAuthWalkthroughBoltVisible = false
     @State private var isAuthWalkthroughTextVisible = false
     @State private var isAuthSheetPresentationReleased = false
-    @State private var signInSuccessCompletionTask: Task<Void, Never>?
     @Namespace private var authLaunchBoltNamespace
 
     var body: some View {
@@ -119,12 +118,10 @@ struct RootView: View {
         }
         .animation(onboardingPresentationAnimation, value: onboardingStateStore.presentation?.id)
         .task {
-            scheduleSignInSuccessCompletion(for: authManager.sessionState)
             await playLaunchAnimationIfNeeded()
             presentOnboardingIfNeeded()
         }
-        .onChange(of: authManager.sessionState) { _, newState in
-            scheduleSignInSuccessCompletion(for: newState)
+        .onChange(of: authManager.sessionState) { _, _ in
             presentOnboardingIfNeeded()
         }
         .onChange(of: isAuthWalkthroughPrepared) { _, isPrepared in
@@ -134,10 +131,6 @@ struct RootView: View {
                 await Task.yield()
                 startAuthBoltTransferIfReady()
             }
-        }
-        .onDisappear {
-            signInSuccessCompletionTask?.cancel()
-            signInSuccessCompletionTask = nil
         }
     }
 
@@ -161,26 +154,6 @@ struct RootView: View {
 
     private func completeOnboarding(_ completedPresentation: OnboardingPresentation) {
         onboardingStateStore.complete(completedPresentation)
-    }
-
-    private func scheduleSignInSuccessCompletion(for state: AuthSessionState) {
-        signInSuccessCompletionTask?.cancel()
-
-        guard case .signInSucceeded(let user) = state else {
-            signInSuccessCompletionTask = nil
-            return
-        }
-
-        signInSuccessCompletionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled,
-                  case .signInSucceeded(let currentUser) = authManager.sessionState,
-                  currentUser.uid == user.uid else {
-                return
-            }
-
-            authManager.completeSignInSuccess()
-        }
     }
 
     @MainActor

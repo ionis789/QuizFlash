@@ -164,6 +164,9 @@ final class AuthManager {
     @ObservationIgnored
     private var removeAuthStateListener: (@MainActor () -> Void)?
 
+    @ObservationIgnored
+    private var signInSuccessCompletionTask: Task<Void, Never>?
+
     // MARK: - Init
 
     convenience init() {
@@ -181,6 +184,7 @@ final class AuthManager {
     deinit {
         MainActor.assumeIsolated {
             removeAuthStateListener?()
+            signInSuccessCompletionTask?.cancel()
         }
     }
 
@@ -189,6 +193,7 @@ final class AuthManager {
     /// Starts observing Firebase Auth state changes.
     func startListening() {
         guard removeAuthStateListener == nil else { return }
+        cancelPendingSignInSuccess()
         sessionState = .checking
         let provider = authProvider
         removeAuthStateListener = provider.observeAuthState { [weak self] user in
@@ -251,6 +256,7 @@ final class AuthManager {
 
     func completeSignInSuccess() {
         if case .signInSucceeded(let user) = sessionState {
+            cancelPendingSignInSuccess()
             sessionState = .signedIn(user)
         }
     }
@@ -273,12 +279,14 @@ final class AuthManager {
 
     func logout() async throws {
         try await authProvider.signOut()
+        cancelPendingSignInSuccess()
         sessionState = .signedOut
     }
 
     func deleteAccount(reauthentication: AuthReauthenticationRequest) async throws {
         try await authProvider.reauthenticate(with: reauthentication)
         try await authProvider.deleteCurrentUser()
+        cancelPendingSignInSuccess()
         sessionState = .signedOut
     }
 
@@ -286,11 +294,13 @@ final class AuthManager {
 
     private func apply(_ user: AuthUserSnapshot?) {
         guard let user else {
+            cancelPendingSignInSuccess()
             sessionState = .signedOut
             return
         }
 
         if user.requiresEmailVerification {
+            cancelPendingSignInSuccess()
             sessionState = .emailVerificationRequired(user)
             return
         }
@@ -299,6 +309,8 @@ final class AuthManager {
            previousUser.uid == user.uid {
             return
         }
+
+        cancelPendingSignInSuccess()
 
         let wasWaitingForSameEmailUser: Bool = {
             switch sessionState {
@@ -319,11 +331,33 @@ final class AuthManager {
 
     private func applySignInSuccess(_ user: AuthUserSnapshot) {
         guard !user.requiresEmailVerification else {
+            cancelPendingSignInSuccess()
             sessionState = .emailVerificationRequired(user)
             return
         }
 
+        cancelPendingSignInSuccess()
         sessionState = .signInSucceeded(user)
+        scheduleSignInSuccessCompletion(for: user)
+    }
+
+    private func scheduleSignInSuccessCompletion(for user: AuthUserSnapshot) {
+        signInSuccessCompletionTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled,
+                  let self,
+                  case .signInSucceeded(let currentUser) = self.sessionState,
+                  currentUser.uid == user.uid else {
+                return
+            }
+
+            self.sessionState = .signedIn(currentUser)
+        }
+    }
+
+    private func cancelPendingSignInSuccess() {
+        signInSuccessCompletionTask?.cancel()
+        signInSuccessCompletionTask = nil
     }
 
     private var authProvider: AuthProviding {
