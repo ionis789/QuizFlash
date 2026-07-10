@@ -75,10 +75,10 @@ struct RootView: View {
                      .signInSucceeded:
                     LoginView(
                         showsAuthWalkthrough: true,
-                        showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible,
-                        showsAuthWalkthroughText: isAuthWalkthroughTextVisible,
-                        allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible,
-                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased,
+                        showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible || releasesAuthUIAfterLaunch,
+                        showsAuthWalkthroughText: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
+                        allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
+                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased || releasesAuthUIAfterLaunch,
                         launchBoltNamespace: authLaunchBoltNamespace,
                         onAuthWalkthroughPrepared: {
                             isAuthWalkthroughPrepared = true
@@ -141,6 +141,17 @@ struct RootView: View {
             onboardingStateStore.presentRequiredIfNeeded(for: user)
         } else if case .required = onboardingStateStore.presentation {
             onboardingStateStore.presentRequiredIfNeeded(for: nil)
+        }
+    }
+
+    private var releasesAuthUIAfterLaunch: Bool {
+        guard hasCompletedLaunchAnimation, !isLaunchAnimationVisible else { return false }
+
+        switch authManager.sessionState {
+        case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
+            return true
+        case .checking, .signedIn, .signInSucceeded:
+            return false
         }
     }
 

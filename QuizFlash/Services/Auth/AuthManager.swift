@@ -14,6 +14,12 @@ import GoogleSignIn
 import Observation
 import UIKit
 
+#if DEBUG
+private func authSessionFlowDebugLog(_ message: String) {
+    print("AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)")
+}
+#endif
+
 // MARK: - Auth User Snapshot
 
 /// Lightweight, UI-safe snapshot of the current Firebase user.
@@ -203,10 +209,16 @@ final class AuthManager {
     }
 
     func signIn(email: String, password: String) async throws {
+#if DEBUG
+        authSessionFlowDebugLog("email sign-in started")
+#endif
         let user = try await authProvider.signIn(
             email: normalizedEmail(email),
             password: password
         )
+#if DEBUG
+        authSessionFlowDebugLog("email Firebase sign-in returned")
+#endif
         applySignInSuccess(user)
     }
 
@@ -266,9 +278,15 @@ final class AuthManager {
             throw AuthManagerError.missingPresenter
         }
 
+#if DEBUG
+        authSessionFlowDebugLog("Google sign-in started")
+#endif
         let user = try await authProvider.signInWithGoogle(
             presentingViewController: presentingViewController
         )
+#if DEBUG
+        authSessionFlowDebugLog("Google Firebase sign-in returned")
+#endif
         applySignInSuccess(user)
     }
 
@@ -278,9 +296,15 @@ final class AuthManager {
     }
 
     func logout() async throws {
+#if DEBUG
+        authSessionFlowDebugLog("logout started")
+#endif
         try await authProvider.signOut()
         cancelPendingSignInSuccess()
         sessionState = .signedOut
+#if DEBUG
+        authSessionFlowDebugLog("logout published signedOut")
+#endif
     }
 
     func deleteAccount(reauthentication: AuthReauthenticationRequest) async throws {
@@ -338,20 +362,39 @@ final class AuthManager {
 
         cancelPendingSignInSuccess()
         sessionState = .signInSucceeded(user)
+#if DEBUG
+        authSessionFlowDebugLog("published signInSucceeded")
+#endif
         scheduleSignInSuccessCompletion(for: user)
     }
 
     private func scheduleSignInSuccessCompletion(for user: AuthUserSnapshot) {
-        signInSuccessCompletionTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled,
-                  let self,
+        signInSuccessCompletionTask = Task.detached { @MainActor [weak self] in
+#if DEBUG
+            authSessionFlowDebugLog("auto-completion timer started")
+#endif
+            do {
+                try await Task.sleep(for: .milliseconds(900))
+            } catch {
+#if DEBUG
+                authSessionFlowDebugLog("auto-completion timer cancelled")
+#endif
+                return
+            }
+
+            guard let self,
                   case .signInSucceeded(let currentUser) = self.sessionState,
                   currentUser.uid == user.uid else {
+#if DEBUG
+                authSessionFlowDebugLog("auto-completion ignored stale state")
+#endif
                 return
             }
 
             self.sessionState = .signedIn(currentUser)
+#if DEBUG
+            authSessionFlowDebugLog("auto-completed signedIn")
+#endif
         }
     }
 
