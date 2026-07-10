@@ -24,6 +24,21 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
 
         return true
     }
+
+    func application(
+        _ app: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+        let handled = GIDSignIn.sharedInstance.handle(url)
+#if DEBUG
+        print(
+            "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "
+                + "Google callback URL handled=\(handled)"
+        )
+#endif
+        return handled
+    }
 }
 
 @main
@@ -65,7 +80,13 @@ struct QuizFlashApp: App {
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
-                    _ = GIDSignIn.sharedInstance.handle(url)
+                    let handled = GIDSignIn.sharedInstance.handle(url)
+#if DEBUG
+                    print(
+                        "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "
+                            + "Google SwiftUI callback URL handled=\(handled)"
+                    )
+#endif
                 }
         }
             .modelContainer(for: [

@@ -65,14 +65,11 @@ struct RootView: View {
                 switch authManager.sessionState {
                 case .checking:
                     ProgressActivityDots(color: themeManager.accentColor.color)
-                        .transition(.opacity)
                 case .signedIn:
                     MainAppView()
-                        .transition(.opacity)
                 case .signedOut,
                      .emailVerificationRequired,
-                     .emailVerificationSucceeded,
-                     .signInSucceeded:
+                     .emailVerificationSucceeded:
                     LoginView(
                         showsAuthWalkthrough: true,
                         showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible || releasesAuthUIAfterLaunch,
@@ -84,10 +81,9 @@ struct RootView: View {
                             isAuthWalkthroughPrepared = true
                         }
                     )
-                        .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.45), value: authManager.sessionState)
+            .id(rootContentIdentity)
 
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
@@ -121,7 +117,10 @@ struct RootView: View {
             await playLaunchAnimationIfNeeded()
             presentOnboardingIfNeeded()
         }
-        .onChange(of: authManager.sessionState) { _, _ in
+        .onChange(of: authManager.sessionState) { oldState, newState in
+#if DEBUG
+            authLaunchDebugLog("root state \(stateName(oldState)) -> \(stateName(newState))")
+#endif
             presentOnboardingIfNeeded()
         }
         .onChange(of: isAuthWalkthroughPrepared) { _, isPrepared in
@@ -144,13 +143,34 @@ struct RootView: View {
         }
     }
 
+    private func stateName(_ state: AuthSessionState) -> String {
+        switch state {
+        case .checking: "checking"
+        case .signedOut: "signedOut"
+        case .signedIn: "signedIn"
+        case .emailVerificationRequired: "emailVerificationRequired"
+        case .emailVerificationSucceeded: "emailVerificationSucceeded"
+        }
+    }
+
+    private var rootContentIdentity: String {
+        switch authManager.sessionState {
+        case .checking:
+            "checking"
+        case .signedIn:
+            "main"
+        case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
+            "auth"
+        }
+    }
+
     private var releasesAuthUIAfterLaunch: Bool {
         guard hasCompletedLaunchAnimation, !isLaunchAnimationVisible else { return false }
 
         switch authManager.sessionState {
         case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
             return true
-        case .checking, .signedIn, .signInSucceeded:
+        case .checking, .signedIn:
             return false
         }
     }

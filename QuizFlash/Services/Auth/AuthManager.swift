@@ -51,7 +51,6 @@ enum AuthSessionState: Equatable, Sendable {
     case signedIn(AuthUserSnapshot)
     case emailVerificationRequired(AuthUserSnapshot)
     case emailVerificationSucceeded(AuthUserSnapshot)
-    case signInSucceeded(AuthUserSnapshot)
 }
 
 // MARK: - Auth Provider ID
@@ -77,6 +76,8 @@ enum AuthManagerError: LocalizedError, Equatable {
     case missingPresenter
     case passwordConfirmationMismatch
     case missingGoogleClientID
+    case googleSignInTimedOut
+    case firebaseSignInTimedOut
     case missingCredential
     case missingAppleIdentityToken
     case invalidAppleIdentityToken
@@ -91,6 +92,10 @@ enum AuthManagerError: LocalizedError, Equatable {
             "Passwords do not match."
         case .missingGoogleClientID:
             "Google Sign-In is not configured."
+        case .googleSignInTimedOut:
+            "Google Sign-In did not finish. Please try again."
+        case .firebaseSignInTimedOut:
+            "Firebase did not finish sign-in. Please try again."
         case .missingCredential:
             "The sign-in credential could not be created."
         case .missingAppleIdentityToken:
@@ -154,8 +159,7 @@ final class AuthManager {
             nil
         case .signedIn(let user),
              .emailVerificationRequired(let user),
-             .emailVerificationSucceeded(let user),
-             .signInSucceeded(let user):
+             .emailVerificationSucceeded(let user):
             user
         }
     }
@@ -171,7 +175,10 @@ final class AuthManager {
     private var removeAuthStateListener: (@MainActor () -> Void)?
 
     @ObservationIgnored
-    private var signInSuccessCompletionTask: Task<Void, Never>?
+    private var externalSignInTask: Task<AuthUserSnapshot, Error>?
+
+    @ObservationIgnored
+    private var externalSignInID: UUID?
 
     // MARK: - Init
 
@@ -190,7 +197,7 @@ final class AuthManager {
     deinit {
         MainActor.assumeIsolated {
             removeAuthStateListener?()
-            signInSuccessCompletionTask?.cancel()
+            externalSignInTask?.cancel()
         }
     }
 
@@ -199,7 +206,6 @@ final class AuthManager {
     /// Starts observing Firebase Auth state changes.
     func startListening() {
         guard removeAuthStateListener == nil else { return }
-        cancelPendingSignInSuccess()
         sessionState = .checking
         let provider = authProvider
         removeAuthStateListener = provider.observeAuthState { [weak self] user in
@@ -266,13 +272,6 @@ final class AuthManager {
         }
     }
 
-    func completeSignInSuccess() {
-        if case .signInSucceeded(let user) = sessionState {
-            cancelPendingSignInSuccess()
-            sessionState = .signedIn(user)
-        }
-    }
-
     func signInWithGoogle(presentingViewController: UIViewController?) async throws {
         guard let presentingViewController else {
             throw AuthManagerError.missingPresenter
@@ -281,26 +280,58 @@ final class AuthManager {
 #if DEBUG
         authSessionFlowDebugLog("Google sign-in started")
 #endif
-        let user = try await authProvider.signInWithGoogle(
-            presentingViewController: presentingViewController
-        )
+        let provider = authProvider
+        let operationID = UUID()
+        let task = Task { @MainActor [weak self] in
+            defer {
+                if self?.externalSignInID == operationID {
+                    self?.externalSignInTask = nil
+                    self?.externalSignInID = nil
+                }
+            }
+
+            let user = try await provider.signInWithGoogle(
+                presentingViewController: presentingViewController
+            )
 #if DEBUG
-        authSessionFlowDebugLog("Google Firebase sign-in returned")
+            authSessionFlowDebugLog("Google Firebase sign-in returned")
 #endif
-        applySignInSuccess(user)
+            self?.applySignInSuccess(user)
+            return user
+        }
+        externalSignInID = operationID
+        externalSignInTask = task
+        _ = try await task.value
     }
 
     func signInWithApple() async throws {
-        let user = try await authProvider.signInWithApple()
-        applySignInSuccess(user)
+        let provider = authProvider
+        let operationID = UUID()
+        let task = Task { @MainActor [weak self] in
+            defer {
+                if self?.externalSignInID == operationID {
+                    self?.externalSignInTask = nil
+                    self?.externalSignInID = nil
+                }
+            }
+
+            let user = try await provider.signInWithApple()
+            self?.applySignInSuccess(user)
+            return user
+        }
+        externalSignInID = operationID
+        externalSignInTask = task
+        _ = try await task.value
     }
 
     func logout() async throws {
 #if DEBUG
         authSessionFlowDebugLog("logout started")
 #endif
+        externalSignInTask?.cancel()
+        externalSignInTask = nil
+        externalSignInID = nil
         try await authProvider.signOut()
-        cancelPendingSignInSuccess()
         sessionState = .signedOut
 #if DEBUG
         authSessionFlowDebugLog("logout published signedOut")
@@ -310,31 +341,24 @@ final class AuthManager {
     func deleteAccount(reauthentication: AuthReauthenticationRequest) async throws {
         try await authProvider.reauthenticate(with: reauthentication)
         try await authProvider.deleteCurrentUser()
-        cancelPendingSignInSuccess()
         sessionState = .signedOut
     }
 
     // MARK: - Private
 
     private func apply(_ user: AuthUserSnapshot?) {
+#if DEBUG
+        authSessionFlowDebugLog("applying auth listener user=\(user?.uid ?? "nil")")
+#endif
         guard let user else {
-            cancelPendingSignInSuccess()
             sessionState = .signedOut
             return
         }
 
         if user.requiresEmailVerification {
-            cancelPendingSignInSuccess()
             sessionState = .emailVerificationRequired(user)
             return
         }
-
-        if case .signInSucceeded(let previousUser) = sessionState,
-           previousUser.uid == user.uid {
-            return
-        }
-
-        cancelPendingSignInSuccess()
 
         let wasWaitingForSameEmailUser: Bool = {
             switch sessionState {
@@ -355,52 +379,14 @@ final class AuthManager {
 
     private func applySignInSuccess(_ user: AuthUserSnapshot) {
         guard !user.requiresEmailVerification else {
-            cancelPendingSignInSuccess()
             sessionState = .emailVerificationRequired(user)
             return
         }
 
-        cancelPendingSignInSuccess()
-        sessionState = .signInSucceeded(user)
+        sessionState = .signedIn(user)
 #if DEBUG
-        authSessionFlowDebugLog("published signInSucceeded")
+        authSessionFlowDebugLog("published signedIn")
 #endif
-        scheduleSignInSuccessCompletion(for: user)
-    }
-
-    private func scheduleSignInSuccessCompletion(for user: AuthUserSnapshot) {
-        signInSuccessCompletionTask = Task.detached { @MainActor [weak self] in
-#if DEBUG
-            authSessionFlowDebugLog("auto-completion timer started")
-#endif
-            do {
-                try await Task.sleep(for: .milliseconds(900))
-            } catch {
-#if DEBUG
-                authSessionFlowDebugLog("auto-completion timer cancelled")
-#endif
-                return
-            }
-
-            guard let self,
-                  case .signInSucceeded(let currentUser) = self.sessionState,
-                  currentUser.uid == user.uid else {
-#if DEBUG
-                authSessionFlowDebugLog("auto-completion ignored stale state")
-#endif
-                return
-            }
-
-            self.sessionState = .signedIn(currentUser)
-#if DEBUG
-            authSessionFlowDebugLog("auto-completed signedIn")
-#endif
-        }
-    }
-
-    private func cancelPendingSignInSuccess() {
-        signInSuccessCompletionTask?.cancel()
-        signInSuccessCompletionTask = nil
     }
 
     private var authProvider: AuthProviding {
@@ -423,6 +409,8 @@ final class AuthManager {
 @MainActor
 private final class FirebaseAuthClient: AuthProviding {
     private var appleCoordinator: AppleSignInCoordinator?
+    private var firebaseSignInCoordinator: FirebaseCredentialSignInCoordinator?
+    private var googleCoordinator: GoogleSignInCoordinator?
 
     init() {
         if FirebaseApp.app() == nil {
@@ -438,7 +426,13 @@ private final class FirebaseAuthClient: AuthProviding {
         _ handler: @escaping @MainActor (AuthUserSnapshot?) -> Void
     ) -> @MainActor () -> Void {
         let handle = Auth.auth().addStateDidChangeListener { _, user in
+#if DEBUG
+            authSessionFlowDebugLog("Firebase listener callback user=\(user?.uid ?? "nil")")
+#endif
             Task { @MainActor in
+#if DEBUG
+                authSessionFlowDebugLog("Firebase listener delivering user=\(user?.uid ?? "nil")")
+#endif
                 handler(user?.authSnapshot)
             }
         }
@@ -494,14 +488,12 @@ private final class FirebaseAuthClient: AuthProviding {
 
     func signInWithGoogle(presentingViewController: UIViewController) async throws -> AuthUserSnapshot {
         let credential = try await googleCredential(presentingViewController: presentingViewController)
-        let result = try await Auth.auth().signIn(with: credential)
-        return result.user.authSnapshot
+        return try await signInWithFirebaseCredential(credential)
     }
 
     func signInWithApple() async throws -> AuthUserSnapshot {
         let credential = try await appleCredential()
-        let result = try await Auth.auth().signIn(with: credential)
-        return result.user.authSnapshot
+        return try await signInWithFirebaseCredential(credential)
     }
 
     func reauthenticate(with request: AuthReauthenticationRequest) async throws {
@@ -544,21 +536,14 @@ private final class FirebaseAuthClient: AuthProviding {
         }
 
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
-        let result: GIDSignInResult = try await withCheckedThrowingContinuation { continuation in
-            GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
 
-                guard let result else {
-                    continuation.resume(throwing: AuthManagerError.missingCredential)
-                    return
-                }
+        let coordinator = GoogleSignInCoordinator(
+            presentingViewController: presentingViewController
+        )
+        googleCoordinator = coordinator
+        defer { googleCoordinator = nil }
 
-                continuation.resume(returning: result)
-            }
-        }
+        let result = try await coordinator.start()
 
         guard let idToken = result.user.idToken?.tokenString else {
             throw AuthManagerError.missingCredential
@@ -568,6 +553,13 @@ private final class FirebaseAuthClient: AuthProviding {
             withIDToken: idToken,
             accessToken: result.user.accessToken.tokenString
         )
+    }
+
+    private func signInWithFirebaseCredential(_ credential: AuthCredential) async throws -> AuthUserSnapshot {
+        let coordinator = FirebaseCredentialSignInCoordinator(credential: credential)
+        firebaseSignInCoordinator = coordinator
+        defer { firebaseSignInCoordinator = nil }
+        return try await coordinator.start()
     }
 
     private func appleCredential() async throws -> AuthCredential {
@@ -582,6 +574,197 @@ private final class FirebaseAuthClient: AuthProviding {
             rawNonce: nonce,
             fullName: result.fullName
         )
+    }
+}
+
+// MARK: - Firebase Credential Sign-In
+
+/// Wraps Firebase's callback API so a stalled SDK request cannot freeze the auth UI forever.
+/// Firebase may still finish after the timeout; the global auth-state listener remains the source
+/// of truth and will publish that late success to the root navigation gate.
+@MainActor
+private final class FirebaseCredentialSignInCoordinator {
+    private let credential: AuthCredential
+    private var continuation: CheckedContinuation<AuthUserSnapshot, Error>?
+    private var timeoutTask: Task<Void, Never>?
+    private var wasCancelledBeforeStart = false
+
+    init(credential: AuthCredential) {
+        self.credential = credential
+    }
+
+    func start() async throws -> AuthUserSnapshot {
+#if DEBUG
+        authSessionFlowDebugLog("Firebase credential request started")
+#endif
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !wasCancelledBeforeStart else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                self.continuation = continuation
+                timeoutTask = Task { @MainActor [weak self] in
+                    do {
+                        try await Task.sleep(for: .seconds(20))
+                    } catch {
+                        return
+                    }
+
+                    if let user = Auth.auth().currentUser?.authSnapshot {
+#if DEBUG
+                        authSessionFlowDebugLog("Firebase request timed out but currentUser is available")
+#endif
+                        self?.finish(.success(user))
+                    } else {
+#if DEBUG
+                        authSessionFlowDebugLog("Firebase credential request timed out without a user")
+#endif
+                        self?.finish(.failure(AuthManagerError.firebaseSignInTimedOut))
+                    }
+                }
+
+                Auth.auth().signIn(with: credential) { [weak self] result, error in
+                    Task { @MainActor in
+#if DEBUG
+                        authSessionFlowDebugLog(
+                            "Firebase credential callback result=\(result != nil) error=\(error?.localizedDescription ?? "none")"
+                        )
+#endif
+                        if let result {
+                            self?.finish(.success(result.user.authSnapshot))
+                        } else if let error {
+                            self?.finish(.failure(error))
+                        } else {
+                            self?.finish(.failure(AuthManagerError.missingCredential))
+                        }
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                wasCancelledBeforeStart = continuation == nil
+                finish(.failure(CancellationError()))
+            }
+        }
+    }
+
+    private func finish(_ result: Result<AuthUserSnapshot, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        continuation.resume(with: result)
+    }
+}
+
+// MARK: - Google Sign-In
+
+/// Owns the complete Google authorization lifetime.
+///
+/// GoogleSignIn stores its presenter weakly. Retaining the stable window root here prevents a
+/// transient SwiftUI sheet controller from disappearing while ASWebAuthenticationSession is active.
+/// The guarded continuation also guarantees that cancellation, timeout, and a late SDK callback
+/// can never resume the same login request more than once.
+@MainActor
+private final class GoogleSignInCoordinator {
+    private let presentingViewController: UIViewController
+    private var continuation: CheckedContinuation<GIDSignInResult, Error>?
+    private var timeoutTask: Task<Void, Never>?
+    private var wasCancelledBeforeStart = false
+
+    init(presentingViewController fallbackPresenter: UIViewController) {
+        presentingViewController = Self.stableWindowRoot ?? fallbackPresenter
+    }
+
+    func start() async throws -> GIDSignInResult {
+#if DEBUG
+        authSessionFlowDebugLog(
+            "Google SDK request presenter=\(String(describing: type(of: presentingViewController))) "
+                + "windowAttached=\(presentingViewController.viewIfLoaded?.window != nil)"
+        )
+#endif
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !wasCancelledBeforeStart else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                self.continuation = continuation
+                timeoutTask = Task { @MainActor [weak self] in
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                    } catch {
+                        return
+                    }
+
+#if DEBUG
+                    authSessionFlowDebugLog("Google SDK callback timed out")
+#endif
+                    self?.finish(.failure(AuthManagerError.googleSignInTimedOut))
+                }
+
+                GIDSignIn.sharedInstance.signIn(
+                    withPresenting: presentingViewController
+                ) { [weak self] result, error in
+                    Task { @MainActor in
+#if DEBUG
+                        authSessionFlowDebugLog(
+                            "Google SDK callback result=\(result != nil) error=\(error?.localizedDescription ?? "none")"
+                        )
+#endif
+                        if let error {
+                            self?.finish(.failure(error))
+                        } else if let result {
+                            self?.finish(.success(result))
+                        } else {
+                            self?.finish(.failure(AuthManagerError.missingCredential))
+                        }
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                wasCancelledBeforeStart = continuation == nil
+                finish(.failure(CancellationError()))
+            }
+        }
+    }
+
+    private func finish(_ result: Result<GIDSignInResult, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        continuation.resume(with: result)
+    }
+
+    private static var stableWindowRoot: UIViewController? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .sorted { lhs, rhs in
+                lhs.activationState.sortPriority < rhs.activationState.sortPriority
+            }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .rootViewController
+    }
+}
+
+private extension UIScene.ActivationState {
+    var sortPriority: Int {
+        switch self {
+        case .foregroundActive: 0
+        case .foregroundInactive: 1
+        case .background: 2
+        case .unattached: 3
+        @unknown default: 4
+        }
     }
 }
 

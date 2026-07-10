@@ -107,8 +107,6 @@ struct LoginView: View {
                         authManager.completeEmailVerificationSuccess()
                     }
                 )
-            case .signInSucceeded:
-                SignInSuccessView()
             case .checking:
                 ProgressActivityDots(color: themeManager.accentColor.color)
             case .signedOut, .signedIn:
