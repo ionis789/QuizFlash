@@ -267,11 +267,11 @@ struct LoginView: View {
 
     private var authSheetConfiguration: FullScreenSheetConfiguration {
         .sheet(
-            heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.72),
+            heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.66),
             dragActivationArea: .fixed(0),
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
-            avoidsKeyboard: true,
+            avoidsKeyboard: activeSheet == nil,
             hidesTabBar: false,
             debugIdentifier: "auth.primary"
         )
@@ -284,6 +284,7 @@ struct LoginView: View {
             showsDragIndicator: false,
             showsBackdropBlur: true,
             showsDefaultTopProgressiveBlur: false,
+            avoidsKeyboard: true,
             hidesTabBar: false,
             debugIdentifier: "auth.secondary"
         )

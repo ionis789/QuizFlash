@@ -803,12 +803,13 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let containerWidth = max(windowSize.width, 1)
         let keyboardInset = resolvedKeyboardInset(containerHeight: containerHeight)
         let availableContainerHeight = max(containerHeight - keyboardInset, 1)
-        let sheetHeight = configuration.heightMode.resolvedHeight(in: availableContainerHeight)
-        let sheetTopY = max(availableContainerHeight - sheetHeight, 0)
+        let visibleSheetHeight = configuration.heightMode.resolvedHeight(in: availableContainerHeight)
+        let sheetHeight = min(visibleSheetHeight + keyboardInset, containerHeight)
+        let sheetTopY = max(containerHeight - sheetHeight, 0)
         let isFullHeightSheet = sheetTopY <= 0.5
         let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
         let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
-        let sheetBottomOverscan = isFullHeightSheet
+        let sheetBottomOverscan = isFullHeightSheet || keyboardInset > 0
             ? 0
             : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
         let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
@@ -861,7 +862,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
                 }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: containerWidth, height: visibleSheetHeight, alignment: .top)
             .opacity(Double(effectiveBackdropProgress))
             .animation(presentationAnimation, value: presentationProgress)
             .environment(\.fullScreenSheetDragProgress, dragProgress)
@@ -892,6 +893,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
         .animation(presentationAnimation, value: sheetHeight)
+        .animation(keyboardAvoidanceAnimation, value: keyboardInset)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
                 backgroundView(dragProgress: dragProgress)
@@ -901,8 +903,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .offset(y: visibleSheetOffset)
-        .offset(y: -keyboardInset)
-        .animation(keyboardAvoidanceAnimation, value: keyboardInset)
 
         let baseView = ZStack(alignment: .bottom) {
             if isFullHeightSheet, configuration.showsBackdropBlur {
