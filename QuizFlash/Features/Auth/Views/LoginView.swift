@@ -39,20 +39,29 @@ struct LoginView: View {
     @State private var authSheetPresentationTask: Task<Void, Never>?
 
     let showsAuthWalkthrough: Bool
+    let showsAuthWalkthroughBolt: Bool
+    let showsAuthWalkthroughText: Bool
     let allowsAuthWalkthroughAnimation: Bool
     let allowsAuthSheetPresentation: Bool
     let launchBoltNamespace: Namespace.ID?
+    let onAuthWalkthroughPrepared: () -> Void
 
     init(
         showsAuthWalkthrough: Bool = true,
+        showsAuthWalkthroughBolt: Bool = true,
+        showsAuthWalkthroughText: Bool = true,
         allowsAuthWalkthroughAnimation: Bool = true,
         allowsAuthSheetPresentation: Bool = true,
-        launchBoltNamespace: Namespace.ID? = nil
+        launchBoltNamespace: Namespace.ID? = nil,
+        onAuthWalkthroughPrepared: @escaping () -> Void = {}
     ) {
         self.showsAuthWalkthrough = showsAuthWalkthrough
+        self.showsAuthWalkthroughBolt = showsAuthWalkthroughBolt
+        self.showsAuthWalkthroughText = showsAuthWalkthroughText
         self.allowsAuthWalkthroughAnimation = allowsAuthWalkthroughAnimation
         self.allowsAuthSheetPresentation = allowsAuthSheetPresentation
         self.launchBoltNamespace = launchBoltNamespace
+        self.onAuthWalkthroughPrepared = onAuthWalkthroughPrepared
     }
 
     private var locale: Locale {
@@ -190,7 +199,10 @@ struct LoginView: View {
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
                             animates: allowsAuthWalkthroughAnimation,
-                            launchBoltNamespace: launchBoltNamespace
+                            showsBolt: showsAuthWalkthroughBolt,
+                            showsText: showsAuthWalkthroughText,
+                            launchBoltNamespace: launchBoltNamespace,
+                            onPrepared: onAuthWalkthroughPrepared
                         )
                     } else {
                         Color.clear
@@ -710,7 +722,10 @@ private struct AuthWalkthroughText: View {
     let symbolColor: Color
     let reduceMotion: Bool
     let animates: Bool
+    let showsBolt: Bool
+    let showsText: Bool
     let launchBoltNamespace: Namespace.ID?
+    let onPrepared: () -> Void
 
     @State private var intros: [AuthIntro] = []
     @State private var activeIntro: AuthIntro?
@@ -734,6 +749,8 @@ private struct AuthWalkthroughText: View {
                                     isSource: false
                                 )
                             )
+                            .opacity(showsBolt ? 1 : 0)
+                            .animation(nil, value: showsBolt)
                             .background(alignment: .leading) {
                                 Capsule()
                                     .fill(activeIntro.backgroundColor)
@@ -748,6 +765,8 @@ private struct AuthWalkthroughText: View {
                                     .frame(width: textSize(activeIntro.text), alignment: .leading)
                                     .offset(x: 10)
                                     .offset(x: activeIntro.textOffset)
+                                    .opacity(showsText ? 1 : 0)
+                                    .animation(nil, value: showsText)
                             }
                             .offset(x: -activeIntro.symbolOffset)
                     }
@@ -763,6 +782,10 @@ private struct AuthWalkthroughText: View {
 
             if activeIntro == nil {
                 activeIntro = intros.first
+                onPrepared()
+#if DEBUG
+                authLaunchDebugLog("walkthrough target ready")
+#endif
             } else {
                 resetActiveIntroOffsets()
             }

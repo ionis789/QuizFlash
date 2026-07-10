@@ -1,5 +1,11 @@
 import SwiftUI
 
+#if DEBUG
+func authLaunchDebugLog(_ message: String) {
+    print("AUTH_LAUNCH_HANDOFF \(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)")
+}
+#endif
+
 enum AuthLaunchLayout {
     static let walkthroughCenterYRatio: CGFloat = 0.46
     static let boltID = "auth-launch-bolt"
@@ -39,6 +45,11 @@ struct RootView: View {
     @State private var isLaunchAnimationVisible = true
     @State private var isLaunchSymbolPresented = false
     @State private var isLaunchSymbolHandedOff = false
+    @State private var isAuthWalkthroughPrepared = false
+    @State private var isLaunchBoltReadyForTransfer = false
+    @State private var hasStartedAuthBoltTransfer = false
+    @State private var isAuthWalkthroughBoltVisible = false
+    @State private var isAuthWalkthroughTextVisible = false
     @State private var isAuthSheetPresentationReleased = false
     @Namespace private var authLaunchBoltNamespace
 
@@ -60,10 +71,15 @@ struct RootView: View {
                      .emailVerificationSucceeded,
                      .signInSucceeded:
                     LoginView(
-                        showsAuthWalkthrough: isAuthSheetPresentationReleased,
-                        allowsAuthWalkthroughAnimation: isAuthSheetPresentationReleased,
+                        showsAuthWalkthrough: true,
+                        showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible,
+                        showsAuthWalkthroughText: isAuthWalkthroughTextVisible,
+                        allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible,
                         allowsAuthSheetPresentation: isAuthSheetPresentationReleased,
-                        launchBoltNamespace: authLaunchBoltNamespace
+                        launchBoltNamespace: authLaunchBoltNamespace,
+                        onAuthWalkthroughPrepared: {
+                            isAuthWalkthroughPrepared = true
+                        }
                     )
                         .transition(.opacity)
                 }
@@ -102,6 +118,14 @@ struct RootView: View {
         .onChange(of: authManager.sessionState) { _, _ in
             presentOnboardingIfNeeded()
         }
+        .onChange(of: isAuthWalkthroughPrepared) { _, isPrepared in
+            guard isPrepared else { return }
+
+            Task { @MainActor in
+                await Task.yield()
+                startAuthBoltTransferIfReady()
+            }
+        }
     }
 
     private func presentOnboardingIfNeeded() {
@@ -137,9 +161,6 @@ struct RootView: View {
         let handoffAnimation: Animation = reduceMotion
             ? .easeInOut(duration: 0.18)
             : .smooth(duration: 0.64, extraBounce: 0)
-        let ownershipTransferAnimation: Animation = reduceMotion
-            ? .easeInOut(duration: 0.12)
-            : .smooth(duration: 0.18, extraBounce: 0)
         let handoffDelay: Duration = reduceMotion ? .milliseconds(180) : .milliseconds(640)
 
         withAnimation(revealAnimation) {
@@ -158,9 +179,53 @@ struct RootView: View {
 
         try? await Task.sleep(for: handoffDelay)
 
-        withAnimation(ownershipTransferAnimation) {
+#if DEBUG
+        authLaunchDebugLog("launch bolt reached auth anchor")
+#endif
+        isLaunchBoltReadyForTransfer = true
+        startAuthBoltTransferIfReady()
+    }
+
+    @MainActor
+    private func startAuthBoltTransferIfReady() {
+        guard isLaunchBoltReadyForTransfer,
+              isAuthWalkthroughPrepared,
+              !hasStartedAuthBoltTransfer else {
+            return
+        }
+
+        hasStartedAuthBoltTransfer = true
+
+        let transferAnimation: Animation = reduceMotion
+            ? .easeInOut(duration: 0.12)
+            : .smooth(duration: 0.18, extraBounce: 0)
+        let transferDelay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(180)
+        let textRevealDelay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(260)
+
+#if DEBUG
+        authLaunchDebugLog("transfer source=true destinationReady=true")
+#endif
+        withAnimation(transferAnimation) {
             isLaunchAnimationVisible = false
+            isAuthWalkthroughBoltVisible = true
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: transferDelay)
+            guard !Task.isCancelled else { return }
+
+#if DEBUG
+            authLaunchDebugLog("sheet released boltVisible=true textVisible=false")
+#endif
             isAuthSheetPresentationReleased = true
+
+            try? await Task.sleep(for: textRevealDelay)
+            guard !Task.isCancelled else { return }
+
+#if DEBUG
+            authLaunchDebugLog("walkthrough text released")
+#endif
+            isAuthWalkthroughTextVisible = true
         }
     }
 }
