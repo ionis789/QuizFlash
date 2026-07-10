@@ -185,6 +185,7 @@ struct FullScreenSheetConfiguration: Sendable {
     var showsBackdropBlur: Bool = true
     var showsDefaultTopProgressiveBlur: Bool = true
     var showsCloseButton: Bool = false
+    var avoidsKeyboard: Bool = false
     var appliesDefaultDragTopOverlay: Bool = false
     var hidesTabBar: Bool = true
     var coversTabBar: Bool = false
@@ -202,6 +203,7 @@ struct FullScreenSheetConfiguration: Sendable {
         showsBackdropBlur: Bool = true,
         showsDefaultTopProgressiveBlur: Bool = true,
         showsCloseButton: Bool = false,
+        avoidsKeyboard: Bool = false,
         hidesTabBar: Bool = true,
         coversTabBar: Bool = false,
         debugIdentifier: String? = nil
@@ -217,6 +219,7 @@ struct FullScreenSheetConfiguration: Sendable {
             showsBackdropBlur: showsBackdropBlur,
             showsDefaultTopProgressiveBlur: showsDefaultTopProgressiveBlur,
             showsCloseButton: showsCloseButton,
+            avoidsKeyboard: avoidsKeyboard,
             appliesDefaultDragTopOverlay: false,
             hidesTabBar: hidesTabBar,
             coversTabBar: coversTabBar
@@ -235,6 +238,7 @@ struct FullScreenSheetConfiguration: Sendable {
         showsBackdropBlur: Bool = false,
         showsDefaultTopProgressiveBlur: Bool = false,
         showsCloseButton: Bool = false,
+        avoidsKeyboard: Bool = false,
         hidesTabBar: Bool = true,
         coversTabBar: Bool = false,
         debugIdentifier: String? = nil
@@ -250,6 +254,7 @@ struct FullScreenSheetConfiguration: Sendable {
             showsBackdropBlur: showsBackdropBlur,
             showsDefaultTopProgressiveBlur: showsDefaultTopProgressiveBlur,
             showsCloseButton: showsCloseButton,
+            avoidsKeyboard: avoidsKeyboard,
             appliesDefaultDragTopOverlay: false,
             hidesTabBar: hidesTabBar,
             coversTabBar: coversTabBar
@@ -347,6 +352,7 @@ private struct FullScreenSheetDebugMetrics: Equatable {
     let contentSafeTop: CGFloat
     let contentSafeBottom: CGFloat
     let windowSafeBottom: CGFloat
+    let keyboardInset: CGFloat
     let sheetBottomOverscan: CGFloat
     let contentScrollOffset: CGFloat
     let hasActiveChildPresentation: Bool
@@ -363,6 +369,7 @@ private struct FullScreenSheetDebugMetrics: Equatable {
             "safeTop=\(format(contentSafeTop))",
             "safeBottom=\(format(contentSafeBottom))",
             "windowSafeBottom=\(format(windowSafeBottom))",
+            "keyboardInset=\(format(keyboardInset))",
             "overscan=\(format(sheetBottomOverscan))",
             "scrollOffset=\(format(contentScrollOffset))",
             "hasChild=\(hasActiveChildPresentation)"
@@ -758,6 +765,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
     @State private var childPresentationCoordinator = FullScreenSheetPresentationCoordinator()
     @State private var activeChildPresentationIDs: Set<UUID> = []
+    @State private var keyboardMonitor = KeyboardMonitor.shared
 
     private var dismissalAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
@@ -765,6 +773,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private var presentationAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
+    }
+
+    private var keyboardAvoidanceAnimation: Animation {
+        .easeInOut(duration: max(keyboardMonitor.animationDuration, UIConstants.Animation.instant))
     }
 
     private var locale: Locale {
@@ -789,15 +801,20 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     var body: some View {
         let containerHeight = max(windowSize.height, 1)
         let containerWidth = max(windowSize.width, 1)
-        let sheetHeight = configuration.heightMode.resolvedHeight(in: containerHeight)
-        let sheetTopY = max(containerHeight - sheetHeight, 0)
+        let keyboardInset = resolvedKeyboardInset(containerHeight: containerHeight)
+        let availableContainerHeight = max(containerHeight - keyboardInset, 1)
+        let sheetHeight = configuration.heightMode.resolvedHeight(in: availableContainerHeight)
+        let sheetTopY = max(availableContainerHeight - sheetHeight, 0)
         let isFullHeightSheet = sheetTopY <= 0.5
         let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
         let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
-        let sheetBottomOverscan = isFullHeightSheet ? 0 : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
+        let sheetBottomOverscan = isFullHeightSheet || keyboardInset > 0
+            ? 0
+            : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
         let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
             sheetTopY: sheetTopY,
-            additionalTopInset: dragIndicatorInset
+            additionalTopInset: dragIndicatorInset,
+            keyboardInset: keyboardInset
         )
         let dragProgress = min(max(offset / max(dismissalDistance, 1), 0), 1)
         let visibleSheetOffset = offset + ((1 - presentationProgress) * containerHeight)
@@ -884,6 +901,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .offset(y: visibleSheetOffset)
+        .offset(y: -keyboardInset)
+        .animation(keyboardAvoidanceAnimation, value: keyboardInset)
 
         let baseView = ZStack(alignment: .bottom) {
             if isFullHeightSheet, configuration.showsBackdropBlur {
@@ -964,6 +983,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     contentSafeTop: contentSafeAreaInsets.top,
                     contentSafeBottom: contentSafeAreaInsets.bottom,
                     windowSafeBottom: windowSafeAreaInsets.bottom,
+                    keyboardInset: keyboardInset,
                     sheetBottomOverscan: sheetBottomOverscan,
                     contentScrollOffset: contentScrollOffset,
                     hasActiveChildPresentation: hasActiveChildPresentation
@@ -1332,14 +1352,23 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private func resolvedContentSafeAreaInsets(
         sheetTopY: CGFloat,
-        additionalTopInset: CGFloat
+        additionalTopInset: CGFloat,
+        keyboardInset: CGFloat
     ) -> UIEdgeInsets {
         UIEdgeInsets(
             top: (sheetTopY <= windowSafeAreaInsets.top + 1 ? windowSafeAreaInsets.top : 0) + additionalTopInset,
             left: windowSafeAreaInsets.left,
-            bottom: windowSafeAreaInsets.bottom,
+            bottom: keyboardInset > 0 ? 0 : windowSafeAreaInsets.bottom,
             right: windowSafeAreaInsets.right
         )
+    }
+
+    private func resolvedKeyboardInset(containerHeight: CGFloat) -> CGFloat {
+        guard configuration.avoidsKeyboard, keyboardMonitor.isVisible else { return 0 }
+
+        let requestedInset = keyboardMonitor.visibleHeight + windowSafeAreaInsets.bottom
+        let maximumInset = max(containerHeight - windowSafeAreaInsets.top - 1, 0)
+        return min(max(requestedInset, 0), maximumInset)
     }
 
     private func smoothStep(_ value: CGFloat) -> CGFloat {

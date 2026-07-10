@@ -198,7 +198,7 @@ struct LoginView: View {
                             phrases: walkthroughPhrases,
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation,
+                            animates: allowsAuthWalkthroughAnimation && !isEmailAuthSheetActive,
                             showsBolt: showsAuthWalkthroughBolt,
                             showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
@@ -211,6 +211,9 @@ struct LoginView: View {
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
                 .frame(maxWidth: .infinity)
                 .frame(height: 86)
+                .opacity(isEmailAuthSheetActive ? 0 : 1)
+                .animation(authWalkthroughVisibilityAnimation, value: isEmailAuthSheetActive)
+                .accessibilityHidden(isEmailAuthSheetActive)
                 .position(
                     x: proxy.size.width / 2,
                     y: proxy.size.height * AuthLaunchLayout.walkthroughCenterYRatio
@@ -264,10 +267,11 @@ struct LoginView: View {
 
     private var authSheetConfiguration: FullScreenSheetConfiguration {
         .sheet(
-            heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.88),
+            heightMode: .adaptiveAbsolute(authSheetHeight, maxFraction: 0.72),
             dragActivationArea: .fixed(0),
             showsBackdropBlur: false,
             showsDefaultTopProgressiveBlur: false,
+            avoidsKeyboard: true,
             hidesTabBar: false,
             debugIdentifier: "auth.primary"
         )
@@ -294,6 +298,16 @@ struct LoginView: View {
         case .signUp:
             570
         }
+    }
+
+    private var isEmailAuthSheetActive: Bool {
+        isAuthSheetPresented && authSheetMode != .actions
+    }
+
+    private var authWalkthroughVisibilityAnimation: Animation {
+        reduceMotion
+            ? .linear(duration: UIConstants.Animation.instant)
+            : .easeInOut(duration: UIConstants.Animation.standard)
     }
 
     private var walkthroughPhrases: [String] {
@@ -407,6 +421,7 @@ private struct AuthLoginSheetContent: View {
     @State private var displayedMode: AuthSheetMode = .actions
     @State private var isContentVisible = true
     @State private var modeTransitionTask: Task<Void, Never>?
+    @State private var keyboardMonitor = KeyboardMonitor.shared
 
     private var contentTransition: Animation {
         ScaleRevealMotion.animation(reduceMotion: reduceMotion)
@@ -667,6 +682,9 @@ private struct AuthLoginSheetContent: View {
 #if DEBUG
             authLayoutDebugLog("setMode begin from=\(displayedMode) to=\(newMode) mode=\(mode)")
 #endif
+            await dismissKeyboardBeforeModeTransitionIfNeeded()
+            guard !Task.isCancelled else { return }
+
             withAnimation(contentTransition) {
                 isContentVisible = false
             }
@@ -702,6 +720,28 @@ private struct AuthLoginSheetContent: View {
             authLayoutDebugLog("setMode reveal visible=\(isContentVisible) displayedMode=\(displayedMode) mode=\(mode)")
 #endif
         }
+    }
+
+    @MainActor
+    private func dismissKeyboardBeforeModeTransitionIfNeeded() async {
+        guard keyboardMonitor.isVisible else { return }
+
+        let dismissalDuration = max(
+            keyboardMonitor.animationDuration,
+            UIConstants.Animation.standard
+        )
+
+#if DEBUG
+        authLayoutDebugLog("setMode dismissKeyboard duration=\(dismissalDuration)")
+#endif
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+
+        try? await Task.sleep(for: .seconds(dismissalDuration))
     }
 
     private func configureDismissCoordinator() {
