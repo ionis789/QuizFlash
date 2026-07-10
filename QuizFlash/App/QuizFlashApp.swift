@@ -22,6 +22,12 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
             FirebaseApp.configure()
         }
 
+        AuthFlowDebugTrace.record(
+            "app.did-finish-launching",
+            layer: "app-lifecycle",
+            details: ["firebaseConfigured": String(FirebaseApp.app() != nil)]
+        )
+
         return true
     }
 
@@ -31,6 +37,15 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
         let handled = GIDSignIn.sharedInstance.handle(url)
+        AuthFlowDebugTrace.record(
+            "callback-url.app-delegate",
+            layer: "google-routing",
+            details: [
+                "scheme": url.scheme ?? "none",
+                "host": url.host ?? "none",
+                "handled": String(handled)
+            ]
+        )
 #if DEBUG
         print(
             "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "
@@ -81,6 +96,15 @@ struct QuizFlashApp: App {
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     let handled = GIDSignIn.sharedInstance.handle(url)
+                    AuthFlowDebugTrace.record(
+                        "callback-url.swiftui",
+                        layer: "google-routing",
+                        details: [
+                            "scheme": url.scheme ?? "none",
+                            "host": url.host ?? "none",
+                            "handled": String(handled)
+                        ]
+                    )
 #if DEBUG
                     print(
                         "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "

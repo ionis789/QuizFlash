@@ -146,6 +146,50 @@ struct LoginView: View {
         } message: {
             Text(alertMessage)
         }
+        .onAppear {
+            AuthFlowDebugTrace.recordWindowCheckpoint(
+                "login-view.appear",
+                layer: "login-view",
+                state: authManager.sessionState
+            )
+        }
+        .onDisappear {
+            AuthFlowDebugTrace.recordWindowCheckpoint(
+                "login-view.disappear",
+                layer: "login-view",
+                state: authManager.sessionState
+            )
+        }
+        .onChange(of: isAuthSheetPresented) { oldValue, newValue in
+            AuthFlowDebugTrace.record(
+                "primary-sheet.changed",
+                layer: "login-view",
+                details: [
+                    "from": String(oldValue),
+                    "to": String(newValue),
+                    "mode": String(describing: authSheetMode),
+                    "state": authManager.sessionState.debugName
+                ]
+            )
+        }
+        .onChange(of: scenePhase) { oldValue, newValue in
+            AuthFlowDebugTrace.record(
+                "scene-phase.changed",
+                layer: "login-view",
+                details: [
+                    "from": String(describing: oldValue),
+                    "to": String(describing: newValue),
+                    "state": authManager.sessionState.debugName
+                ]
+            )
+        }
+        .onChange(of: authManager.sessionState) { oldValue, newValue in
+            AuthFlowDebugTrace.recordWindowCheckpoint(
+                "observed-state.\(oldValue.debugName)-to-\(newValue.debugName)",
+                layer: "login-view",
+                state: newValue
+            )
+        }
     }
 
     private var loginForm: some View {
@@ -491,6 +535,14 @@ private struct AuthLoginSheetContent: View {
         .authLayoutDebugFrame("content.root.\(displayedMode)")
 #endif
         .onAppear {
+            AuthFlowDebugTrace.record(
+                "sheet-content.appear",
+                layer: "login-sheet",
+                details: [
+                    "mode": String(describing: mode),
+                    "displayedMode": String(describing: displayedMode)
+                ]
+            )
 #if DEBUG
             authLayoutDebugLog(
                 "content.onAppear mode=\(mode) displayedMode=\(displayedMode) visible=\(isContentVisible) safeTop=\(safeAreaInsets.top) safeBottom=\(safeAreaInsets.bottom) reduceMotion=\(reduceMotion)"
@@ -501,6 +553,14 @@ private struct AuthLoginSheetContent: View {
             configureDismissCoordinator()
         }
         .onDisappear {
+            AuthFlowDebugTrace.record(
+                "sheet-content.disappear",
+                layer: "login-sheet",
+                details: [
+                    "mode": String(describing: mode),
+                    "displayedMode": String(describing: displayedMode)
+                ]
+            )
             modeTransitionTask?.cancel()
             modeTransitionTask = nil
             dismissCoordinator?.shouldAllowDismiss = nil
@@ -1027,13 +1087,45 @@ private struct AuthLandingAsyncButton: View {
         Button {
             guard !isLoading else { return }
 
+            AuthFlowDebugTrace.record(
+                "button.tap",
+                layer: "login-sheet",
+                details: ["title": title]
+            )
+
             Task { @MainActor in
                 isLoading = true
-                defer { isLoading = false }
+                AuthFlowDebugTrace.record(
+                    "button.task.begin",
+                    layer: "login-sheet",
+                    details: ["title": title, "cancelled": String(Task.isCancelled)]
+                )
+                defer {
+                    isLoading = false
+                    AuthFlowDebugTrace.record(
+                        "button.task.end",
+                        layer: "login-sheet",
+                        details: ["title": title, "cancelled": String(Task.isCancelled)]
+                    )
+                }
 
                 do {
                     try await action()
+                    AuthFlowDebugTrace.record(
+                        "button.action.succeeded",
+                        layer: "login-sheet",
+                        details: ["title": title]
+                    )
                 } catch {
+                    AuthFlowDebugTrace.record(
+                        "button.action.failed",
+                        layer: "login-sheet",
+                        details: [
+                            "title": title,
+                            "error": String(describing: type(of: error)),
+                            "cancelled": String(error is CancellationError)
+                        ]
+                    )
                     onError(error)
                 }
             }
@@ -1049,6 +1141,14 @@ private struct AuthLandingAsyncButton: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isLoading)
+        .onDisappear {
+            guard isLoading else { return }
+            AuthFlowDebugTrace.record(
+                "button.disappear.while-loading",
+                layer: "login-sheet",
+                details: ["title": title]
+            )
+        }
     }
 }
 

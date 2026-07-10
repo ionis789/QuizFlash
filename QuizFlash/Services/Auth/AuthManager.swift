@@ -20,6 +20,158 @@ private func authSessionFlowDebugLog(_ message: String) {
 }
 #endif
 
+// MARK: - Auth Flow Diagnostics
+
+/// Emits one ordered, privacy-safe timeline for the complete external-auth handoff.
+///
+/// Keep this active in DEBUG until the runtime tester confirms the login transition. Every line
+/// starts with `QF_AUTH_TRACE`, so the complete attempt can be copied from Xcode's console with a
+/// single filter.
+@MainActor
+enum AuthFlowDebugTrace {
+#if DEBUG
+    private static let maximumBufferedEvents = 80
+    private static var sequence = 0
+    private static var attemptID = "launch"
+    private static var bufferedEvents: [String] = []
+#endif
+
+    static func beginAttempt(
+        provider: String,
+        state: AuthSessionState
+    ) -> String {
+#if DEBUG
+        attemptID = String(UUID().uuidString.prefix(8))
+        sequence = 0
+        bufferedEvents.removeAll(keepingCapacity: true)
+        record(
+            "attempt.begin",
+            layer: "auth-manager",
+            details: [
+                "provider": provider,
+                "state": state.debugName,
+                "windows": windowSnapshot()
+            ]
+        )
+#endif
+        return currentAttemptID
+    }
+
+    static var currentAttemptID: String {
+#if DEBUG
+        attemptID
+#else
+        "release"
+#endif
+    }
+
+    static func record(
+        _ event: String,
+        layer: String,
+        details: [String: String] = [:]
+    ) {
+#if DEBUG
+        sequence += 1
+        let detail = details
+            .map { key, value in "\(sanitize(key))=\(sanitize(value))" }
+            .sorted()
+            .joined(separator: " ")
+        let suffix = detail.isEmpty ? "" : " \(detail)"
+        let line = "QF_AUTH_TRACE attempt=\(attemptID) seq=\(sequence) "
+            + "time=\(String(format: "%.3f", Date().timeIntervalSince1970)) "
+            + "main=\(Thread.isMainThread) layer=\(sanitize(layer)) event=\(sanitize(event))\(suffix)"
+        bufferedEvents.append(line)
+        if bufferedEvents.count > maximumBufferedEvents {
+            bufferedEvents.removeFirst(bufferedEvents.count - maximumBufferedEvents)
+        }
+        print(line)
+#endif
+    }
+
+    static func recordWindowCheckpoint(
+        _ event: String,
+        layer: String,
+        state: AuthSessionState
+    ) {
+#if DEBUG
+        record(
+            event,
+            layer: layer,
+            details: [
+                "state": state.debugName,
+                "windows": windowSnapshot()
+            ]
+        )
+#endif
+    }
+
+#if DEBUG
+    private static func windowSnapshot() -> String {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .sorted { $0.activationState.sortPriority < $1.activationState.sortPriority }
+
+        guard !scenes.isEmpty else { return "none" }
+
+        return scenes.enumerated().map { sceneIndex, scene in
+            let windows = scene.windows.enumerated().map { windowIndex, window in
+                let rootName = window.rootViewController.map { shortTypeName($0) } ?? "nil"
+                let presented = window.rootViewController.map(presentedChain) ?? "none"
+                return "w\(windowIndex){key:\(window.isKeyWindow),hidden:\(window.isHidden),"
+                    + "level:\(Int(window.windowLevel.rawValue)),root:\(rootName),presented:\(presented)}"
+            }.joined(separator: ",")
+            return "s\(sceneIndex){state:\(scene.activationState.debugName),\(windows)}"
+        }.joined(separator: ";")
+    }
+
+    private static func presentedChain(from root: UIViewController) -> String {
+        var names: [String] = []
+        var current = root.presentedViewController
+        while let controller = current, names.count < 8 {
+            names.append(shortTypeName(controller))
+            current = controller.presentedViewController
+        }
+        return names.isEmpty ? "none" : names.joined(separator: ">")
+    }
+
+    private static func shortTypeName(_ value: Any) -> String {
+        String(describing: type(of: value)).replacingOccurrences(of: " ", with: "_")
+    }
+
+    private static func sanitize(_ value: String) -> String {
+        let singleLine = value
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: " ", with: "_")
+        return String(singleLine.prefix(700))
+    }
+#endif
+}
+
+extension AuthSessionState {
+    var debugName: String {
+        switch self {
+        case .checking: "checking"
+        case .signedOut: "signedOut"
+        case .signedIn: "signedIn"
+        case .emailVerificationRequired: "emailVerificationRequired"
+        case .emailVerificationSucceeded: "emailVerificationSucceeded"
+        }
+    }
+}
+
+private extension UIScene.ActivationState {
+    var debugName: String {
+        switch self {
+        case .foregroundActive: "foregroundActive"
+        case .foregroundInactive: "foregroundInactive"
+        case .background: "background"
+        case .unattached: "unattached"
+        @unknown default: "unknown"
+        }
+    }
+}
+
 // MARK: - Auth User Snapshot
 
 /// Lightweight, UI-safe snapshot of the current Firebase user.
@@ -205,12 +357,34 @@ final class AuthManager {
 
     /// Starts observing Firebase Auth state changes.
     func startListening() {
-        guard removeAuthStateListener == nil else { return }
+        guard removeAuthStateListener == nil else {
+            AuthFlowDebugTrace.record(
+                "listener.start.skipped",
+                layer: "auth-manager",
+                details: ["reason": "already-installed", "state": sessionState.debugName]
+            )
+            return
+        }
+        AuthFlowDebugTrace.record(
+            "listener.start",
+            layer: "auth-manager",
+            details: ["previousState": sessionState.debugName]
+        )
         sessionState = .checking
         let provider = authProvider
         removeAuthStateListener = provider.observeAuthState { [weak self] user in
+            AuthFlowDebugTrace.record(
+                "listener.delivered",
+                layer: "auth-manager",
+                details: ["user": BackendTraceStore.safeUID(user?.uid)]
+            )
             self?.apply(user)
         }
+        AuthFlowDebugTrace.record(
+            "listener.installed",
+            layer: "auth-manager",
+            details: ["currentUser": BackendTraceStore.safeUID(provider.currentUser?.uid)]
+        )
         apply(provider.currentUser)
     }
 
@@ -274,16 +448,44 @@ final class AuthManager {
 
     func signInWithGoogle(presentingViewController: UIViewController?) async throws {
         guard let presentingViewController else {
+            AuthFlowDebugTrace.record(
+                "attempt.rejected",
+                layer: "auth-manager",
+                details: ["reason": "missing-presenter"]
+            )
             throw AuthManagerError.missingPresenter
         }
 
+        let traceID = AuthFlowDebugTrace.beginAttempt(provider: "google", state: sessionState)
+        AuthFlowDebugTrace.record(
+            "presenter.accepted",
+            layer: "auth-manager",
+            details: [
+                "operation": traceID,
+                "type": String(describing: type(of: presentingViewController)),
+                "windowAttached": String(presentingViewController.viewIfLoaded?.window != nil)
+            ]
+        )
 #if DEBUG
         authSessionFlowDebugLog("Google sign-in started")
 #endif
         let provider = authProvider
         let operationID = UUID()
         let task = Task { @MainActor [weak self] in
+            AuthFlowDebugTrace.record(
+                "external-task.started",
+                layer: "auth-manager",
+                details: ["operation": traceID, "cancelled": String(Task.isCancelled)]
+            )
             defer {
+                AuthFlowDebugTrace.record(
+                    "external-task.finished",
+                    layer: "auth-manager",
+                    details: [
+                        "operation": traceID,
+                        "state": self?.sessionState.debugName ?? "manager-released"
+                    ]
+                )
                 if self?.externalSignInID == operationID {
                     self?.externalSignInTask = nil
                     self?.externalSignInID = nil
@@ -301,7 +503,26 @@ final class AuthManager {
         }
         externalSignInID = operationID
         externalSignInTask = task
-        _ = try await task.value
+        do {
+            _ = try await task.value
+            AuthFlowDebugTrace.record(
+                "attempt.await.returned",
+                layer: "auth-manager",
+                details: ["operation": traceID, "state": sessionState.debugName]
+            )
+        } catch {
+            AuthFlowDebugTrace.record(
+                "attempt.await.failed",
+                layer: "auth-manager",
+                details: [
+                    "operation": traceID,
+                    "error": String(describing: type(of: error)),
+                    "cancelled": String(error is CancellationError),
+                    "state": sessionState.debugName
+                ]
+            )
+            throw error
+        }
     }
 
     func signInWithApple() async throws {
@@ -347,16 +568,36 @@ final class AuthManager {
     // MARK: - Private
 
     private func apply(_ user: AuthUserSnapshot?) {
+        let previousState = sessionState
 #if DEBUG
         authSessionFlowDebugLog("applying auth listener user=\(user?.uid ?? "nil")")
 #endif
         guard let user else {
             sessionState = .signedOut
+            AuthFlowDebugTrace.record(
+                "state.applied",
+                layer: "auth-manager.listener",
+                details: [
+                    "from": previousState.debugName,
+                    "to": sessionState.debugName,
+                    "reason": "nil-user"
+                ]
+            )
             return
         }
 
         if user.requiresEmailVerification {
             sessionState = .emailVerificationRequired(user)
+            AuthFlowDebugTrace.record(
+                "state.applied",
+                layer: "auth-manager.listener",
+                details: [
+                    "from": previousState.debugName,
+                    "to": sessionState.debugName,
+                    "reason": "email-verification-required",
+                    "user": BackendTraceStore.safeUID(user.uid)
+                ]
+            )
             return
         }
 
@@ -375,15 +616,45 @@ final class AuthManager {
         } else {
             sessionState = .signedIn(user)
         }
+        AuthFlowDebugTrace.record(
+            "state.applied",
+            layer: "auth-manager.listener",
+            details: [
+                "from": previousState.debugName,
+                "to": sessionState.debugName,
+                "reason": wasWaitingForSameEmailUser ? "verified-email" : "authenticated-user",
+                "user": BackendTraceStore.safeUID(user.uid)
+            ]
+        )
     }
 
     private func applySignInSuccess(_ user: AuthUserSnapshot) {
+        let previousState = sessionState
         guard !user.requiresEmailVerification else {
             sessionState = .emailVerificationRequired(user)
+            AuthFlowDebugTrace.record(
+                "state.applied",
+                layer: "auth-manager.operation",
+                details: [
+                    "from": previousState.debugName,
+                    "to": sessionState.debugName,
+                    "reason": "email-verification-required"
+                ]
+            )
             return
         }
 
         sessionState = .signedIn(user)
+        AuthFlowDebugTrace.record(
+            "state.applied",
+            layer: "auth-manager.operation",
+            details: [
+                "from": previousState.debugName,
+                "to": sessionState.debugName,
+                "reason": "provider-returned",
+                "user": BackendTraceStore.safeUID(user.uid)
+            ]
+        )
 #if DEBUG
         authSessionFlowDebugLog("published signedIn")
 #endif
@@ -425,11 +696,24 @@ private final class FirebaseAuthClient: AuthProviding {
     func observeAuthState(
         _ handler: @escaping @MainActor (AuthUserSnapshot?) -> Void
     ) -> @MainActor () -> Void {
+        AuthFlowDebugTrace.record(
+            "listener.register",
+            layer: "firebase-auth",
+            details: ["currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)]
+        )
         let handle = Auth.auth().addStateDidChangeListener { _, user in
 #if DEBUG
             authSessionFlowDebugLog("Firebase listener callback user=\(user?.uid ?? "nil")")
 #endif
             Task { @MainActor in
+                AuthFlowDebugTrace.record(
+                    "listener.callback",
+                    layer: "firebase-auth",
+                    details: [
+                        "user": BackendTraceStore.safeUID(user?.uid),
+                        "providerCount": String(user?.providerData.count ?? 0)
+                    ]
+                )
 #if DEBUG
                 authSessionFlowDebugLog("Firebase listener delivering user=\(user?.uid ?? "nil")")
 #endif
@@ -531,7 +815,17 @@ private final class FirebaseAuthClient: AuthProviding {
     }
 
     private func googleCredential(presentingViewController: UIViewController) async throws -> AuthCredential {
+        AuthFlowDebugTrace.record(
+            "credential.begin",
+            layer: "google-provider",
+            details: ["firebaseCurrentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)]
+        )
         guard let clientID = FirebaseApp.app()?.options.clientID else {
+            AuthFlowDebugTrace.record(
+                "credential.rejected",
+                layer: "google-provider",
+                details: ["reason": "missing-client-id"]
+            )
             throw AuthManagerError.missingGoogleClientID
         }
 
@@ -546,9 +840,22 @@ private final class FirebaseAuthClient: AuthProviding {
         let result = try await coordinator.start()
 
         guard let idToken = result.user.idToken?.tokenString else {
+            AuthFlowDebugTrace.record(
+                "credential.rejected",
+                layer: "google-provider",
+                details: ["reason": "missing-id-token"]
+            )
             throw AuthManagerError.missingCredential
         }
 
+        AuthFlowDebugTrace.record(
+            "credential.created",
+            layer: "google-provider",
+            details: [
+                "hasIDToken": "true",
+                "hasAccessToken": String(!result.user.accessToken.tokenString.isEmpty)
+            ]
+        )
         return GoogleAuthProvider.credential(
             withIDToken: idToken,
             accessToken: result.user.accessToken.tokenString
@@ -556,6 +863,11 @@ private final class FirebaseAuthClient: AuthProviding {
     }
 
     private func signInWithFirebaseCredential(_ credential: AuthCredential) async throws -> AuthUserSnapshot {
+        AuthFlowDebugTrace.record(
+            "credential-sign-in.begin",
+            layer: "firebase-auth",
+            details: ["provider": credential.provider]
+        )
         let coordinator = FirebaseCredentialSignInCoordinator(credential: credential)
         firebaseSignInCoordinator = coordinator
         defer { firebaseSignInCoordinator = nil }
@@ -594,6 +906,15 @@ private final class FirebaseCredentialSignInCoordinator {
     }
 
     func start() async throws -> AuthUserSnapshot {
+        AuthFlowDebugTrace.record(
+            "request.start",
+            layer: "firebase-credential",
+            details: [
+                "provider": credential.provider,
+                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid),
+                "cancelled": String(Task.isCancelled)
+            ]
+        )
 #if DEBUG
         authSessionFlowDebugLog("Firebase credential request started")
 #endif
@@ -613,11 +934,21 @@ private final class FirebaseCredentialSignInCoordinator {
                     }
 
                     if let user = Auth.auth().currentUser?.authSnapshot {
+                        AuthFlowDebugTrace.record(
+                            "request.timeout.recovered",
+                            layer: "firebase-credential",
+                            details: ["currentUser": BackendTraceStore.safeUID(user.uid)]
+                        )
 #if DEBUG
                         authSessionFlowDebugLog("Firebase request timed out but currentUser is available")
 #endif
                         self?.finish(.success(user))
                     } else {
+                        AuthFlowDebugTrace.record(
+                            "request.timeout.failed",
+                            layer: "firebase-credential",
+                            details: ["currentUser": "none"]
+                        )
 #if DEBUG
                         authSessionFlowDebugLog("Firebase credential request timed out without a user")
 #endif
@@ -627,6 +958,15 @@ private final class FirebaseCredentialSignInCoordinator {
 
                 Auth.auth().signIn(with: credential) { [weak self] result, error in
                     Task { @MainActor in
+                        AuthFlowDebugTrace.record(
+                            "request.callback",
+                            layer: "firebase-credential",
+                            details: [
+                                "hasResult": String(result != nil),
+                                "error": error.map { String(describing: type(of: $0)) } ?? "none",
+                                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)
+                            ]
+                        )
 #if DEBUG
                         authSessionFlowDebugLog(
                             "Firebase credential callback result=\(result != nil) error=\(error?.localizedDescription ?? "none")"
@@ -645,6 +985,11 @@ private final class FirebaseCredentialSignInCoordinator {
         } onCancel: {
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                AuthFlowDebugTrace.record(
+                    "request.cancelled",
+                    layer: "firebase-credential",
+                    details: ["continuationInstalled": String(continuation != nil)]
+                )
                 wasCancelledBeforeStart = continuation == nil
                 finish(.failure(CancellationError()))
             }
@@ -677,9 +1022,28 @@ private final class GoogleSignInCoordinator {
 
     init(presentingViewController fallbackPresenter: UIViewController) {
         presentingViewController = Self.stableWindowRoot ?? fallbackPresenter
+        AuthFlowDebugTrace.record(
+            "coordinator.created",
+            layer: "google-sdk",
+            details: [
+                "selected": String(describing: type(of: presentingViewController)),
+                "fallback": String(describing: type(of: fallbackPresenter)),
+                "usedStableRoot": String(Self.stableWindowRoot != nil),
+                "windowAttached": String(presentingViewController.viewIfLoaded?.window != nil)
+            ]
+        )
     }
 
     func start() async throws -> GIDSignInResult {
+        AuthFlowDebugTrace.record(
+            "request.start",
+            layer: "google-sdk",
+            details: [
+                "presenter": String(describing: type(of: presentingViewController)),
+                "windowAttached": String(presentingViewController.viewIfLoaded?.window != nil),
+                "cancelled": String(Task.isCancelled)
+            ]
+        )
 #if DEBUG
         authSessionFlowDebugLog(
             "Google SDK request presenter=\(String(describing: type(of: presentingViewController))) "
@@ -705,6 +1069,10 @@ private final class GoogleSignInCoordinator {
 #if DEBUG
                     authSessionFlowDebugLog("Google SDK callback timed out")
 #endif
+                    AuthFlowDebugTrace.record(
+                        "request.timeout",
+                        layer: "google-sdk"
+                    )
                     self?.finish(.failure(AuthManagerError.googleSignInTimedOut))
                 }
 
@@ -712,6 +1080,15 @@ private final class GoogleSignInCoordinator {
                     withPresenting: presentingViewController
                 ) { [weak self] result, error in
                     Task { @MainActor in
+                        AuthFlowDebugTrace.record(
+                            "request.callback",
+                            layer: "google-sdk",
+                            details: [
+                                "hasResult": String(result != nil),
+                                "error": error.map { String(describing: type(of: $0)) } ?? "none",
+                                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)
+                            ]
+                        )
 #if DEBUG
                         authSessionFlowDebugLog(
                             "Google SDK callback result=\(result != nil) error=\(error?.localizedDescription ?? "none")"
@@ -730,6 +1107,11 @@ private final class GoogleSignInCoordinator {
         } onCancel: {
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                AuthFlowDebugTrace.record(
+                    "request.cancelled",
+                    layer: "google-sdk",
+                    details: ["continuationInstalled": String(continuation != nil)]
+                )
                 wasCancelledBeforeStart = continuation == nil
                 finish(.failure(CancellationError()))
             }

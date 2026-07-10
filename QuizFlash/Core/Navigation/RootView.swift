@@ -67,6 +67,13 @@ struct RootView: View {
                     ProgressActivityDots(color: themeManager.accentColor.color)
                 case .signedIn:
                     MainAppView()
+                        .onAppear {
+                            AuthFlowDebugTrace.recordWindowCheckpoint(
+                                "main-app.appear",
+                                layer: "root-view",
+                                state: authManager.sessionState
+                            )
+                        }
                 case .signedOut,
                      .emailVerificationRequired,
                      .emailVerificationSucceeded:
@@ -113,11 +120,24 @@ struct RootView: View {
             }
         }
         .animation(onboardingPresentationAnimation, value: onboardingStateStore.presentation?.id)
+        .onAppear {
+            AuthFlowDebugTrace.recordWindowCheckpoint(
+                "root.appear",
+                layer: "root-view",
+                state: authManager.sessionState
+            )
+        }
         .task {
             await playLaunchAnimationIfNeeded()
             presentOnboardingIfNeeded()
         }
         .onChange(of: authManager.sessionState) { oldState, newState in
+            AuthFlowDebugTrace.recordWindowCheckpoint(
+                "state.changed.\(oldState.debugName)-to-\(newState.debugName)",
+                layer: "root-view",
+                state: newState
+            )
+            scheduleAuthTraceCheckpoints(expectedState: newState)
 #if DEBUG
             authLaunchDebugLog("root state \(stateName(oldState)) -> \(stateName(newState))")
 #endif
@@ -129,6 +149,19 @@ struct RootView: View {
             Task { @MainActor in
                 await Task.yield()
                 startAuthBoltTransferIfReady()
+            }
+        }
+    }
+
+    private func scheduleAuthTraceCheckpoints(expectedState: AuthSessionState) {
+        for delay in [100, 1_000] {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(delay))
+                AuthFlowDebugTrace.recordWindowCheckpoint(
+                    "state.checkpoint.\(delay)ms.expected-\(expectedState.debugName)",
+                    layer: "root-view",
+                    state: authManager.sessionState
+                )
             }
         }
     }
