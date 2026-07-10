@@ -44,6 +44,7 @@ struct RootView: View {
     @State private var hasCompletedLaunchAnimation = false
     @State private var isLaunchAnimationVisible = true
     @State private var isLaunchSymbolPresented = false
+    @State private var isLaunchLightningActive = false
     @State private var isLaunchSymbolHandedOff = false
     @State private var isAuthWalkthroughPrepared = false
     @State private var isLaunchBoltReadyForTransfer = false
@@ -89,6 +90,7 @@ struct RootView: View {
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
                     isPresented: isLaunchSymbolPresented,
+                    isLightningActive: isLaunchLightningActive,
                     isHandedOff: isLaunchSymbolHandedOff,
                     boltNamespace: authLaunchBoltNamespace
                 )
@@ -167,7 +169,11 @@ struct RootView: View {
             isLaunchSymbolPresented = true
         }
 
-        try? await Task.sleep(nanoseconds: reduceMotion ? 420_000_000 : 760_000_000)
+        if reduceMotion {
+            try? await Task.sleep(for: .milliseconds(420))
+        } else {
+            await playLaunchLightningStrike()
+        }
 
         hasCompletedLaunchAnimation = true
         presentOnboardingIfNeeded()
@@ -184,6 +190,39 @@ struct RootView: View {
 #endif
         isLaunchBoltReadyForTransfer = true
         startAuthBoltTransferIfReady()
+    }
+
+    @MainActor
+    private func playLaunchLightningStrike() async {
+        try? await Task.sleep(for: .milliseconds(170))
+
+#if DEBUG
+        authLaunchDebugLog("lightning strike first flash")
+#endif
+        withAnimation(.easeOut(duration: 0.05)) {
+            isLaunchLightningActive = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(70))
+        withAnimation(.easeIn(duration: 0.09)) {
+            isLaunchLightningActive = false
+        }
+
+        try? await Task.sleep(for: .milliseconds(65))
+
+#if DEBUG
+        authLaunchDebugLog("lightning strike second flash")
+#endif
+        withAnimation(.easeOut(duration: 0.04)) {
+            isLaunchLightningActive = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(55))
+        withAnimation(.easeOut(duration: 0.18)) {
+            isLaunchLightningActive = false
+        }
+
+        try? await Task.sleep(for: .milliseconds(400))
     }
 
     @MainActor
@@ -237,6 +276,7 @@ private struct QuizFlashLaunchAnimationView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let isPresented: Bool
+    let isLightningActive: Bool
     let isHandedOff: Bool
     let boltNamespace: Namespace.ID
 
@@ -249,45 +289,83 @@ private struct QuizFlashLaunchAnimationView: View {
                 y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
             )
 
-            boltSymbol
-                .frame(width: 38, height: 38)
-                .modifier(
-                    AuthLaunchBoltGeometryModifier(
-                        namespace: boltNamespace,
-                        isSource: true
+            ZStack {
+                lightningBloom
+                    .position(symbolPosition)
+
+                boltSymbol
+                    .frame(width: 38, height: 38)
+                    .modifier(
+                        AuthLaunchBoltGeometryModifier(
+                            namespace: boltNamespace,
+                            isSource: true
+                        )
                     )
-                )
-                .scaleEffect(symbolScale)
-                .position(symbolPosition)
-                .opacity(isPresented ? 1.0 : 0.0)
+                    .scaleEffect(symbolScale)
+                    .position(symbolPosition)
+                    .opacity(isPresented ? 1.0 : 0.0)
+            }
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
     }
 
     private var boltSymbol: some View {
-        Image(systemName: "bolt.fill")
-            .font(.system(size: 38, weight: .heavy, design: .default))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(boltForegroundStyle)
+        ZStack {
+            boltImage
+                .foregroundStyle(Color.white)
+                .blur(radius: 14)
+                .opacity(isLightningActive ? 0.9 : 0)
+
+            boltImage
+                .foregroundStyle(Color.white)
+                .blur(radius: 5)
+                .opacity(isLightningActive ? 1 : 0)
+
+            boltImage
+                .foregroundStyle(boltForegroundStyle)
+
+            boltImage
+                .foregroundStyle(Color.white)
+                .scaleEffect(isLightningActive ? 1.04 : 0.96)
+                .opacity(isLightningActive ? 0.92 : 0)
+        }
     }
 
     private var boltForegroundStyle: AnyShapeStyle {
-        if isHandedOff {
-            return AnyShapeStyle(themeManager.accentColor.color)
-        }
-
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
                     .white,
                     Color(red: 0.86, green: 0.82, blue: 1.0),
-                    launchPurple
+                    themeManager.accentColor.color
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
+    }
+
+    private var boltImage: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: 38, weight: .heavy, design: .default))
+            .symbolRenderingMode(.hierarchical)
+    }
+
+    private var lightningBloom: some View {
+        RadialGradient(
+            colors: [
+                Color.white.opacity(0.28),
+                launchPurple.opacity(0.22),
+                .clear
+            ],
+            center: .center,
+            startRadius: 2,
+            endRadius: 96
+        )
+        .frame(width: 192, height: 192)
+        .scaleEffect(isLightningActive ? 1.08 : 0.72)
+        .opacity(isLightningActive ? 1 : 0)
     }
 
     private func authWalkthroughSymbolCenterY(in height: CGFloat) -> CGFloat {
