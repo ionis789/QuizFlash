@@ -808,7 +808,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let isFullHeightSheet = sheetTopY <= 0.5
         let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
         let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
-        let sheetBottomOverscan = isFullHeightSheet || keyboardInset > 0
+        let sheetBottomOverscan = isFullHeightSheet
             ? 0
             : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
         let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
