@@ -41,6 +41,9 @@ struct LoginView: View {
     @State private var isAuthWalkthroughHiddenBySheet = false
     @State private var isAuthWalkthroughAnimationPausedForSheet = false
     @State private var authenticationHandoffAttemptID: UUID?
+    @State private var authenticationWelcomeAttemptID: UUID?
+    @State private var isAuthenticationCenterContentVisible = true
+    @State private var showsAuthenticationWelcome = false
 
     let showsAuthWalkthrough: Bool
     let showsAuthWalkthroughBolt: Bool
@@ -51,7 +54,7 @@ struct LoginView: View {
     let onAuthWalkthroughPrepared: () -> Void
     let onAuthenticationAttemptStarted: @MainActor (UUID) -> Void
     let onAuthenticationAttemptCancelled: @MainActor (UUID) -> Void
-    let onAuthenticationSheetDismissed: @MainActor (UUID) -> Void
+    let onAuthenticationHandoffCompleted: @MainActor (UUID) -> Void
 
     init(
         showsAuthWalkthrough: Bool = true,
@@ -63,7 +66,7 @@ struct LoginView: View {
         onAuthWalkthroughPrepared: @escaping () -> Void = {},
         onAuthenticationAttemptStarted: @escaping @MainActor (UUID) -> Void = { _ in },
         onAuthenticationAttemptCancelled: @escaping @MainActor (UUID) -> Void = { _ in },
-        onAuthenticationSheetDismissed: @escaping @MainActor (UUID) -> Void = { _ in }
+        onAuthenticationHandoffCompleted: @escaping @MainActor (UUID) -> Void = { _ in }
     ) {
         self.showsAuthWalkthrough = showsAuthWalkthrough
         self.showsAuthWalkthroughBolt = showsAuthWalkthroughBolt
@@ -74,7 +77,7 @@ struct LoginView: View {
         self.onAuthWalkthroughPrepared = onAuthWalkthroughPrepared
         self.onAuthenticationAttemptStarted = onAuthenticationAttemptStarted
         self.onAuthenticationAttemptCancelled = onAuthenticationAttemptCancelled
-        self.onAuthenticationSheetDismissed = onAuthenticationSheetDismissed
+        self.onAuthenticationHandoffCompleted = onAuthenticationHandoffCompleted
     }
 
     private var locale: Locale {
@@ -264,27 +267,45 @@ struct LoginView: View {
 
                 Group {
                     if showsAuthWalkthrough {
-                        AuthWalkthroughText(
-                            phrases: walkthroughPhrases,
-                            symbolColor: themeManager.accentColor.color,
-                            reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation && !isAuthWalkthroughAnimationPausedForSheet,
-                            showsBolt: showsAuthWalkthroughBolt,
-                            showsText: showsAuthWalkthroughText,
-                            launchBoltNamespace: launchBoltNamespace,
-                            onPrepared: onAuthWalkthroughPrepared
-                        )
+                        if showsAuthenticationWelcome {
+                            Text(AppLocalization.string("Welcome", locale: locale))
+                                .font(.system(size: 46, weight: .heavy))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityAddTraits(.isHeader)
+                        } else {
+                            AuthWalkthroughText(
+                                phrases: walkthroughPhrases,
+                                symbolColor: themeManager.accentColor.color,
+                                reduceMotion: reduceMotion,
+                                animates: allowsAuthWalkthroughAnimation
+                                    && !isAuthWalkthroughAnimationPausedForSheet,
+                                showsBolt: showsAuthWalkthroughBolt,
+                                showsText: showsAuthWalkthroughText,
+                                launchBoltNamespace: launchBoltNamespace,
+                                onPrepared: onAuthWalkthroughPrepared
+                            )
+                        }
                     } else {
                         Color.clear
                     }
                 }
+                .scaleRevealMotion(
+                    isVisible: isAuthenticationCenterContentVisible,
+                    reduceMotion: reduceMotion
+                )
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
                 .frame(maxWidth: .infinity)
                 .frame(height: 86)
                 .compositingGroup()
                 .opacity(isAuthWalkthroughHiddenBySheet ? 0 : 1)
                 .animation(authWalkthroughVisibilityAnimation, value: isAuthWalkthroughHiddenBySheet)
-                .accessibilityHidden(isAuthWalkthroughHiddenBySheet)
+                .accessibilityHidden(
+                    isAuthWalkthroughHiddenBySheet || !isAuthenticationCenterContentVisible
+                )
                 .position(
                     x: proxy.size.width / 2,
                     y: proxy.size.height * AuthLaunchLayout.walkthroughCenterYRatio
@@ -297,6 +318,9 @@ struct LoginView: View {
         }
         .onChange(of: isEmailAuthSheetActive) { _, shouldHide in
             scheduleAuthWalkthroughVisibility(shouldHide: shouldHide)
+        }
+        .task(id: authenticationWelcomeAttemptID) {
+            await transitionToAuthenticationWelcomeIfNeeded()
         }
         .onDisappear {
             authWalkthroughVisibilityTask?.cancel()
@@ -503,9 +527,121 @@ struct LoginView: View {
         Task { @MainActor in
             await Task.yield()
             guard authenticationHandoffAttemptID == attemptID else { return }
-            authenticationHandoffAttemptID = nil
-            onAuthenticationSheetDismissed(attemptID)
+
+            if case .signedIn = authManager.sessionState {
+                authenticationWelcomeAttemptID = attemptID
+                AuthFlowDebugTrace.record(
+                    "handoff.welcome.requested",
+                    layer: "login-view",
+                    details: ["attempt": attemptID.uuidString]
+                )
+            } else {
+                completeAuthenticationHandoff(attemptID: attemptID)
+            }
         }
+    }
+
+    @MainActor
+    private func transitionToAuthenticationWelcomeIfNeeded() async {
+        guard let attemptID = authenticationWelcomeAttemptID,
+              authenticationHandoffAttemptID == attemptID else {
+            return
+        }
+
+        AuthFlowDebugTrace.record(
+            "welcome.scale-reveal.hide-walkthrough",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+        isAuthenticationCenterContentVisible = false
+
+        guard await waitForAuthenticationWelcomePhase(
+            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.contentSwapDelay,
+            attemptID: attemptID
+        ) else { return }
+
+        showsAuthenticationWelcome = true
+        AuthFlowDebugTrace.record(
+            "welcome.scale-reveal.content-swapped",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+
+        guard await waitForAuthenticationWelcomePhase(
+            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.revealDelay,
+            attemptID: attemptID
+        ) else { return }
+
+        isAuthenticationCenterContentVisible = true
+        AuthFlowDebugTrace.record(
+            "welcome.scale-reveal.visible",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+
+        guard await waitForAuthenticationWelcomePhase(
+            .seconds(UIConstants.Animation.slow * 2),
+            attemptID: attemptID
+        ) else { return }
+
+        isAuthenticationCenterContentVisible = false
+        AuthFlowDebugTrace.record(
+            "welcome.scale-reveal.hide-before-home",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+
+        guard await waitForAuthenticationWelcomePhase(
+            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.contentSwapDelay,
+            attemptID: attemptID
+        ) else { return }
+
+        completeAuthenticationWelcome()
+    }
+
+    @MainActor
+    private func waitForAuthenticationWelcomePhase(
+        _ duration: Duration,
+        attemptID: UUID
+    ) async -> Bool {
+        do {
+            try await Task.sleep(for: duration)
+        } catch {
+            return false
+        }
+
+        return authenticationWelcomeAttemptID == attemptID
+            && authenticationHandoffAttemptID == attemptID
+            && !Task.isCancelled
+    }
+
+    private func completeAuthenticationWelcome() {
+        guard let attemptID = authenticationWelcomeAttemptID,
+              authenticationHandoffAttemptID == attemptID else {
+            AuthFlowDebugTrace.record(
+                "handoff.welcome.completion-ignored",
+                layer: "login-view",
+                details: [
+                    "welcomeAttempt": authenticationWelcomeAttemptID?.uuidString ?? "none",
+                    "handoffOwner": authenticationHandoffAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+
+        AuthFlowDebugTrace.record(
+            "handoff.welcome.completed",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+        authenticationWelcomeAttemptID = nil
+        completeAuthenticationHandoff(attemptID: attemptID)
+    }
+
+    private func completeAuthenticationHandoff(attemptID: UUID) {
+        guard authenticationHandoffAttemptID == attemptID else { return }
+        authenticationHandoffAttemptID = nil
+        onAuthenticationHandoffCompleted(attemptID)
     }
 
     private var canPresentAuthSheet: Bool {

@@ -152,9 +152,15 @@ struct RootView: View {
     private var authView: some View {
         LoginView(
             showsAuthWalkthrough: true,
-            showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible || releasesAuthUIAfterLaunch,
-            showsAuthWalkthroughText: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
-            allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
+            showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible
+                || releasesAuthUIAfterLaunch
+                || keepsAuthWalkthroughVisibleDuringHandoff,
+            showsAuthWalkthroughText: isAuthWalkthroughTextVisible
+                || releasesAuthUIAfterLaunch
+                || keepsAuthWalkthroughVisibleDuringHandoff,
+            allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible
+                || releasesAuthUIAfterLaunch
+                || keepsAuthWalkthroughVisibleDuringHandoff,
             allowsAuthSheetPresentation: isAuthSheetPresentationReleased || releasesAuthUIAfterLaunch,
             launchBoltNamespace: authLaunchBoltNamespace,
             onAuthWalkthroughPrepared: {
@@ -162,7 +168,7 @@ struct RootView: View {
             },
             onAuthenticationAttemptStarted: beginAuthenticatedHandoff,
             onAuthenticationAttemptCancelled: cancelAuthenticatedHandoff,
-            onAuthenticationSheetDismissed: finishAuthenticatedHandoff
+            onAuthenticationHandoffCompleted: finishAuthenticatedHandoff
         )
     }
 
@@ -228,7 +234,7 @@ struct RootView: View {
     private func finishAuthenticatedHandoff(attemptID: UUID) {
         guard authenticatedHandoffAttemptID == attemptID else {
             AuthFlowDebugTrace.record(
-                "handoff.sheet-disappeared-ignored",
+                "handoff.root-release-request-ignored",
                 layer: "root-view",
                 details: [
                     "attempt": attemptID.uuidString,
@@ -238,7 +244,7 @@ struct RootView: View {
             return
         }
         AuthFlowDebugTrace.record(
-            "handoff.sheet-disappeared",
+            "handoff.ready-for-root-release",
             layer: "root-view",
             details: [
                 "attempt": attemptID.uuidString,
@@ -315,6 +321,10 @@ struct RootView: View {
         case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
             true
         }
+    }
+
+    private var keepsAuthWalkthroughVisibleDuringHandoff: Bool {
+        authenticatedHandoffAttemptID != nil
     }
 
     private var releasesAuthUIAfterLaunch: Bool {
