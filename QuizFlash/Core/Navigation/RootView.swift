@@ -46,7 +46,7 @@ struct RootView: View {
     @State private var isLaunchSymbolPresented = false
     @State private var launchStrikeProgress: CGFloat = 0
     @State private var isLaunchStrikeVisible = false
-    @State private var launchStrikeImpact: CGFloat = 0
+    @State private var launchStrikePulse: CGFloat = 0
     @State private var isLaunchSymbolHandedOff = false
     @State private var isAuthWalkthroughPrepared = false
     @State private var isLaunchBoltReadyForTransfer = false
@@ -94,7 +94,7 @@ struct RootView: View {
                     isPresented: isLaunchSymbolPresented,
                     strikeProgress: launchStrikeProgress,
                     isStrikeVisible: isLaunchStrikeVisible,
-                    strikeImpact: launchStrikeImpact,
+                    strikePulse: launchStrikePulse,
                     isHandedOff: isLaunchSymbolHandedOff,
                     boltNamespace: authLaunchBoltNamespace
                 )
@@ -198,41 +198,36 @@ struct RootView: View {
 
     @MainActor
     private func playLaunchLightningStrike() async {
-        try? await Task.sleep(for: .milliseconds(150))
+        try? await Task.sleep(for: .milliseconds(100))
 
 #if DEBUG
         authLaunchDebugLog("bolt charge started")
 #endif
         isLaunchStrikeVisible = true
-        withAnimation(.easeInOut(duration: 0.50)) {
+        withAnimation(.smooth(duration: 0.66, extraBounce: 0)) {
             launchStrikeProgress = 1
         }
 
-        try? await Task.sleep(for: .milliseconds(210))
+        try? await Task.sleep(for: .milliseconds(200))
 
 #if DEBUG
-        authLaunchDebugLog("bolt strike impact")
+        authLaunchDebugLog("bolt energy crest")
 #endif
-        withAnimation(.easeIn(duration: 0.08)) {
-            launchStrikeImpact = 1
+        withAnimation(.easeInOut(duration: 0.22)) {
+            launchStrikePulse = 1
         }
 
-        try? await Task.sleep(for: .milliseconds(80))
-        withAnimation(.easeOut(duration: 0.12)) {
-            launchStrikeImpact = -0.28
+        try? await Task.sleep(for: .milliseconds(220))
+        withAnimation(.easeInOut(duration: 0.24)) {
+            launchStrikePulse = 0
         }
 
-        try? await Task.sleep(for: .milliseconds(110))
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
-            launchStrikeImpact = 0
-        }
-
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(160))
         withAnimation(.easeOut(duration: 0.12)) {
             isLaunchStrikeVisible = false
         }
 
-        try? await Task.sleep(for: .milliseconds(110))
+        try? await Task.sleep(for: .milliseconds(80))
     }
 
     @MainActor
@@ -288,7 +283,7 @@ private struct QuizFlashLaunchAnimationView: View {
     let isPresented: Bool
     let strikeProgress: CGFloat
     let isStrikeVisible: Bool
-    let strikeImpact: CGFloat
+    let strikePulse: CGFloat
     let isHandedOff: Bool
     let boltNamespace: Namespace.ID
 
@@ -321,22 +316,17 @@ private struct QuizFlashLaunchAnimationView: View {
         ZStack {
             boltImage
                 .foregroundStyle(themeManager.accentColor.color)
-                .blur(radius: 2.6)
-                .scaleEffect(1.035)
-                .opacity(Double(0.34 * impactCompression))
+                .blur(radius: 2.2)
+                .scaleEffect(1.02)
+                .opacity(Double(0.20 * strikePulse))
 
             boltImage
                 .foregroundStyle(boltForegroundStyle)
 
             movingStrikeHighlight
         }
-        .scaleEffect(
-            x: 1 - (0.055 * impactCompression) + (0.018 * impactRecoil),
-            y: 1 + (0.105 * impactCompression) - (0.025 * impactRecoil),
-            anchor: .center
-        )
-        .rotationEffect(.degrees(Double(1.5 * strikeImpact)))
-        .offset(y: (3 * impactCompression) - (1.4 * impactRecoil))
+        .scaleEffect(1 + (0.025 * strikePulse))
+        .offset(y: -0.8 * strikePulse)
     }
 
     private var boltForegroundStyle: AnyShapeStyle {
@@ -363,17 +353,17 @@ private struct QuizFlashLaunchAnimationView: View {
         ZStack {
             maskedStrikeBand(
                 color: themeManager.accentColor.color,
-                height: 25,
-                offset: -33 + (78 * strikeProgress)
+                height: 22,
+                offset: -34 + (72 * strikeProgress)
             )
-            .opacity(0.58)
+            .opacity(0.42)
 
             maskedStrikeBand(
                 color: .white,
-                height: 9,
-                offset: -24 + (64 * strikeProgress)
+                height: 8,
+                offset: -29 + (72 * strikeProgress)
             )
-            .opacity(0.98)
+            .opacity(0.90)
         }
         .opacity(isStrikeVisible ? 1 : 0)
     }
@@ -394,14 +384,6 @@ private struct QuizFlashLaunchAnimationView: View {
                 .frame(width: 38, height: height)
                 .offset(y: offset)
             }
-    }
-
-    private var impactCompression: CGFloat {
-        max(strikeImpact, 0)
-    }
-
-    private var impactRecoil: CGFloat {
-        max(-strikeImpact, 0)
     }
 
     private func authWalkthroughSymbolCenterY(in height: CGFloat) -> CGFloat {
