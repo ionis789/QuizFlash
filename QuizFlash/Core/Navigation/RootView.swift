@@ -54,6 +54,7 @@ struct RootView: View {
     @State private var isAuthWalkthroughBoltVisible = false
     @State private var isAuthWalkthroughTextVisible = false
     @State private var isAuthSheetPresentationReleased = false
+    @State private var signInSuccessCompletionTask: Task<Void, Never>?
     @Namespace private var authLaunchBoltNamespace
 
     var body: some View {
@@ -118,10 +119,12 @@ struct RootView: View {
         }
         .animation(onboardingPresentationAnimation, value: onboardingStateStore.presentation?.id)
         .task {
+            scheduleSignInSuccessCompletion(for: authManager.sessionState)
             await playLaunchAnimationIfNeeded()
             presentOnboardingIfNeeded()
         }
-        .onChange(of: authManager.sessionState) { _, _ in
+        .onChange(of: authManager.sessionState) { _, newState in
+            scheduleSignInSuccessCompletion(for: newState)
             presentOnboardingIfNeeded()
         }
         .onChange(of: isAuthWalkthroughPrepared) { _, isPrepared in
@@ -131,6 +134,10 @@ struct RootView: View {
                 await Task.yield()
                 startAuthBoltTransferIfReady()
             }
+        }
+        .onDisappear {
+            signInSuccessCompletionTask?.cancel()
+            signInSuccessCompletionTask = nil
         }
     }
 
@@ -156,6 +163,26 @@ struct RootView: View {
         onboardingStateStore.complete(completedPresentation)
     }
 
+    private func scheduleSignInSuccessCompletion(for state: AuthSessionState) {
+        signInSuccessCompletionTask?.cancel()
+
+        guard case .signInSucceeded(let user) = state else {
+            signInSuccessCompletionTask = nil
+            return
+        }
+
+        signInSuccessCompletionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled,
+                  case .signInSucceeded(let currentUser) = authManager.sessionState,
+                  currentUser.uid == user.uid else {
+                return
+            }
+
+            authManager.completeSignInSuccess()
+        }
+    }
+
     @MainActor
     private func playLaunchAnimationIfNeeded() async {
         guard !hasStartedLaunchAnimation else { return }
@@ -164,11 +191,6 @@ struct RootView: View {
         let revealAnimation: Animation = reduceMotion
             ? .easeOut(duration: 0.18)
             : .spring(response: 0.46, dampingFraction: 0.86)
-        let handoffAnimation: Animation = reduceMotion
-            ? .easeInOut(duration: 0.18)
-            : .smooth(duration: 0.64, extraBounce: 0)
-        let handoffDelay: Duration = reduceMotion ? .milliseconds(180) : .milliseconds(640)
-
         withAnimation(revealAnimation) {
             isLaunchSymbolPresented = true
         }
@@ -182,6 +204,52 @@ struct RootView: View {
         hasCompletedLaunchAnimation = true
         presentOnboardingIfNeeded()
         await Task.yield()
+
+        await finishLaunchForResolvedSession()
+    }
+
+    @MainActor
+    private func finishLaunchForResolvedSession() async {
+        while case .checking = authManager.sessionState {
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+        }
+
+        guard !Task.isCancelled else { return }
+
+        if case .signedIn = authManager.sessionState {
+            await dismissLaunchBoltIntoMainApp()
+        } else {
+            await handOffLaunchBoltToAuth()
+        }
+    }
+
+    @MainActor
+    private func dismissLaunchBoltIntoMainApp() async {
+        let exitAnimation: Animation = reduceMotion
+            ? .easeOut(duration: 0.16)
+            : .easeInOut(duration: 0.24)
+        let exitDelay: Duration = reduceMotion ? .milliseconds(160) : .milliseconds(240)
+
+#if DEBUG
+        authLaunchDebugLog("signed-in startup exits without auth handoff")
+#endif
+        withAnimation(exitAnimation) {
+            isLaunchSymbolPresented = false
+        }
+
+        try? await Task.sleep(for: exitDelay)
+        guard !Task.isCancelled else { return }
+
+        isLaunchAnimationVisible = false
+    }
+
+    @MainActor
+    private func handOffLaunchBoltToAuth() async {
+        let handoffAnimation: Animation = reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .smooth(duration: 0.64, extraBounce: 0)
+        let handoffDelay: Duration = reduceMotion ? .milliseconds(180) : .milliseconds(640)
 
         withAnimation(handoffAnimation) {
             isLaunchSymbolHandedOff = true

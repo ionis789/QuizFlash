@@ -107,13 +107,8 @@ struct LoginView: View {
                         authManager.completeEmailVerificationSuccess()
                     }
                 )
-            case .signInSucceeded(let user):
-                SignInSuccessView(
-                    user: user,
-                    onContinue: {
-                        authManager.completeSignInSuccess()
-                    }
-                )
+            case .signInSucceeded:
+                SignInSuccessView()
             case .checking:
                 ProgressActivityDots(color: themeManager.accentColor.color)
             case .signedOut, .signedIn:
@@ -1211,9 +1206,6 @@ private struct ForgotPasswordView: View {
 private struct SignInSuccessView: View {
     @Environment(AppPreferences.self) private var appPreferences
 
-    let user: AuthUserSnapshot
-    let onContinue: @MainActor @Sendable () -> Void
-
     private var locale: Locale {
         appPreferences.resolvedLocale
     }
@@ -1233,11 +1225,6 @@ private struct SignInSuccessView: View {
         .padding(.horizontal, UIConstants.Spacing.large)
         .frame(maxWidth: 440)
         .transition(.opacity)
-        .task(id: user.uid) {
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled else { return }
-            onContinue()
-        }
     }
 }
 
