@@ -37,6 +37,8 @@ struct LoginView: View {
     @State private var showAlert = false
     @State private var presentingViewController: UIViewController?
     @State private var authSheetPresentationTask: Task<Void, Never>?
+    @State private var authWalkthroughVisibilityTask: Task<Void, Never>?
+    @State private var isAuthWalkthroughHiddenBySheet = false
 
     let showsAuthWalkthrough: Bool
     let showsAuthWalkthroughBolt: Bool
@@ -198,7 +200,7 @@ struct LoginView: View {
                             phrases: walkthroughPhrases,
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation && !isEmailAuthSheetActive,
+                            animates: allowsAuthWalkthroughAnimation && !isAuthWalkthroughHiddenBySheet,
                             showsBolt: showsAuthWalkthroughBolt,
                             showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
@@ -211,14 +213,24 @@ struct LoginView: View {
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
                 .frame(maxWidth: .infinity)
                 .frame(height: 86)
-                .opacity(isEmailAuthSheetActive ? 0 : 1)
-                .animation(authWalkthroughVisibilityAnimation, value: isEmailAuthSheetActive)
-                .accessibilityHidden(isEmailAuthSheetActive)
+                .opacity(isAuthWalkthroughHiddenBySheet ? 0 : 1)
+                .animation(authWalkthroughVisibilityAnimation, value: isAuthWalkthroughHiddenBySheet)
+                .accessibilityHidden(isAuthWalkthroughHiddenBySheet)
                 .position(
                     x: proxy.size.width / 2,
                     y: proxy.size.height * AuthLaunchLayout.walkthroughCenterYRatio
                 )
             }
+        }
+        .onAppear {
+            isAuthWalkthroughHiddenBySheet = isEmailAuthSheetActive
+        }
+        .onChange(of: isEmailAuthSheetActive) { _, shouldHide in
+            scheduleAuthWalkthroughVisibility(shouldHide: shouldHide)
+        }
+        .onDisappear {
+            authWalkthroughVisibilityTask?.cancel()
+            authWalkthroughVisibilityTask = nil
         }
         .fullScreenSheet(
             isPresented: $isAuthSheetPresented,
@@ -309,6 +321,24 @@ struct LoginView: View {
         reduceMotion
             ? .linear(duration: UIConstants.Animation.instant)
             : .easeInOut(duration: UIConstants.Animation.standard)
+    }
+
+    private func scheduleAuthWalkthroughVisibility(shouldHide: Bool) {
+        authWalkthroughVisibilityTask?.cancel()
+        authWalkthroughVisibilityTask = Task { @MainActor in
+            guard !reduceMotion else {
+                isAuthWalkthroughHiddenBySheet = shouldHide
+                return
+            }
+
+            let delay: Duration = shouldHide
+                ? .milliseconds(160)
+                : .milliseconds(300)
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+
+            isAuthWalkthroughHiddenBySheet = shouldHide
+        }
     }
 
     private var walkthroughPhrases: [String] {
