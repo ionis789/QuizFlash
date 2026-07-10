@@ -39,6 +39,7 @@ struct LoginView: View {
     @State private var authSheetPresentationTask: Task<Void, Never>?
     @State private var authWalkthroughVisibilityTask: Task<Void, Never>?
     @State private var isAuthWalkthroughHiddenBySheet = false
+    @State private var isAuthWalkthroughAnimationPausedForSheet = false
 
     let showsAuthWalkthrough: Bool
     let showsAuthWalkthroughBolt: Bool
@@ -200,7 +201,7 @@ struct LoginView: View {
                             phrases: walkthroughPhrases,
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation && !isAuthWalkthroughHiddenBySheet,
+                            animates: allowsAuthWalkthroughAnimation && !isAuthWalkthroughAnimationPausedForSheet,
                             showsBolt: showsAuthWalkthroughBolt,
                             showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
@@ -224,6 +225,7 @@ struct LoginView: View {
         }
         .onAppear {
             isAuthWalkthroughHiddenBySheet = isEmailAuthSheetActive
+            isAuthWalkthroughAnimationPausedForSheet = isEmailAuthSheetActive
         }
         .onChange(of: isEmailAuthSheetActive) { _, shouldHide in
             scheduleAuthWalkthroughVisibility(shouldHide: shouldHide)
@@ -328,16 +330,34 @@ struct LoginView: View {
         authWalkthroughVisibilityTask = Task { @MainActor in
             guard !reduceMotion else {
                 isAuthWalkthroughHiddenBySheet = shouldHide
+                isAuthWalkthroughAnimationPausedForSheet = shouldHide
                 return
             }
 
-            let delay: Duration = shouldHide
-                ? .milliseconds(160)
-                : .milliseconds(300)
-            try? await Task.sleep(for: delay)
+            if shouldHide {
+                try? await Task.sleep(for: .milliseconds(160))
+                guard !Task.isCancelled else { return }
+
+                isAuthWalkthroughHiddenBySheet = true
+
+                try? await Task.sleep(for: .seconds(UIConstants.Animation.standard))
+                guard !Task.isCancelled else { return }
+
+                isAuthWalkthroughAnimationPausedForSheet = true
+                return
+            }
+
+            isAuthWalkthroughAnimationPausedForSheet = true
+
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
-            isAuthWalkthroughHiddenBySheet = shouldHide
+            isAuthWalkthroughHiddenBySheet = false
+
+            try? await Task.sleep(for: .seconds(UIConstants.Animation.standard))
+            guard !Task.isCancelled else { return }
+
+            isAuthWalkthroughAnimationPausedForSheet = false
         }
     }
 
@@ -858,7 +878,7 @@ private struct AuthWalkthroughText: View {
                 authLaunchDebugLog("walkthrough target ready")
 #endif
             } else {
-                resetActiveIntroOffsets()
+                resetActiveIntroState()
             }
 
             guard animates, intros.count > 1, !reduceMotion else { return }
@@ -871,7 +891,7 @@ private struct AuthWalkthroughText: View {
         .onChange(of: animates) { _, animates in
             animationRunID = UUID()
             guard !animates else { return }
-            resetActiveIntroOffsets()
+            resetActiveIntroState()
         }
     }
 
@@ -901,6 +921,8 @@ private struct AuthWalkthroughText: View {
                 activeIntro?.textOffset = -(textSize(intros[index].text) + 20)
                 activeIntro?.symbolOffset = -(textSize(intros[index].text) + 20) / 2
             } completion: {
+                guard animates, animationRunID == runID else { return }
+
                 withAnimation(.snappy(duration: 0.8), completionCriteria: .logicallyComplete) {
                     activeIntro?.textOffset = 0
                     activeIntro?.symbolOffset = 0
@@ -916,9 +938,19 @@ private struct AuthWalkthroughText: View {
         }
     }
 
-    private func resetActiveIntroOffsets() {
-        activeIntro?.textOffset = 0
-        activeIntro?.symbolOffset = 0
+    private func resetActiveIntroState() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if let firstIntro = intros.first {
+                activeIntro?.text = firstIntro.text
+                activeIntro?.textColor = firstIntro.textColor
+                activeIntro?.symbolColor = firstIntro.symbolColor
+                activeIntro?.backgroundColor = firstIntro.backgroundColor
+            }
+            activeIntro?.textOffset = 0
+            activeIntro?.symbolOffset = 0
+        }
     }
 
     private func textSize(_ text: String) -> CGFloat {
