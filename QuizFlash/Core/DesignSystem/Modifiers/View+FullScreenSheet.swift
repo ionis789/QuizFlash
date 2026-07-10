@@ -583,8 +583,20 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
             updateSheetTabBarHidden(configuration.hidesTabBar)
         }
         .onDisappear {
+            if configuration.debugIdentifier == "auth.primary" {
+                AuthFlowDebugTrace.record(
+                    "presented-sheet.disappear.begin",
+                    layer: "full-screen-sheet"
+                )
+            }
             parentPresentationCoordinator?.setChildPresentationActive(presentationID, false)
             updateSheetTabBarHidden(false)
+            if configuration.debugIdentifier == "auth.primary" {
+                AuthFlowDebugTrace.record(
+                    "presented-sheet.disappear.end",
+                    layer: "full-screen-sheet"
+                )
+            }
         }
     }
 
@@ -1029,8 +1041,20 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onDisappear")
 #endif
+            if configuration.debugIdentifier == "auth.primary" {
+                AuthFlowDebugTrace.record(
+                    "container.disappear.begin",
+                    layer: "full-screen-sheet"
+                )
+            }
             childPresentationCoordinator.childPresentationHandler = nil
             activeChildPresentationIDs.removeAll()
+            if configuration.debugIdentifier == "auth.primary" {
+                AuthFlowDebugTrace.record(
+                    "container.disappear.end",
+                    layer: "full-screen-sheet"
+                )
+            }
         }
         .onChange(of: hasActiveChildPresentation) { _, hasActiveChildPresentation in
             guard hasActiveChildPresentation else { return }
@@ -1564,6 +1588,18 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
         }
     }
 
+    static func dismantleUIViewController(
+        _ uiViewController: SheetHostingContainerController,
+        coordinator: Void
+    ) {
+        if uiViewController.traceDebugIdentifier == "auth.primary" {
+            AuthFlowDebugTrace.record(
+                "hosting-controller.dismantle",
+                layer: "full-screen-sheet"
+            )
+        }
+    }
+
     func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiViewController: SheetHostingContainerController,
@@ -1589,6 +1625,7 @@ private final class SheetHostingContainerController: UIViewController {
     private let hostingController: SheetHostingController
     private var rootUpdateKey: HostedSheetContentUpdateKey
     private let debugIdentifier: String?
+    var traceDebugIdentifier: String? { debugIdentifier }
     private let onStableLayout: () -> Void
     private var hasReportedStableLayout = false
 #if DEBUG

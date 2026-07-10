@@ -65,6 +65,10 @@ struct MainAppView: View {
     // MARK: - Init
 
     init() {
+        AuthFlowDebugTrace.record(
+            "main-app.init.begin",
+            layer: "main-app"
+        )
         // Suppress the native UIKit tab bar via the appearance proxy.
         // This hides new instances visually, but does NOT disable hit-testing
         // or recalculate safe area on the live instance already in the hierarchy.
@@ -79,6 +83,10 @@ struct MainAppView: View {
 
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+        AuthFlowDebugTrace.record(
+            "main-app.init.end",
+            layer: "main-app"
+        )
     }
 
     // MARK: - Computed Properties
@@ -295,8 +303,21 @@ struct MainAppView: View {
         .environment(aiWorkspaceCoordinator)
         .environment(libraryViewModel)
         .task {
+            AuthFlowDebugTrace.record(
+                "main-app.task.begin",
+                layer: "main-app"
+            )
             router.sanitizeForFeatures(appFeatures)
+            AuthFlowDebugTrace.record(
+                "main-app.task.after-sanitize",
+                layer: "main-app"
+            )
             await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
+            AuthFlowDebugTrace.record(
+                "main-app.task.after-ai-restore",
+                layer: "main-app",
+                details: ["cancelled": String(Task.isCancelled)]
+            )
 
             do {
                 // One-time migration: removed logic based on cardCount and deckCount.
