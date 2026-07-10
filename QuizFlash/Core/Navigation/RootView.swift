@@ -44,7 +44,9 @@ struct RootView: View {
     @State private var hasCompletedLaunchAnimation = false
     @State private var isLaunchAnimationVisible = true
     @State private var isLaunchSymbolPresented = false
-    @State private var isLaunchLightningActive = false
+    @State private var launchStrikeProgress: CGFloat = 0
+    @State private var isLaunchStrikeVisible = false
+    @State private var isLaunchStrikeImpact = false
     @State private var isLaunchSymbolHandedOff = false
     @State private var isAuthWalkthroughPrepared = false
     @State private var isLaunchBoltReadyForTransfer = false
@@ -90,7 +92,9 @@ struct RootView: View {
             if isLaunchAnimationVisible {
                 QuizFlashLaunchAnimationView(
                     isPresented: isLaunchSymbolPresented,
-                    isLightningActive: isLaunchLightningActive,
+                    strikeProgress: launchStrikeProgress,
+                    isStrikeVisible: isLaunchStrikeVisible,
+                    isStrikeImpact: isLaunchStrikeImpact,
                     isHandedOff: isLaunchSymbolHandedOff,
                     boltNamespace: authLaunchBoltNamespace
                 )
@@ -194,35 +198,36 @@ struct RootView: View {
 
     @MainActor
     private func playLaunchLightningStrike() async {
-        try? await Task.sleep(for: .milliseconds(170))
+        try? await Task.sleep(for: .milliseconds(150))
 
 #if DEBUG
-        authLaunchDebugLog("lightning strike first flash")
+        authLaunchDebugLog("bolt charge started")
 #endif
-        withAnimation(.easeOut(duration: 0.05)) {
-            isLaunchLightningActive = true
+        isLaunchStrikeVisible = true
+        withAnimation(.easeInOut(duration: 0.50)) {
+            launchStrikeProgress = 1
         }
 
-        try? await Task.sleep(for: .milliseconds(70))
-        withAnimation(.easeIn(duration: 0.09)) {
-            isLaunchLightningActive = false
-        }
-
-        try? await Task.sleep(for: .milliseconds(65))
+        try? await Task.sleep(for: .milliseconds(210))
 
 #if DEBUG
-        authLaunchDebugLog("lightning strike second flash")
+        authLaunchDebugLog("bolt strike impact")
 #endif
-        withAnimation(.easeOut(duration: 0.04)) {
-            isLaunchLightningActive = true
+        withAnimation(.easeIn(duration: 0.08)) {
+            isLaunchStrikeImpact = true
         }
 
-        try? await Task.sleep(for: .milliseconds(55))
-        withAnimation(.easeOut(duration: 0.18)) {
-            isLaunchLightningActive = false
+        try? await Task.sleep(for: .milliseconds(80))
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.64)) {
+            isLaunchStrikeImpact = false
         }
 
-        try? await Task.sleep(for: .milliseconds(400))
+        try? await Task.sleep(for: .milliseconds(210))
+        withAnimation(.easeOut(duration: 0.12)) {
+            isLaunchStrikeVisible = false
+        }
+
+        try? await Task.sleep(for: .milliseconds(110))
     }
 
     @MainActor
@@ -276,7 +281,9 @@ private struct QuizFlashLaunchAnimationView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let isPresented: Bool
-    let isLightningActive: Bool
+    let strikeProgress: CGFloat
+    let isStrikeVisible: Bool
+    let isStrikeImpact: Bool
     let isHandedOff: Bool
     let boltNamespace: Namespace.ID
 
@@ -289,22 +296,17 @@ private struct QuizFlashLaunchAnimationView: View {
                 y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
             )
 
-            ZStack {
-                lightningBloom
-                    .position(symbolPosition)
-
-                boltSymbol
-                    .frame(width: 38, height: 38)
-                    .modifier(
-                        AuthLaunchBoltGeometryModifier(
-                            namespace: boltNamespace,
-                            isSource: true
-                        )
+            boltSymbol
+                .frame(width: 38, height: 38)
+                .modifier(
+                    AuthLaunchBoltGeometryModifier(
+                        namespace: boltNamespace,
+                        isSource: true
                     )
-                    .scaleEffect(symbolScale)
-                    .position(symbolPosition)
-                    .opacity(isPresented ? 1.0 : 0.0)
-            }
+                )
+                .scaleEffect(symbolScale)
+                .position(symbolPosition)
+                .opacity(isPresented ? 1.0 : 0.0)
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
@@ -313,23 +315,17 @@ private struct QuizFlashLaunchAnimationView: View {
     private var boltSymbol: some View {
         ZStack {
             boltImage
-                .foregroundStyle(Color.white)
-                .blur(radius: 14)
-                .opacity(isLightningActive ? 0.9 : 0)
-
-            boltImage
-                .foregroundStyle(Color.white)
-                .blur(radius: 5)
-                .opacity(isLightningActive ? 1 : 0)
-
-            boltImage
                 .foregroundStyle(boltForegroundStyle)
 
-            boltImage
-                .foregroundStyle(Color.white)
-                .scaleEffect(isLightningActive ? 1.04 : 0.96)
-                .opacity(isLightningActive ? 0.92 : 0)
+            movingStrikeHighlight
         }
+        .scaleEffect(
+            x: isStrikeImpact ? 0.96 : 1,
+            y: isStrikeImpact ? 1.07 : 1,
+            anchor: .center
+        )
+        .rotationEffect(.degrees(isStrikeImpact ? 1.4 : 0))
+        .offset(y: isStrikeImpact ? 2.5 : 0)
     }
 
     private var boltForegroundStyle: AnyShapeStyle {
@@ -352,28 +348,23 @@ private struct QuizFlashLaunchAnimationView: View {
             .symbolRenderingMode(.hierarchical)
     }
 
-    private var lightningBloom: some View {
-        RadialGradient(
-            colors: [
-                Color.white.opacity(0.28),
-                launchPurple.opacity(0.22),
-                .clear
-            ],
-            center: .center,
-            startRadius: 2,
-            endRadius: 96
-        )
-        .frame(width: 192, height: 192)
-        .scaleEffect(isLightningActive ? 1.08 : 0.72)
-        .opacity(isLightningActive ? 1 : 0)
+    private var movingStrikeHighlight: some View {
+        boltImage
+            .foregroundStyle(Color.white)
+            .mask {
+                LinearGradient(
+                    colors: [.clear, .white, .white, .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: 38, height: 16)
+                .offset(y: -27 + (68 * strikeProgress))
+            }
+            .opacity(isStrikeVisible ? 0.96 : 0)
     }
 
     private func authWalkthroughSymbolCenterY(in height: CGFloat) -> CGFloat {
         height * AuthLaunchLayout.walkthroughCenterYRatio
-    }
-
-    private var launchPurple: Color {
-        Color(red: 0.62, green: 0.52, blue: 1.0)
     }
 }
 
