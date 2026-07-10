@@ -1198,7 +1198,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 .allowsHitTesting(false)
 
             BackdropDismissTouchShield {
-                animateDismiss(dismissalDistance: dismissalDistance)
+                handleBackdropTap(dismissalDistance: dismissalDistance)
             }
             .frame(maxWidth: .infinity)
             .frame(height: min(sheetTopY, containerHeight), alignment: .top)
@@ -1207,6 +1207,20 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     // MARK: - Dismiss Logic
+
+    private func handleBackdropTap(dismissalDistance: CGFloat) {
+        guard !keyboardMonitor.isVisible else {
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
+            return
+        }
+
+        animateDismiss(dismissalDistance: dismissalDistance)
+    }
 
     private func finalizeDrag(
         translation: CGFloat,
