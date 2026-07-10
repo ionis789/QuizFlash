@@ -46,7 +46,7 @@ struct RootView: View {
     @State private var isLaunchSymbolPresented = false
     @State private var launchStrikeProgress: CGFloat = 0
     @State private var isLaunchStrikeVisible = false
-    @State private var isLaunchStrikeImpact = false
+    @State private var launchStrikeImpact: CGFloat = 0
     @State private var isLaunchSymbolHandedOff = false
     @State private var isAuthWalkthroughPrepared = false
     @State private var isLaunchBoltReadyForTransfer = false
@@ -94,7 +94,7 @@ struct RootView: View {
                     isPresented: isLaunchSymbolPresented,
                     strikeProgress: launchStrikeProgress,
                     isStrikeVisible: isLaunchStrikeVisible,
-                    isStrikeImpact: isLaunchStrikeImpact,
+                    strikeImpact: launchStrikeImpact,
                     isHandedOff: isLaunchSymbolHandedOff,
                     boltNamespace: authLaunchBoltNamespace
                 )
@@ -214,15 +214,20 @@ struct RootView: View {
         authLaunchDebugLog("bolt strike impact")
 #endif
         withAnimation(.easeIn(duration: 0.08)) {
-            isLaunchStrikeImpact = true
+            launchStrikeImpact = 1
         }
 
         try? await Task.sleep(for: .milliseconds(80))
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.64)) {
-            isLaunchStrikeImpact = false
+        withAnimation(.easeOut(duration: 0.12)) {
+            launchStrikeImpact = -0.28
         }
 
-        try? await Task.sleep(for: .milliseconds(210))
+        try? await Task.sleep(for: .milliseconds(110))
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
+            launchStrikeImpact = 0
+        }
+
+        try? await Task.sleep(for: .milliseconds(100))
         withAnimation(.easeOut(duration: 0.12)) {
             isLaunchStrikeVisible = false
         }
@@ -283,7 +288,7 @@ private struct QuizFlashLaunchAnimationView: View {
     let isPresented: Bool
     let strikeProgress: CGFloat
     let isStrikeVisible: Bool
-    let isStrikeImpact: Bool
+    let strikeImpact: CGFloat
     let isHandedOff: Bool
     let boltNamespace: Namespace.ID
 
@@ -315,17 +320,23 @@ private struct QuizFlashLaunchAnimationView: View {
     private var boltSymbol: some View {
         ZStack {
             boltImage
+                .foregroundStyle(themeManager.accentColor.color)
+                .blur(radius: 2.6)
+                .scaleEffect(1.035)
+                .opacity(Double(0.34 * impactCompression))
+
+            boltImage
                 .foregroundStyle(boltForegroundStyle)
 
             movingStrikeHighlight
         }
         .scaleEffect(
-            x: isStrikeImpact ? 0.96 : 1,
-            y: isStrikeImpact ? 1.07 : 1,
+            x: 1 - (0.055 * impactCompression) + (0.018 * impactRecoil),
+            y: 1 + (0.105 * impactCompression) - (0.025 * impactRecoil),
             anchor: .center
         )
-        .rotationEffect(.degrees(isStrikeImpact ? 1.4 : 0))
-        .offset(y: isStrikeImpact ? 2.5 : 0)
+        .rotationEffect(.degrees(Double(1.5 * strikeImpact)))
+        .offset(y: (3 * impactCompression) - (1.4 * impactRecoil))
     }
 
     private var boltForegroundStyle: AnyShapeStyle {
@@ -349,18 +360,48 @@ private struct QuizFlashLaunchAnimationView: View {
     }
 
     private var movingStrikeHighlight: some View {
+        ZStack {
+            maskedStrikeBand(
+                color: themeManager.accentColor.color,
+                height: 25,
+                offset: -33 + (78 * strikeProgress)
+            )
+            .opacity(0.58)
+
+            maskedStrikeBand(
+                color: .white,
+                height: 9,
+                offset: -24 + (64 * strikeProgress)
+            )
+            .opacity(0.98)
+        }
+        .opacity(isStrikeVisible ? 1 : 0)
+    }
+
+    private func maskedStrikeBand(
+        color: Color,
+        height: CGFloat,
+        offset: CGFloat
+    ) -> some View {
         boltImage
-            .foregroundStyle(Color.white)
+            .foregroundStyle(color)
             .mask {
                 LinearGradient(
                     colors: [.clear, .white, .white, .clear],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(width: 38, height: 16)
-                .offset(y: -27 + (68 * strikeProgress))
+                .frame(width: 38, height: height)
+                .offset(y: offset)
             }
-            .opacity(isStrikeVisible ? 0.96 : 0)
+    }
+
+    private var impactCompression: CGFloat {
+        max(strikeImpact, 0)
+    }
+
+    private var impactRecoil: CGFloat {
+        max(-strikeImpact, 0)
     }
 
     private func authWalkthroughSymbolCenterY(in height: CGFloat) -> CGFloat {
