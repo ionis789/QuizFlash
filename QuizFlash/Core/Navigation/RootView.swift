@@ -54,6 +54,7 @@ struct RootView: View {
     @State private var isAuthWalkthroughBoltVisible = false
     @State private var isAuthWalkthroughTextVisible = false
     @State private var isAuthSheetPresentationReleased = false
+    @State private var authenticatedHandoffAttemptID: UUID?
     @Namespace private var authLaunchBoltNamespace
 
     var body: some View {
@@ -62,32 +63,12 @@ struct RootView: View {
                 .ignoresSafeArea()
 
             Group {
-                switch authManager.sessionState {
-                case .checking:
+                if case .checking = authManager.sessionState {
                     ProgressActivityDots(color: themeManager.accentColor.color)
-                case .signedIn:
-                    MainAppView()
-                        .onAppear {
-                            AuthFlowDebugTrace.recordWindowCheckpoint(
-                                "main-app.appear",
-                                layer: "root-view",
-                                state: authManager.sessionState
-                            )
-                        }
-                case .signedOut,
-                     .emailVerificationRequired,
-                     .emailVerificationSucceeded:
-                    LoginView(
-                        showsAuthWalkthrough: true,
-                        showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible || releasesAuthUIAfterLaunch,
-                        showsAuthWalkthroughText: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
-                        allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
-                        allowsAuthSheetPresentation: isAuthSheetPresentationReleased || releasesAuthUIAfterLaunch,
-                        launchBoltNamespace: authLaunchBoltNamespace,
-                        onAuthWalkthroughPrepared: {
-                            isAuthWalkthroughPrepared = true
-                        }
-                    )
+                } else if showsAuthenticationRoot {
+                    authView
+                } else {
+                    mainAppView
                 }
             }
             .id(rootContentIdentity)
@@ -151,6 +132,133 @@ struct RootView: View {
                 startAuthBoltTransferIfReady()
             }
         }
+        .onChange(of: authenticatedHandoffAttemptID) { _, attemptID in
+            guard attemptID == nil else { return }
+            presentOnboardingIfNeeded()
+        }
+    }
+
+    private var mainAppView: some View {
+        MainAppView()
+            .onAppear {
+                AuthFlowDebugTrace.recordWindowCheckpoint(
+                    "main-app.appear",
+                    layer: "root-view",
+                    state: authManager.sessionState
+                )
+            }
+    }
+
+    private var authView: some View {
+        LoginView(
+            showsAuthWalkthrough: true,
+            showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible || releasesAuthUIAfterLaunch,
+            showsAuthWalkthroughText: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
+            allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible || releasesAuthUIAfterLaunch,
+            allowsAuthSheetPresentation: isAuthSheetPresentationReleased || releasesAuthUIAfterLaunch,
+            launchBoltNamespace: authLaunchBoltNamespace,
+            onAuthWalkthroughPrepared: {
+                isAuthWalkthroughPrepared = true
+            },
+            onAuthenticationAttemptStarted: beginAuthenticatedHandoff,
+            onAuthenticationAttemptCancelled: cancelAuthenticatedHandoff,
+            onAuthenticationSheetDismissed: finishAuthenticatedHandoff
+        )
+    }
+
+    private func beginAuthenticatedHandoff(attemptID: UUID) {
+        guard authenticatedHandoffAttemptID == nil else {
+            AuthFlowDebugTrace.record(
+                "handoff.hold.start-ignored",
+                layer: "root-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "owner": authenticatedHandoffAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+        authenticatedHandoffAttemptID = attemptID
+        AuthFlowDebugTrace.record(
+            "handoff.hold.begin",
+            layer: "root-view",
+            details: [
+                "attempt": attemptID.uuidString,
+                "state": authManager.sessionState.debugName
+            ]
+        )
+    }
+
+    private func cancelAuthenticatedHandoff(attemptID: UUID) {
+        guard authenticatedHandoffAttemptID == attemptID else {
+            AuthFlowDebugTrace.record(
+                "handoff.hold.cancel-ignored",
+                layer: "root-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "owner": authenticatedHandoffAttemptID?.uuidString ?? "none",
+                    "reason": "stale-attempt"
+                ]
+            )
+            return
+        }
+        guard case .signedIn = authManager.sessionState else {
+            authenticatedHandoffAttemptID = nil
+            AuthFlowDebugTrace.record(
+                "handoff.hold.cancel",
+                layer: "root-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "state": authManager.sessionState.debugName
+                ]
+            )
+            return
+        }
+        AuthFlowDebugTrace.record(
+            "handoff.hold.cancel-ignored",
+            layer: "root-view",
+            details: [
+                "attempt": attemptID.uuidString,
+                "state": authManager.sessionState.debugName,
+                "reason": "already-signed-in"
+            ]
+        )
+    }
+
+    private func finishAuthenticatedHandoff(attemptID: UUID) {
+        guard authenticatedHandoffAttemptID == attemptID else {
+            AuthFlowDebugTrace.record(
+                "handoff.sheet-disappeared-ignored",
+                layer: "root-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "owner": authenticatedHandoffAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+        AuthFlowDebugTrace.record(
+            "handoff.sheet-disappeared",
+            layer: "root-view",
+            details: [
+                "attempt": attemptID.uuidString,
+                "state": authManager.sessionState.debugName
+            ]
+        )
+
+        Task { @MainActor in
+            await Task.yield()
+            guard authenticatedHandoffAttemptID == attemptID else { return }
+            authenticatedHandoffAttemptID = nil
+            AuthFlowDebugTrace.record(
+                "handoff.root-release",
+                layer: "root-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "state": authManager.sessionState.debugName
+                ]
+            )
+        }
     }
 
     private func scheduleAuthTraceCheckpoints(expectedState: AuthSessionState) {
@@ -168,6 +276,7 @@ struct RootView: View {
 
     private func presentOnboardingIfNeeded() {
         guard hasCompletedLaunchAnimation else { return }
+        guard authenticatedHandoffAttemptID == nil else { return }
 
         if case .signedIn(let user) = authManager.sessionState {
             onboardingStateStore.presentRequiredIfNeeded(for: user)
@@ -191,9 +300,20 @@ struct RootView: View {
         case .checking:
             "checking"
         case .signedIn:
-            "main"
+            showsAuthenticationRoot ? "auth" : "main"
         case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
             "auth"
+        }
+    }
+
+    private var showsAuthenticationRoot: Bool {
+        switch authManager.sessionState {
+        case .signedIn:
+            authenticatedHandoffAttemptID != nil
+        case .checking:
+            false
+        case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
+            true
         }
     }
 

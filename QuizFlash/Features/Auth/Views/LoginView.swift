@@ -40,6 +40,7 @@ struct LoginView: View {
     @State private var authWalkthroughVisibilityTask: Task<Void, Never>?
     @State private var isAuthWalkthroughHiddenBySheet = false
     @State private var isAuthWalkthroughAnimationPausedForSheet = false
+    @State private var authenticationHandoffAttemptID: UUID?
 
     let showsAuthWalkthrough: Bool
     let showsAuthWalkthroughBolt: Bool
@@ -48,6 +49,9 @@ struct LoginView: View {
     let allowsAuthSheetPresentation: Bool
     let launchBoltNamespace: Namespace.ID?
     let onAuthWalkthroughPrepared: () -> Void
+    let onAuthenticationAttemptStarted: @MainActor (UUID) -> Void
+    let onAuthenticationAttemptCancelled: @MainActor (UUID) -> Void
+    let onAuthenticationSheetDismissed: @MainActor (UUID) -> Void
 
     init(
         showsAuthWalkthrough: Bool = true,
@@ -56,7 +60,10 @@ struct LoginView: View {
         allowsAuthWalkthroughAnimation: Bool = true,
         allowsAuthSheetPresentation: Bool = true,
         launchBoltNamespace: Namespace.ID? = nil,
-        onAuthWalkthroughPrepared: @escaping () -> Void = {}
+        onAuthWalkthroughPrepared: @escaping () -> Void = {},
+        onAuthenticationAttemptStarted: @escaping @MainActor (UUID) -> Void = { _ in },
+        onAuthenticationAttemptCancelled: @escaping @MainActor (UUID) -> Void = { _ in },
+        onAuthenticationSheetDismissed: @escaping @MainActor (UUID) -> Void = { _ in }
     ) {
         self.showsAuthWalkthrough = showsAuthWalkthrough
         self.showsAuthWalkthroughBolt = showsAuthWalkthroughBolt
@@ -65,6 +72,9 @@ struct LoginView: View {
         self.allowsAuthSheetPresentation = allowsAuthSheetPresentation
         self.launchBoltNamespace = launchBoltNamespace
         self.onAuthWalkthroughPrepared = onAuthWalkthroughPrepared
+        self.onAuthenticationAttemptStarted = onAuthenticationAttemptStarted
+        self.onAuthenticationAttemptCancelled = onAuthenticationAttemptCancelled
+        self.onAuthenticationSheetDismissed = onAuthenticationSheetDismissed
     }
 
     private var locale: Locale {
@@ -76,41 +86,10 @@ struct LoginView: View {
             themeManager.screenBackground
                 .ignoresSafeArea()
 
-            switch authManager.sessionState {
-            case .emailVerificationRequired(let user):
-                EmailVerificationRequiredView(
-                    user: user,
-                    onResend: {
-                        try await authManager.resendEmailVerification()
-                    },
-                    onReload: {
-                        try await authManager.reloadEmailVerificationStatus()
-                    },
-                    onCancel: {
-                        try await authManager.logout()
-                    },
-                    onResendSuccess: {
-                        presentNotice(
-                            title: AppLocalization.string("Email sent", locale: locale),
-                            message: AppLocalization.string(
-                                "Verification link sent. Check Inbox and Spam.",
-                                locale: locale
-                            )
-                        )
-                    },
-                    onError: presentError
-                )
-            case .emailVerificationSucceeded(let user):
-                EmailVerificationSuccessView(
-                    user: user,
-                    onContinue: {
-                        authManager.completeEmailVerificationSuccess()
-                    }
-                )
-            case .checking:
-                ProgressActivityDots(color: themeManager.accentColor.color)
-            case .signedOut, .signedIn:
+            if showsLoginForm {
                 loginForm
+            } else {
+                authenticationStatusContent
             }
         }
         .background {
@@ -226,6 +205,57 @@ struct LoginView: View {
             .ignoresSafeArea(.keyboard, edges: activeSheet == nil ? [] : .bottom)
     }
 
+    @ViewBuilder
+    private var authenticationStatusContent: some View {
+        switch authManager.sessionState {
+        case .emailVerificationRequired(let user):
+            EmailVerificationRequiredView(
+                user: user,
+                onResend: {
+                    try await authManager.resendEmailVerification()
+                },
+                onReload: {
+                    try await authManager.reloadEmailVerificationStatus()
+                },
+                onCancel: {
+                    try await authManager.logout()
+                },
+                onResendSuccess: {
+                    presentNotice(
+                        title: AppLocalization.string("Email sent", locale: locale),
+                        message: AppLocalization.string(
+                            "Verification link sent. Check Inbox and Spam.",
+                            locale: locale
+                        )
+                    )
+                },
+                onError: presentError
+            )
+        case .emailVerificationSucceeded(let user):
+            EmailVerificationSuccessView(
+                user: user,
+                onContinue: {
+                    authManager.completeEmailVerificationSuccess()
+                }
+            )
+        case .checking:
+            ProgressActivityDots(color: themeManager.accentColor.color)
+        case .signedOut, .signedIn:
+            EmptyView()
+        }
+    }
+
+    private var showsLoginForm: Bool {
+        switch authManager.sessionState {
+        case .signedOut, .signedIn:
+            true
+        case .emailVerificationRequired, .emailVerificationSucceeded:
+            authenticationHandoffAttemptID != nil
+        case .checking:
+            false
+        }
+    }
+
     private var authLanding: some View {
         GeometryReader { proxy in
             ZStack {
@@ -281,10 +311,28 @@ struct LoginView: View {
                 email: $email,
                 password: $password,
                 passwordConfirmation: $passwordConfirmation,
+                activeAuthenticationAttemptID: $authenticationHandoffAttemptID,
                 safeAreaInsets: safeAreaInsets,
                 locale: locale,
                 accentColor: themeManager.accentColor.color,
                 reduceMotion: reduceMotion,
+                onAuthenticationAttemptStarted: { attemptID in
+                    onAuthenticationAttemptStarted(attemptID)
+                },
+                onAuthenticationAttemptCancelled: { attemptID in
+                    onAuthenticationAttemptCancelled(attemptID)
+                },
+                onAuthenticationSheetDismissed: { attemptID in
+                    completeAuthenticationHandoffAfterSheetDisappears(attemptID: attemptID)
+                },
+                hasAuthenticationStateAdvanced: {
+                    switch authManager.sessionState {
+                    case .signedIn, .emailVerificationRequired, .emailVerificationSucceeded:
+                        true
+                    case .checking, .signedOut:
+                        false
+                    }
+                },
                 onAppleSignIn: {
                     try await authManager.signInWithApple()
                 },
@@ -306,9 +354,6 @@ struct LoginView: View {
                         confirmation: confirmation
                     )
                     onboardingStateStore.markPendingForNewAccount(uid: user.uid)
-                    if !user.requiresEmailVerification {
-                        onboardingStateStore.presentRequiredIfNeeded(for: user)
-                    }
                 },
                 onError: presentError
             )
@@ -437,6 +482,32 @@ struct LoginView: View {
             && error.code == ASAuthorizationError.canceled.rawValue
     }
 
+    private func completeAuthenticationHandoffAfterSheetDisappears(attemptID: UUID) {
+        guard authenticationHandoffAttemptID == attemptID else {
+            AuthFlowDebugTrace.record(
+                "handoff.local-release.ignored",
+                layer: "login-view",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "owner": authenticationHandoffAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+
+        AuthFlowDebugTrace.record(
+            "handoff.local-release.scheduled",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+        Task { @MainActor in
+            await Task.yield()
+            guard authenticationHandoffAttemptID == attemptID else { return }
+            authenticationHandoffAttemptID = nil
+            onAuthenticationSheetDismissed(attemptID)
+        }
+    }
+
     private var canPresentAuthSheet: Bool {
         guard allowsAuthSheetPresentation else { return false }
         guard onboardingStateStore.presentation == nil else { return false }
@@ -489,17 +560,23 @@ private enum AuthSheetMode: Equatable {
 // MARK: - Auth Login Sheet Content
 
 private struct AuthLoginSheetContent: View {
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.fullScreenSheetDismissCoordinator) private var dismissCoordinator
 
     @Binding var mode: AuthSheetMode
     @Binding var email: String
     @Binding var password: String
     @Binding var passwordConfirmation: String
+    @Binding var activeAuthenticationAttemptID: UUID?
 
     let safeAreaInsets: UIEdgeInsets
     let locale: Locale
     let accentColor: Color
     let reduceMotion: Bool
+    let onAuthenticationAttemptStarted: @MainActor (UUID) -> Void
+    let onAuthenticationAttemptCancelled: @MainActor (UUID) -> Void
+    let onAuthenticationSheetDismissed: @MainActor (UUID) -> Void
+    let hasAuthenticationStateAdvanced: @MainActor () -> Bool
     let onAppleSignIn: @MainActor @Sendable () async throws -> Void
     let onGoogleSignIn: @MainActor @Sendable () async throws -> Void
     let onForgotPassword: @MainActor @Sendable () -> Void
@@ -511,6 +588,7 @@ private struct AuthLoginSheetContent: View {
     @State private var isContentVisible = true
     @State private var modeTransitionTask: Task<Void, Never>?
     @State private var keyboardMonitor = KeyboardMonitor.shared
+    @State private var successfulDismissAttemptID: UUID?
 
     private var contentTransition: Animation {
         ScaleRevealMotion.animation(reduceMotion: reduceMotion)
@@ -553,18 +631,29 @@ private struct AuthLoginSheetContent: View {
             configureDismissCoordinator()
         }
         .onDisappear {
+            let completedAttemptID = successfulDismissAttemptID
             AuthFlowDebugTrace.record(
                 "sheet-content.disappear",
                 layer: "login-sheet",
                 details: [
                     "mode": String(describing: mode),
-                    "displayedMode": String(describing: displayedMode)
+                    "displayedMode": String(describing: displayedMode),
+                    "handoffAttempt": completedAttemptID?.uuidString ?? "none"
                 ]
             )
             modeTransitionTask?.cancel()
             modeTransitionTask = nil
             dismissCoordinator?.shouldAllowDismiss = nil
             dismissCoordinator?.onBlockedDismiss = nil
+
+            if let completedAttemptID {
+                AuthFlowDebugTrace.record(
+                    "handoff.sheet-content.disappeared",
+                    layer: "login-sheet",
+                    details: ["attempt": completedAttemptID.uuidString]
+                )
+                onAuthenticationSheetDismissed(completedAttemptID)
+            }
         }
         .onChange(of: mode) { _, newMode in
             guard newMode != displayedMode else { return }
@@ -583,6 +672,7 @@ private struct AuthLoginSheetContent: View {
                     reduceMotion: reduceMotion,
                     hiddenOpacity: 0.3
                 )
+                .disabled(activeAuthenticationAttemptID != nil)
         }
         .padding(.horizontal, UIConstants.Spacing.large)
         .padding(.top, UIConstants.Spacing.extraLarge)
@@ -613,7 +703,7 @@ private struct AuthLoginSheetContent: View {
                 systemImage: "applelogo",
                 style: .light
             ) {
-                try await onAppleSignIn()
+                try await performAuthenticatedSignIn(onAppleSignIn)
             } onError: { error in
                 onError(error)
             }
@@ -623,7 +713,7 @@ private struct AuthLoginSheetContent: View {
                 textIcon: "G",
                 style: .dark
             ) {
-                try await onGoogleSignIn()
+                try await performAuthenticatedSignIn(onGoogleSignIn)
             } onError: { error in
                 onError(error)
             }
@@ -674,7 +764,9 @@ private struct AuthLoginSheetContent: View {
                 tint: accentColor,
                 isEnabled: canSignIn
             ) {
-                try await onSignIn(email, password)
+                try await performAuthenticatedSignIn {
+                    try await onSignIn(email, password)
+                }
             } onError: { error in
                 onError(error)
             }
@@ -718,7 +810,9 @@ private struct AuthLoginSheetContent: View {
                 tint: accentColor,
                 isEnabled: canCreateAccount
             ) {
-                try await onCreateAccount(email, password, passwordConfirmation)
+                try await performAuthenticatedSignIn {
+                    try await onCreateAccount(email, password, passwordConfirmation)
+                }
             } onError: { error in
                 onError(error)
             }
@@ -745,6 +839,91 @@ private struct AuthLoginSheetContent: View {
         .font(.callout)
         .frame(maxWidth: .infinity)
         .padding(.top, UIConstants.Spacing.small)
+    }
+
+    @MainActor
+    private func performAuthenticatedSignIn(
+        _ action: @MainActor @Sendable () async throws -> Void
+    ) async throws {
+        guard activeAuthenticationAttemptID == nil else {
+            AuthFlowDebugTrace.record(
+                "handoff.attempt.ignored",
+                layer: "login-sheet",
+                details: [
+                    "reason": "attempt-in-progress",
+                    "owner": activeAuthenticationAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+
+        let attemptID = UUID()
+        activeAuthenticationAttemptID = attemptID
+        onAuthenticationAttemptStarted(attemptID)
+
+        do {
+            try await action()
+        } catch {
+            if hasAuthenticationStateAdvanced() {
+                AuthFlowDebugTrace.record(
+                    "handoff.attempt.error-after-authentication",
+                    layer: "login-sheet",
+                    details: [
+                        "attempt": attemptID.uuidString,
+                        "error": String(describing: type(of: error))
+                    ]
+                )
+                requestSuccessfulAuthenticationDismiss(attemptID: attemptID)
+                return
+            }
+
+            guard activeAuthenticationAttemptID == attemptID else { throw error }
+            activeAuthenticationAttemptID = nil
+            onAuthenticationAttemptCancelled(attemptID)
+            throw error
+        }
+
+        requestSuccessfulAuthenticationDismiss(attemptID: attemptID)
+    }
+
+    @MainActor
+    private func requestSuccessfulAuthenticationDismiss(attemptID: UUID) {
+        guard activeAuthenticationAttemptID == attemptID else {
+            AuthFlowDebugTrace.record(
+                "handoff.dismiss.ignored",
+                layer: "login-sheet",
+                details: [
+                    "attempt": attemptID.uuidString,
+                    "owner": activeAuthenticationAttemptID?.uuidString ?? "none"
+                ]
+            )
+            return
+        }
+
+        successfulDismissAttemptID = attemptID
+        AuthFlowDebugTrace.record(
+            "handoff.dismiss.request",
+            layer: "login-sheet",
+            details: ["attempt": attemptID.uuidString]
+        )
+        dismissCoordinator?.shouldAllowDismiss = { true }
+
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss {
+                AuthFlowDebugTrace.record(
+                    "handoff.dismiss.animation-completed",
+                    layer: "login-sheet",
+                    details: ["attempt": attemptID.uuidString]
+                )
+            }
+        } else {
+            AuthFlowDebugTrace.record(
+                "handoff.dismiss.action-missing",
+                layer: "login-sheet",
+                details: ["attempt": attemptID.uuidString]
+            )
+            onAuthenticationSheetDismissed(attemptID)
+        }
     }
 
     private var switchToSignInPrompt: some View {
