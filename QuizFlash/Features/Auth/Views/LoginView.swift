@@ -641,19 +641,11 @@ struct LoginView: View {
             attemptID: attemptID
         ) else { return }
 
-        showsAuthenticationWelcome = false
         AuthFlowDebugTrace.record(
-            "welcome.scale-reveal.hide-before-home",
+            "welcome.handoff.from-visible-content",
             layer: "login-view",
             details: ["attempt": attemptID.uuidString]
         )
-
-        guard await waitForAuthenticationWelcomePhase(
-            "hide-before-home",
-            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.contentSwapDelay,
-            attemptID: attemptID
-        ) else { return }
-
         completeAuthenticationWelcome()
     }
 
