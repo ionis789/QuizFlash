@@ -228,7 +228,6 @@ enum AuthManagerError: LocalizedError, Equatable {
     case missingPresenter
     case passwordConfirmationMismatch
     case missingGoogleClientID
-    case googleSignInTimedOut
     case firebaseSignInTimedOut
     case missingCredential
     case missingAppleIdentityToken
@@ -244,8 +243,6 @@ enum AuthManagerError: LocalizedError, Equatable {
             "Passwords do not match."
         case .missingGoogleClientID:
             "Google Sign-In is not configured."
-        case .googleSignInTimedOut:
-            "Google Sign-In did not finish. Please try again."
         case .firebaseSignInTimedOut:
             "Firebase did not finish sign-in. Please try again."
         case .missingCredential:
@@ -1011,13 +1008,13 @@ private final class FirebaseCredentialSignInCoordinator {
 ///
 /// GoogleSignIn stores its presenter weakly. Retaining the stable window root here prevents a
 /// transient SwiftUI sheet controller from disappearing while ASWebAuthenticationSession is active.
-/// The guarded continuation also guarantees that cancellation, timeout, and a late SDK callback
-/// can never resume the same login request more than once.
+/// The guarded continuation also guarantees that cancellation and a late SDK callback can never
+/// resume the same login request more than once. The interactive Google flow intentionally has no
+/// app-imposed timeout because account selection and browser authorization are user-paced.
 @MainActor
 private final class GoogleSignInCoordinator {
     private let presentingViewController: UIViewController
     private var continuation: CheckedContinuation<GIDSignInResult, Error>?
-    private var timeoutTask: Task<Void, Never>?
     private var wasCancelledBeforeStart = false
 
     init(presentingViewController fallbackPresenter: UIViewController) {
@@ -1059,23 +1056,6 @@ private final class GoogleSignInCoordinator {
                 }
 
                 self.continuation = continuation
-                timeoutTask = Task { @MainActor [weak self] in
-                    do {
-                        try await Task.sleep(for: .seconds(60))
-                    } catch {
-                        return
-                    }
-
-#if DEBUG
-                    authSessionFlowDebugLog("Google SDK callback timed out")
-#endif
-                    AuthFlowDebugTrace.record(
-                        "request.timeout",
-                        layer: "google-sdk"
-                    )
-                    self?.finish(.failure(AuthManagerError.googleSignInTimedOut))
-                }
-
                 GIDSignIn.sharedInstance.signIn(
                     withPresenting: presentingViewController
                 ) { [weak self] result, error in
@@ -1121,8 +1101,6 @@ private final class GoogleSignInCoordinator {
     private func finish(_ result: Result<GIDSignInResult, Error>) {
         guard let continuation else { return }
         self.continuation = nil
-        timeoutTask?.cancel()
-        timeoutTask = nil
         continuation.resume(with: result)
     }
 

@@ -38,7 +38,7 @@ enum AuthErrorPresentation {
             "Passwords do not match."
         case .missingGoogleClientID:
             "Google sign-in is not ready yet. Please try email sign-in."
-        case .googleSignInTimedOut, .firebaseSignInTimedOut:
+        case .firebaseSignInTimedOut:
             "Google sign-in took too long. Please try again."
         case .missingCredential, .missingAppleIdentityToken, .invalidAppleIdentityToken:
             "We could not finish sign-in. Please try again."
