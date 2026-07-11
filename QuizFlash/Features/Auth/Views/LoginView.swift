@@ -141,6 +141,14 @@ struct LoginView: View {
                 layer: "login-view",
                 state: authManager.sessionState
             )
+            AuthFlowDebugTrace.record(
+                "login-view.disappear.render-state",
+                layer: "login-view",
+                details: [
+                    "handoffOwner": authenticationHandoffAttemptID?.uuidString ?? "none",
+                    "showsWelcome": String(showsAuthenticationWelcome)
+                ]
+            )
         }
         .onChange(of: isAuthSheetPresented) { oldValue, newValue in
             AuthFlowDebugTrace.record(
@@ -295,6 +303,7 @@ struct LoginView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .accessibilityAddTraits(.isHeader)
+                        .authHandoffRenderProbe("welcome-content")
                         .scaleRevealMotion(
                             isVisible: showsAuthenticationWelcome,
                             reduceMotion: reduceMotion
@@ -634,6 +643,11 @@ struct LoginView: View {
             layer: "login-view",
             details: ["attempt": attemptID.uuidString]
         )
+        AuthHandoffVisualDiagnostics.snapshotProbe(
+            role: "welcome-content",
+            event: "probe.snapshot.welcome-visible",
+            details: ["attempt": attemptID.uuidString]
+        )
 
         guard await waitForAuthenticationWelcomePhase(
             "welcome-dwell",
@@ -644,6 +658,11 @@ struct LoginView: View {
         AuthFlowDebugTrace.record(
             "welcome.handoff.from-visible-content",
             layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+        AuthHandoffVisualDiagnostics.snapshotProbe(
+            role: "welcome-content",
+            event: "probe.snapshot.pre-root-release",
             details: ["attempt": attemptID.uuidString]
         )
         completeAuthenticationWelcome()

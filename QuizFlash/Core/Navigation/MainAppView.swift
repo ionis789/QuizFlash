@@ -302,6 +302,20 @@ struct MainAppView: View {
         .environment(router)
         .environment(aiWorkspaceCoordinator)
         .environment(libraryViewModel)
+        .onAppear {
+            AuthFlowDebugTrace.record(
+                "main-app.content.appear",
+                layer: "main-app",
+                details: ["activeTab": String(describing: router.activeTab)]
+            )
+        }
+        .onDisappear {
+            AuthFlowDebugTrace.record(
+                "main-app.content.disappear",
+                layer: "main-app",
+                details: ["activeTab": String(describing: router.activeTab)]
+            )
+        }
         .task {
             AuthFlowDebugTrace.record(
                 "main-app.task.begin",

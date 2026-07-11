@@ -109,11 +109,19 @@ struct HomeView: View {
                 .toolbar(.hidden)
                 .background(Color.clear)
                 .onAppear {
+                    AuthFlowDebugTrace.record(
+                        "home.layout-log.begin",
+                        layer: "home-view"
+                    )
                     logLayoutIfNeeded(
                         containerWidth: proxy.size.width,
                         safeAreaTop: safeAreaTop,
                         layoutContext: layoutContext,
                         calendarLayout: calendarLayout
+                    )
+                    AuthFlowDebugTrace.record(
+                        "home.layout-log.end",
+                        layer: "home-view"
                     )
                 }
                 .onChange(
@@ -134,8 +142,24 @@ struct HomeView: View {
 
                 // MARK: Lifecycle
                 .onAppear {
+                    AuthFlowDebugTrace.record(
+                        "home.calendar.preference.begin",
+                        layer: "home-view"
+                    )
                     calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
+                    AuthFlowDebugTrace.record(
+                        "home.calendar.preference.end",
+                        layer: "home-view"
+                    )
+                    AuthFlowDebugTrace.record(
+                        "home.calendar.setup.begin",
+                        layer: "home-view"
+                    )
                     calendarVM.setupIfNeeded()
+                    AuthFlowDebugTrace.record(
+                        "home.calendar.setup.end",
+                        layer: "home-view"
+                    )
                 }
                 .onChange(of: appPreferences.weekStartDay) { _, newValue in
                     calendarVM.applyWeekStartPreference(newValue)
@@ -185,6 +209,20 @@ struct HomeView: View {
 
                 debugShadowControls(safeAreaTop: safeAreaTop)
             }
+        }
+        .onAppear {
+            AuthFlowDebugTrace.record(
+                "home.content.appear",
+                layer: "home-view",
+                details: ["activeTab": String(describing: router.activeTab)]
+            )
+        }
+        .onDisappear {
+            AuthFlowDebugTrace.record(
+                "home.content.disappear",
+                layer: "home-view",
+                details: ["activeTab": String(describing: router.activeTab)]
+            )
         }
     }
 

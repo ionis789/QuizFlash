@@ -132,7 +132,19 @@ struct RootView: View {
                 startAuthBoltTransferIfReady()
             }
         }
-        .onChange(of: authenticatedHandoffAttemptID) { _, attemptID in
+        .onChange(of: authenticatedHandoffAttemptID) { previousAttemptID, attemptID in
+            AuthFlowDebugTrace.record(
+                "handoff.owner.changed",
+                layer: "root-view",
+                details: [
+                    "from": previousAttemptID?.uuidString ?? "none",
+                    "to": attemptID?.uuidString ?? "none",
+                    "rootIdentity": rootContentIdentity,
+                    "showsAuthenticationRoot": String(showsAuthenticationRoot),
+                    "launchOverlayVisible": String(isLaunchAnimationVisible),
+                    "onboardingVisible": String(onboardingStateStore.presentation != nil)
+                ]
+            )
             guard attemptID == nil else { return }
             presentOnboardingIfNeeded()
         }
@@ -140,11 +152,17 @@ struct RootView: View {
 
     private var mainAppView: some View {
         MainAppView()
+            .authHandoffRenderProbe("root-main")
             .onAppear {
                 AuthFlowDebugTrace.recordWindowCheckpoint(
                     "main-app.appear",
                     layer: "root-view",
                     state: authManager.sessionState
+                )
+                AuthFlowDebugTrace.record(
+                    "root-main.appear.render-state",
+                    layer: "root-view",
+                    details: ["rootIdentity": rootContentIdentity]
                 )
             }
     }
@@ -170,6 +188,7 @@ struct RootView: View {
             onAuthenticationAttemptCancelled: cancelAuthenticatedHandoff,
             onAuthenticationHandoffCompleted: finishAuthenticatedHandoff
         )
+        .authHandoffRenderProbe("root-auth")
     }
 
     private func beginAuthenticatedHandoff(attemptID: UUID) {
@@ -251,6 +270,7 @@ struct RootView: View {
                 "state": authManager.sessionState.debugName
             ]
         )
+        AuthHandoffVisualDiagnostics.beginRootReleaseMonitoring(handoffID: attemptID)
 
         Task { @MainActor in
             await Task.yield()
@@ -264,6 +284,16 @@ struct RootView: View {
                     "state": authManager.sessionState.debugName
                 ]
             )
+            AuthFlowDebugTrace.record(
+                "root-release.state-mutated",
+                layer: "root-view",
+                details: [
+                    "handoff": attemptID.uuidString,
+                    "rootIdentity": rootContentIdentity,
+                    "showsAuthenticationRoot": String(showsAuthenticationRoot)
+                ]
+            )
+            AuthHandoffVisualDiagnostics.schedulePostReleaseCheckpoints(handoffID: attemptID)
         }
     }
 
