@@ -67,6 +67,8 @@ struct RootView: View {
                     ProgressActivityDots(color: themeManager.accentColor.color)
                 } else if showsAuthenticationRoot {
                     authView
+                } else if holdsMainAppBehindRequiredOnboarding {
+                    Color.clear
                 } else {
                     mainAppView
                 }
@@ -275,6 +277,7 @@ struct RootView: View {
         Task { @MainActor in
             await Task.yield()
             guard authenticatedHandoffAttemptID == attemptID else { return }
+            prepareRequiredOnboardingForSignedInUser()
             authenticatedHandoffAttemptID = nil
             AuthFlowDebugTrace.record(
                 "handoff.root-release",
@@ -314,11 +317,16 @@ struct RootView: View {
         guard hasCompletedLaunchAnimation else { return }
         guard authenticatedHandoffAttemptID == nil else { return }
 
-        if case .signedIn(let user) = authManager.sessionState {
-            onboardingStateStore.presentRequiredIfNeeded(for: user)
+        if case .signedIn = authManager.sessionState {
+            prepareRequiredOnboardingForSignedInUser()
         } else if case .required = onboardingStateStore.presentation {
             onboardingStateStore.presentRequiredIfNeeded(for: nil)
         }
+    }
+
+    private func prepareRequiredOnboardingForSignedInUser() {
+        guard case .signedIn(let user) = authManager.sessionState else { return }
+        onboardingStateStore.presentRequiredIfNeeded(for: user)
     }
 
     private func stateName(_ state: AuthSessionState) -> String {
@@ -336,7 +344,13 @@ struct RootView: View {
         case .checking:
             "checking"
         case .signedIn:
-            showsAuthenticationRoot ? "auth" : "main"
+            if showsAuthenticationRoot {
+                "auth"
+            } else if holdsMainAppBehindRequiredOnboarding {
+                "onboarding"
+            } else {
+                "main"
+            }
         case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
             "auth"
         }
@@ -357,6 +371,15 @@ struct RootView: View {
         authenticatedHandoffAttemptID != nil
     }
 
+    private var holdsMainAppBehindRequiredOnboarding: Bool {
+        if case .required = onboardingStateStore.presentation {
+            return true
+        }
+
+        guard case .signedIn(let user) = authManager.sessionState else { return false }
+        return onboardingStateStore.hasPendingOnboarding(for: user.uid)
+    }
+
     private var releasesAuthUIAfterLaunch: Bool {
         guard hasCompletedLaunchAnimation, !isLaunchAnimationVisible else { return false }
 
@@ -373,7 +396,7 @@ struct RootView: View {
     }
 
     private func onboardingTransition(for presentation: OnboardingPresentation) -> AnyTransition {
-        return .opacity.combined(with: .scale(scale: 0.985))
+        .opacity
     }
 
     private func completeOnboarding(_ completedPresentation: OnboardingPresentation) {

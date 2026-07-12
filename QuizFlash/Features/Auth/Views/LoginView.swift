@@ -221,10 +221,10 @@ struct LoginView: View {
 
     @ViewBuilder
     private var authenticationStatusContent: some View {
-        switch authManager.sessionState {
-        case .emailVerificationRequired(let user):
-            EmailVerificationRequiredView(
-                user: user,
+        if let verificationState {
+            EmailVerificationStatusView(
+                user: verificationState.user,
+                isVerified: verificationState.isVerified,
                 onResend: {
                     try await authManager.resendEmailVerification()
                 },
@@ -243,19 +243,26 @@ struct LoginView: View {
                         )
                     )
                 },
-                onError: presentError
-            )
-        case .emailVerificationSucceeded(let user):
-            EmailVerificationSuccessView(
-                user: user,
                 onContinue: {
                     authManager.completeEmailVerificationSuccess()
-                }
+                },
+                onError: presentError
             )
-        case .checking:
+        } else if case .checking = authManager.sessionState {
             ProgressActivityDots(color: themeManager.accentColor.color)
-        case .signedOut, .signedIn:
+        } else {
             EmptyView()
+        }
+    }
+
+    private var verificationState: (user: AuthUserSnapshot, isVerified: Bool)? {
+        switch authManager.sessionState {
+        case .emailVerificationRequired(let user):
+            (user, false)
+        case .emailVerificationSucceeded(let user):
+            (user, true)
+        case .checking, .signedOut, .signedIn:
+            nil
         }
     }
 
@@ -1883,59 +1890,20 @@ private extension View {
 }
 #endif
 
-// MARK: - Email Verification Success View
+// MARK: - Email Verification Status View
 
-private struct EmailVerificationSuccessView: View {
+private struct EmailVerificationStatusView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let user: AuthUserSnapshot
-    let onContinue: @MainActor @Sendable () -> Void
-
-    private var locale: Locale {
-        appPreferences.resolvedLocale
-    }
-
-    var body: some View {
-        VStack(spacing: UIConstants.Spacing.large) {
-            Spacer(minLength: 0)
-
-            VStack(spacing: UIConstants.Spacing.small) {
-                Text(AppLocalization.string("Email verified", locale: locale))
-                    .font(.system(size: 38, weight: .heavy))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-
-                Text(AppLocalization.string("You're all set.", locale: locale))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, UIConstants.Spacing.large)
-        .frame(maxWidth: 440)
-        .transition(.opacity)
-        .task(id: user.uid) {
-            try? await Task.sleep(for: .milliseconds(1200))
-            guard !Task.isCancelled else { return }
-            onContinue()
-        }
-    }
-}
-
-// MARK: - Email Verification Required View
-
-private struct EmailVerificationRequiredView: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let user: AuthUserSnapshot
+    let isVerified: Bool
     let onResend: @MainActor @Sendable () async throws -> Void
     let onReload: @MainActor @Sendable () async throws -> Void
     let onCancel: @MainActor @Sendable () async throws -> Void
     let onResendSuccess: @MainActor @Sendable () -> Void
+    let onContinue: @MainActor @Sendable () -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
     @State private var resendCooldownDeadline: Date?
@@ -1951,53 +1919,74 @@ private struct EmailVerificationRequiredView: View {
         VStack(spacing: UIConstants.Spacing.large) {
             Spacer(minLength: 0)
 
-            Image(systemName: "envelope.badge")
-                .font(.system(size: 64, weight: .bold))
-                .foregroundStyle(themeManager.accentColor.color)
+            if !isVerified {
+                Image(systemName: "envelope.badge")
+                    .font(.system(size: 64, weight: .bold))
+                    .foregroundStyle(themeManager.accentColor.color)
+                    .transition(verificationElementTransition)
+            }
 
             VStack(spacing: UIConstants.Spacing.small) {
-                Text(AppLocalization.string("Check your email", locale: locale))
-                    .font(.title.weight(.bold))
+                Text(
+                    AppLocalization.string(
+                        isVerified ? "Email verified" : "Check your email",
+                        locale: locale
+                    )
+                )
+                    .font(.system(size: isVerified ? 38 : 28, weight: isVerified ? .heavy : .bold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .statusTextMotion(trigger: isVerified)
 
-                if let email = user.email {
+                if isVerified {
+                    Text(AppLocalization.string("You're all set.", locale: locale))
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .transition(verificationElementTransition)
+                } else if let email = user.email {
                     Text(email)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
+                        .transition(verificationElementTransition)
                 }
             }
             .multilineTextAlignment(.center)
 
-            VStack(spacing: UIConstants.Spacing.medium) {
-                ProgressActivityDots(color: themeManager.accentColor.color)
-                .frame(maxWidth: .infinity)
-                .frame(height: UIConstants.Size.buttonHeight)
+            if !isVerified {
+                VStack(spacing: UIConstants.Spacing.medium) {
+                    ProgressActivityDots(color: themeManager.accentColor.color)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: UIConstants.Size.buttonHeight)
 
-                AuthAsyncButton(
-                    title: resendButtonTitle,
-                    icon: "arrow.clockwise",
-                    tint: Color.primary.opacity(0.08),
-                    foreground: .primary,
-                    isEnabled: resendCooldownSeconds == 0
-                ) {
-                    try await onResend()
-                    startResendCooldown()
-                    onResendSuccess()
-                } onError: { error in
-                    onError(error)
-                }
+                    AuthAsyncButton(
+                        title: resendButtonTitle,
+                        icon: "arrow.clockwise",
+                        tint: Color.primary.opacity(0.08),
+                        foreground: .primary,
+                        isEnabled: resendCooldownSeconds == 0
+                    ) {
+                        try await onResend()
+                        startResendCooldown()
+                        onResendSuccess()
+                    } onError: { error in
+                        onError(error)
+                    }
 
-                AuthAsyncButton(
-                    title: AppLocalization.string("Cancel", locale: locale),
-                    icon: "xmark",
-                    tint: Color.primary.opacity(0.08),
-                    foreground: .secondary
-                ) {
-                    try await onCancel()
-                } onError: { error in
-                    onError(error)
+                    AuthAsyncButton(
+                        title: AppLocalization.string("Cancel", locale: locale),
+                        icon: "xmark",
+                        tint: Color.primary.opacity(0.08),
+                        foreground: .secondary
+                    ) {
+                        try await onCancel()
+                    } onError: { error in
+                        onError(error)
+                    }
                 }
+                .transition(verificationElementTransition)
             }
 
             Spacer(minLength: 0)
@@ -2008,8 +1997,15 @@ private struct EmailVerificationRequiredView: View {
             guard resendCooldownDeadline == nil else { return }
             startResendCooldown()
         }
-        .task(id: user.uid) {
-            await pollVerificationStatus()
+        .animation(verificationAnimation, value: isVerified)
+        .task(id: verificationTaskID) {
+            if isVerified {
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard !Task.isCancelled else { return }
+                onContinue()
+            } else {
+                await pollVerificationStatus()
+            }
         }
         .task(id: resendCooldownDeadline) {
             await updateResendCooldown()
@@ -2023,6 +2019,18 @@ private struct EmailVerificationRequiredView: View {
 
         let format = AppLocalization.string("Resend in %d s", locale: locale)
         return String.localizedStringWithFormat(format, resendCooldownSeconds)
+    }
+
+    private var verificationTaskID: String {
+        "\(user.uid)-\(isVerified)"
+    }
+
+    private var verificationAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .selectionToolbarSpring
+    }
+
+    private var verificationElementTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96))
     }
 
     private func startResendCooldown() {
