@@ -287,16 +287,18 @@ struct LoginView: View {
                             launchBoltNamespace: launchBoltNamespace,
                             onPrepared: onAuthWalkthroughPrepared
                         )
-                        .scaleRevealMotion(
-                            isVisible: isAuthenticationCenterContentVisible,
-                            reduceMotion: reduceMotion
-                        )
+                        .opacity(isAuthenticationCenterContentVisible ? 1 : 0)
+                        .allowsHitTesting(isAuthenticationCenterContentVisible)
                         .accessibilityHidden(!isAuthenticationCenterContentVisible)
                     } else {
                         Color.clear
                     }
 
-                    Text(AppLocalization.string("Welcome", locale: locale))
+                    Text(
+                        showsAuthenticationWelcome
+                            ? AppLocalization.string("Welcome", locale: locale)
+                            : ""
+                    )
                         .font(.system(size: 46, weight: .heavy))
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -305,10 +307,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .accessibilityAddTraits(.isHeader)
                         .authHandoffRenderProbe("welcome-content")
-                        .scaleRevealMotion(
-                            isVisible: showsAuthenticationWelcome,
-                            reduceMotion: reduceMotion
-                        )
+                        .statusTextMotion(trigger: showsAuthenticationWelcome)
                         .accessibilityHidden(!showsAuthenticationWelcome)
                 }
                 .padding(.horizontal, UIConstants.Spacing.extraLarge)
@@ -614,33 +613,20 @@ struct LoginView: View {
         }
 
         AuthFlowDebugTrace.record(
-            "welcome.scale-reveal.hide-walkthrough",
+            "welcome.text-motion.swap-requested",
             layer: "login-view",
             details: ["attempt": attemptID.uuidString]
         )
         isAuthenticationCenterContentVisible = false
-
-        guard await waitForAuthenticationWelcomePhase(
-            "hide-walkthrough",
-            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.contentSwapDelay,
-            attemptID: attemptID
-        ) else { return }
-
         showsAuthenticationWelcome = true
-        AuthFlowDebugTrace.record(
-            "welcome.scale-reveal.reveal-requested",
-            layer: "login-view",
-            details: ["attempt": attemptID.uuidString]
-        )
 
-        guard await waitForAuthenticationWelcomePhase(
-            "reveal-delay",
-            reduceMotion ? .milliseconds(10) : ScaleRevealMotion.revealDelay,
-            attemptID: attemptID
-        ) else { return }
+        await Task.yield()
+        guard authenticationWelcomeAttemptID == attemptID,
+              authenticationHandoffAttemptID == attemptID,
+              !Task.isCancelled else { return }
 
         AuthFlowDebugTrace.record(
-            "welcome.scale-reveal.visible",
+            "welcome.text-motion.started",
             layer: "login-view",
             details: ["attempt": attemptID.uuidString]
         )
