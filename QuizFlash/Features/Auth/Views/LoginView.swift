@@ -280,7 +280,8 @@ struct LoginView: View {
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
                             animates: allowsAuthWalkthroughAnimation
-                                && !isAuthWalkthroughAnimationPausedForSheet,
+                                && !isAuthWalkthroughAnimationPausedForSheet
+                                && isAuthenticationCenterContentVisible,
                             showsBolt: showsAuthWalkthroughBolt,
                             showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
@@ -1377,7 +1378,7 @@ private struct AuthWalkthroughText: View {
             guard animates, animationRunID == runID, !Task.isCancelled else { return }
 
             isTextLayerVisible = true
-            animate(0, runID: runID)
+            await animate(runID: runID)
         }
         .onChange(of: animates) { _, animates in
             animationRunID = UUID()
@@ -1402,32 +1403,54 @@ private struct AuthWalkthroughText: View {
         }
     }
 
-    private func animate(_ index: Int, loop: Bool = true, runID: UUID) {
-        guard animates, animationRunID == runID else { return }
+    @MainActor
+    private func animate(runID: UUID) async {
+        var index = 0
 
-        if intros.indices.contains(index + 1) {
-            activeIntro?.text = intros[index].text
-            activeIntro?.textColor = intros[index].textColor
+        while isCurrentAnimationRun(runID) {
+            let nextIndex = index + 1
+            guard intros.indices.contains(index), intros.indices.contains(nextIndex) else { return }
 
-            withAnimation(.snappy(duration: 1), completionCriteria: .removed) {
-                activeIntro?.textOffset = -(textSize(intros[index].text) + 20)
-                activeIntro?.symbolOffset = -(textSize(intros[index].text) + 20) / 2
-            } completion: {
-                guard animates, animationRunID == runID else { return }
+            let currentIntro = intros[index]
+            let nextIntro = intros[nextIndex]
+            let outgoingOffset = textSize(currentIntro.text) + 20
 
-                withAnimation(.snappy(duration: 0.8), completionCriteria: .logicallyComplete) {
-                    activeIntro?.textOffset = 0
-                    activeIntro?.symbolOffset = 0
-                    activeIntro?.symbolColor = intros[index + 1].symbolColor
-                    activeIntro?.backgroundColor = intros[index + 1].backgroundColor
-                } completion: {
-                    guard animates, animationRunID == runID else { return }
-                    animate(index + 1, loop: loop, runID: runID)
-                }
+            activeIntro?.text = currentIntro.text
+            activeIntro?.textColor = currentIntro.textColor
+
+            withAnimation(.snappy(duration: 1)) {
+                activeIntro?.textOffset = -outgoingOffset
+                activeIntro?.symbolOffset = -outgoingOffset / 2
             }
-        } else if loop {
-            animate(0, loop: loop, runID: runID)
+
+            guard await waitForAnimationPhase(.seconds(1), runID: runID) else { return }
+
+            withAnimation(.snappy(duration: 0.8)) {
+                activeIntro?.textOffset = 0
+                activeIntro?.symbolOffset = 0
+                activeIntro?.symbolColor = nextIntro.symbolColor
+                activeIntro?.backgroundColor = nextIntro.backgroundColor
+            }
+
+            guard await waitForAnimationPhase(.seconds(0.8), runID: runID) else { return }
+
+            index = intros.indices.contains(nextIndex + 1) ? nextIndex : 0
         }
+    }
+
+    @MainActor
+    private func waitForAnimationPhase(_ duration: Duration, runID: UUID) async -> Bool {
+        do {
+            try await Task.sleep(for: duration)
+        } catch {
+            return false
+        }
+        return isCurrentAnimationRun(runID)
+    }
+
+    @MainActor
+    private func isCurrentAnimationRun(_ runID: UUID) -> Bool {
+        animates && animationRunID == runID && !Task.isCancelled
     }
 
     private func resetActiveIntroState() {
