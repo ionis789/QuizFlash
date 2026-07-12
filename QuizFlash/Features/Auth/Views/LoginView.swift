@@ -40,6 +40,7 @@ struct LoginView: View {
     @State private var authWalkthroughVisibilityTask: Task<Void, Never>?
     @State private var isAuthWalkthroughHiddenBySheet = false
     @State private var isAuthWalkthroughAnimationPausedForSheet = false
+    @State private var isAuthWalkthroughFrozenForWelcome = false
     @State private var authenticationHandoffAttemptID: UUID?
     @State private var authenticationWelcomeAttemptID: UUID?
     @State private var isAuthenticationCenterContentVisible = true
@@ -55,6 +56,8 @@ struct LoginView: View {
     let onAuthenticationAttemptStarted: @MainActor (UUID) -> Void
     let onAuthenticationAttemptCancelled: @MainActor (UUID) -> Void
     let onAuthenticationHandoffCompleted: @MainActor (UUID) -> Void
+
+    private static let authenticationWelcomeFreezeDelay: Duration = .milliseconds(50)
 
     init(
         showsAuthWalkthrough: Bool = true,
@@ -274,22 +277,19 @@ struct LoginView: View {
                     .ignoresSafeArea()
 
                 ZStack {
-                    if showsAuthWalkthrough {
+                    if showsAuthWalkthrough, isAuthenticationCenterContentVisible {
                         AuthWalkthroughText(
                             phrases: walkthroughPhrases,
                             symbolColor: themeManager.accentColor.color,
                             reduceMotion: reduceMotion,
                             animates: allowsAuthWalkthroughAnimation
-                                && !isAuthWalkthroughAnimationPausedForSheet
-                                && isAuthenticationCenterContentVisible,
+                                && !isAuthWalkthroughAnimationPausedForSheet,
+                            freezesContent: isAuthWalkthroughFrozenForWelcome,
                             showsBolt: showsAuthWalkthroughBolt,
                             showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
                             onPrepared: onAuthWalkthroughPrepared
                         )
-                        .opacity(isAuthenticationCenterContentVisible ? 1 : 0)
-                        .allowsHitTesting(isAuthenticationCenterContentVisible)
-                        .accessibilityHidden(!isAuthenticationCenterContentVisible)
                     } else {
                         Color.clear
                     }
@@ -609,6 +609,22 @@ struct LoginView: View {
                     extra: ["reason": "missing-or-stale-attempt"]
                 )
             )
+            return
+        }
+
+        AuthFlowDebugTrace.record(
+            "welcome.walkthrough-freeze.requested",
+            layer: "login-view",
+            details: ["attempt": attemptID.uuidString]
+        )
+        isAuthWalkthroughFrozenForWelcome = true
+
+        guard await waitForAuthenticationWelcomePhase(
+            "freeze-walkthrough",
+            reduceMotion ? .milliseconds(10) : Self.authenticationWelcomeFreezeDelay,
+            attemptID: attemptID
+        ) else {
+            isAuthWalkthroughFrozenForWelcome = false
             return
         }
 
@@ -1287,6 +1303,7 @@ private struct AuthWalkthroughText: View {
     let symbolColor: Color
     let reduceMotion: Bool
     let animates: Bool
+    let freezesContent: Bool
     let showsBolt: Bool
     let showsText: Bool
     let launchBoltNamespace: Namespace.ID?
@@ -1342,10 +1359,12 @@ private struct AuthWalkthroughText: View {
         .frame(maxWidth: .infinity)
         .frame(height: 86)
         .clipped()
-        .task(id: "\(phrases.joined(separator: "|"))-\(animates)") {
+        .task(id: "\(phrases.joined(separator: "|"))-\(animates)-\(freezesContent)") {
             let runID = UUID()
             animationRunID = runID
-            isTextLayerVisible = false
+            if !freezesContent {
+                isTextLayerVisible = false
+            }
             configureIntros()
 
             if activeIntro == nil {
@@ -1354,8 +1373,15 @@ private struct AuthWalkthroughText: View {
 #if DEBUG
                 authLaunchDebugLog("walkthrough target ready")
 #endif
+            } else if freezesContent {
+                freezeActiveIntroState()
             } else {
                 resetActiveIntroState()
+            }
+
+            if freezesContent {
+                isTextLayerVisible = true
+                return
             }
 
             guard animates, intros.count > 1, !reduceMotion else { return }
@@ -1436,7 +1462,16 @@ private struct AuthWalkthroughText: View {
 
     @MainActor
     private func isCurrentAnimationRun(_ runID: UUID) -> Bool {
-        animates && animationRunID == runID && !Task.isCancelled
+        animates && !freezesContent && animationRunID == runID && !Task.isCancelled
+    }
+
+    private func freezeActiveIntroState() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            activeIntro?.textOffset = 0
+            activeIntro?.symbolOffset = 0
+        }
     }
 
     private func resetActiveIntroState() {
