@@ -1938,6 +1938,11 @@ private struct EmailVerificationRequiredView: View {
     let onResendSuccess: @MainActor @Sendable () -> Void
     let onError: @MainActor @Sendable (Error) -> Void
 
+    @State private var resendCooldownDeadline: Date?
+    @State private var resendCooldownSeconds = 60
+
+    private static let resendCooldownDuration: TimeInterval = 60
+
     private var locale: Locale {
         appPreferences.resolvedLocale
     }
@@ -1970,12 +1975,14 @@ private struct EmailVerificationRequiredView: View {
                 .frame(height: UIConstants.Size.buttonHeight)
 
                 AuthAsyncButton(
-                    title: AppLocalization.string("Resend Email", locale: locale),
+                    title: resendButtonTitle,
                     icon: "arrow.clockwise",
                     tint: Color.primary.opacity(0.08),
-                    foreground: .primary
+                    foreground: .primary,
+                    isEnabled: resendCooldownSeconds == 0
                 ) {
                     try await onResend()
+                    startResendCooldown()
                     onResendSuccess()
                 } onError: { error in
                     onError(error)
@@ -1997,8 +2004,49 @@ private struct EmailVerificationRequiredView: View {
         }
         .padding(.horizontal, UIConstants.Spacing.large)
         .frame(maxWidth: 440)
+        .onAppear {
+            guard resendCooldownDeadline == nil else { return }
+            startResendCooldown()
+        }
         .task(id: user.uid) {
             await pollVerificationStatus()
+        }
+        .task(id: resendCooldownDeadline) {
+            await updateResendCooldown()
+        }
+    }
+
+    private var resendButtonTitle: String {
+        guard resendCooldownSeconds > 0 else {
+            return AppLocalization.string("Resend Email", locale: locale)
+        }
+
+        let format = AppLocalization.string("Resend in %d s", locale: locale)
+        return String.localizedStringWithFormat(format, resendCooldownSeconds)
+    }
+
+    private func startResendCooldown() {
+        resendCooldownSeconds = Int(Self.resendCooldownDuration)
+        resendCooldownDeadline = Date().addingTimeInterval(Self.resendCooldownDuration)
+    }
+
+    @MainActor
+    private func updateResendCooldown() async {
+        guard let resendCooldownDeadline else { return }
+
+        while !Task.isCancelled {
+            let remaining = max(
+                0,
+                Int(ceil(resendCooldownDeadline.timeIntervalSinceNow))
+            )
+            resendCooldownSeconds = remaining
+            guard remaining > 0 else { return }
+
+            do {
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                return
+            }
         }
     }
 

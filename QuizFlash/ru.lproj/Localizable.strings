@@ -631,6 +631,7 @@
 "Replace current zone?" = "Заменить текущую зону?";
 "Replace Zone" = "Заменить зону";
 "Resend Email" = "Отправить снова";
+"Resend in %d s" = "Повторить через %d с";
 "Reset" = "Сброс";
 "Reset Simulation" = "Сбросить симуляцию";
 "Resize Zone" = "Изменить размер зоны";

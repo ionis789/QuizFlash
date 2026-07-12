@@ -631,6 +631,7 @@
 "Replace current zone?" = "Înlocuiești zona curentă?";
 "Replace Zone" = "Înlocuiește zona";
 "Resend Email" = "Retrimite emailul";
+"Resend in %d s" = "Retrimite în %d s";
 "Reset" = "Resetează";
 "Reset Simulation" = "Resetați simularea";
 "Resize Zone" = "Redimensionează zona";

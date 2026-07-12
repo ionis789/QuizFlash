@@ -631,6 +631,7 @@
 "Replace current zone?" = "Replace current zone?";
 "Replace Zone" = "Replace Zone";
 "Resend Email" = "Resend Email";
+"Resend in %d s" = "Resend in %d s";
 "Reset" = "Reset";
 "Reset Simulation" = "Reset Simulation";
 "Resize Zone" = "Resize Zone";
