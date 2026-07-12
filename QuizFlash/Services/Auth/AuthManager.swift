@@ -405,16 +405,48 @@ final class AuthManager {
         password: String,
         confirmation: String
     ) async throws -> AuthUserSnapshot {
+        let traceID = AuthFlowDebugTrace.beginAttempt(
+            provider: "email-sign-up",
+            state: sessionState
+        )
         guard password == confirmation else {
+            AuthFlowDebugTrace.record(
+                "account-create.rejected",
+                layer: "auth-manager",
+                details: ["operation": traceID, "reason": "password-mismatch"]
+            )
             throw AuthManagerError.passwordConfirmationMismatch
         }
 
-        let user = try await authProvider.createAccount(
-            email: normalizedEmail(email),
-            password: password
+        AuthFlowDebugTrace.record(
+            "account-create.requested",
+            layer: "auth-manager",
+            details: ["operation": traceID]
         )
-        apply(user)
-        return user
+
+        do {
+            let user = try await authProvider.createAccount(
+                email: normalizedEmail(email),
+                password: password
+            )
+            AuthFlowDebugTrace.record(
+                "account-create.completed",
+                layer: "auth-manager",
+                details: [
+                    "operation": traceID,
+                    "user": BackendTraceStore.safeUID(user.uid)
+                ]
+            )
+            apply(user)
+            return user
+        } catch {
+            AuthFlowDebugTrace.record(
+                "account-create.failed",
+                layer: "auth-manager",
+                details: authErrorTraceDetails(error, extra: ["operation": traceID])
+            )
+            throw error
+        }
     }
 
     func updateDisplayName(_ displayName: String?) async throws {
@@ -429,7 +461,31 @@ final class AuthManager {
     }
 
     func resendEmailVerification() async throws {
-        try await authProvider.sendEmailVerification()
+        let traceID = AuthFlowDebugTrace.beginAttempt(
+            provider: "email-resend",
+            state: sessionState
+        )
+        AuthFlowDebugTrace.record(
+            "verification-resend.requested",
+            layer: "auth-manager",
+            details: ["operation": traceID]
+        )
+
+        do {
+            try await authProvider.sendEmailVerification()
+            AuthFlowDebugTrace.record(
+                "verification-resend.completed",
+                layer: "auth-manager",
+                details: ["operation": traceID]
+            )
+        } catch {
+            AuthFlowDebugTrace.record(
+                "verification-resend.failed",
+                layer: "auth-manager",
+                details: authErrorTraceDetails(error, extra: ["operation": traceID])
+            )
+            throw error
+        }
     }
 
     func reloadEmailVerificationStatus() async throws {
@@ -625,6 +681,18 @@ final class AuthManager {
         )
     }
 
+    private func authErrorTraceDetails(
+        _ error: Error,
+        extra: [String: String] = [:]
+    ) -> [String: String] {
+        let nsError = error as NSError
+        var details = extra
+        details["errorType"] = String(describing: type(of: error))
+        details["errorDomain"] = nsError.domain
+        details["errorCode"] = String(nsError.code)
+        return details
+    }
+
     private func applySignInSuccess(_ user: AuthUserSnapshot) {
         let previousState = sessionState
         guard !user.requiresEmailVerification else {
@@ -729,8 +797,68 @@ private final class FirebaseAuthClient: AuthProviding {
     }
 
     func createAccount(email: String, password: String) async throws -> AuthUserSnapshot {
-        let result = try await Auth.auth().createUser(withEmail: email, password: password)
-        try await result.user.sendEmailVerification()
+        AuthFlowDebugTrace.record(
+            "create-user.request.start",
+            layer: "firebase-email"
+        )
+
+        let result: AuthDataResult
+        do {
+            result = try await Auth.auth().createUser(withEmail: email, password: password)
+        } catch {
+            let nsError = error as NSError
+            AuthFlowDebugTrace.record(
+                "create-user.request.failed",
+                layer: "firebase-email",
+                details: [
+                    "errorType": String(describing: type(of: error)),
+                    "errorDomain": nsError.domain,
+                    "errorCode": String(nsError.code)
+                ]
+            )
+            throw error
+        }
+
+        AuthFlowDebugTrace.record(
+            "create-user.request.success",
+            layer: "firebase-email",
+            details: ["user": BackendTraceStore.safeUID(result.user.uid)]
+        )
+        AuthFlowDebugTrace.record(
+            "verification-email.request.start",
+            layer: "firebase-email",
+            details: [
+                "phase": "initial",
+                "user": BackendTraceStore.safeUID(result.user.uid)
+            ]
+        )
+
+        do {
+            try await result.user.sendEmailVerification()
+        } catch {
+            let nsError = error as NSError
+            AuthFlowDebugTrace.record(
+                "verification-email.request.failed",
+                layer: "firebase-email",
+                details: [
+                    "phase": "initial",
+                    "user": BackendTraceStore.safeUID(result.user.uid),
+                    "errorType": String(describing: type(of: error)),
+                    "errorDomain": nsError.domain,
+                    "errorCode": String(nsError.code)
+                ]
+            )
+            throw error
+        }
+
+        AuthFlowDebugTrace.record(
+            "verification-email.request.success",
+            layer: "firebase-email",
+            details: [
+                "phase": "initial",
+                "user": BackendTraceStore.safeUID(result.user.uid)
+            ]
+        )
         return result.user.authSnapshot
     }
 
@@ -755,10 +883,49 @@ private final class FirebaseAuthClient: AuthProviding {
 
     func sendEmailVerification() async throws {
         guard let user = Auth.auth().currentUser else {
+            AuthFlowDebugTrace.record(
+                "verification-email.request.rejected",
+                layer: "firebase-email",
+                details: ["phase": "resend", "reason": "missing-current-user"]
+            )
             throw AuthManagerError.missingCurrentUser
         }
 
-        try await user.sendEmailVerification()
+        AuthFlowDebugTrace.record(
+            "verification-email.request.start",
+            layer: "firebase-email",
+            details: [
+                "phase": "resend",
+                "user": BackendTraceStore.safeUID(user.uid)
+            ]
+        )
+
+        do {
+            try await user.sendEmailVerification()
+        } catch {
+            let nsError = error as NSError
+            AuthFlowDebugTrace.record(
+                "verification-email.request.failed",
+                layer: "firebase-email",
+                details: [
+                    "phase": "resend",
+                    "user": BackendTraceStore.safeUID(user.uid),
+                    "errorType": String(describing: type(of: error)),
+                    "errorDomain": nsError.domain,
+                    "errorCode": String(nsError.code)
+                ]
+            )
+            throw error
+        }
+
+        AuthFlowDebugTrace.record(
+            "verification-email.request.success",
+            layer: "firebase-email",
+            details: [
+                "phase": "resend",
+                "user": BackendTraceStore.safeUID(user.uid)
+            ]
+        )
     }
 
     func reloadCurrentUser() async throws -> AuthUserSnapshot? {
