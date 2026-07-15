@@ -2416,12 +2416,18 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        // A selected-text long press otherwise starts UIKit's drag lift before
+        // the native edit menu can claim the touch. Zone text is edited in
+        // place, so keep native selection/menu gestures and disable only the
+        // drag-source interaction. Text drop and paste remain available.
+        textView.textDragInteraction?.isEnabled = false
+
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
             "text.custom-gestures-disabled",
             zoneID: zoneID,
             pathID: pathID,
             textView: textView,
-            details: "reason=nativeUITextViewGesturesOwnTapLongPressSelection"
+            details: "reason=nativeUITextViewGesturesOwnTapLongPressSelection textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
         )
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
             "text.interactions-installed",
