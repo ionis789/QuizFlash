@@ -1856,8 +1856,18 @@ private final class SheetHostingController: UIHostingController<AnyView> {
     }
 
     private func updateTrackedScrollViewIfNeeded() {
+        if let trackedScrollView,
+           trackedScrollView.isDescendant(of: view),
+           isEffectivelyVisible(trackedScrollView, within: view),
+           trackedScrollView.bounds.height > 0,
+           trackedScrollView.contentSize.height > trackedScrollView.bounds.height + 1
+               || trackedScrollView.alwaysBounceVertical {
+            reportTrackedScrollOffset(from: trackedScrollView)
+            return
+        }
+
         let candidate = nestedVerticalScrollViews(in: view)
-            .filter { !$0.isHidden && $0.alpha > 0.01 && $0.bounds.height > 0 }
+            .filter { isEffectivelyVisible($0, within: view) && $0.bounds.height > 0 }
             .max { lhs, rhs in
                 let leftArea = lhs.bounds.width * lhs.bounds.height
                 let rightArea = rhs.bounds.width * rhs.bounds.height
@@ -1886,6 +1896,16 @@ private final class SheetHostingController: UIHostingController<AnyView> {
         ) { [weak self] scrollView, _ in
             self?.reportTrackedScrollOffset(from: scrollView)
         }
+    }
+
+    private func isEffectivelyVisible(_ candidate: UIView, within root: UIView) -> Bool {
+        var current: UIView? = candidate
+        while let currentView = current {
+            guard !currentView.isHidden, currentView.alpha > 0.01 else { return false }
+            if currentView === root { return true }
+            current = currentView.superview
+        }
+        return false
     }
 
     private func reportTrackedScrollOffset(from scrollView: UIScrollView) {

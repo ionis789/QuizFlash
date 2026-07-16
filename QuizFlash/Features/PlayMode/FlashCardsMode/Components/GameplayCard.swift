@@ -111,6 +111,7 @@ struct GameplayCard: View {
             FlipCard(
                 card: card,
                 isFlipped: $isFlipped,
+                preloadsHiddenFace: isInteractionEnabled,
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
                 contentAlignment: contentAlignment,

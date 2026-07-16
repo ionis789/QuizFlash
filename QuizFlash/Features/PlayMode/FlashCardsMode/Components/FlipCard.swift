@@ -269,6 +269,7 @@ struct FlipCard: View {
     ///
     /// `false` = front (question), `true` = back (answer).
     @Binding var isFlipped: Bool
+    private let preloadsHiddenFace: Bool
     private let tapAnimationStyle: FlashcardTapAnimationStyle
     private let staticSwapTextMotion: FlashcardStaticSwapTextMotion
     private let contentAlignment: FlashcardContentAlignment
@@ -345,6 +346,7 @@ struct FlipCard: View {
     init(
         card: PlayableCard,
         isFlipped: Binding<Bool>,
+        preloadsHiddenFace: Bool = true,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
@@ -356,6 +358,7 @@ struct FlipCard: View {
         self.backZone = card.backZone
         self.contentIdentity = String(describing: card.id)
         self._isFlipped = isFlipped
+        self.preloadsHiddenFace = preloadsHiddenFace
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -369,6 +372,7 @@ struct FlipCard: View {
         frontZone: ZoneModel,
         backZone: ZoneModel,
         isFlipped: Binding<Bool>,
+        preloadsHiddenFace: Bool = true,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
@@ -380,6 +384,7 @@ struct FlipCard: View {
         self.backZone = backZone
         self.contentIdentity = "\(frontZone.id.uuidString)|\(backZone.id.uuidString)"
         self._isFlipped = isFlipped
+        self.preloadsHiddenFace = preloadsHiddenFace
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -432,8 +437,10 @@ struct FlipCard: View {
         let rotation = isFlipped ? 180.0 : 0.0
 
         return ZStack {
-            cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
-                .modifier(FlipFaceModifier(rotationDegrees: rotation + 180))
+            if preloadsHiddenFace || isFlipped {
+                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
+                    .modifier(FlipFaceModifier(rotationDegrees: rotation + 180))
+            }
 
             cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
                 .modifier(FlipFaceModifier(rotationDegrees: rotation))
@@ -442,13 +449,15 @@ struct FlipCard: View {
 
     private var staticSwapBody: some View {
         ZStack {
-            cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
-                .staticSwapFaceState(
-                    isVisible: isFlipped,
-                    textMotion: staticSwapTextMotion,
-                    insertionDirection: 1
-                )
-                .zIndex(isFlipped ? 2 : 1)
+            if preloadsHiddenFace || isFlipped {
+                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
+                    .staticSwapFaceState(
+                        isVisible: isFlipped,
+                        textMotion: staticSwapTextMotion,
+                        insertionDirection: 1
+                    )
+                    .zIndex(isFlipped ? 2 : 1)
+            }
 
             cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
                 .staticSwapFaceState(

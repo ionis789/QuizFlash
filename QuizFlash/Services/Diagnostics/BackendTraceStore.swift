@@ -20,6 +20,8 @@ actor BackendTraceStore {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var currentSessionID = UUID()
+    private var cachedSessions: [BackendTraceSession]?
+    private var pendingPersistTask: Task<Void, Never>?
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -32,7 +34,7 @@ actor BackendTraceStore {
         layer: String,
         details: [String: String] = [:]
     ) {
-        var sessions = loadSessions()
+        var sessions = sessions()
         let now = Date()
         let sessionIndex = sessions.firstIndex { $0.id == currentSessionID }
         if sessionIndex == nil {
@@ -70,21 +72,25 @@ actor BackendTraceStore {
             sessions.removeFirst(sessions.count - Self.maxSessions)
         }
 
-        persist(sessions)
+        cachedSessions = sessions
+        schedulePersist()
     }
 
     func clear() {
+        pendingPersistTask?.cancel()
+        pendingPersistTask = nil
+        cachedSessions = []
         userDefaults.removeObject(forKey: storageKey)
         userDefaults.removeObject(forKey: legacyEventsStorageKey)
         currentSessionID = UUID()
     }
 
     func eventCount() -> Int {
-        loadSessions().reduce(0) { $0 + $1.events.count }
+        sessions().reduce(0) { $0 + $1.events.count }
     }
 
     func sessionSummaries() -> [BackendTraceSessionSummary] {
-        loadSessions()
+        sessions()
             .sorted { $0.updatedAt > $1.updatedAt }
             .map { session in
                 BackendTraceSessionSummary(
@@ -102,7 +108,7 @@ actor BackendTraceStore {
     }
 
     func report(sessionID: UUID?) -> String {
-        let sessions = loadSessions()
+        let sessions = sessions()
         let session = sessionID
             .flatMap { id in sessions.first { $0.id == id } }
             ?? sessions.first { $0.id == currentSessionID }
@@ -153,6 +159,35 @@ actor BackendTraceStore {
             return []
         }
         return sessions
+    }
+
+    private func sessions() -> [BackendTraceSession] {
+        if let cachedSessions {
+            return cachedSessions
+        }
+
+        let loadedSessions = loadSessions()
+        cachedSessions = loadedSessions
+        return loadedSessions
+    }
+
+    /// Backend tracing is diagnostic-only and can receive large event bursts
+    /// during cloud imports. Persist at most once per interval so recording an
+    /// event never decodes and rewrites the complete bounded history.
+    private func schedulePersist() {
+        guard pendingPersistTask == nil else { return }
+
+        pendingPersistTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            await self?.persistCachedSessions()
+        }
+    }
+
+    private func persistCachedSessions() {
+        pendingPersistTask = nil
+        guard let cachedSessions else { return }
+        persist(cachedSessions)
     }
 
     private func persist(_ sessions: [BackendTraceSession]) {

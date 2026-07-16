@@ -8,11 +8,31 @@
 
 import Foundation
 
+private final class MathTextHealCache: @unchecked Sendable {
+    private let values = NSCache<NSString, NSString>()
+
+    init() {
+        values.countLimit = 512
+        values.totalCostLimit = 4 * 1_024 * 1_024
+    }
+
+    func value(for source: String) -> String? {
+        values.object(forKey: source as NSString) as String?
+    }
+
+    func insert(_ value: String, for source: String) {
+        let cost = source.utf8.count + value.utf8.count
+        values.setObject(value as NSString, forKey: source as NSString, cost: cost)
+    }
+}
+
 // =============================================================================
 // MARK: - MathTextSanitizer
 // =============================================================================
 
 struct MathTextSanitizer {
+
+    private nonisolated static let healCache = MathTextHealCache()
 
     // -------------------------------------------------------------------------
     // MARK: - Constants
@@ -94,6 +114,10 @@ struct MathTextSanitizer {
 
     /// Main entry point. Call this on every string before rendering rich content.
     nonisolated static func heal(_ input: String) -> String {
+        if let cached = healCache.value(for: input) {
+            return cached
+        }
+
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         text = normalizeJSONEscapedLatexCommands(text)
         text = normalizeDetachedPunctuation(text)
@@ -101,6 +125,7 @@ struct MathTextSanitizer {
         text = repairBareLatexDelimiters(text)
         text = fixOrphanDollar(text)
         text = stripInvalidMathTokens(text)
+        healCache.insert(text, for: input)
         return text
     }
 
