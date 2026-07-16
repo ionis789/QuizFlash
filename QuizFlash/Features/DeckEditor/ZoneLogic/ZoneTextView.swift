@@ -1167,7 +1167,7 @@ final class ZoneEditorDebugStore {
 
 // MARK: - Zone Text View Coordinator
 
-final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
+final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
     var zoneID: UUID?
     var pathID: String?
     var onTextChange: ((String) -> Void)?
@@ -1268,6 +1268,49 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
             NotificationCenter.default.removeObserver(observer)
         }
     }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if gestureRecognizer.name == Self.doubleTapPassthroughRecognizerName {
+            return true
+        }
+
+        guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
+              let textView,
+              textView.isFirstResponder,
+              textView.selectedRange.length > 0 else {
+            return false
+        }
+
+        return textView.bounds.contains(touch.location(in: textView))
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+
+    @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended,
+              let textView,
+              textView.isFirstResponder,
+              textView.selectedRange.length > 0 else {
+            return
+        }
+
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.selection-collapse-tap",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "point=\(debugPoint(recognizer.location(in: textView)))"
+        )
+        placeCaret(at: recognizer.location(in: textView), in: textView)
+    }
+
+    static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
+    static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     fileprivate func recordCaretProbe(
         _ stage: String,
@@ -2088,6 +2131,19 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
         return true
     }
 
+    private func placeCaret(at point: CGPoint, in textView: UITextView) {
+        guard let position = textView.closestPosition(to: point) else { return }
+
+        let location = textView.offset(from: textView.beginningOfDocument, to: position)
+        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
+        let clampedLocation = min(max(location, 0), editableLength)
+        textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
+            ? NSRange(location: 0, length: 0)
+            : NSRange(location: clampedLocation, length: 0)
+        reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
+        scheduleSettledCaretReport(from: textView, source: .selectionTap)
+    }
+
     private func insertForcedLineBreak(in textView: UITextView) {
         forcedLineBreakDebugSequence += 1
         let forcedBreakID = forcedLineBreakDebugSequence
@@ -2538,12 +2594,31 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.layoutManager.allowsNonContiguousLayout = true
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        let doubleTapRecognizer = UITapGestureRecognizer()
+        doubleTapRecognizer.name = ZoneTextViewCoordinator.doubleTapPassthroughRecognizerName
+        doubleTapRecognizer.numberOfTapsRequired = 2
+        doubleTapRecognizer.cancelsTouchesInView = false
+        doubleTapRecognizer.delegate = context.coordinator
+
+        let selectionCollapseTapRecognizer = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(ZoneTextViewCoordinator.handleSelectionCollapseTap(_:))
+        )
+        selectionCollapseTapRecognizer.name = ZoneTextViewCoordinator.selectionCollapseTapRecognizerName
+        selectionCollapseTapRecognizer.numberOfTapsRequired = 1
+        selectionCollapseTapRecognizer.cancelsTouchesInView = false
+        selectionCollapseTapRecognizer.delegate = context.coordinator
+        selectionCollapseTapRecognizer.require(toFail: doubleTapRecognizer)
+
+        textView.addGestureRecognizer(doubleTapRecognizer)
+        textView.addGestureRecognizer(selectionCollapseTapRecognizer)
+
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.custom-gestures-disabled",
+            "text.selection-collapse-gesture-installed",
             zoneID: zoneID,
             pathID: pathID,
             textView: textView,
-            details: "reason=nativeUITextViewGesturesOwnTapLongPressSelection textKit=\(textView.textLayoutManager == nil ? 1 : 2) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
+            details: "scope=existingSelectionOnly textKit=\(textView.textLayoutManager == nil ? 1 : 2) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
         )
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
             "text.interactions-installed",
