@@ -1274,10 +1274,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             return true
         }
 
-        guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
-              let textView,
-              textView.isFirstResponder,
-              textView.selectedRange.length > 0 else {
+        guard gestureRecognizer.name == Self.caretPlacementTapRecognizerName,
+              let textView else {
             return false
         }
 
@@ -1291,25 +1289,17 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         true
     }
 
-    @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
+    @objc func handleCaretPlacementTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended,
               let textView,
-              textView.isFirstResponder,
-              textView.selectedRange.length > 0 else {
+              textView.isFirstResponder else {
             return
         }
 
-        ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.selection-collapse-tap",
-            zoneID: zoneID,
-            pathID: pathID,
-            textView: textView,
-            details: "point=\(debugPoint(recognizer.location(in: textView)))"
-        )
         placeCaret(at: recognizer.location(in: textView), in: textView)
     }
 
-    static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
+    static let caretPlacementTapRecognizerName = "ZoneTextViewCaretPlacementTapRecognizer"
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     fileprivate func recordCaretProbe(
@@ -2132,14 +2122,51 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func placeCaret(at point: CGPoint, in textView: UITextView) {
-        guard let position = textView.closestPosition(to: point) else { return }
+        let nativeLocation: Int? = {
+            guard AppFeatures.current.showsVisualDebugOverlays,
+                  let position = textView.closestPosition(to: point) else {
+                return nil
+            }
+            return textView.offset(from: textView.beginningOfDocument, to: position)
+        }()
 
-        let location = textView.offset(from: textView.beginningOfDocument, to: position)
-        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
-        let clampedLocation = min(max(location, 0), editableLength)
-        textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
-            ? NSRange(location: 0, length: 0)
-            : NSRange(location: clampedLocation, length: 0)
+        let layoutManager = textView.layoutManager
+        let textContainer = textView.textContainer
+        var containerPoint = point
+        containerPoint.x -= textView.textContainerInset.left
+        containerPoint.y -= textView.textContainerInset.top
+        containerPoint.x += textView.contentOffset.x
+        containerPoint.y += textView.contentOffset.y
+
+        let lineHeight = max(textView.font?.lineHeight ?? 0, 1)
+        let layoutRect = CGRect(
+            x: 0,
+            y: max(containerPoint.y - lineHeight, 0),
+            width: max(textContainer.size.width, 1),
+            height: lineHeight * 3
+        )
+        layoutManager.ensureLayout(forBoundingRect: layoutRect, in: textContainer)
+
+        var insertionFraction: CGFloat = 0
+        let characterIndex = layoutManager.characterIndex(
+            for: containerPoint,
+            in: textContainer,
+            fractionOfDistanceBetweenInsertionPoints: &insertionFraction
+        )
+        let insertionIndex = characterIndex + (insertionFraction > 0.5 ? 1 : 0)
+        let editableLength = max(
+            textView.textStorage.length - ZoneTextViewEmptyCaret.terminalBufferUTF16Length,
+            0
+        )
+        let clampedLocation = min(max(insertionIndex, 0), editableLength)
+        textView.selectedRange = NSRange(location: clampedLocation, length: 0)
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.caret-placement-tap",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "point=\(debugPoint(point)) container=\(debugPoint(containerPoint)) native=\(nativeLocation.map(String.init) ?? "nil") mapped=\(characterIndex)+\(debugValue(insertionFraction)) applied=\(clampedLocation) layout=\(debugRect(layoutRect)) nonContiguous=\(layoutManager.allowsNonContiguousLayout ? 1 : 0)"
+        )
         reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
         scheduleSettledCaretReport(from: textView, source: .selectionTap)
     }
@@ -2600,25 +2627,25 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         doubleTapRecognizer.cancelsTouchesInView = false
         doubleTapRecognizer.delegate = context.coordinator
 
-        let selectionCollapseTapRecognizer = UITapGestureRecognizer(
+        let caretPlacementTapRecognizer = UITapGestureRecognizer(
             target: context.coordinator,
-            action: #selector(ZoneTextViewCoordinator.handleSelectionCollapseTap(_:))
+            action: #selector(ZoneTextViewCoordinator.handleCaretPlacementTap(_:))
         )
-        selectionCollapseTapRecognizer.name = ZoneTextViewCoordinator.selectionCollapseTapRecognizerName
-        selectionCollapseTapRecognizer.numberOfTapsRequired = 1
-        selectionCollapseTapRecognizer.cancelsTouchesInView = false
-        selectionCollapseTapRecognizer.delegate = context.coordinator
-        selectionCollapseTapRecognizer.require(toFail: doubleTapRecognizer)
+        caretPlacementTapRecognizer.name = ZoneTextViewCoordinator.caretPlacementTapRecognizerName
+        caretPlacementTapRecognizer.numberOfTapsRequired = 1
+        caretPlacementTapRecognizer.cancelsTouchesInView = false
+        caretPlacementTapRecognizer.delegate = context.coordinator
+        caretPlacementTapRecognizer.require(toFail: doubleTapRecognizer)
 
         textView.addGestureRecognizer(doubleTapRecognizer)
-        textView.addGestureRecognizer(selectionCollapseTapRecognizer)
+        textView.addGestureRecognizer(caretPlacementTapRecognizer)
 
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.selection-collapse-gesture-installed",
+            "text.caret-placement-gesture-installed",
             zoneID: zoneID,
             pathID: pathID,
             textView: textView,
-            details: "scope=existingSelectionOnly textKit=\(textView.textLayoutManager == nil ? 1 : 2) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
+            details: "scope=singleTap textKit=\(textView.textLayoutManager == nil ? 1 : 2) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
         )
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
             "text.interactions-installed",
