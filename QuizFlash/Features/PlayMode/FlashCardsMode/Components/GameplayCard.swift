@@ -40,6 +40,9 @@ struct GameplayCard: View {
     /// rich content can finish rendering before they become visible.
     let isInteractionEnabled: Bool
 
+    /// Mounts the reverse face before the card is promoted, outside the swipe transition.
+    let preloadsHiddenFace: Bool
+
     /// Controls which visual treatment is used when tap reveal is enabled.
     let tapAnimationStyle: FlashcardTapAnimationStyle
 
@@ -72,6 +75,7 @@ struct GameplayCard: View {
         card: PlayableCard,
         onSwipe: @escaping (SwipeDirection) -> Void,
         isInteractionEnabled: Bool,
+        preloadsHiddenFace: Bool = true,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion,
         contentAlignment: FlashcardContentAlignment,
@@ -84,6 +88,7 @@ struct GameplayCard: View {
         self.card = card
         self.onSwipe = onSwipe
         self.isInteractionEnabled = isInteractionEnabled
+        self.preloadsHiddenFace = preloadsHiddenFace
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -111,7 +116,7 @@ struct GameplayCard: View {
             FlipCard(
                 card: card,
                 isFlipped: $isFlipped,
-                preloadsHiddenFace: isInteractionEnabled,
+                preloadsHiddenFace: preloadsHiddenFace,
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
                 contentAlignment: contentAlignment,

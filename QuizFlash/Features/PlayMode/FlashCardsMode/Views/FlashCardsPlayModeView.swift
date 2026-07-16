@@ -77,21 +77,9 @@ struct FlashCardsPlayModeView: View {
     @State private var currentLayoutDebugCardID: PersistentIdentifier?
     @State private var didCopyFloatingLayoutDebug = false
     @State private var debugCardCaptureState = DebugCardCaptureState.idle
-    @State private var liveSwipeFeedbackSnapshot = SwipeProgressSnapshot.idle
-    @State private var swipeFeedbackLiveDirection: SwipeDirection?
-    @State private var swipeFeedbackLiveProgress: CGFloat = 0
-    @State private var swipeFeedbackLiveDisplacementX: CGFloat = 0
-    @State private var swipeFeedbackThresholdLocked = false
-    @State private var swipeFeedbackDisplayDirection: SwipeDirection?
-    @State private var swipeFeedbackDisplayProgress: CGFloat = 0
-    @State private var swipeFeedbackDisplayDisplacementX: CGFloat = 0
-    @State private var swipeFeedbackCommitStartProgress: CGFloat = 0
-    @State private var swipeFeedbackCommitToken = 0
-    @State private var swipeFeedbackFastSwipeDetected = false
-    @State private var swipeFeedbackDismissFlightProgress: CGFloat = 0
-    @State private var swipeFeedbackIsLatched = false
-    @State private var swipeFeedbackHideTask: Task<Void, Never>?
-    @State private var swipeFeedbackLiveHideTask: Task<Void, Never>?
+    @State private var swipeFeedbackState = FlashcardsSwipeFeedbackState()
+    @State private var preparedCardUpperBound = 0
+    @State private var cardPreloadTask: Task<Void, Never>?
 #if DEBUG
     @State private var startupDebugState = FlashcardsStartupDebugState()
 #endif
@@ -114,7 +102,7 @@ struct FlashCardsPlayModeView: View {
     private var scoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
     private var cardBottomReserve: CGFloat { flipPerspectiveBottomClearance }
     private var bottomChromeHeight: CGFloat { scoreZoneHeight + scoreZoneBottomPadding + 6 }
-    private var preloadBufferDepth: Int { 2 }
+    private var preloadBufferDepth: Int { 1 }
     private var promotedCardScale: CGFloat { 0.952 }
     private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var resolvedDeckTitle: String {
@@ -206,6 +194,7 @@ struct FlashCardsPlayModeView: View {
                 startupDebugState.record("task start")
 #endif
                 await viewModel.startSession(container: modelContext.container)
+                resetCardPreloadWindow()
 #if DEBUG
                 startupDebugState.record("task returned")
 #endif
@@ -218,6 +207,8 @@ struct FlashCardsPlayModeView: View {
 #endif
             showsDeveloperPanel = false
             developerSwipeDebugState.showsLiveSwipeOverlay = false
+            cardPreloadTask?.cancel()
+            cardPreloadTask = nil
             resetSwipeFeedbackPresentation()
             developerSwipeDebugState.reset()
             viewModel.tearDown()
@@ -237,12 +228,13 @@ struct FlashCardsPlayModeView: View {
 #if DEBUG
             startupDebugState.record("currentIndex \(viewModel.currentIndex)")
 #endif
-            liveSwipeFeedbackSnapshot = .idle
+            swipeFeedbackState.liveSwipeFeedbackSnapshot = .idle
             currentLayoutDebugSnapshotsByFace = [:]
             currentLayoutDebugCardID = nil
             debugCardCaptureState = .idle
             resetLiveSwipeFeedback()
             developerSwipeDebugState.reset()
+            resetCardPreloadWindow()
         }
         .onChange(of: developmentPreferences.playModeDeveloperModeEnabled) { _, isEnabled in
             guard !isEnabled else { return }
@@ -305,6 +297,7 @@ struct FlashCardsPlayModeView: View {
                                 viewModel.handleSwipe(direction)
                             },
                             isInteractionEnabled: isCurrentCard,
+                            preloadsHiddenFace: true,
                             tapAnimationStyle: viewModel.settings.tapAnimationStyle,
                             staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
                             contentAlignment: viewModel.settings.contentAlignment,
@@ -319,7 +312,7 @@ struct FlashCardsPlayModeView: View {
                             isFlipped: flipBinding
                         )
                         .padding(.bottom, cardBottomReserve)
-                        .opacity(isCurrentCard ? 1 : 0.001)
+                        .opacity(isCurrentCard ? 1 : 0)
                         .scaleEffect(isCurrentCard ? 1 : promotedCardScale)
                         .allowsHitTesting(isCurrentCard)
                         .accessibilityHidden(!isCurrentCard)
@@ -507,13 +500,42 @@ struct FlashCardsPlayModeView: View {
 
     private var bufferedCardEntries: [BufferedCardEntry] {
         guard !viewModel.cards.isEmpty, viewModel.currentIndex < viewModel.cards.count else { return [] }
-        let upperBound = min(viewModel.cards.count, viewModel.currentIndex + preloadBufferDepth + 1)
+        let visibleUpperBound = viewModel.currentIndex + 1
+        let upperBound = min(
+            viewModel.cards.count,
+            max(visibleUpperBound, preparedCardUpperBound)
+        )
         return Array(viewModel.cards[viewModel.currentIndex..<upperBound].enumerated()).map { offset, card in
             BufferedCardEntry(
                 runGeneration: viewModel.playRunGeneration,
                 displayIndex: viewModel.currentIndex + offset,
                 card: card
             )
+        }
+    }
+
+    private func resetCardPreloadWindow() {
+        cardPreloadTask?.cancel()
+        preparedCardUpperBound = min(viewModel.cards.count, viewModel.currentIndex + 1)
+
+        let targetUpperBound = min(
+            viewModel.cards.count,
+            viewModel.currentIndex + preloadBufferDepth + 1
+        )
+        guard targetUpperBound > preparedCardUpperBound else {
+            cardPreloadTask = nil
+            return
+        }
+
+        cardPreloadTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(280))
+            guard !Task.isCancelled else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                preparedCardUpperBound = targetUpperBound
+            }
+            cardPreloadTask = nil
         }
     }
 
@@ -689,41 +711,11 @@ struct FlashCardsPlayModeView: View {
 
     @ViewBuilder
     private var swipeDirectionFeedbackOverlay: some View {
-        SwipeArrowAnimatedObjectView(
-            presentation: swipeArrowFeedbackPresentation,
+        FlashcardsSwipeFeedbackOverlay(
+            state: swipeFeedbackState,
             isCompact: isCompact,
             tuning: swipeArrowFeedbackTuning
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(false)
-    }
-
-    private var swipeArrowFeedbackPresentation: SwipeArrowAnimatedObjectPresentation {
-        if let direction = swipeFeedbackDisplayDirection {
-            return SwipeArrowAnimatedObjectPresentation(
-                phase: swipeFeedbackDismissFlightProgress > 0.001 ? .exit : .commit,
-                direction: direction,
-                displayProgress: swipeFeedbackDisplayProgress,
-                commitStartProgress: swipeFeedbackCommitStartProgress,
-                dismissFlightProgress: swipeFeedbackDismissFlightProgress,
-                displacementX: swipeFeedbackDisplayDisplacementX,
-                commitToken: swipeFeedbackCommitToken,
-                fastSwipeDetected: swipeFeedbackFastSwipeDetected
-            )
-        }
-
-        if let direction = swipeFeedbackLiveDirection,
-           swipeFeedbackLiveProgress > 0.001 {
-            return SwipeArrowAnimatedObjectPresentation(
-                phase: .tracking,
-                direction: direction,
-                displayProgress: swipeFeedbackLiveProgress,
-                displacementX: swipeFeedbackLiveDisplacementX,
-                commitToken: swipeFeedbackCommitToken
-            )
-        }
-
-        return .idle
     }
 
     private var swipeArrowFeedbackTuning: SwipeArrowAnimatedObjectTuning {
@@ -739,8 +731,8 @@ struct FlashCardsPlayModeView: View {
     }
 
     private func resolvedSwipeFeedbackProgress(for direction: SwipeDirection) -> CGFloat {
-        let liveProgress = swipeFeedbackLiveDirection == direction ? swipeFeedbackLiveProgress : 0
-        let latchedProgress = swipeFeedbackDisplayDirection == direction ? swipeFeedbackDisplayProgress : 0
+        let liveProgress = swipeFeedbackState.swipeFeedbackLiveDirection == direction ? swipeFeedbackState.swipeFeedbackLiveProgress : 0
+        let latchedProgress = swipeFeedbackState.swipeFeedbackDisplayDirection == direction ? swipeFeedbackState.swipeFeedbackDisplayProgress : 0
         return max(liveProgress, latchedProgress)
     }
 
@@ -756,14 +748,14 @@ struct FlashCardsPlayModeView: View {
         return ZStack(alignment: .bottomTrailing) {
             if developerSwipeDebugState.showsLiveSwipeOverlay {
                 PlayModeDeveloperSwipeOverlayHUD(
-                    snapshot: liveSwipeFeedbackSnapshot,
-                    liveDirection: swipeFeedbackLiveDirection,
-                    liveProgress: swipeFeedbackLiveProgress,
-                    latchedDirection: swipeFeedbackDisplayDirection,
-                    latchedProgress: swipeFeedbackDisplayProgress,
+                    snapshot: swipeFeedbackState.liveSwipeFeedbackSnapshot,
+                    liveDirection: swipeFeedbackState.swipeFeedbackLiveDirection,
+                    liveProgress: swipeFeedbackState.swipeFeedbackLiveProgress,
+                    latchedDirection: swipeFeedbackState.swipeFeedbackDisplayDirection,
+                    latchedProgress: swipeFeedbackState.swipeFeedbackDisplayProgress,
                     leftShownProgress: resolvedSwipeFeedbackProgress(for: .left),
                     rightShownProgress: resolvedSwipeFeedbackProgress(for: .right),
-                    isLatched: swipeFeedbackIsLatched,
+                    isLatched: swipeFeedbackState.swipeFeedbackIsLatched,
                     onClose: closeDeveloperSwipeOverlay
                 )
                 .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
@@ -1008,11 +1000,11 @@ struct FlashCardsPlayModeView: View {
         }
 
         return { snapshot in
-            liveSwipeFeedbackSnapshot = snapshot
             updateLiveSwipeFeedback(with: snapshot)
             updateSwipeFeedbackPresentation(with: snapshot)
 
             if developmentPreferences.playModeDeveloperModeEnabled, showsDeveloperPanel {
+                swipeFeedbackState.liveSwipeFeedbackSnapshot = snapshot
                 developerSwipeDebugState.update(with: snapshot)
             }
         }
@@ -1070,18 +1062,18 @@ struct FlashCardsPlayModeView: View {
     private func updateSwipeFeedbackPresentation(with snapshot: SwipeProgressSnapshot) {
         switch snapshot.phase {
         case .idle:
-            if !swipeFeedbackIsLatched {
+            if !swipeFeedbackState.swipeFeedbackIsLatched {
                 softenLiveSwipeFeedbackOut()
             }
         case .dragging:
             break
         case .cancelled:
-            if !swipeFeedbackIsLatched {
+            if !swipeFeedbackState.swipeFeedbackIsLatched {
                 softenLiveSwipeFeedbackOut()
             }
         case .committed:
             if let direction = snapshot.committedDirection,
-               !swipeFeedbackIsLatched {
+               !swipeFeedbackState.swipeFeedbackIsLatched {
                 latchSwipeFeedback(with: snapshot, for: direction)
             }
         }
@@ -1090,10 +1082,10 @@ struct FlashCardsPlayModeView: View {
     private func updateLiveSwipeFeedback(with snapshot: SwipeProgressSnapshot) {
         guard snapshot.phase == .dragging else { return }
 
-        swipeFeedbackLiveHideTask?.cancel()
-        swipeFeedbackLiveHideTask = nil
+        swipeFeedbackState.swipeFeedbackLiveHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackLiveHideTask = nil
 
-        if swipeFeedbackIsLatched,
+        if swipeFeedbackState.swipeFeedbackIsLatched,
            abs(snapshot.displacementX) > 6 {
             interruptLatchedSwipeFeedbackForNewDrag()
         }
@@ -1107,7 +1099,7 @@ struct FlashCardsPlayModeView: View {
         let thresholdUnlockThreshold: CGFloat = 0.90
 
         guard let direction = snapshot.direction else {
-            if swipeFeedbackLiveProgress <= resetThreshold || progress <= resetThreshold {
+            if swipeFeedbackState.swipeFeedbackLiveProgress <= resetThreshold || progress <= resetThreshold {
                 resetLiveSwipeFeedback()
             } else {
                 collapseLiveSwipeFeedback()
@@ -1115,16 +1107,16 @@ struct FlashCardsPlayModeView: View {
             return
         }
 
-        if swipeFeedbackThresholdLocked,
-           swipeFeedbackLiveDirection == direction,
+        if swipeFeedbackState.swipeFeedbackThresholdLocked,
+           swipeFeedbackState.swipeFeedbackLiveDirection == direction,
            rawDistanceProgress >= thresholdUnlockThreshold {
-            swipeFeedbackLiveProgress = 1
-            swipeFeedbackLiveDisplacementX = snapshot.displacementX
+            swipeFeedbackState.swipeFeedbackLiveProgress = 1
+            swipeFeedbackState.swipeFeedbackLiveDisplacementX = snapshot.displacementX
             return
         }
 
-        if swipeFeedbackThresholdLocked,
-           swipeFeedbackLiveDirection == direction {
+        if swipeFeedbackState.swipeFeedbackThresholdLocked,
+           swipeFeedbackState.swipeFeedbackLiveDirection == direction {
             releaseThresholdLockedLiveSwipeFeedback(
                 to: progress,
                 displacementX: snapshot.displacementX
@@ -1132,16 +1124,16 @@ struct FlashCardsPlayModeView: View {
             return
         }
 
-        if swipeFeedbackThresholdLocked {
-            swipeFeedbackThresholdLocked = false
+        if swipeFeedbackState.swipeFeedbackThresholdLocked {
+            swipeFeedbackState.swipeFeedbackThresholdLocked = false
         }
 
-        guard let currentDirection = swipeFeedbackLiveDirection else {
+        guard let currentDirection = swipeFeedbackState.swipeFeedbackLiveDirection else {
             if progress >= showThreshold {
-                swipeFeedbackLiveDirection = direction
-                swipeFeedbackLiveProgress = rawDistanceProgress >= thresholdLockThreshold ? 1 : progress
-                swipeFeedbackLiveDisplacementX = snapshot.displacementX
-                swipeFeedbackThresholdLocked = rawDistanceProgress >= thresholdLockThreshold
+                swipeFeedbackState.swipeFeedbackLiveDirection = direction
+                swipeFeedbackState.swipeFeedbackLiveProgress = rawDistanceProgress >= thresholdLockThreshold ? 1 : progress
+                swipeFeedbackState.swipeFeedbackLiveDisplacementX = snapshot.displacementX
+                swipeFeedbackState.swipeFeedbackThresholdLocked = rawDistanceProgress >= thresholdLockThreshold
             } else {
                 resetLiveSwipeFeedback()
             }
@@ -1152,12 +1144,12 @@ struct FlashCardsPlayModeView: View {
             if progress <= resetThreshold {
                 resetLiveSwipeFeedback()
             } else if rawDistanceProgress >= thresholdLockThreshold {
-                swipeFeedbackLiveProgress = 1
-                swipeFeedbackLiveDisplacementX = snapshot.displacementX
-                swipeFeedbackThresholdLocked = true
+                swipeFeedbackState.swipeFeedbackLiveProgress = 1
+                swipeFeedbackState.swipeFeedbackLiveDisplacementX = snapshot.displacementX
+                swipeFeedbackState.swipeFeedbackThresholdLocked = true
             } else {
-                swipeFeedbackLiveProgress = progress
-                swipeFeedbackLiveDisplacementX = snapshot.displacementX
+                swipeFeedbackState.swipeFeedbackLiveProgress = progress
+                swipeFeedbackState.swipeFeedbackLiveDisplacementX = snapshot.displacementX
             }
             return
         }
@@ -1165,44 +1157,44 @@ struct FlashCardsPlayModeView: View {
         if progress < reversalSwitchThreshold {
             collapseLiveSwipeFeedback()
             if progress <= resetThreshold {
-                swipeFeedbackLiveDirection = nil
+                swipeFeedbackState.swipeFeedbackLiveDirection = nil
             }
             return
         }
 
-        if swipeFeedbackLiveProgress > resetThreshold {
+        if swipeFeedbackState.swipeFeedbackLiveProgress > resetThreshold {
             collapseLiveSwipeFeedback()
             return
         }
 
-        swipeFeedbackLiveDirection = direction
-        swipeFeedbackLiveProgress = progress
-        swipeFeedbackLiveDisplacementX = snapshot.displacementX
+        swipeFeedbackState.swipeFeedbackLiveDirection = direction
+        swipeFeedbackState.swipeFeedbackLiveProgress = progress
+        swipeFeedbackState.swipeFeedbackLiveDisplacementX = snapshot.displacementX
     }
 
     private func latchSwipeFeedback(
         with snapshot: SwipeProgressSnapshot,
         for direction: SwipeDirection
     ) {
-        swipeFeedbackHideTask?.cancel()
-        swipeFeedbackLiveHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackLiveHideTask?.cancel()
         resetSwipeFeedbackDismissFlight()
-        swipeFeedbackIsLatched = true
-        swipeFeedbackDisplayDirection = direction
+        swipeFeedbackState.swipeFeedbackIsLatched = true
+        swipeFeedbackState.swipeFeedbackDisplayDirection = direction
         let initialProgress = max(
             resolvedSwipeFeedbackProgress(for: direction),
             snapshot.fastSwipeDetected ? 0.48 : 0.38
         )
-        swipeFeedbackCommitStartProgress = initialProgress
-        swipeFeedbackDisplayProgress = initialProgress
-        swipeFeedbackDisplayDisplacementX = snapshot.displacementX
-        swipeFeedbackFastSwipeDetected = snapshot.fastSwipeDetected
-        swipeFeedbackCommitToken += 1
+        swipeFeedbackState.swipeFeedbackCommitStartProgress = initialProgress
+        swipeFeedbackState.swipeFeedbackDisplayProgress = initialProgress
+        swipeFeedbackState.swipeFeedbackDisplayDisplacementX = snapshot.displacementX
+        swipeFeedbackState.swipeFeedbackFastSwipeDetected = snapshot.fastSwipeDetected
+        swipeFeedbackState.swipeFeedbackCommitToken += 1
         resetLiveSwipeFeedback()
-        swipeFeedbackDismissFlightProgress = 0
+        swipeFeedbackState.swipeFeedbackDismissFlightProgress = 0
 
         withAnimation(resolvedSwipeFeedbackCommitAnimation(for: snapshot)) {
-            swipeFeedbackDisplayProgress = 1
+            swipeFeedbackState.swipeFeedbackDisplayProgress = 1
         }
 
         scheduleSwipeFeedbackDismissFlight(for: snapshot)
@@ -1236,8 +1228,8 @@ struct FlashCardsPlayModeView: View {
     }
 
     private func scheduleSwipeFeedbackDismissFlight(for snapshot: SwipeProgressSnapshot) {
-        swipeFeedbackHideTask?.cancel()
-        swipeFeedbackHideTask = Task { @MainActor in
+        swipeFeedbackState.swipeFeedbackHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackHideTask = Task { @MainActor in
             let leadMilliseconds = resolvedSwipeFeedbackDismissFlightLeadMilliseconds(for: snapshot)
             if leadMilliseconds > 0 {
                 try? await Task.sleep(for: .milliseconds(leadMilliseconds))
@@ -1245,7 +1237,7 @@ struct FlashCardsPlayModeView: View {
             }
 
             withAnimation(resolvedSwipeFeedbackDismissFlightAnimation(for: snapshot)) {
-                swipeFeedbackDismissFlightProgress = 1
+                swipeFeedbackState.swipeFeedbackDismissFlightProgress = 1
             }
 
             try? await Task.sleep(
@@ -1253,90 +1245,154 @@ struct FlashCardsPlayModeView: View {
             )
             guard !Task.isCancelled else { return }
 
-            swipeFeedbackIsLatched = false
-            swipeFeedbackDisplayDirection = nil
-            swipeFeedbackDisplayProgress = 0
+            swipeFeedbackState.swipeFeedbackIsLatched = false
+            swipeFeedbackState.swipeFeedbackDisplayDirection = nil
+            swipeFeedbackState.swipeFeedbackDisplayProgress = 0
             resetSwipeFeedbackDismissFlight()
-            swipeFeedbackHideTask = nil
+            swipeFeedbackState.swipeFeedbackHideTask = nil
         }
     }
 
     private func softenLiveSwipeFeedbackOut() {
-        guard swipeFeedbackLiveDirection != nil || swipeFeedbackLiveProgress > 0 else { return }
+        guard swipeFeedbackState.swipeFeedbackLiveDirection != nil || swipeFeedbackState.swipeFeedbackLiveProgress > 0 else { return }
 
-        swipeFeedbackLiveHideTask?.cancel()
-        swipeFeedbackLiveHideTask = Task { @MainActor in
+        swipeFeedbackState.swipeFeedbackLiveHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackLiveHideTask = Task { @MainActor in
             withAnimation(.easeOut(duration: 0.18)) {
-                swipeFeedbackLiveProgress = 0
+                swipeFeedbackState.swipeFeedbackLiveProgress = 0
             }
 
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
 
-            if swipeFeedbackLiveProgress <= 0.001 {
-                swipeFeedbackLiveDirection = nil
-                swipeFeedbackLiveDisplacementX = 0
-                swipeFeedbackThresholdLocked = false
+            if swipeFeedbackState.swipeFeedbackLiveProgress <= 0.001 {
+                swipeFeedbackState.swipeFeedbackLiveDirection = nil
+                swipeFeedbackState.swipeFeedbackLiveDisplacementX = 0
+                swipeFeedbackState.swipeFeedbackThresholdLocked = false
             }
-            swipeFeedbackLiveHideTask = nil
+            swipeFeedbackState.swipeFeedbackLiveHideTask = nil
         }
     }
 
     private func resetSwipeFeedbackPresentation() {
-        swipeFeedbackHideTask?.cancel()
-        swipeFeedbackHideTask = nil
-        swipeFeedbackLiveHideTask?.cancel()
-        swipeFeedbackLiveHideTask = nil
-        liveSwipeFeedbackSnapshot = .idle
+        swipeFeedbackState.swipeFeedbackHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackHideTask = nil
+        swipeFeedbackState.swipeFeedbackLiveHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackLiveHideTask = nil
+        swipeFeedbackState.liveSwipeFeedbackSnapshot = .idle
         resetLiveSwipeFeedback()
-        swipeFeedbackIsLatched = false
-        swipeFeedbackDisplayDirection = nil
-        swipeFeedbackDisplayProgress = 0
-        swipeFeedbackDisplayDisplacementX = 0
-        swipeFeedbackCommitStartProgress = 0
-        swipeFeedbackFastSwipeDetected = false
+        swipeFeedbackState.swipeFeedbackIsLatched = false
+        swipeFeedbackState.swipeFeedbackDisplayDirection = nil
+        swipeFeedbackState.swipeFeedbackDisplayProgress = 0
+        swipeFeedbackState.swipeFeedbackDisplayDisplacementX = 0
+        swipeFeedbackState.swipeFeedbackCommitStartProgress = 0
+        swipeFeedbackState.swipeFeedbackFastSwipeDetected = false
         resetSwipeFeedbackDismissFlight()
     }
 
     private func interruptLatchedSwipeFeedbackForNewDrag() {
-        swipeFeedbackHideTask?.cancel()
-        swipeFeedbackHideTask = nil
-        swipeFeedbackIsLatched = false
-        swipeFeedbackDisplayDirection = nil
-        swipeFeedbackDisplayProgress = 0
-        swipeFeedbackDisplayDisplacementX = 0
-        swipeFeedbackCommitStartProgress = 0
-        swipeFeedbackFastSwipeDetected = false
+        swipeFeedbackState.swipeFeedbackHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackHideTask = nil
+        swipeFeedbackState.swipeFeedbackIsLatched = false
+        swipeFeedbackState.swipeFeedbackDisplayDirection = nil
+        swipeFeedbackState.swipeFeedbackDisplayProgress = 0
+        swipeFeedbackState.swipeFeedbackDisplayDisplacementX = 0
+        swipeFeedbackState.swipeFeedbackCommitStartProgress = 0
+        swipeFeedbackState.swipeFeedbackFastSwipeDetected = false
         resetSwipeFeedbackDismissFlight()
     }
 
     private func resetLiveSwipeFeedback() {
-        swipeFeedbackLiveHideTask?.cancel()
-        swipeFeedbackLiveHideTask = nil
-        swipeFeedbackLiveDirection = nil
-        swipeFeedbackLiveProgress = 0
-        swipeFeedbackLiveDisplacementX = 0
-        swipeFeedbackThresholdLocked = false
+        swipeFeedbackState.swipeFeedbackLiveHideTask?.cancel()
+        swipeFeedbackState.swipeFeedbackLiveHideTask = nil
+        swipeFeedbackState.swipeFeedbackLiveDirection = nil
+        swipeFeedbackState.swipeFeedbackLiveProgress = 0
+        swipeFeedbackState.swipeFeedbackLiveDisplacementX = 0
+        swipeFeedbackState.swipeFeedbackThresholdLocked = false
     }
 
     private func releaseThresholdLockedLiveSwipeFeedback(to progress: CGFloat, displacementX: CGFloat) {
-        swipeFeedbackThresholdLocked = false
+        swipeFeedbackState.swipeFeedbackThresholdLocked = false
         withAnimation(.circularProgressSpring.speed(1.45)) {
-            swipeFeedbackLiveProgress = progress
-            swipeFeedbackLiveDisplacementX = displacementX
+            swipeFeedbackState.swipeFeedbackLiveProgress = progress
+            swipeFeedbackState.swipeFeedbackLiveDisplacementX = displacementX
         }
     }
 
     private func collapseLiveSwipeFeedback() {
-        swipeFeedbackThresholdLocked = false
+        swipeFeedbackState.swipeFeedbackThresholdLocked = false
         withAnimation(.easeOut(duration: 0.14)) {
-            swipeFeedbackLiveProgress = 0
-            swipeFeedbackLiveDisplacementX *= 0.42
+            swipeFeedbackState.swipeFeedbackLiveProgress = 0
+            swipeFeedbackState.swipeFeedbackLiveDisplacementX *= 0.42
         }
     }
 
     private func resetSwipeFeedbackDismissFlight() {
-        swipeFeedbackDismissFlightProgress = 0
+        swipeFeedbackState.swipeFeedbackDismissFlightProgress = 0
+    }
+}
+
+@MainActor
+@Observable
+private final class FlashcardsSwipeFeedbackState {
+    var liveSwipeFeedbackSnapshot = SwipeProgressSnapshot.idle
+    var swipeFeedbackLiveDirection: SwipeDirection?
+    var swipeFeedbackLiveProgress: CGFloat = 0
+    var swipeFeedbackLiveDisplacementX: CGFloat = 0
+    var swipeFeedbackThresholdLocked = false
+    var swipeFeedbackDisplayDirection: SwipeDirection?
+    var swipeFeedbackDisplayProgress: CGFloat = 0
+    var swipeFeedbackDisplayDisplacementX: CGFloat = 0
+    var swipeFeedbackCommitStartProgress: CGFloat = 0
+    var swipeFeedbackCommitToken = 0
+    var swipeFeedbackFastSwipeDetected = false
+    var swipeFeedbackDismissFlightProgress: CGFloat = 0
+    var swipeFeedbackIsLatched = false
+    @ObservationIgnored var swipeFeedbackHideTask: Task<Void, Never>?
+    @ObservationIgnored var swipeFeedbackLiveHideTask: Task<Void, Never>?
+
+    var presentation: SwipeArrowAnimatedObjectPresentation {
+        if let direction = swipeFeedbackDisplayDirection {
+            return SwipeArrowAnimatedObjectPresentation(
+                phase: swipeFeedbackDismissFlightProgress > 0.001 ? .exit : .commit,
+                direction: direction,
+                displayProgress: swipeFeedbackDisplayProgress,
+                commitStartProgress: swipeFeedbackCommitStartProgress,
+                dismissFlightProgress: swipeFeedbackDismissFlightProgress,
+                displacementX: swipeFeedbackDisplayDisplacementX,
+                commitToken: swipeFeedbackCommitToken,
+                fastSwipeDetected: swipeFeedbackFastSwipeDetected
+            )
+        }
+
+        if let direction = swipeFeedbackLiveDirection,
+           swipeFeedbackLiveProgress > 0.001 {
+            return SwipeArrowAnimatedObjectPresentation(
+                phase: .tracking,
+                direction: direction,
+                displayProgress: swipeFeedbackLiveProgress,
+                displacementX: swipeFeedbackLiveDisplacementX,
+                commitToken: swipeFeedbackCommitToken
+            )
+        }
+
+        return .idle
+    }
+}
+
+private struct FlashcardsSwipeFeedbackOverlay: View {
+    let state: FlashcardsSwipeFeedbackState
+    let isCompact: Bool
+    let tuning: SwipeArrowAnimatedObjectTuning
+
+    var body: some View {
+        SwipeArrowAnimatedObjectView(
+            presentation: state.presentation,
+            isCompact: isCompact,
+            tuning: tuning
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
     }
 }
 

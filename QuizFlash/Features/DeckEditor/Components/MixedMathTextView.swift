@@ -137,6 +137,7 @@ struct ScrollableMathInteractionRegion: Equatable {
 private final class MathWKWebView: WKWebView {
     var allowsFullQuizFlashInteraction = true
     var scrollableInteractionRegions: [ScrollableMathInteractionRegion] = []
+    var quizFlashTapRecognizers: [UITapGestureRecognizer] = []
     let quizFlashDebugID = String(UUID().uuidString.prefix(8))
     var quizFlashCheckoutSource = "created"
     var quizFlashCheckoutCount = 0
@@ -289,6 +290,7 @@ struct MixedMathTextView: View {
                 reportsRenderedLineDebug: reportsRenderedLineDebug,
                 reportsScrollableDebug: reportsScrollableDebug,
                 reportsRenderStatusDebug: reportsRenderStatusDebug,
+                reportsNativeRenderDebug: reportsNativeRenderDebug,
                 intrinsicMeasurementWidthLimit: intrinsicMeasurementWidthLimit,
                 showsRenderDebugBounds: showsRenderDebugBounds,
                 horizontalOverflowState: $horizontalOverflowState,
@@ -647,10 +649,9 @@ class MathWebViewPool {
         prewarmTasks.forEach { $0.cancel() }
     }
 
-    // Maximum number of idle WebViews kept alive between uses. Rich preview
-    // cards can mount many math leaves at once; keeping the pool large enough
-    // avoids recreating WKWebViews during repeated preview open/close cycles.
-    private static let maxPoolSize = 48
+    // Keep a small reuse cushion without retaining dozens of IOSurfaces after
+    // a math-heavy deck has been displayed.
+    private static let maxPoolSize = 4
 
     private var pool: [WKWebView] = []
     private var isPrewarmed = false
@@ -777,6 +778,7 @@ struct MathWebView: UIViewRepresentable {
     let reportsRenderedLineDebug: Bool
     let reportsScrollableDebug: Bool
     let reportsRenderStatusDebug: Bool
+    let reportsNativeRenderDebug: Bool
     let intrinsicMeasurementWidthLimit: CGFloat?
     let showsRenderDebugBounds: Bool
     @Binding var horizontalOverflowState: HorizontalOverflowState
@@ -800,6 +802,7 @@ struct MathWebView: UIViewRepresentable {
             reportsRenderedLineDebug: reportsRenderedLineDebug,
             reportsScrollableDebug: reportsScrollableDebug,
             reportsRenderStatusDebug: reportsRenderStatusDebug,
+            reportsNativeRenderDebug: reportsNativeRenderDebug,
             horizontalOverflowState: $horizontalOverflowState,
             onTap: onTap
         )
@@ -811,6 +814,7 @@ struct MathWebView: UIViewRepresentable {
         // 1. Unlink coordinator to break any lingering weak/unowned chains
         coordinator.cancelPendingUpdate()
         coordinator.invalidateRender()
+        coordinator.configureNativeRenderDebug(enabled: false)
         coordinator.webView = nil
         uiView.navigationDelegate = nil
 
@@ -822,6 +826,13 @@ struct MathWebView: UIViewRepresentable {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "renderStatusUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
+
+        if let mathWebView = uiView as? MathWKWebView {
+            mathWebView.quizFlashTapRecognizers.forEach { recognizer in
+                recognizer.view?.removeGestureRecognizer(recognizer)
+            }
+            mathWebView.quizFlashTapRecognizers.removeAll()
+        }
 
         // 3. Return to pool (or discard if full)
         MathWebViewPool.shared.enqueue(uiView)
@@ -872,6 +883,7 @@ struct MathWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         // Re-apply interaction state in case isInteractive changed between renders.
         context.coordinator.onTap = onTap
+        context.coordinator.configureNativeRenderDebug(enabled: reportsNativeRenderDebug)
         context.coordinator.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
         context.coordinator.configureLineDebugHandler(on: webView, enabled: reportsRenderedLineDebug)
         context.coordinator.configureScrollableDebugHandler(on: webView, enabled: reportsScrollableDebug)
@@ -910,18 +922,26 @@ struct MathWebView: UIViewRepresentable {
         recognizers
             .compactMap { $0 as? UIPanGestureRecognizer }
             .filter { $0 !== webView.scrollView.panGestureRecognizer }
+            .filter { coordinator.registerPanRecognizerIfNeeded($0) }
             .forEach { $0.delegate = coordinator }
     }
 
     private func configureTapRecognizer(on webView: WKWebView, coordinator: Coordinator) {
-        webView.gestureRecognizers?
-            .compactMap { $0 as? MathWebViewTapGestureRecognizer }
-            .forEach { webView.removeGestureRecognizer($0) }
-        webView.scrollView.gestureRecognizers?
-            .compactMap { $0 as? MathWebViewTapGestureRecognizer }
-            .forEach { webView.scrollView.removeGestureRecognizer($0) }
+        guard let mathWebView = webView as? MathWKWebView else { return }
 
-        guard onTap != nil else { return }
+        if onTap == nil {
+            mathWebView.quizFlashTapRecognizers.forEach { recognizer in
+                recognizer.view?.removeGestureRecognizer(recognizer)
+            }
+            mathWebView.quizFlashTapRecognizers.removeAll()
+            return
+        }
+
+        guard mathWebView.quizFlashTapRecognizers.count != 2 else { return }
+        mathWebView.quizFlashTapRecognizers.forEach { recognizer in
+            recognizer.view?.removeGestureRecognizer(recognizer)
+        }
+        mathWebView.quizFlashTapRecognizers.removeAll(keepingCapacity: true)
 
         [webView, webView.scrollView].forEach { targetView in
             let tapGesture = MathWebViewTapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -931,6 +951,7 @@ struct MathWebView: UIViewRepresentable {
             tapGesture.numberOfTapsRequired = 1
             tapGesture.delegate = coordinator
             targetView.addGestureRecognizer(tapGesture)
+            mathWebView.quizFlashTapRecognizers.append(tapGesture)
         }
     }
 
@@ -2366,6 +2387,7 @@ struct MathWebView: UIViewRepresentable {
         private var reportsRenderedLineDebug: Bool
         private var reportsScrollableDebug: Bool
         private var reportsRenderStatusDebug: Bool
+        private var reportsNativeRenderDebug: Bool
         @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
@@ -2376,6 +2398,7 @@ struct MathWebView: UIViewRepresentable {
         private var activeRenderToken = UUID().uuidString
         private var visibilityProbeObserver: NSObjectProtocol?
         private var visibilityProbeTask: Task<Void, Never>?
+        private var configuredPanRecognizerIDs: Set<ObjectIdentifier> = []
 
         init(
             contentHeight: Binding<CGFloat>,
@@ -2389,6 +2412,7 @@ struct MathWebView: UIViewRepresentable {
             reportsRenderedLineDebug: Bool,
             reportsScrollableDebug: Bool,
             reportsRenderStatusDebug: Bool,
+            reportsNativeRenderDebug: Bool,
             horizontalOverflowState: Binding<HorizontalOverflowState>,
             onTap: (() -> Void)?
         ) {
@@ -2403,17 +2427,11 @@ struct MathWebView: UIViewRepresentable {
             self.reportsRenderedLineDebug = reportsRenderedLineDebug
             self.reportsScrollableDebug = reportsScrollableDebug
             self.reportsRenderStatusDebug = reportsRenderStatusDebug
+            self.reportsNativeRenderDebug = false
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
             super.init()
-            visibilityProbeObserver = NotificationCenter.default.addObserver(
-                forName: .quizFlashMixedMathVisibilityProbe,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                let reason = notification.userInfo?["reason"] as? String ?? "unknown"
-                self?.scheduleVisibilityProbes(reason: reason)
-            }
+            configureNativeRenderDebug(enabled: reportsNativeRenderDebug)
         }
 
         deinit {
@@ -2425,6 +2443,7 @@ struct MathWebView: UIViewRepresentable {
         }
 
         func attach(webView: WKWebView) {
+            guard reportsNativeRenderDebug else { return }
             guard let mathWebView = webView as? MathWKWebView else {
                 recordNativeEvent("attach non-MathWKWebView", stage: "attached")
                 return
@@ -2442,6 +2461,7 @@ struct MathWebView: UIViewRepresentable {
         func beginRender() -> String {
             let token = UUID().uuidString
             activeRenderToken = token
+            guard reportsNativeRenderDebug else { return token }
             nativeRenderDebug.renderToken = String(token.prefix(8))
             nativeRenderDebug.readinessChecks = 0
             nativeRenderDebug.javaScriptExecutionCount = 0
@@ -2461,6 +2481,35 @@ struct MathWebView: UIViewRepresentable {
             pendingRenderUpdate = nil
         }
 
+        func registerPanRecognizerIfNeeded(_ recognizer: UIPanGestureRecognizer) -> Bool {
+            configuredPanRecognizerIDs.insert(ObjectIdentifier(recognizer)).inserted
+        }
+
+        func configureNativeRenderDebug(enabled: Bool) {
+            guard reportsNativeRenderDebug != enabled else { return }
+            reportsNativeRenderDebug = enabled
+            visibilityProbeTask?.cancel()
+            visibilityProbeTask = nil
+
+            if let visibilityProbeObserver {
+                NotificationCenter.default.removeObserver(visibilityProbeObserver)
+                self.visibilityProbeObserver = nil
+            }
+
+            guard enabled else { return }
+            visibilityProbeObserver = NotificationCenter.default.addObserver(
+                forName: .quizFlashMixedMathVisibilityProbe,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                let reason = notification.userInfo?["reason"] as? String ?? "unknown"
+                self?.scheduleVisibilityProbes(reason: reason)
+            }
+            if let webView {
+                attach(webView: webView)
+            }
+        }
+
         func userContentController(
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
@@ -2469,9 +2518,11 @@ struct MathWebView: UIViewRepresentable {
             case "heightUpdate":
                 guard let h = renderCGFloat(from: message.body), h > 0 else { return }
                 Task { @MainActor in
-                    self.nativeRenderDebug.heightMessageCount += 1
-                    self.nativeRenderDebug.lastHeight = h
-                    self.recordNativeEvent("height message \(Int(h.rounded()))", stage: "height-received")
+                    if self.reportsNativeRenderDebug {
+                        self.nativeRenderDebug.heightMessageCount += 1
+                        self.nativeRenderDebug.lastHeight = h
+                        self.recordNativeEvent("height message \(Int(h.rounded()))", stage: "height-received")
+                    }
                     self.contentHeight = h
                 }
 
@@ -2479,9 +2530,11 @@ struct MathWebView: UIViewRepresentable {
                 guard reportsIntrinsicContentWidth else { return }
                 guard let w = renderCGFloat(from: message.body), w > 0 else { return }
                 Task { @MainActor in
-                    self.nativeRenderDebug.widthMessageCount += 1
-                    self.nativeRenderDebug.lastWidth = w
-                    self.recordNativeEvent("width message \(Int(w.rounded()))", stage: "width-received")
+                    if self.reportsNativeRenderDebug {
+                        self.nativeRenderDebug.widthMessageCount += 1
+                        self.nativeRenderDebug.lastWidth = w
+                        self.recordNativeEvent("width message \(Int(w.rounded()))", stage: "width-received")
+                    }
                     self.intrinsicContentWidth = w
                 }
 
@@ -2502,7 +2555,9 @@ struct MathWebView: UIViewRepresentable {
             case "renderStatusUpdate":
                 guard let payload = renderDictionary(from: message.body) else { return }
                 Task { @MainActor in
-                    self.nativeRenderDebug.renderStatusMessageCount += 1
+                    if self.reportsNativeRenderDebug {
+                        self.nativeRenderDebug.renderStatusMessageCount += 1
+                    }
                     self.recordNativeEvent(
                         "render status \(payload["stage"] as? String ?? "unknown")",
                         stage: "status-received"
@@ -2778,7 +2833,9 @@ struct MathWebView: UIViewRepresentable {
         private func attemptUpdate(js: String, renderToken: String, retries: Int) {
             guard renderToken == activeRenderToken else { return }
             guard let webView = webView else { return }
-            nativeRenderDebug.readinessChecks += 1
+            if reportsNativeRenderDebug {
+                nativeRenderDebug.readinessChecks += 1
+            }
             recordNativeEvent("readiness check retriesLeft=\(retries)", stage: "checking-ready")
             webView.evaluateJavaScript("typeof updateMathContent") { [weak self] result, error in
                 guard let self else { return }
@@ -2789,11 +2846,15 @@ struct MathWebView: UIViewRepresentable {
                         guard let self else { return }
                         guard renderToken == self.activeRenderToken else { return }
                         if let executionError {
-                            self.nativeRenderDebug.lastError = executionError.localizedDescription
+                            if self.reportsNativeRenderDebug {
+                                self.nativeRenderDebug.lastError = executionError.localizedDescription
+                            }
                             self.recordNativeEvent("JS error \(executionError.localizedDescription)", stage: "js-error")
                             return
                         }
-                        self.nativeRenderDebug.javaScriptExecutionCount += 1
+                        if self.reportsNativeRenderDebug {
+                            self.nativeRenderDebug.javaScriptExecutionCount += 1
+                        }
                         self.recordNativeEvent("updateMathContent executed", stage: "js-executed")
                         if self.pendingRenderUpdate?.renderToken == renderToken {
                             self.pendingRenderUpdate = nil
@@ -2802,7 +2863,7 @@ struct MathWebView: UIViewRepresentable {
                         self.scheduleVisibilityProbes(reason: "render update")
                     }
                 } else if retries > 0 {
-                    if let error {
+                    if let error, self.reportsNativeRenderDebug {
                         self.nativeRenderDebug.lastError = error.localizedDescription
                     }
                     self.updateRetryTask?.cancel()
@@ -2812,14 +2873,18 @@ struct MathWebView: UIViewRepresentable {
                         self.attemptUpdate(js: js, renderToken: renderToken, retries: retries - 1)
                     }
                 } else {
-                    self.nativeRenderDebug.lastError = error?.localizedDescription ?? "renderer unavailable"
+                    if self.reportsNativeRenderDebug {
+                        self.nativeRenderDebug.lastError = error?.localizedDescription ?? "renderer unavailable"
+                    }
                     self.recordNativeEvent("readiness exhausted", stage: "readiness-failed")
                 }
             }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-            nativeRenderDebug.didFinishCount += 1
+            if reportsNativeRenderDebug {
+                nativeRenderDebug.didFinishCount += 1
+            }
             recordNativeEvent("navigation didFinish", stage: "navigation-finished")
             guard let pendingRenderUpdate,
                   pendingRenderUpdate.renderToken == activeRenderToken
@@ -2835,6 +2900,7 @@ struct MathWebView: UIViewRepresentable {
         }
 
         private func recordNativeEvent(_ event: String, stage: String) {
+            guard reportsNativeRenderDebug else { return }
             refreshNativeViewState()
             nativeRenderDebug.stage = stage
             nativeRenderDebug.events.append(event)
@@ -2844,6 +2910,7 @@ struct MathWebView: UIViewRepresentable {
         }
 
         private func scheduleVisibilityProbes(reason: String) {
+            guard reportsNativeRenderDebug else { return }
             visibilityProbeTask?.cancel()
             probeVisibility(reason: "\(reason) immediate")
             visibilityProbeTask = Task { @MainActor [weak self] in
@@ -2926,6 +2993,7 @@ struct MathWebView: UIViewRepresentable {
         }
 
         private func refreshNativeViewState() {
+            guard reportsNativeRenderDebug else { return }
             guard let webView else { return }
             if let mathWebView = webView as? MathWKWebView {
                 nativeRenderDebug.webViewID = mathWebView.quizFlashDebugID

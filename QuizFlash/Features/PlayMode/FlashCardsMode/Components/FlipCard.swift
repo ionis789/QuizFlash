@@ -32,14 +32,12 @@ enum FlashcardPlayLayoutTuning {
 private struct StaticSwapTransitionModifier: ViewModifier {
     let scale: CGFloat
     let opacity: Double
-    let blurRadius: CGFloat
     let verticalOffset: CGFloat
 
     func body(content: Content) -> some View {
         content
             .scaleEffect(scale)
             .opacity(opacity)
-            .blur(radius: blurRadius)
             .offset(y: verticalOffset)
     }
 }
@@ -52,8 +50,7 @@ private struct StaticSwapFaceStateModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scaleEffect(scale)
-            .opacity(isVisible ? 1 : 0.001)
-            .blur(radius: blurRadius)
+            .opacity(isVisible ? 1 : 0)
             .offset(y: verticalOffset)
             .allowsHitTesting(isVisible)
             .accessibilityHidden(!isVisible)
@@ -62,11 +59,6 @@ private struct StaticSwapFaceStateModifier: ViewModifier {
     private var scale: CGFloat {
         guard textMotion == .animated else { return 1 }
         return isVisible ? 1 : 0.972
-    }
-
-    private var blurRadius: CGFloat {
-        guard textMotion == .animated else { return 0 }
-        return isVisible ? 0 : 6
     }
 
     private var verticalOffset: CGFloat {
@@ -98,13 +90,11 @@ private extension AnyTransition {
                 active: StaticSwapTransitionModifier(
                     scale: 0.972,
                     opacity: 0,
-                    blurRadius: 6,
                     verticalOffset: 8
                 ),
                 identity: StaticSwapTransitionModifier(
                     scale: 1,
                     opacity: 1,
-                    blurRadius: 0,
                     verticalOffset: 0
                 )
             ),
@@ -112,13 +102,11 @@ private extension AnyTransition {
                 active: StaticSwapTransitionModifier(
                     scale: 1.018,
                     opacity: 0,
-                    blurRadius: 8,
                     verticalOffset: -6
                 ),
                 identity: StaticSwapTransitionModifier(
                     scale: 1,
                     opacity: 1,
-                    blurRadius: 0,
                     verticalOffset: 0
                 )
             )
@@ -493,7 +481,7 @@ struct FlipCard: View {
             .background {
             cardShape
                 .fill(cardSurfaceFill)
-                .shadow(color: cardShadowColor, radius: isCompact ? 18 : 24, y: 10)
+                .shadow(color: cardShadowColor, radius: isCompact ? 14 : 18, y: 8)
         }
             .overlay {
             cardShape
@@ -502,8 +490,6 @@ struct FlipCard: View {
             .overlay {
             cardShape
                 .strokeBorder(cardInnerHighlightColor, lineWidth: 0.7)
-                .blur(radius: 1.2)
-                .clipShape(cardShape)
         }
             .clipShape(cardShape)
             .overlay(alignment: .bottomTrailing) {
@@ -824,7 +810,6 @@ struct FlipCard: View {
             .foregroundStyle(marker.tint)
             .frame(width: faceMarkerFrameSize, height: faceMarkerFrameSize)
             .opacity(0.24)
-            .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             .accessibilityHidden(true)
     }
 

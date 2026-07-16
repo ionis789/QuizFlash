@@ -31,6 +31,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>GIDClientID</key>
 	<string>208465635843-qtj8jjlo9psj0ih91738voe09evmpbid.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>

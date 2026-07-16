@@ -43,6 +43,8 @@ final class CloudSyncCoordinator {
     @ObservationIgnored private var modelContainer: ModelContainer?
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var retryTask: Task<Void, Never>?
+    @ObservationIgnored private var performanceCriticalInteractionCount = 0
+    @ObservationIgnored private var outboxProcessingNeedsResume = false
     @ObservationIgnored private var remoteImportActor: CloudSyncRemoteImportActor?
     @ObservationIgnored private var remoteImportTask: Task<Void, Never>?
     @ObservationIgnored private var pendingRemoteDecks: [CloudSyncRemoteDeckHeader] = []
@@ -127,6 +129,23 @@ final class CloudSyncCoordinator {
     }
 
     // MARK: - Local Mutations
+
+    /// Defers expensive SwiftData serialization and Firestore work while a
+    /// latency-sensitive game surface is accepting gestures.
+    func beginPerformanceCriticalInteraction() {
+        performanceCriticalInteractionCount += 1
+        outboxProcessingNeedsResume = true
+        processingTask?.cancel()
+        retryTask?.cancel()
+        retryTask = nil
+    }
+
+    func endPerformanceCriticalInteraction() {
+        guard performanceCriticalInteractionCount > 0 else { return }
+        performanceCriticalInteractionCount -= 1
+        guard performanceCriticalInteractionCount == 0 else { return }
+        scheduleOutboxProcessing()
+    }
 
     /// Assigns stable cloud IDs before a newly created deck is first saved.
     func assignCloudIdentityIfPossible(to deck: DeckModel) {
@@ -231,12 +250,23 @@ final class CloudSyncCoordinator {
     // MARK: - Outbox
 
     private func scheduleOutboxProcessing() {
-        guard processingTask == nil else { return }
+        guard performanceCriticalInteractionCount == 0 else {
+            outboxProcessingNeedsResume = true
+            return
+        }
+        guard processingTask == nil else {
+            outboxProcessingNeedsResume = true
+            return
+        }
+        outboxProcessingNeedsResume = false
 
         processingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             await processOutbox()
             processingTask = nil
+            if outboxProcessingNeedsResume {
+                scheduleOutboxProcessing()
+            }
         }
     }
 
@@ -387,6 +417,10 @@ final class CloudSyncCoordinator {
     }
 
     private func scheduleRetry() {
+        guard performanceCriticalInteractionCount == 0 else {
+            outboxProcessingNeedsResume = true
+            return
+        }
         guard retryTask == nil, activeUID != nil else { return }
 
         retryTask = Task { @MainActor [weak self] in

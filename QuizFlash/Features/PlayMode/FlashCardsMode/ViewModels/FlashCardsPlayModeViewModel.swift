@@ -102,6 +102,9 @@ final class FlashCardsPlayModeViewModel {
     /// Background continuation that fills the rest of the deck after first paint.
     @ObservationIgnored private var remainingCardLoadTask: Task<Void, Never>?
 
+    /// Balances the shared cloud-sync performance gate for this presentation.
+    @ObservationIgnored private var defersCloudSyncDuringInteraction = false
+
     // MARK: - Computed Properties
 
     /// Session accuracy expressed as an integer percentage (0–100).
@@ -161,9 +164,12 @@ final class FlashCardsPlayModeViewModel {
         guard !isSessionStarted, !isStartingSession else { return }
         isStartingSession = true
         defer { isStartingSession = false }
+        if !defersCloudSyncDuringInteraction {
+            CloudSyncCoordinator.shared.beginPerformanceCriticalInteraction()
+            defersCloudSyncDuringInteraction = true
+        }
         self.container = container
         self.persistenceService = PlaySessionPersistenceService(container: container)
-        MathWebViewPool.shared.prewarm(count: 2, initialDelayMilliseconds: 0)
 
         let repository = PlayModeCardRepository(container: container)
         let deckID = deck.persistentModelID
@@ -208,6 +214,10 @@ final class FlashCardsPlayModeViewModel {
     /// themselves on memory pressure. Clearing them here forces WebKit and image
     /// decoding cold starts every time Flashcards is opened.
     func tearDown() {
+        if defersCloudSyncDuringInteraction {
+            CloudSyncCoordinator.shared.endPerformanceCriticalInteraction()
+            defersCloudSyncDuringInteraction = false
+        }
         remainingCardLoadTask?.cancel()
         remainingCardLoadTask = nil
         cards = []

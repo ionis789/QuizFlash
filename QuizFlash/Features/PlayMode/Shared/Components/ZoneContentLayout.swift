@@ -270,12 +270,35 @@ private enum ZoneContentDisplayTextNormalizer {
         }
 
         return paragraphs
-            .map { paragraph in
-                paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
-            }
+            .map(collapseHorizontalWhitespace)
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func collapseHorizontalWhitespace(_ text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var hasPendingSpace = false
+
+        for character in text {
+            if character == " " || character == "\t" {
+                hasPendingSpace = true
+                continue
+            }
+
+            if hasPendingSpace {
+                result.append(" ")
+            }
+            result.append(character)
+            hasPendingSpace = false
+        }
+
+        if hasPendingSpace {
+            result.append(" ")
+        }
+
+        return result
     }
 }
 
@@ -2075,6 +2098,7 @@ private enum ZoneContentPlainTextLayoutMeasurer {
             }
 
             var current: [ZoneContentPlainTextToken] = []
+            var currentWidth: CGFloat = 0
             for token in tokens {
                 var remainingToken = token
 
@@ -2083,31 +2107,43 @@ private enum ZoneContentPlainTextLayoutMeasurer {
 
                     guard !nextToken.isEmpty else { break }
 
-                    let candidate = current.isEmpty
-                        ? [nextToken]
-                    : current + [nextToken]
-                    let candidateWidth = measuredWidth(for: normalizedLineTokens(candidate))
+                    let nextTokenWidth = measuredWidth(for: [nextToken])
+                    let candidateWidth = currentWidth + nextTokenWidth
 
                     if !current.isEmpty, candidateWidth > widthLimit {
-                        output.append(line(from: current, zone: zone, fontScale: fontScale))
+                        output.append(line(
+                            from: current,
+                            zone: zone,
+                            fontScale: fontScale
+                        ))
                         current = []
+                        currentWidth = 0
                         continue
                     }
 
                     if current.isEmpty, candidateWidth > widthLimit {
                         let split = splitOversizedToken(nextToken, widthLimit: widthLimit)
-                        output.append(line(from: [split.lineToken], zone: zone, fontScale: fontScale))
+                        output.append(line(
+                            from: [split.lineToken],
+                            zone: zone,
+                            fontScale: fontScale
+                        ))
                         remainingToken = split.remainingToken
                         continue
                     }
 
-                    current = candidate
+                    current.append(nextToken)
+                    currentWidth = candidateWidth
                     break
                 }
             }
 
             if !current.isEmpty {
-                output.append(line(from: current, zone: zone, fontScale: fontScale))
+                output.append(line(
+                    from: current,
+                    zone: zone,
+                    fontScale: fontScale
+                ))
             }
         }
 
@@ -2229,24 +2265,27 @@ private enum ZoneContentPlainTextLayoutMeasurer {
             return (token, token)
         }
 
-        let start = token.text.startIndex
-        var candidateEnd = start
-        var bestEnd = start
+        let boundaries = Array(token.text.indices) + [token.text.endIndex]
+        var lowerBound = 1
+        var upperBound = boundaries.count - 1
+        var bestBoundary = 1
 
-        while candidateEnd < token.text.endIndex {
-            let nextEnd = token.text.index(after: candidateEnd)
-            let candidateText = String(token.text[start..<nextEnd])
+        while lowerBound <= upperBound {
+            let candidateBoundary = (lowerBound + upperBound) / 2
+            let candidateEnd = boundaries[candidateBoundary]
+            let candidateText = String(token.text[..<candidateEnd])
             let candidateWidth = measuredWidth(for: [token.replacingText(candidateText)])
 
-            if candidateWidth <= widthLimit || bestEnd == start {
-                bestEnd = nextEnd
-                candidateEnd = nextEnd
+            if candidateWidth <= widthLimit || candidateBoundary == 1 {
+                bestBoundary = candidateBoundary
+                lowerBound = candidateBoundary + 1
             } else {
-                break
+                upperBound = candidateBoundary - 1
             }
         }
 
-        let lineText = String(token.text[start..<bestEnd])
+        let bestEnd = boundaries[bestBoundary]
+        let lineText = String(token.text[..<bestEnd])
         let remainingText = String(token.text[bestEnd...])
 
         return (

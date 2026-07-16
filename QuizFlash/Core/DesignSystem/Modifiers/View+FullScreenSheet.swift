@@ -981,26 +981,28 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
 #if DEBUG
         .background {
-            FullScreenSheetDebugProbe(
-                metrics: FullScreenSheetDebugMetrics(
-                    identifier: configuration.debugIdentifier,
-                    containerWidth: containerWidth,
-                    containerHeight: containerHeight,
-                    sheetHeight: sheetHeight,
-                    sheetTopY: sheetTopY,
-                    sheetRestBottomY: sheetTopY + sheetHeight,
-                    sheetVisualBottomY: sheetTopY + sheetHeight + sheetBottomOverscan,
-                    visibleSheetOffset: visibleSheetOffset,
-                    presentationProgress: presentationProgress,
-                    contentSafeTop: contentSafeAreaInsets.top,
-                    contentSafeBottom: contentSafeAreaInsets.bottom,
-                    windowSafeBottom: windowSafeAreaInsets.bottom,
-                    keyboardInset: keyboardInset,
-                    sheetBottomOverscan: sheetBottomOverscan,
-                    contentScrollOffset: contentScrollOffset,
-                    hasActiveChildPresentation: hasActiveChildPresentation
+            if let debugIdentifier = configuration.debugIdentifier {
+                FullScreenSheetDebugProbe(
+                    metrics: FullScreenSheetDebugMetrics(
+                        identifier: debugIdentifier,
+                        containerWidth: containerWidth,
+                        containerHeight: containerHeight,
+                        sheetHeight: sheetHeight,
+                        sheetTopY: sheetTopY,
+                        sheetRestBottomY: sheetTopY + sheetHeight,
+                        sheetVisualBottomY: sheetTopY + sheetHeight + sheetBottomOverscan,
+                        visibleSheetOffset: visibleSheetOffset,
+                        presentationProgress: presentationProgress,
+                        contentSafeTop: contentSafeAreaInsets.top,
+                        contentSafeBottom: contentSafeAreaInsets.bottom,
+                        windowSafeBottom: windowSafeAreaInsets.bottom,
+                        keyboardInset: keyboardInset,
+                        sheetBottomOverscan: sheetBottomOverscan,
+                        contentScrollOffset: contentScrollOffset,
+                        hasActiveChildPresentation: hasActiveChildPresentation
+                    )
                 )
-            )
+            }
         }
 #endif
         .onAppear {
