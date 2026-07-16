@@ -1782,9 +1782,9 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             }
         }
         onFocusChange?(true)
-        rememberAcceptedText(
-            ZoneTextViewEmptyCaret.modelText(from: textView.text ?? ""),
-            selectedRange: textView.selectedRange
+        rememberAcceptedSelection(
+            textView.selectedRange,
+            displayText: textView.text ?? ""
         )
         reportCursorPosition(from: textView, includeCaretAnchor: true, source: .focus)
         scheduleSettledCaretReport(from: textView, source: .focus)
@@ -1926,19 +1926,23 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         )
         lastAcceptedText = modelText
         lastAcceptedTextUsesForcedLineBreakMarkers = modelText.contains(ZoneForcedLineBreak.marker)
+        let currentDisplayText = textView?.text ?? ZoneTextViewEmptyCaret.displayText(for: modelText)
+        rememberAcceptedSelection(selectedRange, displayText: currentDisplayText)
+        lastText = modelText
+    }
+
+    private func rememberAcceptedSelection(_ selectedRange: NSRange, displayText: String) {
         if lastAcceptedTextUsesForcedLineBreakMarkers {
-            let currentDisplayText = textView?.text ?? ZoneTextViewEmptyCaret.displayText(for: modelText)
             lastAcceptedSelectedRange = ZoneTextViewEmptyCaret.modelRange(
                 from: selectedRange,
-                displayText: currentDisplayText
+                displayText: displayText
             )
         } else {
-            let modelLength = (modelText as NSString).length
+            let modelLength = (lastAcceptedText as NSString).length
             let location = min(max(selectedRange.location, 0), modelLength)
             let end = min(max(selectedRange.location + selectedRange.length, location), modelLength)
             lastAcceptedSelectedRange = NSRange(location: location, length: end - location)
         }
-        lastText = modelText
     }
 
     func hasAcceptedModelText(_ modelText: String) -> Bool {

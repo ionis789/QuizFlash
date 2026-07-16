@@ -7,129 +7,6 @@
 
 import SwiftUI
 import UIKit
-#if DEBUG
-import ObjectiveC.runtime
-
-/// Captures the UIKit request that moves the watched editor scroll view upward.
-/// The normal driver never makes a large upward move, so this stays quiet until
-/// UIKit or SwiftUI restores the focused zone to its top edge.
-private enum ZoneEditorScrollMutationTracer {
-    private static var watchedScrollViewIDs = Set<ObjectIdentifier>()
-    private static var isInstalled = false
-
-    static func watch(_ scrollView: UIScrollView) {
-        installIfNeeded()
-        watchedScrollViewIDs.insert(ObjectIdentifier(scrollView))
-    }
-
-    static func stopWatching(_ scrollView: UIScrollView?) {
-        guard let scrollView else { return }
-        watchedScrollViewIDs.remove(ObjectIdentifier(scrollView))
-    }
-
-    fileprivate static func recordOffsetRequest(
-        for scrollView: UIScrollView,
-        target: CGPoint,
-        selector: String,
-        animated: Bool?
-    ) {
-        guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
-        guard target.y < scrollView.contentOffset.y - 48 else { return }
-
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            "scroll-native-upward-setter",
-            zoneID: nil,
-            details: "selector=\(selector) animated=\(animated.map { $0 ? "1" : "0" } ?? "nil") from=\(pointDescription(scrollView.contentOffset)) to=\(pointDescription(target)) class=\(String(describing: type(of: scrollView))) stack=\(Thread.callStackSymbols.prefix(14).joined(separator: " || "))"
-        )
-    }
-
-    fileprivate static func recordScrollRectRequest(
-        for scrollView: UIScrollView,
-        rect: CGRect,
-        animated: Bool
-    ) {
-        guard watchedScrollViewIDs.contains(ObjectIdentifier(scrollView)) else { return }
-
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            "scroll-native-rect-request",
-            zoneID: nil,
-            details: "rect=\(rectDescription(rect)) animated=\(animated ? "1" : "0") offset=\(pointDescription(scrollView.contentOffset)) class=\(String(describing: type(of: scrollView))) stack=\(Thread.callStackSymbols.prefix(14).joined(separator: " || "))"
-        )
-    }
-
-    private static func pointDescription(_ point: CGPoint) -> String {
-        String(format: "%.1f,%.1f", Double(point.x), Double(point.y))
-    }
-
-    private static func rectDescription(_ rect: CGRect) -> String {
-        String(
-            format: "%.1f,%.1f,%.1fx%.1f",
-            Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height)
-        )
-    }
-
-    private static func installIfNeeded() {
-        guard !isInstalled else { return }
-        isInstalled = true
-
-        exchange(
-            original: NSSelectorFromString("setContentOffset:"),
-            replacement: #selector(UIScrollView.qfZoneEditorTraceSetContentOffset(_:))
-        )
-        exchange(
-            original: NSSelectorFromString("setContentOffset:animated:"),
-            replacement: #selector(UIScrollView.qfZoneEditorTraceSetContentOffset(_:animated:))
-        )
-        exchange(
-            original: NSSelectorFromString("scrollRectToVisible:animated:"),
-            replacement: #selector(UIScrollView.qfZoneEditorTraceScrollRectToVisible(_:animated:))
-        )
-    }
-
-    private static func exchange(original: Selector, replacement: Selector) {
-        guard let originalMethod = class_getInstanceMethod(UIScrollView.self, original),
-              let replacementMethod = class_getInstanceMethod(UIScrollView.self, replacement) else {
-            return
-        }
-
-        method_exchangeImplementations(originalMethod, replacementMethod)
-    }
-}
-
-private extension UIScrollView {
-    @objc(qf_zoneEditor_trace_setContentOffset:)
-    func qfZoneEditorTraceSetContentOffset(_ contentOffset: CGPoint) {
-        ZoneEditorScrollMutationTracer.recordOffsetRequest(
-            for: self,
-            target: contentOffset,
-            selector: "setContentOffset:",
-            animated: nil
-        )
-        qfZoneEditorTraceSetContentOffset(contentOffset)
-    }
-
-    @objc(qf_zoneEditor_trace_setContentOffset:animated:)
-    func qfZoneEditorTraceSetContentOffset(_ contentOffset: CGPoint, animated: Bool) {
-        ZoneEditorScrollMutationTracer.recordOffsetRequest(
-            for: self,
-            target: contentOffset,
-            selector: "setContentOffset:animated:",
-            animated: animated
-        )
-        qfZoneEditorTraceSetContentOffset(contentOffset, animated: animated)
-    }
-
-    @objc(qf_zoneEditor_trace_scrollRectToVisible:animated:)
-    func qfZoneEditorTraceScrollRectToVisible(_ rect: CGRect, animated: Bool) {
-        ZoneEditorScrollMutationTracer.recordScrollRectRequest(
-            for: self,
-            rect: rect,
-            animated: animated
-        )
-        qfZoneEditorTraceScrollRectToVisible(rect, animated: animated)
-    }
-}
-#endif
 
 @MainActor
 final class ZoneEditorScrollDriver {
@@ -178,7 +55,7 @@ final class ZoneEditorScrollDriver {
     private var lastDebugObservedRawOffsetY: CGFloat?
     private var lastDebugObservedNormalizedOffsetY: CGFloat?
     private var activeDebugOffsetCommand: DebugOffsetCommand?
-    private var offsetAnimationTask: Task<Void, Never>?
+    private var offsetAnimator: UIViewPropertyAnimator?
     private var keyboardDismissTraceSequence = 0
     private var activeKeyboardDismissTrace: KeyboardDismissTrace?
     private var keyboardDismissTraceTask: Task<Void, Never>?
@@ -193,7 +70,7 @@ final class ZoneEditorScrollDriver {
     private(set) var currentContentInsetBottom: CGFloat = 0
     private(set) var currentAdjustedContentInsetBottom: CGFloat = 0
     var hasActiveBoundsOriginAnimation: Bool {
-        if offsetAnimationTask != nil { return true }
+        if offsetAnimator != nil { return true }
 
         guard let scrollView else { return false }
         let animationKeys = scrollView.layer.animationKeys() ?? []
@@ -208,19 +85,13 @@ final class ZoneEditorScrollDriver {
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
         invalidateObservations()
-#if DEBUG
-        ZoneEditorScrollMutationTracer.stopWatching(self.scrollView)
-#endif
         self.scrollView = scrollView
-        offsetAnimationTask?.cancel()
-        offsetAnimationTask = nil
+        offsetAnimator?.stopAnimation(true)
+        offsetAnimator = nil
         guard let scrollView else {
             lockedOffset = nil
             return
         }
-#if DEBUG
-        ZoneEditorScrollMutationTracer.watch(scrollView)
-#endif
         observeOffset(in: scrollView)
         reportScrollOffset(in: scrollView, force: true)
         applyContentInsetsIfNeeded()
@@ -230,11 +101,8 @@ final class ZoneEditorScrollDriver {
     func detach() {
         setScrollFrozen(false)
         invalidateObservations()
-#if DEBUG
-        ZoneEditorScrollMutationTracer.stopWatching(scrollView)
-#endif
-        offsetAnimationTask?.cancel()
-        offsetAnimationTask = nil
+        offsetAnimator?.stopAnimation(true)
+        offsetAnimator = nil
         keyboardDismissTraceTask?.cancel()
         keyboardDismissTraceTask = nil
         activeKeyboardDismissTrace = nil
@@ -281,8 +149,8 @@ final class ZoneEditorScrollDriver {
             lockedOffset = frozenOffset
             offsetLockTask?.cancel()
             offsetLockTask = nil
-            offsetAnimationTask?.cancel()
-            offsetAnimationTask = nil
+            offsetAnimator?.stopAnimation(true)
+            offsetAnimator = nil
 
             UIView.performWithoutAnimation {
                 scrollView.layer.removeAllAnimations()
@@ -1046,9 +914,18 @@ final class ZoneEditorScrollDriver {
             zoneID: debugZoneID,
             details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) locks=\(keepsOffsetLocked ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
         )
-        offsetAnimationTask?.cancel()
-        offsetAnimationTask = nil
+        let presentationY = scrollView.layer.presentation()?.bounds.origin.y
+        offsetAnimator?.stopAnimation(true)
+        offsetAnimator = nil
         scrollView.layer.removeAllAnimations()
+        if let presentationY {
+            UIView.performWithoutAnimation {
+                scrollView.setContentOffset(
+                    CGPoint(x: before.x, y: clampedOffsetY(presentationY, in: scrollView)),
+                    animated: false
+                )
+            }
+        }
         guard duration > 0.02 else {
             scrollView.setContentOffset(offset, animated: false)
             ZoneEditorDebugStore.shared.recordScrollDecision(
@@ -1062,46 +939,24 @@ final class ZoneEditorScrollDriver {
             return
         }
 
-        let start = scrollView.contentOffset
-        let startTime = CACurrentMediaTime()
-        offsetAnimationTask = Task { @MainActor [weak self, weak scrollView] in
-            while true {
-                guard let self, let scrollView else { return }
-                guard !Task.isCancelled else { return }
-
-                if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
-                    let isCurrentCommand = self.activeDebugOffsetCommand?.token == command.token
-                    ZoneEditorDebugStore.shared.recordScrollDecision(
-                        "scroll-set-offset-cancelled",
-                        zoneID: debugZoneID,
-                        details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") reason=user-scroll current=\(isCurrentCommand ? 1 : 0) final=\(self.debugPoint(scrollView.contentOffset)) \(self.scrollSnapshotDetails(in: scrollView))"
-                    )
-                    if isCurrentCommand {
-                        self.activeDebugOffsetCommand = nil
-                        self.offsetAnimationTask = nil
-                    }
-                    return
-                }
-
-                let elapsed = CACurrentMediaTime() - startTime
-                let progress = min(max(elapsed / max(duration, 0.001), 0), 1)
-                let easedProgress = progress * progress * (3 - 2 * progress)
-                let targetY = self.clampedOffsetY(offset.y, in: scrollView)
-                let frameOffset = CGPoint(
-                    x: start.x + ((offset.x - start.x) * easedProgress),
-                    y: start.y + ((targetY - start.y) * easedProgress)
-                )
-                scrollView.setContentOffset(frameOffset, animated: false)
-
-                guard progress < 1 else { break }
-                try? await Task.sleep(for: .milliseconds(8))
-            }
-
+        let target = CGPoint(
+            x: offset.x,
+            y: clampedOffsetY(offset.y, in: scrollView)
+        )
+        let animator = UIViewPropertyAnimator(
+            duration: duration,
+            curve: animationCurve(for: options)
+        ) {
+            scrollView.setContentOffset(target, animated: false)
+        }
+        animator.isInterruptible = true
+        animator.isUserInteractionEnabled = true
+        animator.addCompletion { [weak self, weak scrollView] position in
             guard let self, let scrollView else { return }
             let isCurrentCommand = self.activeDebugOffsetCommand?.token == command.token
-            if isCurrentCommand {
+            if isCurrentCommand, position == .end {
                 scrollView.setContentOffset(
-                    CGPoint(x: offset.x, y: self.clampedOffsetY(offset.y, in: scrollView)),
+                    target,
                     animated: false
                 )
                 if keepsOffsetLocked {
@@ -1121,9 +976,18 @@ final class ZoneEditorScrollDriver {
             )
             if isCurrentCommand {
                 self.activeDebugOffsetCommand = nil
-                self.offsetAnimationTask = nil
+                self.offsetAnimator = nil
             }
         }
+        offsetAnimator = animator
+        animator.startAnimation()
+    }
+
+    private func animationCurve(for options: UIView.AnimationOptions) -> UIView.AnimationCurve {
+        if options.contains(.curveLinear) { return .linear }
+        if options.contains(.curveEaseIn) { return .easeIn }
+        if options.contains(.curveEaseOut) { return .easeOut }
+        return .easeInOut
     }
 
     private func invalidateObservations() {
@@ -1165,13 +1029,27 @@ final class ZoneEditorScrollDriver {
         reportScrollOffset(in: scrollView, observation: observation)
         guard !isRestoringLockedOffset else { return }
 
-        guard lockedOffset != nil else { return }
-
         if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+            if offsetAnimator != nil {
+                let userOffset = scrollView.contentOffset
+                offsetAnimator?.stopAnimation(true)
+                offsetAnimator = nil
+                scrollView.layer.removeAllAnimations()
+                UIView.performWithoutAnimation {
+                    scrollView.setContentOffset(userOffset, animated: false)
+                }
+                ZoneEditorDebugStore.shared.recordScrollDecision(
+                    "scroll-set-offset-cancelled",
+                    zoneID: activeDebugOffsetCommand?.zoneID,
+                    details: "reason=user-scroll final=\(debugPoint(userOffset)) \(scrollSnapshotDetails(in: scrollView))"
+                )
+                activeDebugOffsetCommand = nil
+            }
             clearOffsetLock()
             return
         }
 
+        guard lockedOffset != nil else { return }
         restoreLockedOffsetIfNeeded(in: scrollView, reason: "observed-offset", zoneID: nil)
     }
 

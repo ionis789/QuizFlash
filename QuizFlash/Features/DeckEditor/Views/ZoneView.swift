@@ -1047,6 +1047,17 @@ struct ZoneContentView: View {
         )
 
         return rawTextMeasurementCache.size(for: key) {
+            if ZoneTextPerformancePolicy.isOversized(zone.text) {
+                return ZoneTextPerformancePolicy.estimatedPlainTextSize(
+                    text: zone.text,
+                    zone: zone,
+                    fontScale: fontScale,
+                    availableWidth: max(width, 1),
+                    horizontalInsets: horizontalPadding + textInsets.left + textInsets.right,
+                    verticalPadding: textInsets.top + textInsets.bottom
+                )
+            }
+
             let textForMeasurement = preservesTrailingBlankLines
                 ? zone.text
                 : textWithoutTrailingBlankLines(zone.text)
