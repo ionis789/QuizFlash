@@ -62,6 +62,28 @@ struct ZoneContentLayoutResult: Equatable {
 
 /// Resolves zone rectangles for editor, preview, and play-mode rendering.
 enum ZoneContentLayoutEngine {
+    private final class TextLayoutTraitsBox {
+        let sourceText: String
+        let usesIntrinsicMeasurement: Bool
+        let needsRichTextMeasurement: Bool
+
+        init(
+            sourceText: String,
+            usesIntrinsicMeasurement: Bool,
+            needsRichTextMeasurement: Bool
+        ) {
+            self.sourceText = sourceText
+            self.usesIntrinsicMeasurement = usesIntrinsicMeasurement
+            self.needsRichTextMeasurement = needsRichTextMeasurement
+        }
+    }
+
+    private static let textLayoutTraitsCache: NSCache<NSUUID, TextLayoutTraitsBox> = {
+        let cache = NSCache<NSUUID, TextLayoutTraitsBox>()
+        cache.countLimit = 128
+        return cache
+    }()
+
     static func blockLeadingInset(
         for alignment: ZoneBlockAlignment,
         blockWidth: CGFloat,
@@ -242,10 +264,7 @@ enum ZoneContentLayoutEngine {
 
     private static func usesIntrinsicTextMeasurement(for zone: ZoneModel) -> Bool {
         guard zone.contentType == .text else { return false }
-        let previewText = ZoneForcedLineBreak.renderText(
-            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
-        )
-        return !previewText.isEmpty && !previewText.hasPrefix("```")
+        return textLayoutTraits(for: zone).usesIntrinsicMeasurement
     }
 
     private static func fallbackIntrinsicTextHeight(
@@ -257,16 +276,41 @@ enum ZoneContentLayoutEngine {
             return estimatedHeight
         }
 
-        let previewText = ZoneForcedLineBreak.renderText(
-            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
-        )
-        let richTextNeedsWebMeasurement = MathTextSanitizer.containsMath(previewText)
-            || MathTextSanitizer.containsInlineCode(previewText)
-        guard richTextNeedsWebMeasurement else {
+        guard textLayoutTraits(for: zone).needsRichTextMeasurement else {
             return estimatedHeight
         }
 
         return ceil(estimatedHeight)
+    }
+
+    private static func textLayoutTraits(for zone: ZoneModel) -> TextLayoutTraitsBox {
+        let key = zone.id as NSUUID
+        if let cached = textLayoutTraitsCache.object(forKey: key),
+           cached.sourceText == zone.text {
+            return cached
+        }
+
+        let traits: TextLayoutTraitsBox
+        if ZoneTextPerformancePolicy.isOversized(zone.text) {
+            traits = TextLayoutTraitsBox(
+                sourceText: zone.text,
+                usesIntrinsicMeasurement: !zone.text.isEmpty && !zone.text.hasPrefix("```"),
+                needsRichTextMeasurement: false
+            )
+        } else {
+            let previewText = ZoneForcedLineBreak.renderText(
+                MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+            )
+            traits = TextLayoutTraitsBox(
+                sourceText: zone.text,
+                usesIntrinsicMeasurement: !previewText.isEmpty && !previewText.hasPrefix("```"),
+                needsRichTextMeasurement: MathTextSanitizer.containsMath(previewText)
+                    || MathTextSanitizer.containsInlineCode(previewText)
+            )
+        }
+
+        textLayoutTraitsCache.setObject(traits, forKey: key)
+        return traits
     }
 
     private static func horizontalTextInsets(for zone: ZoneModel) -> CGFloat {

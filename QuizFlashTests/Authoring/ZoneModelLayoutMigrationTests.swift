@@ -201,6 +201,51 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
+    func testOversizedTextTraitsInvalidateWhenSameZoneChangesToCodeFence() {
+        var zone = ZoneModel.text(String(repeating: "a", count: 40_000))
+        let spec = ZoneContentLayoutSpec(availableWidth: 320, fontScale: 1)
+
+        let plainLayout = ZoneContentLayoutEngine.leafLayout(
+            for: zone,
+            spec: spec,
+            measuredContentSize: CGSize(width: 320, height: 100)
+        )
+
+        zone.text = "```" + String(repeating: "a", count: 39_997)
+        let codeLayout = ZoneContentLayoutEngine.leafLayout(
+            for: zone,
+            spec: spec,
+            measuredContentSize: CGSize(width: 320, height: 100)
+        )
+
+        XCTAssertTrue(plainLayout.usesIntrinsicTextMeasurement)
+        XCTAssertFalse(codeLayout.usesIntrinsicTextMeasurement)
+    }
+
+    func testOversizedEstimateInvalidatesForSameLengthLineChanges() {
+        var zone = ZoneModel.text(String(repeating: "a", count: 40_000))
+        let singleLineSize = ZoneTextPerformancePolicy.estimatedPlainTextSize(
+            text: zone.text,
+            zone: zone,
+            fontScale: 1,
+            availableWidth: 320,
+            horizontalInsets: 24,
+            verticalPadding: 24
+        )
+
+        zone.text = String(repeating: "a\n", count: 20_000)
+        let manyLinesSize = ZoneTextPerformancePolicy.estimatedPlainTextSize(
+            text: zone.text,
+            zone: zone,
+            fontScale: 1,
+            availableWidth: 320,
+            horizontalInsets: 24,
+            verticalPadding: 24
+        )
+
+        XCTAssertGreaterThan(manyLinesSize.height, singleLineSize.height)
+    }
+
     func testShortMathListItemUsesRendererMeasuredWidth() {
         let zone = ZoneModel.text(#"b) $\operatorname{def}(T) = 0$;"#)
 
