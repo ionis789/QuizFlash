@@ -83,16 +83,21 @@ enum ZoneContentLayoutEngine {
         spec: ZoneContentLayoutSpec,
         measuredContentSize: CGSize
     ) -> ZoneContentLayoutResult {
-        let estimatedSize = ZoneContentEstimator.estimatedSize(
-            for: zone,
-            fontScale: spec.fontScale,
-            availableWidth: spec.availableWidth,
-            textVerticalPadding: spec.textVerticalPadding,
-            textHorizontalPaddingOverride: spec.textHorizontalPaddingOverride
-        )
         let textHorizontalInsets = spec.textHorizontalPaddingOverride ?? horizontalTextInsets(for: zone)
         let intrinsicMeasurement = usesIntrinsicTextMeasurement(for: zone)
         let usesMediaIntrinsicLayout = usesMediaIntrinsicLayout(for: zone)
+        let hasAuthoritativeMeasurement = !usesMediaIntrinsicLayout
+            && measuredContentSize.width > 0
+            && measuredContentSize.height > 0
+        let estimatedSize = hasAuthoritativeMeasurement
+            ? measuredContentSize
+            : ZoneContentEstimator.estimatedSize(
+                for: zone,
+                fontScale: spec.fontScale,
+                availableWidth: spec.availableWidth,
+                textVerticalPadding: spec.textVerticalPadding,
+                textHorizontalPaddingOverride: spec.textHorizontalPaddingOverride
+            )
         let measuredWidth: CGFloat = {
             if usesMediaIntrinsicLayout {
                 return estimatedSize.width

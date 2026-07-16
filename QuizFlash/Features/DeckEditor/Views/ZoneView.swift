@@ -502,6 +502,44 @@ enum ZoneEditorInitialBlockWidthResolver {
 
 // MARK: - Zone Content View (Leaf)
 
+@MainActor
+private final class ZoneRawTextMeasurementCache {
+    struct Key: Equatable {
+        let zoneID: UUID
+        let text: String
+        let width: CGFloat
+        let preservesTrailingBlankLines: Bool
+        let fontName: String
+        let fontSize: CGFloat
+        let fontTraits: UInt32
+        let lineSpacing: CGFloat
+        let textInsets: UIEdgeInsets
+        let horizontalPadding: CGFloat
+    }
+
+    private struct Entry {
+        let key: Key
+        let size: CGSize
+    }
+
+    private var entries: [Entry] = []
+
+    func size(for key: Key, measure: () -> CGSize) -> CGSize {
+        if let index = entries.firstIndex(where: { $0.key == key }) {
+            let entry = entries.remove(at: index)
+            entries.insert(entry, at: 0)
+            return entry.size
+        }
+
+        let measuredSize = measure()
+        entries.insert(Entry(key: key, size: measuredSize), at: 0)
+        if entries.count > 4 {
+            entries.removeLast(entries.count - 4)
+        }
+        return measuredSize
+    }
+}
+
 /// Renders the content of a single leaf zone: text editor, image, or sketch.
 ///
 /// Handles:
@@ -528,6 +566,7 @@ struct ZoneContentView: View {
     @State private var isFocused: Bool = false
     @State private var isCroppingImage: Bool = false
     @State private var renderedContentSize: CGSize = .zero
+    @State private var rawTextMeasurementCache = ZoneRawTextMeasurementCache()
     @State private var lastPostedCaretAnchorY: CGFloat?
     @State private var isTextViewFirstResponder: Bool = false
 
@@ -993,39 +1032,52 @@ struct ZoneContentView: View {
             textViewWidth - textInsets.left - textInsets.right,
             1
         )
-        let textForMeasurement = preservesTrailingBlankLines
-            ? zone.text
-            : textWithoutTrailingBlankLines(zone.text)
-        let editorText = ZoneForcedLineBreak.editorDisplayText(textForMeasurement)
-        let rawText = editorText.isEmpty ? " " : editorText
-        let measuredText = rawText.hasSuffix("\n") ? rawText + " " : rawText
-        let textStorage = NSTextStorage(
-            attributedString: NSAttributedString(
-                string: measuredText,
-                attributes: textMeasurementAttributes(for: zone)
+        let font = textUIFont(for: zone)
+        let key = ZoneRawTextMeasurementCache.Key(
+            zoneID: zone.id,
+            text: zone.text,
+            width: ceil(textContainerWidth * 2) / 2,
+            preservesTrailingBlankLines: preservesTrailingBlankLines,
+            fontName: font.fontName,
+            fontSize: font.pointSize,
+            fontTraits: font.fontDescriptor.symbolicTraits.rawValue,
+            lineSpacing: editorTextLineSpacing,
+            textInsets: textInsets,
+            horizontalPadding: horizontalPadding
+        )
+
+        return rawTextMeasurementCache.size(for: key) {
+            let textForMeasurement = preservesTrailingBlankLines
+                ? zone.text
+                : textWithoutTrailingBlankLines(zone.text)
+            let editorText = ZoneForcedLineBreak.editorDisplayText(textForMeasurement)
+            let rawText = editorText.isEmpty ? " " : editorText
+            let measuredText = rawText.hasSuffix("\n") ? rawText + " " : rawText
+            let textStorage = NSTextStorage(
+                attributedString: NSAttributedString(
+                    string: measuredText,
+                    attributes: textMeasurementAttributes(for: zone)
+                )
             )
-        )
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(
-            size: CGSize(width: textContainerWidth, height: .greatestFiniteMagnitude)
-        )
+            let layoutManager = NSLayoutManager()
+            let textContainer = NSTextContainer(
+                size: CGSize(width: textContainerWidth, height: .greatestFiniteMagnitude)
+            )
 
-        textContainer.lineFragmentPadding = 0
-        textContainer.lineBreakMode = .byWordWrapping
-        textContainer.maximumNumberOfLines = 0
-        layoutManager.usesFontLeading = true
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.ensureLayout(for: textContainer)
+            textContainer.lineFragmentPadding = 0
+            textContainer.lineBreakMode = .byWordWrapping
+            textContainer.maximumNumberOfLines = 0
+            layoutManager.usesFontLeading = true
+            layoutManager.addTextContainer(textContainer)
+            textStorage.addLayoutManager(layoutManager)
+            layoutManager.ensureLayout(for: textContainer)
 
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        let measuredWidth = usedRect.width + textInsets.left + textInsets.right + horizontalPadding
-        let measuredHeight = ceil(usedRect.height + textInsets.top + textInsets.bottom)
-
-        return CGSize(
-            width: measuredWidth,
-            height: measuredHeight
-        )
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            return CGSize(
+                width: usedRect.width + textInsets.left + textInsets.right + horizontalPadding,
+                height: ceil(usedRect.height + textInsets.top + textInsets.bottom)
+            )
+        }
     }
 
     private func minimumContentHeight(forWidth width: CGFloat) -> CGFloat {
@@ -1086,7 +1138,9 @@ struct ZoneContentView: View {
         case .image, .sketch:
             return layout.blockSize.height
         case .empty, .text, .code:
-            return zone.sizeMode == .fixed ? layout.blockSize.height : nil
+            return zone.sizeMode == .fixed || ZoneTextPerformancePolicy.isOversized(zone.text)
+                ? layout.blockSize.height
+                : nil
         }
     }
 
@@ -1437,7 +1491,7 @@ struct ZoneContentView: View {
             "leaf-layout",
             zoneID: zone.id,
             pathID: path.id,
-            details: "reason=\(reason) mode=\(rendersRichText ? "rich" : "raw") available=\(debugValue(availableWidth)) measurement=\(debugValue(measurementWidth)) textLen=\((zone.text as NSString).length) sizeMode=\(zone.sizeMode.rawValue) measured=\(debugSize(measuredLayoutContentSize(for: zone, layoutZone: normalizedLayoutZone(zone)))) block=\(debugSize(layout.blockSize)) contentW=\(debugValue(layout.contentLayoutWidth)) lead=\(debugValue(layout.leadingInset)) rendered=\(debugSize(renderedContentSize)) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0)"
+            details: "reason=\(reason) mode=\(rendersRichText ? "rich" : "raw") available=\(debugValue(availableWidth)) measurement=\(debugValue(measurementWidth)) textLen=\((zone.text as NSString).length) sizeMode=\(zone.sizeMode.rawValue) measured=\(debugSize(layout.measuredContentSize)) block=\(debugSize(layout.blockSize)) contentW=\(debugValue(layout.contentLayoutWidth)) lead=\(debugValue(layout.leadingInset)) rendered=\(debugSize(renderedContentSize)) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0)"
         )
         ZoneEditorDebugStore.shared.recordEditorState(
             "zone-guide-state",

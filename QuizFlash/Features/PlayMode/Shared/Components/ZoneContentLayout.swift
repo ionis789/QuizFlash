@@ -890,6 +890,7 @@ private struct ZoneContentTreePreview: View {
 
     private func requiresIntrinsicTextWidthFloor(for child: ZoneModel) -> Bool {
         guard child.contentType == .text else { return false }
+        guard !ZoneTextPerformancePolicy.isOversized(child.text) else { return false }
         let previewText = ZoneContentDisplayTextNormalizer.textZoneDisplayText(child.text)
         guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
@@ -1248,7 +1249,9 @@ private struct ZoneContentLeafPreview: View {
         case .image, .sketch:
             return layout.blockSize.height
         case .empty, .text, .code:
-            return zone.sizeMode == .fixed ? layout.blockSize.height : nil
+            return zone.sizeMode == .fixed || ZoneTextPerformancePolicy.isOversized(zone.text)
+                ? layout.blockSize.height
+                : nil
         }
     }
 
@@ -1348,7 +1351,12 @@ private struct ZoneContentLeafPreview: View {
         case .text, .code:
             let previewText = displayText(for: zone)
             if !previewText.isEmpty {
-                if zone.contentType == .code || previewText.hasPrefix("```") {
+                if ZoneTextPerformancePolicy.isOversized(previewText) {
+                    textLeafContent(
+                        previewText,
+                        layout: layout
+                    )
+                } else if zone.contentType == .code || previewText.hasPrefix("```") {
                     CodeSnippetView(
                         rawText: previewText,
                         fontSize: codeBlockFontSize(for: zone)
@@ -1392,9 +1400,11 @@ private struct ZoneContentLeafPreview: View {
         _ previewText: String,
         layout: ZoneContentLayoutResult
     ) -> some View {
-        let semanticText = MathTextSanitizer.heal(previewText)
-        let usesMathRenderer = MathTextSanitizer.containsMath(semanticText)
-            || MathTextSanitizer.containsInlineCode(semanticText)
+        let usesOversizedPlainTextPath = ZoneTextPerformancePolicy.isOversized(previewText)
+        let semanticText = usesOversizedPlainTextPath ? "" : MathTextSanitizer.heal(previewText)
+        let usesMathRenderer = !usesOversizedPlainTextPath
+            && (MathTextSanitizer.containsMath(semanticText)
+                || MathTextSanitizer.containsInlineCode(semanticText))
         let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
         let intrinsicMeasurementTextWidthLimit = max(
             availableWidth - layout.textHorizontalInsets,
@@ -1518,6 +1528,7 @@ private struct ZoneContentLeafPreview: View {
 
     private var requiresIntrinsicTextWidthFloor: Bool {
         guard zone.contentType == .text else { return false }
+        guard !ZoneTextPerformancePolicy.isOversized(zone.text) else { return false }
         let previewText = displayText(for: zone)
         guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         let healedText = MathTextSanitizer.heal(previewText)
@@ -1586,6 +1597,9 @@ private struct ZoneContentLeafPreview: View {
 
     private var requiresStableTextMeasurement: Bool {
         guard zone.contentType == .text else { return false }
+        if ZoneTextPerformancePolicy.isOversized(zone.text) {
+            return !zone.text.isEmpty
+        }
         return !displayText(for: zone).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -1621,18 +1635,23 @@ private struct ZoneContentLeafPreview: View {
     ) -> ZoneContentLeafLayoutDebugSnapshot {
         let rawText = zone.text
         let displayText = zone.contentType == .text ? displayText(for: zone) : zone.text
-        let healedText = MathTextSanitizer.heal(displayText)
-        let containsMath = MathTextSanitizer.containsMath(healedText)
-        let containsInlineCode = MathTextSanitizer.containsInlineCode(healedText)
+        let isOversized = ZoneTextPerformancePolicy.isOversized(displayText)
+        let diagnosticText = isOversized ? Self.preview(displayText) : displayText
+        let healedText = isOversized ? diagnosticText : MathTextSanitizer.heal(displayText)
+        let containsMath = !isOversized && MathTextSanitizer.containsMath(healedText)
+        let containsInlineCode = !isOversized && MathTextSanitizer.containsInlineCode(healedText)
         let effectiveTextWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
-        let estimatedLineWidths = zone.contentType == .text
+        let estimatedLineWidths = zone.contentType == .text && !isOversized
             ? ZoneContentEstimator.debugLineWidths(
             for: zone,
             fontScale: fontScale,
             availableWidth: effectiveTextWidthLimit
         )
         : []
-        let renderedLineLayout = zone.contentType == .text && !containsMath && !containsInlineCode
+        let renderedLineLayout = zone.contentType == .text
+            && !isOversized
+            && !containsMath
+            && !containsInlineCode
             ? ZoneContentPlainTextLayoutMeasurer.layout(
             text: displayText,
             zone: zone,
@@ -1670,13 +1689,13 @@ private struct ZoneContentLeafPreview: View {
             highlightColor: zone.highlightColor,
             containsMath: containsMath,
             containsInlineCode: containsInlineCode,
-            rawTextCharacterCount: rawText.count,
-            rawTextLineCount: max(rawText.components(separatedBy: .newlines).count, 1),
-            rawText: rawText,
-            normalizedDisplayText: displayText,
+            rawTextCharacterCount: (rawText as NSString).length,
+            rawTextLineCount: isOversized ? ZoneOversizedTextLineCache.lines(for: rawText).count : max(rawText.components(separatedBy: .newlines).count, 1),
+            rawText: isOversized ? Self.preview(rawText) : rawText,
+            normalizedDisplayText: diagnosticText,
             healedDisplayText: healedText,
-            textCharacterCount: displayText.count,
-            textLineCount: max(displayText.components(separatedBy: .newlines).count, 1),
+            textCharacterCount: (displayText as NSString).length,
+            textLineCount: isOversized ? ZoneOversizedTextLineCache.lines(for: displayText).count : max(displayText.components(separatedBy: .newlines).count, 1),
             estimatedLineWidths: estimatedLineWidths.map(ceil),
             renderedLineTexts: renderedLineLayout.lines.map(\.plainText),
             renderedLineWidths: renderedLineLayout.lines.map { ceil($0.width) },
@@ -1689,7 +1708,7 @@ private struct ZoneContentLeafPreview: View {
             lastMeasurementDecision: lastMeasurementDecision,
             measurementEvents: measurementEvents,
             textPreview: Self.preview(displayText),
-            fullText: displayText
+            fullText: diagnosticText
         )
     }
 
@@ -1698,16 +1717,19 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private static func preview(_ value: String) -> String {
-        let collapsed = value
+        let prefix = String(value.prefix(160))
+        let collapsed = prefix
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard collapsed.count > 160 else { return collapsed }
-        return String(collapsed.prefix(160)) + "..."
+        return (value as NSString).length > 160 ? collapsed + "..." : collapsed
     }
 
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
+            if ZoneTextPerformancePolicy.isOversized(zone.text) {
+                return zone.text
+            }
             return ZoneContentDisplayTextNormalizer.textZoneDisplayText(zone.text)
         default:
             return zone.text
@@ -1745,6 +1767,53 @@ enum ZoneContentMetrics {
     static let bulletSpacing: CGFloat = 8
 }
 
+/// Keeps pathological text payloads on a linear, lazy rendering path while
+/// preserving the editor's single outer scroll surface.
+enum ZoneTextPerformancePolicy {
+    static let oversizedUTF16Threshold = 40_000
+
+    static func isOversized(_ text: String) -> Bool {
+        (text as NSString).length >= oversizedUTF16Threshold
+    }
+
+    static func estimatedPlainTextSize(
+        text: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat,
+        horizontalInsets: CGFloat,
+        verticalPadding: CGFloat
+    ) -> CGSize {
+        let width = max(availableWidth, 1)
+        let textWidth = max(width - horizontalInsets, 1)
+        let font = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale)
+        let approximateCharacterWidth = max(font.pointSize * 0.65, 1)
+        let charactersPerLine = max(Int(floor(textWidth / approximateCharacterWidth)), 1)
+        let nsText = text as NSString
+        var visualLineCount = 0
+        var lineStart = 0
+
+        while lineStart <= nsText.length {
+            let remainingRange = NSRange(location: lineStart, length: nsText.length - lineStart)
+            let newline = nsText.range(of: "\n", options: [], range: remainingRange)
+            let lineEnd = newline.location == NSNotFound ? nsText.length : newline.location
+            let lineLength = max(lineEnd - lineStart, 0)
+            visualLineCount += max(
+                Int(ceil(Double(lineLength) / Double(charactersPerLine))),
+                1
+            )
+            guard newline.location != NSNotFound else { break }
+            lineStart = newline.location + newline.length
+        }
+
+        let lineSpacing = ZoneTextTypography.lineSpacing(for: zone.textStyle, fontScale: fontScale)
+        let lineAdvance = font.lineHeight + lineSpacing
+        let conservativeHeight = (CGFloat(max(visualLineCount, 1)) * lineAdvance * 1.12)
+            + max(verticalPadding - lineSpacing, 0)
+        return CGSize(width: width, height: ceil(conservativeHeight))
+    }
+}
+
 // MARK: - Plain Text Zone Layout
 
 private struct ZoneContentPlainTextBlockView: View {
@@ -1765,21 +1834,57 @@ private struct ZoneContentPlainTextBlockView: View {
         )
     }
 
+    @ViewBuilder
     var body: some View {
-        VStack(alignment: textAlignment.horizontalAlignment, spacing: layout.lineSpacing) {
-            ForEach(Array(layout.lines.enumerated()), id: \.offset) { _, line in
-                line.textView(defaultColor: zone.textColor.color)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(width: line.width, alignment: .leading)
+        if ZoneTextPerformancePolicy.isOversized(text) {
+            oversizedTextBody
+        } else {
+            VStack(alignment: textAlignment.horizontalAlignment, spacing: layout.lineSpacing) {
+                ForEach(Array(layout.lines.enumerated()), id: \.offset) { _, line in
+                    line.textView(defaultColor: zone.textColor.color)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: line.width, alignment: .leading)
+                }
+            }
+                .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
+                .zoneContentPlainTextTap(onTap)
+                .onAppear {
+                    onIntrinsicContentSizeChange?(layout.size)
+                }
+                .onChange(of: layout.size) { _, newSize in
+                    onIntrinsicContentSizeChange?(newSize)
+                }
+        }
+    }
+
+    private var oversizedTextBody: some View {
+        let lines = ZoneOversizedTextLineCache.lines(for: text)
+        let lineSpacing = ZoneTextTypography.lineSpacing(for: zone.textStyle, fontScale: fontScale)
+        let estimatedSize = ZoneTextPerformancePolicy.estimatedPlainTextSize(
+            text: text,
+            zone: zone,
+            fontScale: fontScale,
+            availableWidth: availableWidth,
+            horizontalInsets: 0,
+            verticalPadding: 0
+        )
+
+        return LazyVStack(alignment: textAlignment.horizontalAlignment, spacing: lineSpacing) {
+            ForEach(lines.indices, id: \.self) { index in
+                Text(lines[index].isEmpty ? " " : lines[index])
+                    .font(ZoneTextTypography.font(for: zone, fontScale: fontScale))
+                    .foregroundStyle(zone.textColor.color)
+                    .multilineTextAlignment(textAlignment.alignment)
+                    .lineSpacing(lineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: frameAlignment)
             }
         }
-            .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
-            .zoneContentPlainTextTap(onTap)
-            .onAppear {
-            onIntrinsicContentSizeChange?(layout.size)
-        }
-            .onChange(of: layout.size) { _, newSize in
-            onIntrinsicContentSizeChange?(newSize)
+        .frame(width: availableWidth, alignment: frameAlignment)
+        .frame(minHeight: estimatedSize.height, alignment: frameAlignment)
+        .zoneContentPlainTextTap(onTap)
+        .onAppear {
+            onIntrinsicContentSizeChange?(estimatedSize)
         }
     }
 
@@ -1792,6 +1897,40 @@ private struct ZoneContentPlainTextBlockView: View {
         case .trailing:
             return .topTrailing
         }
+    }
+}
+
+private enum ZoneOversizedTextLineCache {
+    private final class LineBox {
+        let text: String
+        let lines: [String]
+
+        init(text: String, lines: [String]) {
+            self.text = text
+            self.lines = lines
+        }
+    }
+
+    private static let cache: NSCache<NSNumber, LineBox> = {
+        let cache = NSCache<NSNumber, LineBox>()
+        cache.countLimit = 8
+        cache.totalCostLimit = 16 * 1_024 * 1_024
+        return cache
+    }()
+
+    static func lines(for text: String) -> [String] {
+        let key = NSNumber(value: text.hashValue)
+        if let cached = cache.object(forKey: key), cached.text == text {
+            return cached.lines
+        }
+
+        let lines = text.components(separatedBy: "\n")
+        cache.setObject(
+            LineBox(text: text, lines: lines),
+            forKey: key,
+            cost: (text as NSString).length * MemoryLayout<unichar>.size
+        )
+        return lines
     }
 }
 
@@ -2246,6 +2385,18 @@ enum ZoneContentEstimator {
         textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGSize {
         let clampedWidth = max(availableWidth, 1)
+        if zone.isLeaf,
+           (zone.contentType == .text || zone.contentType == .code),
+           ZoneTextPerformancePolicy.isOversized(zone.text) {
+            return ZoneTextPerformancePolicy.estimatedPlainTextSize(
+                text: zone.text,
+                zone: zone,
+                fontScale: fontScale,
+                availableWidth: clampedWidth,
+                horizontalInsets: textHorizontalPaddingOverride ?? textHorizontalPadding,
+                verticalPadding: textVerticalPadding
+            )
+        }
         let cacheKey = estimatedSizeCacheKey(
             for: zone,
             fontScale: fontScale,
@@ -2395,6 +2546,11 @@ enum ZoneContentEstimator {
         textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGFloat {
         let clampedWidth = max(availableWidth, 1)
+        if zone.isLeaf,
+           (zone.contentType == .text || zone.contentType == .code),
+           ZoneTextPerformancePolicy.isOversized(zone.text) {
+            return clampedWidth
+        }
         let cacheKey = estimatedBlockWidthCacheKey(
             for: zone,
             fontScale: fontScale,
