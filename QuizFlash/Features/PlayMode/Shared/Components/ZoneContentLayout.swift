@@ -627,7 +627,7 @@ private struct ZoneContentTreePreview: View {
                 availableWidth: availableWidth
             )
 
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 Color.clear.frame(width: groupLeadingInset)
 
                 VStack(alignment: .leading, spacing: ZoneContentMetrics.childSpacing) {
@@ -1423,6 +1423,7 @@ private struct ZoneContentLeafPreview: View {
         _ previewText: String,
         layout: ZoneContentLayoutResult
     ) -> some View {
+        let textAlignment = resolvedTextAlignment(for: layout)
         let usesOversizedPlainTextPath = ZoneTextPerformancePolicy.isOversized(previewText)
         let semanticText = usesOversizedPlainTextPath ? "" : MathTextSanitizer.heal(previewText)
         let usesMathRenderer = !usesOversizedPlainTextPath
@@ -1452,7 +1453,7 @@ private struct ZoneContentLeafPreview: View {
                     fontSize: fontSizeFor(zone),
                     fontFamily: zone.fontFamily,
                     textColor: zone.textColor.color,
-                    alignment: layout.resolvedTextAlignment.horizontalAlignment,
+                    alignment: textAlignment.horizontalAlignment,
                     isBold: zone.isBold,
                     isItalic: zone.isItalic,
                     isInteractive: false,
@@ -1486,7 +1487,7 @@ private struct ZoneContentLeafPreview: View {
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidthLimit,
-                    textAlignment: layout.resolvedTextAlignment,
+                    textAlignment: textAlignment,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
@@ -1503,6 +1504,18 @@ private struct ZoneContentLeafPreview: View {
             }
         }
             .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
+    }
+
+    private func resolvedTextAlignment(
+        for layout: ZoneContentLayoutResult
+    ) -> TextBlockAlignment {
+        guard centersLeafBlocks,
+              path == "root",
+              zone.blockAlignment == .auto else {
+            return layout.resolvedTextAlignment
+        }
+
+        return .center
     }
 
     private func updateRenderedContentSize(_ newSize: CGSize, source: String) {

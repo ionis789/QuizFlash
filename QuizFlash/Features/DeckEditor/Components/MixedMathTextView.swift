@@ -866,6 +866,7 @@ struct MathWebView: UIViewRepresentable {
         context.coordinator.webView = webView
         webView.navigationDelegate = context.coordinator
         context.coordinator.attach(webView: webView)
+        context.coordinator.configureNativeRenderDebug(enabled: reportsNativeRenderDebug)
         context.coordinator.lastRenderedSignature = renderSignature
         context.coordinator.onTap = onTap
         webView.quizflashHasHorizontalOverflow = false
@@ -2486,17 +2487,21 @@ struct MathWebView: UIViewRepresentable {
         }
 
         func configureNativeRenderDebug(enabled: Bool) {
-            guard reportsNativeRenderDebug != enabled else { return }
+            let stateChanged = reportsNativeRenderDebug != enabled
             reportsNativeRenderDebug = enabled
-            visibilityProbeTask?.cancel()
-            visibilityProbeTask = nil
 
-            if let visibilityProbeObserver {
-                NotificationCenter.default.removeObserver(visibilityProbeObserver)
-                self.visibilityProbeObserver = nil
+            if !enabled {
+                visibilityProbeTask?.cancel()
+                visibilityProbeTask = nil
+
+                if let visibilityProbeObserver {
+                    NotificationCenter.default.removeObserver(visibilityProbeObserver)
+                    self.visibilityProbeObserver = nil
+                }
+                return
             }
 
-            guard enabled else { return }
+            guard visibilityProbeObserver == nil else { return }
             visibilityProbeObserver = NotificationCenter.default.addObserver(
                 forName: .quizFlashMixedMathVisibilityProbe,
                 object: nil,
@@ -2505,7 +2510,7 @@ struct MathWebView: UIViewRepresentable {
                 let reason = notification.userInfo?["reason"] as? String ?? "unknown"
                 self?.scheduleVisibilityProbes(reason: reason)
             }
-            if let webView {
+            if stateChanged, let webView {
                 attach(webView: webView)
             }
         }

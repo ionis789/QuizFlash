@@ -526,6 +526,7 @@ struct FlipCard: View {
             fontScale: playModeTextScale,
             availableWidth: contentWidth,
             centersLeafBlocks: centersLeafBlocks,
+            animatesLayoutChanges: false,
             showsDebugGuides: showsZoneContentGuides,
             collectsDebugMetrics: onLayoutDebugSnapshot != nil,
             leafTapBehavior: .richContentOnly,
@@ -556,7 +557,11 @@ struct FlipCard: View {
                 expectedLeafCount: expectedLeafCount,
                 fallbackWidth: contentWidth
             ) else {
-                let reportedLeafCount = Set(bounds.map(\.zoneID)).count
+                let reportedLeafCount = Set(
+                    bounds
+                        .filter { $0.kind == "leaf" }
+                        .map(\.zoneID)
+                ).count
                 recordFaceDebugEvent(
                     marker,
                     "geometry ignored incomplete-bounds reported=\(reportedLeafCount) expected=\(expectedLeafCount)"
@@ -638,6 +643,7 @@ struct FlipCard: View {
     ) -> CGSize? {
         let framesByZone = Dictionary(
             bounds.compactMap { bound -> (UUID, CGRect)? in
+                guard bound.kind == "leaf" else { return nil }
                 let frame = bound.frame
                 guard !frame.isNull,
                       !frame.isInfinite,
