@@ -819,10 +819,7 @@ private struct ZoneContentTreePreview: View {
                 .compactMap { measuredDirectChildWidths[$0] }
                 .max() ?? 1
 
-            let resolvedWidth = children.allSatisfy(requiresIntrinsicTextWidthFloor(for:))
-                ? max(measuredWidth, estimatedWidth)
-                : measuredWidth
-            return min(max(ceil(resolvedWidth), 1), availableWidth)
+            return min(max(ceil(measuredWidth), 1), availableWidth)
         }
 
         return min(max(ceil(estimatedWidth), 1), availableWidth)
@@ -875,18 +872,6 @@ private struct ZoneContentTreePreview: View {
             guard child.hasContent else { return 1 }
 
             switch child.contentType {
-            case .text where requiresIntrinsicTextWidthFloor(for: child):
-                let estimatedWidth = ZoneContentEstimator.estimatedBlockWidth(
-                    for: child,
-                    fontScale: fontScale,
-                    availableWidth: availableWidth,
-                    textVerticalPadding: textVerticalPadding,
-                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
-                )
-                return min(
-                    max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
-                    availableWidth
-                )
             case .text, .code:
                 return min(max(resolvedTextHorizontalPadding + 8, 1), availableWidth)
             case .empty:
@@ -909,19 +894,6 @@ private struct ZoneContentTreePreview: View {
             .max() ?? 1
 
         return min(max(childMinimum, 1), availableWidth)
-    }
-
-    private func requiresIntrinsicTextWidthFloor(for child: ZoneModel) -> Bool {
-        guard child.contentType == .text else { return false }
-        guard !ZoneTextPerformancePolicy.isOversized(child.text) else { return false }
-        let previewText = ZoneContentDisplayTextNormalizer.textZoneDisplayText(child.text)
-        guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return false
-        }
-
-        let healedText = MathTextSanitizer.heal(previewText)
-        return !MathTextSanitizer.containsMath(healedText)
-            && !MathTextSanitizer.containsInlineCode(healedText)
     }
 
     private func verticalContainerMeasurementIdentity(for children: [ZoneModel]) -> ZoneContentContainerMeasurementIdentity {
@@ -1423,7 +1395,6 @@ private struct ZoneContentLeafPreview: View {
         _ previewText: String,
         layout: ZoneContentLayoutResult
     ) -> some View {
-        let textAlignment = resolvedTextAlignment(for: layout)
         let usesOversizedPlainTextPath = ZoneTextPerformancePolicy.isOversized(previewText)
         let semanticText = usesOversizedPlainTextPath ? "" : MathTextSanitizer.heal(previewText)
         let usesMathRenderer = !usesOversizedPlainTextPath
@@ -1453,7 +1424,7 @@ private struct ZoneContentLeafPreview: View {
                     fontSize: fontSizeFor(zone),
                     fontFamily: zone.fontFamily,
                     textColor: zone.textColor.color,
-                    alignment: textAlignment.horizontalAlignment,
+                    alignment: layout.resolvedTextAlignment.horizontalAlignment,
                     isBold: zone.isBold,
                     isItalic: zone.isItalic,
                     isInteractive: false,
@@ -1487,7 +1458,7 @@ private struct ZoneContentLeafPreview: View {
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidthLimit,
-                    textAlignment: textAlignment,
+                    textAlignment: layout.resolvedTextAlignment,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
@@ -1506,18 +1477,6 @@ private struct ZoneContentLeafPreview: View {
             .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
     }
 
-    private func resolvedTextAlignment(
-        for layout: ZoneContentLayoutResult
-    ) -> TextBlockAlignment {
-        guard centersLeafBlocks,
-              path == "root",
-              zone.blockAlignment == .auto else {
-            return layout.resolvedTextAlignment
-        }
-
-        return .center
-    }
-
     private func updateRenderedContentSize(_ newSize: CGSize, source: String) {
         measurementUpdateCount += 1
         rawMeasuredContentSize = newSize
@@ -1526,7 +1485,7 @@ private struct ZoneContentLeafPreview: View {
             recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
             return
         }
-        guard isValidRenderedMeasurement(newSize) else {
+        guard isValidRenderedMeasurement(newSize, source: source) else {
             recordMeasurementDecision("rejected validation", size: newSize, source: source)
             return
         }
@@ -1617,12 +1576,16 @@ private struct ZoneContentLeafPreview: View {
         return { handleTap() }
     }
 
-    private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
-        isValidRenderedWidth(size.width) && isValidRenderedHeight(size.height)
+    private func isValidRenderedMeasurement(_ size: CGSize, source: String) -> Bool {
+        isValidRenderedWidth(size.width, source: source)
+            && isValidRenderedHeight(size.height)
     }
 
-    private func isValidRenderedWidth(_ width: CGFloat) -> Bool {
+    private func isValidRenderedWidth(_ width: CGFloat, source: String) -> Bool {
         guard requiresStableTextMeasurement else { return width > 0 }
+        if source == "plain-intrinsic" {
+            return width >= minimumIntrinsicRenderedWidth
+        }
         return width >= minimumValidRenderedWidth
     }
 
@@ -1653,6 +1616,13 @@ private struct ZoneContentLeafPreview: View {
 
         return min(
             max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
+            availableWidth
+        )
+    }
+
+    private var minimumIntrinsicRenderedWidth: CGFloat {
+        min(
+            max(resolvedTextHorizontalPadding + 8, 1),
             availableWidth
         )
     }
