@@ -1274,8 +1274,10 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             return true
         }
 
-        guard gestureRecognizer.name == Self.caretPlacementTapRecognizerName,
-              let textView else {
+        guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
+              let textView,
+              textView.isFirstResponder,
+              textView.selectedRange.length > 0 else {
             return false
         }
 
@@ -1289,17 +1291,25 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         true
     }
 
-    @objc func handleCaretPlacementTap(_ recognizer: UITapGestureRecognizer) {
+    @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended,
               let textView,
-              textView.isFirstResponder else {
+              textView.isFirstResponder,
+              textView.selectedRange.length > 0 else {
             return
         }
 
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.selection-collapse-tap",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "point=\(debugPoint(recognizer.location(in: textView)))"
+        )
         placeCaret(at: recognizer.location(in: textView), in: textView)
     }
 
-    static let caretPlacementTapRecognizerName = "ZoneTextViewCaretPlacementTapRecognizer"
+    static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     fileprivate func recordCaretProbe(
@@ -1625,6 +1635,22 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             changedRange: range,
             replacementText: text
         )
+
+        let projectedLength = max(
+            textView.textStorage.length - range.length + (text as NSString).length,
+            0
+        )
+        if projectedLength >= ZoneTextPerformancePolicy.oversizedUTF16Threshold,
+           !textView.layoutManager.allowsNonContiguousLayout {
+            textView.layoutManager.allowsNonContiguousLayout = true
+            ZoneEditorDebugStore.shared.recordNativeTextEvent(
+                "text.layout-policy-promote-before-edit",
+                zoneID: zoneID,
+                pathID: pathID,
+                textView: textView,
+                details: "projectedLen=\(projectedLength) nonContiguous=1"
+            )
+        }
 
         if text.isEmpty,
            handleForcedLineBreakBackspace(in: textView, range: range) {
@@ -2122,51 +2148,18 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func placeCaret(at point: CGPoint, in textView: UITextView) {
-        let nativeLocation: Int? = {
-            guard AppFeatures.current.showsVisualDebugOverlays,
-                  let position = textView.closestPosition(to: point) else {
-                return nil
-            }
-            return textView.offset(from: textView.beginningOfDocument, to: position)
-        }()
+        guard let position = textView.closestPosition(to: point) else { return }
 
-        let layoutManager = textView.layoutManager
-        let textContainer = textView.textContainer
-        var containerPoint = point
-        containerPoint.x -= textView.textContainerInset.left
-        containerPoint.y -= textView.textContainerInset.top
-        containerPoint.x += textView.contentOffset.x
-        containerPoint.y += textView.contentOffset.y
-
-        let lineHeight = max(textView.font?.lineHeight ?? 0, 1)
-        let layoutRect = CGRect(
-            x: 0,
-            y: max(containerPoint.y - lineHeight, 0),
-            width: max(textContainer.size.width, 1),
-            height: lineHeight * 3
+        let insertionIndex = textView.offset(
+            from: textView.beginningOfDocument,
+            to: position
         )
-        layoutManager.ensureLayout(forBoundingRect: layoutRect, in: textContainer)
-
-        var insertionFraction: CGFloat = 0
-        let characterIndex = layoutManager.characterIndex(
-            for: containerPoint,
-            in: textContainer,
-            fractionOfDistanceBetweenInsertionPoints: &insertionFraction
-        )
-        let insertionIndex = characterIndex + (insertionFraction > 0.5 ? 1 : 0)
         let editableLength = max(
             textView.textStorage.length - ZoneTextViewEmptyCaret.terminalBufferUTF16Length,
             0
         )
         let clampedLocation = min(max(insertionIndex, 0), editableLength)
         textView.selectedRange = NSRange(location: clampedLocation, length: 0)
-        ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.caret-placement-tap",
-            zoneID: zoneID,
-            pathID: pathID,
-            textView: textView,
-            details: "point=\(debugPoint(point)) container=\(debugPoint(containerPoint)) native=\(nativeLocation.map(String.init) ?? "nil") mapped=\(characterIndex)+\(debugValue(insertionFraction)) applied=\(clampedLocation) layout=\(debugRect(layoutRect)) nonContiguous=\(layoutManager.allowsNonContiguousLayout ? 1 : 0)"
-        )
         reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
         scheduleSettledCaretReport(from: textView, source: .selectionTap)
     }
@@ -2618,7 +2611,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.usesCompactCaret = true
 
         textView.textContainer.lineBreakMode = .byWordWrapping
-        textView.layoutManager.allowsNonContiguousLayout = true
+        updateLayoutPolicy(of: textView, modelText: text)
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let doubleTapRecognizer = UITapGestureRecognizer()
@@ -2627,25 +2620,25 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         doubleTapRecognizer.cancelsTouchesInView = false
         doubleTapRecognizer.delegate = context.coordinator
 
-        let caretPlacementTapRecognizer = UITapGestureRecognizer(
+        let selectionCollapseTapRecognizer = UITapGestureRecognizer(
             target: context.coordinator,
-            action: #selector(ZoneTextViewCoordinator.handleCaretPlacementTap(_:))
+            action: #selector(ZoneTextViewCoordinator.handleSelectionCollapseTap(_:))
         )
-        caretPlacementTapRecognizer.name = ZoneTextViewCoordinator.caretPlacementTapRecognizerName
-        caretPlacementTapRecognizer.numberOfTapsRequired = 1
-        caretPlacementTapRecognizer.cancelsTouchesInView = false
-        caretPlacementTapRecognizer.delegate = context.coordinator
-        caretPlacementTapRecognizer.require(toFail: doubleTapRecognizer)
+        selectionCollapseTapRecognizer.name = ZoneTextViewCoordinator.selectionCollapseTapRecognizerName
+        selectionCollapseTapRecognizer.numberOfTapsRequired = 1
+        selectionCollapseTapRecognizer.cancelsTouchesInView = false
+        selectionCollapseTapRecognizer.delegate = context.coordinator
+        selectionCollapseTapRecognizer.require(toFail: doubleTapRecognizer)
 
         textView.addGestureRecognizer(doubleTapRecognizer)
-        textView.addGestureRecognizer(caretPlacementTapRecognizer)
+        textView.addGestureRecognizer(selectionCollapseTapRecognizer)
 
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
-            "text.caret-placement-gesture-installed",
+            "text.selection-collapse-gesture-installed",
             zoneID: zoneID,
             pathID: pathID,
             textView: textView,
-            details: "scope=singleTap textKit=\(textView.textLayoutManager == nil ? 1 : 2) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
+            details: "scope=existingSelectionOnly textKit=\(textView.textLayoutManager == nil ? 1 : 2) nonContiguous=\(textView.layoutManager.allowsNonContiguousLayout ? 1 : 0) textDragEnabled=\(textView.textDragInteraction?.isEnabled == true ? 1 : 0)"
         )
         ZoneEditorDebugStore.shared.recordNativeTextEvent(
             "text.interactions-installed",
@@ -2688,6 +2681,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             fullHitTextView.debugPathID = pathID
         }
         (textView as? FullHitTextView)?.usesCompactCaret = true
+        updateLayoutPolicy(of: textView, modelText: text)
 
         let stylingSignature = stylingSignatureForCurrentState
         let needsStylingUpdate = context.coordinator.lastAppliedStylingSignature != stylingSignature
@@ -3011,6 +3005,22 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         if textView.isScrollEnabled {
             textView.isScrollEnabled = false
         }
+    }
+
+    private func updateLayoutPolicy(of textView: UITextView, modelText: String) {
+        let usesNonContiguousLayout = ZoneTextPerformancePolicy.isOversized(modelText)
+        guard textView.layoutManager.allowsNonContiguousLayout != usesNonContiguousLayout else {
+            return
+        }
+
+        textView.layoutManager.allowsNonContiguousLayout = usesNonContiguousLayout
+        ZoneEditorDebugStore.shared.recordNativeTextEvent(
+            "text.layout-policy-update",
+            zoneID: zoneID,
+            pathID: pathID,
+            textView: textView,
+            details: "modelLen=\((modelText as NSString).length) nonContiguous=\(usesNonContiguousLayout ? 1 : 0)"
+        )
     }
 
     private func debugRect(_ rect: CGRect) -> String {
