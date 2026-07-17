@@ -564,6 +564,18 @@ enum ZoneContentWidthStabilityPolicy {
             max(availableWidth, 1)
         )
     }
+
+    /// Invalidates only a provisional measurement produced while SwiftUI still
+    /// exposes its one-point bootstrap width. A valid intrinsic text width may
+    /// intentionally be narrower than its conservative pre-render estimate.
+    static func shouldResetDegenerateMeasurement(
+        measuredWidth: CGFloat,
+        availableWidth: CGFloat
+    ) -> Bool {
+        measuredWidth > 0
+            && measuredWidth <= 1.5
+            && availableWidth > 1.5
+    }
 }
 
 private struct ZoneContentTreePreview: View {
@@ -1592,21 +1604,10 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private func shouldResetPreservedMeasurement(forAvailableWidth availableWidth: CGFloat) -> Bool {
-        guard renderedContentSize.width > 0 else { return false }
-
-        if !requiresIntrinsicTextWidthFloor {
-            return renderedContentSize.width <= 1.5 && availableWidth > 1.5
-        }
-
-        let minimumWidth = ZoneContentEstimator.estimatedBlockWidth(
-            for: layoutZone,
-            fontScale: fontScale,
-            availableWidth: max(availableWidth, 1),
-            textVerticalPadding: textVerticalPadding,
-            textHorizontalPaddingOverride: textHorizontalPaddingOverride
+        ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
+            measuredWidth: renderedContentSize.width,
+            availableWidth: availableWidth
         )
-
-        return renderedContentSize.width + 0.5 < minimumWidth
     }
 
     private var requiresIntrinsicTextWidthFloor: Bool {

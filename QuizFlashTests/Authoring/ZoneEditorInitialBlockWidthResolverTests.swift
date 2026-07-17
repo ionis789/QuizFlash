@@ -150,4 +150,34 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
             XCTAssertEqual(wrappingWidthAfterMeasurement, wrappingWidth)
         }
     }
+
+    func testValidIntrinsicWidthSurvivesContainerWidthChanges() {
+        XCTAssertFalse(
+            ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
+                measuredWidth: 258,
+                availableWidth: 366
+            )
+        )
+        XCTAssertFalse(
+            ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
+                measuredWidth: 284,
+                availableWidth: 353
+            )
+        )
+    }
+
+    func testBootstrapWidthIsResetWhenRealContainerArrives() {
+        XCTAssertTrue(
+            ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
+                measuredWidth: 1,
+                availableWidth: 366
+            )
+        )
+        XCTAssertFalse(
+            ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
+                measuredWidth: 0,
+                availableWidth: 366
+            )
+        )
+    }
 }
