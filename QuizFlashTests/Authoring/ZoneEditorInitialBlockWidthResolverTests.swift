@@ -121,4 +121,33 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
 
         XCTAssertEqual(resolved, 341)
     }
+
+    func testPlainTextBlockUsesWidestRenderedLineWithoutChangingWrappingWidth() {
+        let availableWidth: CGFloat = 366
+        let horizontalInsets: CGFloat = 24
+        let cases: [(estimated: CGFloat, renderedLine: CGFloat, expectedBlock: CGFloat)] = [
+            (355, 317, 341),
+            (363, 331, 355),
+            (348, 321, 345)
+        ]
+
+        for item in cases {
+            let wrappingWidth = ZoneContentWidthStabilityPolicy.stablePlainTextWrappingWidth(
+                estimatedBlockWidth: item.estimated,
+                horizontalInsets: horizontalInsets
+            )
+            let blockWidth = ZoneContentWidthStabilityPolicy.resolvedPlainTextBlockWidth(
+                renderedTextWidth: item.renderedLine,
+                horizontalInsets: horizontalInsets,
+                availableWidth: availableWidth
+            )
+            let wrappingWidthAfterMeasurement = ZoneContentWidthStabilityPolicy.stablePlainTextWrappingWidth(
+                estimatedBlockWidth: item.estimated,
+                horizontalInsets: horizontalInsets
+            )
+
+            XCTAssertEqual(blockWidth, item.expectedBlock)
+            XCTAssertEqual(wrappingWidthAfterMeasurement, wrappingWidth)
+        }
+    }
 }

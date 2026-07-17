@@ -544,6 +544,26 @@ enum ZoneContentWidthStabilityPolicy {
 
         return min(max(ceil(resolvedWidth), 1), max(availableWidth, 1))
     }
+
+    /// Keeps line wrapping independent from the narrower, post-render block width.
+    static func stablePlainTextWrappingWidth(
+        estimatedBlockWidth: CGFloat,
+        horizontalInsets: CGFloat
+    ) -> CGFloat {
+        max(ceil(estimatedBlockWidth) - ceil(horizontalInsets), 1)
+    }
+
+    /// Resolves the visible block to the widest rendered line plus its insets.
+    static func resolvedPlainTextBlockWidth(
+        renderedTextWidth: CGFloat,
+        horizontalInsets: CGFloat,
+        availableWidth: CGFloat
+    ) -> CGFloat {
+        min(
+            max(ceil(renderedTextWidth) + ceil(horizontalInsets), 1),
+            max(availableWidth, 1)
+        )
+    }
 }
 
 private struct ZoneContentTreePreview: View {
@@ -1457,6 +1477,12 @@ private struct ZoneContentLeafPreview: View {
             availableWidth - layout.textHorizontalInsets,
             1
         )
+        // The block may shrink to its widest rendered line, but wrapping must stay
+        // tied to the pre-measurement width so the next layout pass cannot reflow
+        // and shrink the same block again.
+        let plainTextWrappingWidthLimit = usesOversizedPlainTextPath
+            ? textWidthLimit
+            : stablePlainTextWrappingWidthLimit(horizontalInsets: layout.textHorizontalInsets)
         let renderedLineDebugHandler: (([MixedMathRenderedLineDebug]) -> Void)? = collectsDebugMetrics
             ? { lines in renderedTokenLines = lines }
         : nil
@@ -1509,12 +1535,16 @@ private struct ZoneContentLeafPreview: View {
                     text: previewText,
                     zone: zone,
                     fontScale: fontScale,
-                    availableWidth: textWidthLimit,
+                    availableWidth: plainTextWrappingWidthLimit,
                     textAlignment: layout.resolvedTextAlignment,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
-                                width: ceil(size.width + layout.textHorizontalInsets),
+                                width: ZoneContentWidthStabilityPolicy.resolvedPlainTextBlockWidth(
+                                    renderedTextWidth: size.width,
+                                    horizontalInsets: layout.textHorizontalInsets,
+                                    availableWidth: availableWidth
+                                ),
                                 height: ceil(size.height + textVerticalPadding)
                             ),
                             source: "plain-intrinsic"
@@ -1537,7 +1567,7 @@ private struct ZoneContentLeafPreview: View {
             recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
             return
         }
-        guard isValidRenderedMeasurement(newSize) else {
+        guard isValidRenderedMeasurement(newSize, source: source) else {
             recordMeasurementDecision("rejected validation", size: newSize, source: source)
             return
         }
@@ -1622,12 +1652,16 @@ private struct ZoneContentLeafPreview: View {
         return { handleTap() }
     }
 
-    private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
-        isValidRenderedWidth(size.width) && isValidRenderedHeight(size.height)
+    private func isValidRenderedMeasurement(_ size: CGSize, source: String) -> Bool {
+        isValidRenderedWidth(size.width, source: source)
+            && isValidRenderedHeight(size.height)
     }
 
-    private func isValidRenderedWidth(_ width: CGFloat) -> Bool {
+    private func isValidRenderedWidth(_ width: CGFloat, source: String) -> Bool {
         guard requiresStableTextMeasurement else { return width > 0 }
+        if source == "plain-intrinsic" {
+            return width >= minimumIntrinsicRenderedWidth
+        }
         return width >= minimumValidRenderedWidth
     }
 
@@ -1662,8 +1696,29 @@ private struct ZoneContentLeafPreview: View {
         )
     }
 
+    private var minimumIntrinsicRenderedWidth: CGFloat {
+        min(
+            max(resolvedTextHorizontalPadding + 8, 1),
+            availableWidth
+        )
+    }
+
     private var resolvedTextHorizontalPadding: CGFloat {
         textHorizontalPaddingOverride ?? ZoneContentMetrics.textHorizontalPadding
+    }
+
+    private func stablePlainTextWrappingWidthLimit(horizontalInsets: CGFloat) -> CGFloat {
+        let estimatedBlockWidth = ZoneContentEstimator.estimatedBlockWidth(
+            for: layoutZone,
+            fontScale: fontScale,
+            availableWidth: max(availableWidth, 1),
+            textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride
+        )
+        return ZoneContentWidthStabilityPolicy.stablePlainTextWrappingWidth(
+            estimatedBlockWidth: estimatedBlockWidth,
+            horizontalInsets: horizontalInsets
+        )
     }
 
     private var minimumValidRenderedHeight: CGFloat {
@@ -1682,6 +1737,9 @@ private struct ZoneContentLeafPreview: View {
         let containsMath = !isOversized && MathTextSanitizer.containsMath(healedText)
         let containsInlineCode = !isOversized && MathTextSanitizer.containsInlineCode(healedText)
         let effectiveTextWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
+        let plainTextDebugWidthLimit = stablePlainTextWrappingWidthLimit(
+            horizontalInsets: layout.textHorizontalInsets
+        )
         let estimatedLineWidths = zone.contentType == .text && !isOversized
             ? ZoneContentEstimator.debugLineWidths(
             for: zone,
@@ -1697,7 +1755,7 @@ private struct ZoneContentLeafPreview: View {
             text: displayText,
             zone: zone,
             fontScale: fontScale,
-            availableWidth: effectiveTextWidthLimit
+            availableWidth: plainTextDebugWidthLimit
         )
         : .empty
 
@@ -1957,7 +2015,7 @@ private struct ZoneContentPlainTextBlockView: View {
                         .frame(width: line.width, alignment: .leading)
                 }
             }
-                .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
+                .frame(width: layout.size.width, alignment: frameAlignment)
                 .zoneContentPlainTextTap(onTap)
                 .onAppear {
                     onIntrinsicContentSizeChange?(layout.size)
