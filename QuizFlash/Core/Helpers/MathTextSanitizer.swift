@@ -180,32 +180,32 @@ struct MathTextSanitizer {
     /// - preserves ellipses and all other punctuation
     nonisolated static func stripTerminalZonePeriod(_ input: String) -> String {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard
-            let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
-            else {
-            return trimmed
-        }
-
-        return regex.stringByReplacingMatches(
-            in: trimmed,
-            range: NSRange(trimmed.startIndex..., in: trimmed),
-            withTemplate: ""
-        )
+        return stripSingleTerminalPeriodPreservingWhitespace(trimmed)
     }
 
     /// Removes a single terminal period without changing author-entered spacing.
     nonisolated static func stripTerminalZonePeriodPreservingWhitespace(_ input: String) -> String {
-        guard
-            let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
-            else {
+        stripSingleTerminalPeriodPreservingWhitespace(input)
+    }
+
+    /// Equivalent to `(?<!\.)\.(?=\s*$)` without compiling an ICU regular
+    /// expression on every render pass.
+    nonisolated private static func stripSingleTerminalPeriodPreservingWhitespace(
+        _ input: String
+    ) -> String {
+        guard let terminalIndex = input.lastIndex(where: { !$0.isWhitespace }) else {
             return input
         }
+        guard input[terminalIndex] == "." else { return input }
 
-        return regex.stringByReplacingMatches(
-            in: input,
-            range: NSRange(input.startIndex..., in: input),
-            withTemplate: ""
-        )
+        if terminalIndex != input.startIndex {
+            let previousIndex = input.index(before: terminalIndex)
+            guard input[previousIndex] != "." else { return input }
+        }
+
+        var result = input
+        result.remove(at: terminalIndex)
+        return result
     }
 
     /// Returns true if rich rendering would materially improve this string.

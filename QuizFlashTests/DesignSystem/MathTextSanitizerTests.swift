@@ -117,5 +117,13 @@ final class MathTextSanitizerTests: XCTestCase {
             MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace("\n\n  answer  \n"),
             "\n\n  answer  \n"
         )
+        XCTAssertEqual(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace("\n  etc...  \n"),
+            "\n  etc...  \n"
+        )
+        XCTAssertEqual(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(".  \n"),
+            "  \n"
+        )
     }
 }

@@ -1560,29 +1560,35 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private func updateRenderedContentSize(_ newSize: CGSize, source: String) {
-        measurementUpdateCount += 1
-        rawMeasuredContentSize = newSize
-        lastMeasurementSource = source
-        guard newSize.width > 0, newSize.height > 0 else {
-            recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
-            return
-        }
-        guard isValidRenderedMeasurement(newSize, source: source) else {
-            recordMeasurementDecision("rejected validation", size: newSize, source: source)
-            return
-        }
+        // Text renderers report their exact intrinsic size through
+        // `plain-intrinsic` or `web-intrinsic`. The surrounding SwiftUI frame
+        // measures a different width basis (content width without all block
+        // insets), so accepting it would make the two sources fight each other.
+        guard source != "swiftui-geometry" || zone.contentType != .text else { return }
+        guard newSize.width > 0, newSize.height > 0 else { return }
+        guard isValidRenderedMeasurement(newSize, source: source) else { return }
+
         let clampedSize = CGSize(
             width: min(max(ceil(newSize.width), 1), availableWidth),
             height: max(ceil(newSize.height), 1)
         )
 
-        if abs(renderedContentSize.width - clampedSize.width) > 0.5
-            || abs(renderedContentSize.height - clampedSize.height) > 0.5 {
-            recordMeasurementDecision("accepted -> \(debugSize(clampedSize))", size: newSize, source: source)
-            renderedContentSize = clampedSize
-        } else {
-            recordMeasurementDecision("unchanged", size: newSize, source: source)
+        guard abs(renderedContentSize.width - clampedSize.width) > 0.5
+            || abs(renderedContentSize.height - clampedSize.height) > 0.5
+        else {
+            // A no-op measurement must remain observationally inert. Updating
+            // debug @State here schedules another render, which produces the
+            // same measurement and can otherwise sustain an infinite loop.
+            return
         }
+
+        if collectsDebugMetrics {
+            measurementUpdateCount += 1
+            rawMeasuredContentSize = newSize
+            lastMeasurementSource = source
+            recordMeasurementDecision("accepted -> \(debugSize(clampedSize))", size: newSize, source: source)
+        }
+        renderedContentSize = clampedSize
     }
 
     private func shouldResetPreservedMeasurement(forAvailableWidth availableWidth: CGFloat) -> Bool {
