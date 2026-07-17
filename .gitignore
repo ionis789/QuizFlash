@@ -5,6 +5,7 @@
 xcuserdata/
 *.xcuserstate
 .build/
+/build/
 node_modules/
 worker/.wrangler/
 worker/.dev.vars
