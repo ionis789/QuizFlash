@@ -280,10 +280,6 @@ private struct PlayModeCard: View {
         }
         .opacity(canPlay ? 1 : 0.56)
         .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(themeManager.textSecondary.opacity(canPlay ? 0.22 : 0.16), lineWidth: 1.25)
-        }
         .offset(x: unavailableWiggleOffset)
         .scaleEffect(unavailableScale, anchor: .center)
         .onDisappear {

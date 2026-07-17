@@ -186,14 +186,12 @@ struct HomeDashboardView: View {
     }
 
     private func duoStudyCard<Content: View>(
-        isInteractive: Bool = false,
         minHeight: CGFloat? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
             .modifier(HomeDashboardStudyCardModifier(
                 usesRegularMetrics: usesRegularMetrics,
-                isInteractive: isInteractive,
                 minHeight: minHeight
             ))
     }
@@ -387,8 +385,7 @@ struct HomeDashboardView: View {
             }
         }
         .modifier(HomeDashboardStudyCardModifier(
-            usesRegularMetrics: usesRegularMetrics,
-            isInteractive: false
+            usesRegularMetrics: usesRegularMetrics
         ))
     }
 
@@ -478,7 +475,6 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
     @Environment(ThemeManager.self) private var themeManager
 
     let usesRegularMetrics: Bool
-    let isInteractive: Bool
     var minHeight: CGFloat? = nil
 
     private var cornerRadius: CGFloat {
@@ -491,14 +487,13 @@ private struct HomeDashboardStudyCardModifier: ViewModifier {
             preferences: appPreferences.borderDesign,
             colorScheme: colorScheme
         )
-        .opacity(isInteractive ? 1 : 0.92)
     }
 
     private var borderLineWidth: CGFloat {
         AppBorderRenderer.lineWidth(
             for: .homeCard,
             preferences: appPreferences.borderDesign
-        ) + (usesRegularMetrics ? 0.12 : 0)
+        )
     }
 
     func body(content: Content) -> some View {

@@ -21,7 +21,7 @@ enum AppBorderSurfaceRole {
 
 enum AppBorderRenderer {
     static func color(
-        for role: AppBorderSurfaceRole,
+        for _: AppBorderSurfaceRole,
         preferences: AppBorderDesignPreferences,
         colorScheme: ColorScheme
     ) -> Color {
@@ -29,10 +29,10 @@ enum AppBorderRenderer {
         let opacity = bounded(
             (0.18 + design.depth * 0.50)
                 * design.preset.opacityScale
-                * opacityScale(for: role)
+                * 1.28
                 * (colorScheme == .dark ? 1 : 0.72),
             0.05,
-            role == .homeCard ? 0.95 : 0.78
+            0.95
         )
         let brightness = colorScheme == .dark
             ? bounded(0.25 - design.depth * 0.18, 0.055, 0.25)
@@ -48,69 +48,12 @@ enum AppBorderRenderer {
     }
 
     static func lineWidth(
-        for role: AppBorderSurfaceRole,
+        for _: AppBorderSurfaceRole,
         preferences: AppBorderDesignPreferences
     ) -> CGFloat {
         let design = preferences.normalized
-        let width = (baseWidth(for: role) + design.thickness * widthRange(for: role)) * design.preset.lineScale
+        let width = (0.92 + design.thickness * 2.45) * design.preset.lineScale
         return CGFloat(bounded(width, 0.45, 4.4))
-    }
-
-    private static func baseWidth(for role: AppBorderSurfaceRole) -> Double {
-        switch role {
-        case .card:
-            return 0.78
-        case .widgetPrimary:
-            return 0.72
-        case .widgetSecondary:
-            return 0.42
-        case .panel:
-            return 0.82
-        case .control:
-            return 0.64
-        case .pill:
-            return 0.58
-        case .homeCard:
-            return 0.92
-        }
-    }
-
-    private static func widthRange(for role: AppBorderSurfaceRole) -> Double {
-        switch role {
-        case .card:
-            return 2.0
-        case .widgetPrimary:
-            return 1.7
-        case .widgetSecondary:
-            return 1.1
-        case .panel:
-            return 2.2
-        case .control:
-            return 1.55
-        case .pill:
-            return 1.25
-        case .homeCard:
-            return 2.45
-        }
-    }
-
-    private static func opacityScale(for role: AppBorderSurfaceRole) -> Double {
-        switch role {
-        case .card:
-            return 0.9
-        case .widgetPrimary:
-            return 0.72
-        case .widgetSecondary:
-            return 0.34
-        case .panel:
-            return 0.78
-        case .control:
-            return 0.58
-        case .pill:
-            return 0.66
-        case .homeCard:
-            return 1.28
-        }
     }
 
     private static func bounded(_ value: Double, _ lowerBound: Double, _ upperBound: Double) -> Double {
@@ -412,16 +355,8 @@ private struct FlashcardSurfaceModifier: ViewModifier {
                     .shadow(color: shadowColor, radius: shadowRadius, y: shadowYOffset)
             }
             .overlay {
-                if surfaceRole == .card {
-                    dynamicCardBorder(shape: shape)
-                } else {
-                    basePrimaryBorder(shape: shape)
-                }
-            }
-            .overlay {
-                if surfaceRole == .widget {
-                    baseSecondaryBorder(shape: shape)
-                }
+                shape
+                    .strokeBorder(standardBorderColor, lineWidth: standardBorderLineWidth)
             }
             .clipShape(shape)
     }
@@ -451,116 +386,19 @@ private struct FlashcardSurfaceModifier: ViewModifier {
         shadowRadius > 0 ? 8 : 0
     }
 
-    private var basePrimaryBorderColor: Color {
-        switch surfaceRole {
-        case .card:
-            AppBorderRenderer.color(
-                for: .card,
-                preferences: appPreferences.borderDesign,
-                colorScheme: colorScheme
-            )
-        case .widget:
-            AppBorderRenderer.color(
-                for: .widgetPrimary,
-                preferences: appPreferences.borderDesign,
-                colorScheme: colorScheme
-            )
-        }
-    }
-
-    private var baseSecondaryBorderColor: Color {
-        switch surfaceRole {
-        case .card:
-            AppBorderRenderer.color(
-                for: .widgetSecondary,
-                preferences: appPreferences.borderDesign,
-                colorScheme: colorScheme
-            )
-        case .widget:
-            AppBorderRenderer.color(
-                for: .widgetSecondary,
-                preferences: appPreferences.borderDesign,
-                colorScheme: colorScheme
-            )
-        }
-    }
-
-    private var resolvedBaseBorderBlurRadius: CGFloat {
-        max(0, baseBorderBlurRadius ?? defaultBaseBorderBlurRadius)
-    }
-
-    private var defaultBaseBorderBlurRadius: CGFloat {
-        switch surfaceRole {
-        case .card:
-            2
-        case .widget:
-            0
-        }
-    }
-
-    private var primaryBorderLineWidth: CGFloat {
-        let role: AppBorderSurfaceRole = surfaceRole == .card ? .card : .widgetPrimary
-        return AppBorderRenderer.lineWidth(
-            for: role,
-            preferences: appPreferences.borderDesign
-        ) + min(resolvedBaseBorderBlurRadius * 0.08, 0.7)
-    }
-
-    private var secondaryBorderLineWidth: CGFloat {
-        AppBorderRenderer.lineWidth(
-            for: .widgetSecondary,
-            preferences: appPreferences.borderDesign
-        ) + min(resolvedBaseBorderBlurRadius * 0.04, 0.4)
-    }
-
-    private var secondaryBorderBlurRadius: CGFloat {
-        resolvedBaseBorderBlurRadius * 0.58
-    }
-
-    private var resolvedFeedbackIntensity: CGFloat {
-        0
-    }
-
-    private var cardBorderColor: Color {
+    private var standardBorderColor: Color {
         AppBorderRenderer.color(
-            for: .card,
+            for: .homeCard,
             preferences: appPreferences.borderDesign,
             colorScheme: colorScheme
         )
     }
 
-    private var resolvedCardBorderLineWidth: CGFloat {
+    private var standardBorderLineWidth: CGFloat {
         AppBorderRenderer.lineWidth(
-            for: .card,
+            for: .homeCard,
             preferences: appPreferences.borderDesign
-        ) + min(resolvedBaseBorderBlurRadius * 0.16, 0.55)
-    }
-
-    private var resolvedCardBorderBlurRadius: CGFloat {
-        resolvedBaseBorderBlurRadius
-    }
-
-    private func basePrimaryBorder(shape: RoundedRectangle) -> some View {
-        shape
-            .stroke(basePrimaryBorderColor, lineWidth: primaryBorderLineWidth)
-            .blur(radius: resolvedBaseBorderBlurRadius)
-            .clipShape(shape)
-    }
-
-    private func baseSecondaryBorder(shape: RoundedRectangle) -> some View {
-        shape
-            .stroke(baseSecondaryBorderColor, lineWidth: secondaryBorderLineWidth)
-            .blur(radius: secondaryBorderBlurRadius)
-    }
-
-    private func dynamicCardBorder(shape: RoundedRectangle) -> some View {
-        shape
-            .stroke(
-                cardBorderColor,
-                lineWidth: resolvedCardBorderLineWidth
-            )
-            .blur(radius: resolvedCardBorderBlurRadius)
-            .clipShape(shape)
+        )
     }
 }
 
