@@ -1537,7 +1537,7 @@ private struct ZoneContentLeafPreview: View {
             recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
             return
         }
-        guard isValidRenderedMeasurement(newSize) else {
+        guard isValidRenderedMeasurement(newSize, source: source) else {
             recordMeasurementDecision("rejected validation", size: newSize, source: source)
             return
         }
@@ -1622,12 +1622,18 @@ private struct ZoneContentLeafPreview: View {
         return { handleTap() }
     }
 
-    private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
-        isValidRenderedWidth(size.width) && isValidRenderedHeight(size.height)
+    private func isValidRenderedMeasurement(_ size: CGSize, source: String) -> Bool {
+        isValidRenderedWidth(size.width, source: source)
+            && isValidRenderedHeight(size.height)
     }
 
-    private func isValidRenderedWidth(_ width: CGFloat) -> Bool {
+    private func isValidRenderedWidth(_ width: CGFloat, source: String) -> Bool {
         guard requiresStableTextMeasurement else { return width > 0 }
+        if source == "plain-intrinsic" {
+            // This source already reports the widest rendered line plus the zone insets.
+            // The estimate floor only protects provisional SwiftUI geometry from collapsing.
+            return width >= minimumIntrinsicRenderedWidth
+        }
         return width >= minimumValidRenderedWidth
     }
 
@@ -1658,6 +1664,13 @@ private struct ZoneContentLeafPreview: View {
 
         return min(
             max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
+            availableWidth
+        )
+    }
+
+    private var minimumIntrinsicRenderedWidth: CGFloat {
+        min(
+            max(resolvedTextHorizontalPadding + 8, 1),
             availableWidth
         )
     }
