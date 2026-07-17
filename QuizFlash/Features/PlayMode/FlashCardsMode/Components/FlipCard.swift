@@ -610,7 +610,8 @@ struct FlipCard: View {
         let oldSource = measurementSource(for: marker)
         if source == "root-geometry",
            oldSource == "leaf-block-bounds",
-           oldSize.height > 0 {
+           oldSize.height > 0,
+           newSize.height <= oldSize.height + 0.5 {
             recordFaceDebugEvent(
                 marker,
                 "geometry ignored root-fallback-after-leaf raw=\(debugSize(newSize)) old=\(debugSize(oldSize))"
@@ -660,13 +661,17 @@ struct FlipCard: View {
             return nil
         }
         let frames = Array(framesByZone.values)
+        let rootGroupHeight = bounds
+            .first(where: { $0.kind == "group" && $0.path == "root" })
+            .map { max($0.blockSize.height, $0.frame.height) }
+            ?? 0
 
         let minY = min(frames.map(\.minY).min() ?? 0, 0)
         let maxY = frames.map(\.maxY).max() ?? 0
         let maxX = frames.map(\.maxX).max() ?? fallbackWidth
         return CGSize(
             width: ceil(max(fallbackWidth, maxX)),
-            height: ceil(max(maxY - minY, 1))
+            height: ceil(max(max(maxY - minY, rootGroupHeight), 1))
         )
     }
 

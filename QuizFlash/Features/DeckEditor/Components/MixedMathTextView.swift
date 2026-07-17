@@ -655,6 +655,7 @@ class MathWebViewPool {
 
     private var pool: [WKWebView] = []
     private var isPrewarmed = false
+    private var isPlaybackPrewarmReady = false
 
     // MARK: - Prewarm
 
@@ -675,6 +676,28 @@ class MathWebViewPool {
             }
             prewarmTasks.append(task)
         }
+    }
+
+    /// Waits until every scheduled playback WebView has been created and its
+    /// local HTML navigation has had time to settle. The work begins in
+    /// `prewarm`; this method is only the presentation barrier that prevents a
+    /// cold WebKit surface from becoming visible during the play transition.
+    @MainActor
+    func waitUntilReadyForPlayback() async {
+        guard !isPlaybackPrewarmReady else { return }
+
+        let scheduledTasks = prewarmTasks
+        for task in scheduledTasks {
+            await task.value
+            guard !Task.isCancelled else { return }
+        }
+
+        // The HTML, KaTeX JS and CSS are bundled locally. Navigation normally
+        // completes well inside this window; keeping it outside the visible
+        // transition removes the remaining first-card readiness race.
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
+        isPlaybackPrewarmReady = true
     }
 
     // MARK: - Dequeue / Enqueue
@@ -720,6 +743,7 @@ class MathWebViewPool {
         prewarmTasks.removeAll()
         pool.removeAll()
         isPrewarmed = false
+        isPlaybackPrewarmReady = false
     }
 
 #if DEBUG

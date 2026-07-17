@@ -194,11 +194,12 @@ struct FlashCardsPlayModeView: View {
                 startupDebugState.record("task start")
 #endif
                 await viewModel.startSession(container: modelContext.container)
-                resetCardPreloadWindow()
 #if DEBUG
                 startupDebugState.record("task returned")
 #endif
             }
+            guard !Task.isCancelled, viewModel.isSessionStarted else { return }
+            resetCardPreloadWindow()
         }
         .onDisappear {
             guard editingCard == nil else { return }

@@ -32,14 +32,30 @@ extension DeckContentView {
         }
 
         prepareFlashcardsPlayModeIfNeeded()
+        guard let preparedFlashcardsPlayModeViewModel,
+              preparedFlashcardsPlayModeViewModel.isSessionStarted,
+              !preparedFlashcardsPlayModeViewModel.cards.isEmpty else {
+            presentsFlashcardsAfterPreparation = true
+            return
+        }
+
+        presentsFlashcardsAfterPreparation = false
         selectedPlayMode = mode
     }
 
     func prepareFlashcardsPlayModeIfNeeded() {
         guard deck.cardCount > 0 else { return }
+        MathWebViewPool.shared.prewarm(
+            count: 4,
+            initialDelayMilliseconds: 0
+        )
         if let viewModel = preparedFlashcardsPlayModeViewModel,
            viewModel.isSessionStarted,
            !viewModel.cards.isEmpty {
+            if presentsFlashcardsAfterPreparation {
+                presentsFlashcardsAfterPreparation = false
+                selectedPlayMode = .flashcards
+            }
             return
         }
         guard flashcardsPreparationTask == nil else { return }
@@ -57,19 +73,29 @@ extension DeckContentView {
 
         flashcardsPreparationTask = Task { @MainActor in
             await sessionViewModel.startSession(container: context.container)
+            await MathWebViewPool.shared.waitUntilReadyForPlayback()
+            guard !Task.isCancelled else { return }
             flashcardsPreparationTask = nil
+            if presentsFlashcardsAfterPreparation,
+               sessionViewModel.isSessionStarted,
+               !sessionViewModel.cards.isEmpty {
+                presentsFlashcardsAfterPreparation = false
+                selectedPlayMode = .flashcards
+            }
         }
     }
 
     func resetPreparedFlashcardsPlayMode() {
         flashcardsPreparationTask?.cancel()
         flashcardsPreparationTask = nil
+        presentsFlashcardsAfterPreparation = false
         preparedFlashcardsPlayModeViewModel = nil
     }
 
     func cancelPreparedFlashcardsPlayMode() {
         flashcardsPreparationTask?.cancel()
         flashcardsPreparationTask = nil
+        presentsFlashcardsAfterPreparation = false
         preparedFlashcardsPlayModeViewModel?.tearDown()
         preparedFlashcardsPlayModeViewModel = nil
     }

@@ -1791,11 +1791,9 @@ enum ZoneTextPerformancePolicy {
     static let oversizedUTF16Threshold = 40_000
 
     private final class EstimatedSizeBox {
-        let sourceText: String
         let size: CGSize
 
-        init(sourceText: String, size: CGSize) {
-            self.sourceText = sourceText
+        init(size: CGSize) {
             self.size = size
         }
     }
@@ -1818,15 +1816,16 @@ enum ZoneTextPerformancePolicy {
         horizontalInsets: CGFloat,
         verticalPadding: CGFloat
     ) -> CGSize {
+        let nsText = text as NSString
         let cacheKey = oversizedEstimateCacheKey(
             zone: zone,
             fontScale: fontScale,
             availableWidth: availableWidth,
             horizontalInsets: horizontalInsets,
-            verticalPadding: verticalPadding
+            verticalPadding: verticalPadding,
+            textUTF16Length: nsText.length
         )
-        if let cached = estimatedSizeCache.object(forKey: cacheKey),
-           cached.sourceText == text {
+        if let cached = estimatedSizeCache.object(forKey: cacheKey) {
             return cached.size
         }
 
@@ -1835,7 +1834,6 @@ enum ZoneTextPerformancePolicy {
         let font = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale)
         let approximateCharacterWidth = max(font.pointSize * 0.65, 1)
         let charactersPerLine = max(Int(floor(textWidth / approximateCharacterWidth)), 1)
-        let nsText = text as NSString
         var visualLineCount = 0
         var lineStart = 0
 
@@ -1858,7 +1856,7 @@ enum ZoneTextPerformancePolicy {
             + max(verticalPadding - lineSpacing, 0)
         let size = CGSize(width: width, height: ceil(conservativeHeight))
         estimatedSizeCache.setObject(
-            EstimatedSizeBox(sourceText: text, size: size),
+            EstimatedSizeBox(size: size),
             forKey: cacheKey
         )
         return size
@@ -1869,7 +1867,8 @@ enum ZoneTextPerformancePolicy {
         fontScale: CGFloat,
         availableWidth: CGFloat,
         horizontalInsets: CGFloat,
-        verticalPadding: CGFloat
+        verticalPadding: CGFloat,
+        textUTF16Length: Int
     ) -> NSString {
         let fontScaleBucket = Int((Double(fontScale) * 1_000).rounded())
         let widthBucket = Int((Double(availableWidth) * 2).rounded())
@@ -1884,7 +1883,8 @@ enum ZoneTextPerformancePolicy {
             String(fontScaleBucket),
             String(widthBucket),
             String(horizontalInsetsBucket),
-            String(verticalPaddingBucket)
+            String(verticalPaddingBucket),
+            String(textUTF16Length)
         ]
         return components.joined(separator: "|") as NSString
     }
@@ -2613,13 +2613,27 @@ enum ZoneContentEstimator {
     }
 
     private static func zoneCacheFingerprint(_ zone: ZoneModel) -> String {
+        if containsOversizedText(in: zone) {
+            var hasher = Hasher()
+            combineZoneCacheFingerprint(
+                zone,
+                into: &hasher,
+                hashesOversizedTextByLength: true
+            )
+            return String(hasher.finalize())
+        }
+
         let key = zone.id as NSUUID
         if let cached = zoneFingerprintCache.object(forKey: key), cached.zone == zone {
             return cached.fingerprint
         }
 
         var hasher = Hasher()
-        combineZoneCacheFingerprint(zone, into: &hasher)
+        combineZoneCacheFingerprint(
+            zone,
+            into: &hasher,
+            hashesOversizedTextByLength: false
+        )
         let fingerprint = String(hasher.finalize())
         zoneFingerprintCache.setObject(
             FingerprintBox(zone: zone, fingerprint: fingerprint),
@@ -2628,11 +2642,30 @@ enum ZoneContentEstimator {
         return fingerprint
     }
 
-    nonisolated private static func combineZoneCacheFingerprint(_ zone: ZoneModel, into hasher: inout Hasher) {
+    nonisolated private static func containsOversizedText(in zone: ZoneModel) -> Bool {
+        if zone.isLeaf,
+           (zone.contentType == .text || zone.contentType == .code),
+           ZoneTextPerformancePolicy.isOversized(zone.text) {
+            return true
+        }
+
+        return zone.children?.contains(where: containsOversizedText(in:)) ?? false
+    }
+
+    nonisolated private static func combineZoneCacheFingerprint(
+        _ zone: ZoneModel,
+        into hasher: inout Hasher,
+        hashesOversizedTextByLength: Bool
+    ) {
         hasher.combine(zone.id)
         hasher.combine(zone.contentType.rawValue)
         hasher.combine(zone.codeLanguage)
-        hasher.combine(zone.text)
+        if hashesOversizedTextByLength,
+           ZoneTextPerformancePolicy.isOversized(zone.text) {
+            hasher.combine((zone.text as NSString).length)
+        } else {
+            hasher.combine(zone.text)
+        }
         hasher.combine(zone.textStyle.rawValue)
         hasher.combine(zone.sizeMode.rawValue)
         hasher.combine(zone.fixedWidth.map(roundedCacheBucket))
@@ -2655,7 +2688,11 @@ enum ZoneContentEstimator {
         let children = zone.children ?? []
         hasher.combine(children.count)
         for child in children {
-            combineZoneCacheFingerprint(child, into: &hasher)
+            combineZoneCacheFingerprint(
+                child,
+                into: &hasher,
+                hashesOversizedTextByLength: hashesOversizedTextByLength
+            )
         }
     }
 
