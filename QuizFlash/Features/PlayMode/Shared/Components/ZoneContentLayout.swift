@@ -508,6 +508,44 @@ enum ZoneContentRenderPolicy {
     }
 }
 
+/// Prevents post-wrap text measurements from recursively narrowing auto-sized zones.
+enum ZoneContentWidthStabilityPolicy {
+    /// Returns whether a zone needs its pre-wrap estimated width as a lower bound.
+    static func requiresEstimatedWidthFloor(for zone: ZoneModel) -> Bool {
+        guard zone.contentType == .text else { return false }
+        guard !ZoneTextPerformancePolicy.isOversized(zone.text) else { return false }
+        let previewText = ZoneContentDisplayTextNormalizer.textZoneDisplayText(zone.text)
+        guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        let healedText = MathTextSanitizer.heal(previewText)
+        return !MathTextSanitizer.containsMath(healedText)
+            && !MathTextSanitizer.containsInlineCode(healedText)
+    }
+
+    /// Reconciles estimated and rendered widths without constraining rich content.
+    static func resolvedVerticalGroupWidth(
+        estimatedWidth: CGFloat,
+        measuredWidth: CGFloat?,
+        children: [ZoneModel],
+        availableWidth: CGFloat
+    ) -> CGFloat {
+        let resolvedWidth: CGFloat
+        if let measuredWidth {
+            resolvedWidth = children.allSatisfy { child in
+                requiresEstimatedWidthFloor(for: child)
+            }
+                ? max(measuredWidth, estimatedWidth)
+                : measuredWidth
+        } else {
+            resolvedWidth = estimatedWidth
+        }
+
+        return min(max(ceil(resolvedWidth), 1), max(availableWidth, 1))
+    }
+}
+
 private struct ZoneContentTreePreview: View {
     let zone: ZoneModel
     let path: String
@@ -813,16 +851,18 @@ private struct ZoneContentTreePreview: View {
 
     private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
         let estimatedWidth = estimatedVerticalGroupWidth(for: children)
-
-        if measuredDirectChildWidths.count == childPaths.count {
-            let measuredWidth = childPaths
+        let measuredWidth = measuredDirectChildWidths.count == childPaths.count
+            ? childPaths
                 .compactMap { measuredDirectChildWidths[$0] }
-                .max() ?? 1
+                .max()
+            : nil
 
-            return min(max(ceil(measuredWidth), 1), availableWidth)
-        }
-
-        return min(max(ceil(estimatedWidth), 1), availableWidth)
+        return ZoneContentWidthStabilityPolicy.resolvedVerticalGroupWidth(
+            estimatedWidth: estimatedWidth,
+            measuredWidth: measuredWidth,
+            children: children,
+            availableWidth: availableWidth
+        )
     }
 
     private func shouldSuppressGuide(
@@ -872,6 +912,18 @@ private struct ZoneContentTreePreview: View {
             guard child.hasContent else { return 1 }
 
             switch child.contentType {
+            case .text where ZoneContentWidthStabilityPolicy.requiresEstimatedWidthFloor(for: child):
+                let estimatedWidth = ZoneContentEstimator.estimatedBlockWidth(
+                    for: child,
+                    fontScale: fontScale,
+                    availableWidth: availableWidth,
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
+                )
+                return min(
+                    max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
+                    availableWidth
+                )
             case .text, .code:
                 return min(max(resolvedTextHorizontalPadding + 8, 1), availableWidth)
             case .empty:
@@ -1485,7 +1537,7 @@ private struct ZoneContentLeafPreview: View {
             recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
             return
         }
-        guard isValidRenderedMeasurement(newSize, source: source) else {
+        guard isValidRenderedMeasurement(newSize) else {
             recordMeasurementDecision("rejected validation", size: newSize, source: source)
             return
         }
@@ -1522,13 +1574,7 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private var requiresIntrinsicTextWidthFloor: Bool {
-        guard zone.contentType == .text else { return false }
-        guard !ZoneTextPerformancePolicy.isOversized(zone.text) else { return false }
-        let previewText = displayText(for: zone)
-        guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        let healedText = MathTextSanitizer.heal(previewText)
-        return !MathTextSanitizer.containsMath(healedText)
-            && !MathTextSanitizer.containsInlineCode(healedText)
+        ZoneContentWidthStabilityPolicy.requiresEstimatedWidthFloor(for: zone)
     }
 
     private func resetRenderedMeasurements(reason: String) {
@@ -1576,16 +1622,12 @@ private struct ZoneContentLeafPreview: View {
         return { handleTap() }
     }
 
-    private func isValidRenderedMeasurement(_ size: CGSize, source: String) -> Bool {
-        isValidRenderedWidth(size.width, source: source)
-            && isValidRenderedHeight(size.height)
+    private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
+        isValidRenderedWidth(size.width) && isValidRenderedHeight(size.height)
     }
 
-    private func isValidRenderedWidth(_ width: CGFloat, source: String) -> Bool {
+    private func isValidRenderedWidth(_ width: CGFloat) -> Bool {
         guard requiresStableTextMeasurement else { return width > 0 }
-        if source == "plain-intrinsic" {
-            return width >= minimumIntrinsicRenderedWidth
-        }
         return width >= minimumValidRenderedWidth
     }
 
@@ -1616,13 +1658,6 @@ private struct ZoneContentLeafPreview: View {
 
         return min(
             max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
-            availableWidth
-        )
-    }
-
-    private var minimumIntrinsicRenderedWidth: CGFloat {
-        min(
-            max(resolvedTextHorizontalPadding + 8, 1),
             availableWidth
         )
     }

@@ -89,4 +89,36 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
 
         XCTAssertEqual(resolved, 369)
     }
+
+    func testPlainTextVerticalGroupDoesNotCollapseAfterWrappedMeasurement() {
+        let children = [
+            ZoneModel.text("Problema satisfiabilității pentru logica propozițională"),
+            ZoneModel.text("Are aplicații practice în verificarea programelor")
+        ]
+
+        let resolved = ZoneContentWidthStabilityPolicy.resolvedVerticalGroupWidth(
+            estimatedWidth: 345,
+            measuredWidth: 234,
+            children: children,
+            availableWidth: 366
+        )
+
+        XCTAssertEqual(resolved, 345)
+    }
+
+    func testRichTextVerticalGroupKeepsAuthoritativeMeasuredWidth() {
+        let children = [
+            ZoneModel.text(#"Relația $\models$ este definită astfel"#),
+            ZoneModel.text(#"Atribuirea $\tau$ este model al formulei $\varphi$"#)
+        ]
+
+        let resolved = ZoneContentWidthStabilityPolicy.resolvedVerticalGroupWidth(
+            estimatedWidth: 357,
+            measuredWidth: 341,
+            children: children,
+            availableWidth: 366
+        )
+
+        XCTAssertEqual(resolved, 341)
+    }
 }
