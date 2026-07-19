@@ -2181,7 +2181,6 @@ private enum ZoneContentPlainTextLayoutMeasurer {
             }
 
             var current: [ZoneContentPlainTextToken] = []
-            var currentWidth: CGFloat = 0
             for token in tokens {
                 var remainingToken = token
 
@@ -2190,8 +2189,7 @@ private enum ZoneContentPlainTextLayoutMeasurer {
 
                     guard !nextToken.isEmpty else { break }
 
-                    let nextTokenWidth = measuredWidth(for: [nextToken])
-                    let candidateWidth = currentWidth + nextTokenWidth
+                    let candidateWidth = measuredVisibleWidth(for: current + [nextToken])
 
                     if !current.isEmpty, candidateWidth > widthLimit {
                         output.append(line(
@@ -2200,7 +2198,6 @@ private enum ZoneContentPlainTextLayoutMeasurer {
                             fontScale: fontScale
                         ))
                         current = []
-                        currentWidth = 0
                         continue
                     }
 
@@ -2216,7 +2213,6 @@ private enum ZoneContentPlainTextLayoutMeasurer {
                     }
 
                     current.append(nextToken)
-                    currentWidth = candidateWidth
                     break
                 }
             }
@@ -2337,7 +2333,26 @@ private enum ZoneContentPlainTextLayoutMeasurer {
     }
 
     private static func normalizedLineTokens(_ tokens: [ZoneContentPlainTextToken]) -> [ZoneContentPlainTextToken] {
-        tokens.filter { !$0.text.isEmpty }
+        var normalized = tokens.filter { !$0.text.isEmpty }
+
+        while let lastIndex = normalized.indices.last {
+            var visibleText = normalized[lastIndex].text
+            while visibleText.last?.isWhitespace == true {
+                visibleText.removeLast()
+            }
+
+            guard !visibleText.isEmpty else {
+                normalized.removeLast()
+                continue
+            }
+
+            if visibleText != normalized[lastIndex].text {
+                normalized[lastIndex] = normalized[lastIndex].replacingText(visibleText)
+            }
+            break
+        }
+
+        return normalized
     }
 
     private static func splitOversizedToken(
@@ -2401,6 +2416,12 @@ private enum ZoneContentPlainTextLayoutMeasurer {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             context: nil
         ).width)
+    }
+
+    private static func measuredVisibleWidth(for tokens: [ZoneContentPlainTextToken]) -> CGFloat {
+        let visibleTokens = normalizedLineTokens(tokens)
+        guard !visibleTokens.isEmpty else { return 0 }
+        return measuredWidth(for: visibleTokens)
     }
 
     private static func attributes(

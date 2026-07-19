@@ -151,6 +151,44 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         }
     }
 
+    func testPlainTextLineWidthIgnoresInvisibleTrailingWhitespace() {
+        let fontScale = CGFloat(FlashcardTextSize(step: 3).playModeScale)
+        let plainZone = ZoneModel.text("formula este adevărată și cel")
+        let trailingSpaceZone = ZoneModel.text("formula este adevărată și cel ")
+
+        let plainWidth = ZoneContentEstimator.debugLineWidths(
+            for: plainZone,
+            fontScale: fontScale,
+            availableWidth: 1_000
+        ).first
+        let trailingSpaceWidth = ZoneContentEstimator.debugLineWidths(
+            for: trailingSpaceZone,
+            fontScale: fontScale,
+            availableWidth: 1_000
+        ).first
+
+        XCTAssertEqual(trailingSpaceWidth, plainWidth)
+    }
+
+    func testWordFitsAtWrapBoundaryWithoutItsTrailingSeparator() {
+        let fontScale = CGFloat(FlashcardTextSize(step: 3).playModeScale)
+        let prefixZone = ZoneModel.text("formula este")
+        let prefixWidth = ZoneContentEstimator.debugLineWidths(
+            for: prefixZone,
+            fontScale: fontScale,
+            availableWidth: 1_000
+        ).first ?? 1
+        let wrappedZone = ZoneModel.text("formula este adevărată")
+        let wrappedWidths = ZoneContentEstimator.debugLineWidths(
+            for: wrappedZone,
+            fontScale: fontScale,
+            availableWidth: prefixWidth
+        )
+
+        XCTAssertEqual(wrappedWidths.count, 2)
+        XCTAssertEqual(wrappedWidths.first, prefixWidth)
+    }
+
     func testValidIntrinsicWidthSurvivesContainerWidthChanges() {
         XCTAssertFalse(
             ZoneContentWidthStabilityPolicy.shouldResetDegenerateMeasurement(
