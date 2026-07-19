@@ -205,8 +205,71 @@ private extension UIView {
 /// - `contentShape(Rectangle())` ensures the full card surface forwards touches
 ///   to `SwipeableCard`'s underlying UIKit gesture recognisers.
 struct FlipCard: View {
-    private enum FaceDebugTimeline {
+    /// Keeps diagnostic history outside SwiftUI's observation graph.
+    ///
+    /// Geometry callbacks can run repeatedly while a scene is being restored.
+    /// Storing their log entries in `@State` invalidates this view and feeds the
+    /// geometry pass back into itself. The reference is retained by `@State`,
+    /// but mutations inside it intentionally do not trigger a render.
+    private final class FaceDebugTimeline {
         static let maxEvents = 80
+
+        private var frontEvents: [String] = []
+        private var backEvents: [String] = []
+        private var lastFrontMessage: String?
+        private var lastBackMessage: String?
+        private var startDate = Date()
+
+        func record(_ marker: FaceMarker, message: String) {
+            let event = formattedEvent(message)
+            switch marker {
+            case .question:
+                guard lastFrontMessage != message else { return }
+                lastFrontMessage = message
+                Self.append(event, to: &frontEvents)
+            case .answer:
+                guard lastBackMessage != message else { return }
+                lastBackMessage = message
+                Self.append(event, to: &backEvents)
+            }
+        }
+
+        func events(for marker: FaceMarker) -> [String] {
+            switch marker {
+            case .question:
+                return frontEvents
+            case .answer:
+                return backEvents
+            }
+        }
+
+        func reset() {
+            frontEvents.removeAll(keepingCapacity: true)
+            backEvents.removeAll(keepingCapacity: true)
+            lastFrontMessage = nil
+            lastBackMessage = nil
+            startDate = Date()
+        }
+
+        private func formattedEvent(_ message: String) -> String {
+            let elapsedMilliseconds = Date().timeIntervalSince(startDate) * 1000
+            return "+\(Self.debugMetric(elapsedMilliseconds))ms \(message)"
+        }
+
+        private static func append(_ event: String, to events: inout [String]) {
+            events.append(event)
+            if events.count > Self.maxEvents {
+                events.removeFirst(events.count - Self.maxEvents)
+            }
+        }
+
+        private static func debugMetric(_ value: TimeInterval) -> String {
+            let rounded = value.rounded()
+            if abs(value - rounded) < 0.05 {
+                return "\(Int(rounded))"
+            }
+            return String(format: "%.1f", value)
+        }
     }
 
     private enum FaceMarker {
@@ -283,9 +346,7 @@ struct FlipCard: View {
     @State private var latestBackLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
     @State private var frontMeasurementSource = "none"
     @State private var backMeasurementSource = "none"
-    @State private var frontFaceDebugEvents: [String] = []
-    @State private var backFaceDebugEvents: [String] = []
-    @State private var faceDebugStartDate = Date()
+    @State private var faceDebugTimeline = FaceDebugTimeline()
     @State private var scrollResetGeneration = 0
 
     // MARK: - Convenience
@@ -841,9 +902,7 @@ struct FlipCard: View {
         latestFrontLayoutDebugSnapshot = nil
         latestBackLayoutDebugSnapshot = nil
         if clearDebugEvents {
-            frontFaceDebugEvents = []
-            backFaceDebugEvents = []
-            faceDebugStartDate = Date()
+            faceDebugTimeline.reset()
             scrollResetGeneration = 0
         }
     }
@@ -987,31 +1046,11 @@ struct FlipCard: View {
     }
 
     private func recordFaceDebugEvent(_ marker: FaceMarker, _ message: String) {
-        let event = "+\(debugMetric(Date().timeIntervalSince(faceDebugStartDate) * 1000))ms \(message)"
-
-        switch marker {
-        case .question:
-            guard frontFaceDebugEvents.last != event else { return }
-            frontFaceDebugEvents.append(event)
-            if frontFaceDebugEvents.count > FaceDebugTimeline.maxEvents {
-                frontFaceDebugEvents.removeFirst(frontFaceDebugEvents.count - FaceDebugTimeline.maxEvents)
-            }
-        case .answer:
-            guard backFaceDebugEvents.last != event else { return }
-            backFaceDebugEvents.append(event)
-            if backFaceDebugEvents.count > FaceDebugTimeline.maxEvents {
-                backFaceDebugEvents.removeFirst(backFaceDebugEvents.count - FaceDebugTimeline.maxEvents)
-            }
-        }
+        faceDebugTimeline.record(marker, message: message)
     }
 
     private func faceDebugEvents(for marker: FaceMarker) -> [String] {
-        switch marker {
-        case .question:
-            frontFaceDebugEvents
-        case .answer:
-            backFaceDebugEvents
-        }
+        faceDebugTimeline.events(for: marker)
     }
 
     private func debugSize(_ size: CGSize) -> String {
