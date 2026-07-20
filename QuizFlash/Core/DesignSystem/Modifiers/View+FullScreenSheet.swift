@@ -338,6 +338,15 @@ private func fullScreenSheetClampedProgress(_ progress: CGFloat) -> CGFloat {
     min(max(progress, 0), 1)
 }
 
+private struct FullScreenSheetWindowMetrics {
+    let size: CGSize
+    let safeAreaInsets: UIEdgeInsets
+
+    var isUsable: Bool {
+        size.width > 10 && size.height > 10
+    }
+}
+
 #if DEBUG
 private struct FullScreenSheetDebugMetrics: Equatable {
     let identifier: String?
@@ -765,6 +774,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var offset: CGFloat = 0
     @State private var scrollDisabled = false
@@ -778,6 +788,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var childPresentationCoordinator = FullScreenSheetPresentationCoordinator()
     @State private var activeChildPresentationIDs: Set<UUID> = []
     @State private var keyboardMonitor = KeyboardMonitor.shared
+    @State private var stableWindowMetrics: FullScreenSheetWindowMetrics?
 
     private var dismissalAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
@@ -1009,6 +1020,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onAppear")
 #endif
+            captureStableWindowMetricsIfNeeded()
             offset = 0
             scrollDisabled = false
             isAnimatingDismiss = false
@@ -1038,6 +1050,16 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .onChange(of: isHostedContentLaidOut) { _, isLaidOut in
             guard isLaidOut else { return }
             startPresentationAnimationIfNeeded()
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+#if DEBUG
+            let stableSummary = stableWindowMetrics.map(windowMetricsDebugSummary) ?? "none"
+            fullScreenSheetDebugLog(
+                configuration.debugIdentifier,
+                "scenePhase \(String(describing: oldPhase))->\(String(describing: newPhase)) "
+                    + "stable={\(stableSummary)} live={\(windowMetricsDebugSummary(liveWindowMetrics))}"
+            )
+#endif
         }
         .onDisappear {
 #if DEBUG
@@ -1454,19 +1476,55 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var windowSize: CGSize {
-        if let size = keyWindow?.bounds.size,
-           size.width > 10,
-           size.height > 10 {
-            return size
-        }
-        return activeWindowScene?.coordinateSpace.bounds.size
-            ?? activeWindowScene?.screen.bounds.size
-            ?? .zero
+        stableWindowMetrics?.size ?? liveWindowMetrics.size
     }
 
     private var windowSafeAreaInsets: UIEdgeInsets {
-        keyWindow?.safeAreaInsets ?? .zero
+        stableWindowMetrics?.safeAreaInsets ?? liveWindowMetrics.safeAreaInsets
     }
+
+    private var liveWindowMetrics: FullScreenSheetWindowMetrics {
+        if let keyWindow,
+           keyWindow.bounds.width > 10,
+           keyWindow.bounds.height > 10 {
+            return FullScreenSheetWindowMetrics(
+                size: keyWindow.bounds.size,
+                safeAreaInsets: keyWindow.safeAreaInsets
+            )
+        }
+
+        return FullScreenSheetWindowMetrics(
+            size: activeWindowScene?.coordinateSpace.bounds.size
+                ?? activeWindowScene?.screen.bounds.size
+                ?? .zero,
+            safeAreaInsets: .zero
+        )
+    }
+
+    private func captureStableWindowMetricsIfNeeded() {
+        guard stableWindowMetrics == nil else { return }
+        let metrics = liveWindowMetrics
+        guard metrics.isUsable else { return }
+        stableWindowMetrics = metrics
+#if DEBUG
+        fullScreenSheetDebugLog(
+            configuration.debugIdentifier,
+            "windowMetrics.locked \(windowMetricsDebugSummary(metrics))"
+        )
+#endif
+    }
+
+#if DEBUG
+    private func windowMetricsDebugSummary(_ metrics: FullScreenSheetWindowMetrics) -> String {
+        [
+            "size=\(debugSize(metrics.size))",
+            "safeTop=\(debugFormat(metrics.safeAreaInsets.top))",
+            "safeLeft=\(debugFormat(metrics.safeAreaInsets.left))",
+            "safeBottom=\(debugFormat(metrics.safeAreaInsets.bottom))",
+            "safeRight=\(debugFormat(metrics.safeAreaInsets.right))"
+        ].joined(separator: " ")
+    }
+#endif
 
     private var activeWindowScene: UIWindowScene? {
         let windowScenes = UIApplication.shared.connectedScenes
