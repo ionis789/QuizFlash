@@ -774,7 +774,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.scenePhase) private var scenePhase
 
     @State private var offset: CGFloat = 0
     @State private var scrollDisabled = false
@@ -1050,16 +1049,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .onChange(of: isHostedContentLaidOut) { _, isLaidOut in
             guard isLaidOut else { return }
             startPresentationAnimationIfNeeded()
-        }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-#if DEBUG
-            let stableSummary = stableWindowMetrics.map(windowMetricsDebugSummary) ?? "none"
-            fullScreenSheetDebugLog(
-                configuration.debugIdentifier,
-                "scenePhase \(String(describing: oldPhase))->\(String(describing: newPhase)) "
-                    + "stable={\(stableSummary)} live={\(windowMetricsDebugSummary(liveWindowMetrics))}"
-            )
-#endif
         }
         .onDisappear {
 #if DEBUG
@@ -1506,25 +1495,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let metrics = liveWindowMetrics
         guard metrics.isUsable else { return }
         stableWindowMetrics = metrics
-#if DEBUG
-        fullScreenSheetDebugLog(
-            configuration.debugIdentifier,
-            "windowMetrics.locked \(windowMetricsDebugSummary(metrics))"
-        )
-#endif
     }
-
-#if DEBUG
-    private func windowMetricsDebugSummary(_ metrics: FullScreenSheetWindowMetrics) -> String {
-        [
-            "size=\(debugSize(metrics.size))",
-            "safeTop=\(debugFormat(metrics.safeAreaInsets.top))",
-            "safeLeft=\(debugFormat(metrics.safeAreaInsets.left))",
-            "safeBottom=\(debugFormat(metrics.safeAreaInsets.bottom))",
-            "safeRight=\(debugFormat(metrics.safeAreaInsets.right))"
-        ].joined(separator: " ")
-    }
-#endif
 
     private var activeWindowScene: UIWindowScene? {
         let windowScenes = UIApplication.shared.connectedScenes

@@ -58,8 +58,7 @@ extension DeckContentView {
                 showsBackdropBlur: true,
                 showsDefaultTopProgressiveBlur: false,
                 hidesTabBar: false,
-                coversTabBar: true,
-                debugIdentifier: "deck.play-mode"
+                coversTabBar: true
             )
         ) { mode, safeArea in
             if mode == .flashcards,
