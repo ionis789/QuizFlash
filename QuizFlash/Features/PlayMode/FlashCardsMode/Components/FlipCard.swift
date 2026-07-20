@@ -147,50 +147,6 @@ private struct FlipFaceModifier: AnimatableModifier {
     }
 }
 
-private struct PlayModeScrollBounceDisabler: UIViewRepresentable {
-    let resetToken: Int
-
-    final class Coordinator {
-        var appliedResetToken: Int?
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIView {
-        UIView(frame: .zero)
-    }
-
-    func updateUIView(_ view: UIView, context: Context) {
-        DispatchQueue.main.async {
-            guard let scrollView = view.nearestAncestorScrollView() else { return }
-            scrollView.bounces = false
-            scrollView.alwaysBounceVertical = false
-
-            guard context.coordinator.appliedResetToken != resetToken else { return }
-            context.coordinator.appliedResetToken = resetToken
-            scrollView.setContentOffset(
-                CGPoint(x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top),
-                animated: false
-            )
-        }
-    }
-}
-
-private extension UIView {
-    func nearestAncestorScrollView() -> UIScrollView? {
-        var current = superview
-        while let view = current {
-            if let scrollView = view as? UIScrollView {
-                return scrollView
-            }
-            current = view.superview
-        }
-        return nil
-    }
-}
-
 // MARK: - FlipCard
 
 /// Renders the question and answer faces of a flashcard using either a 3D
@@ -336,16 +292,8 @@ struct FlipCard: View {
 
     // MARK: - State
 
-    /// Measured rendered size of the front face content.
-    @State private var frontContentSize: CGSize = .zero
-
-    /// Measured rendered size of the back face content.
-    @State private var backContentSize: CGSize = .zero
-
     @State private var latestFrontLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
     @State private var latestBackLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
-    @State private var frontMeasurementSource = "none"
-    @State private var backMeasurementSource = "none"
     @State private var faceDebugTimeline = FaceDebugTimeline()
     @State private var scrollResetGeneration = 0
 
@@ -474,7 +422,7 @@ struct FlipCard: View {
             publishStoredLayoutDebugSnapshot()
         }
             .onChange(of: contentIdentity) { oldValue, newValue in
-            resetFaceMeasurements(clearDebugEvents: true)
+            resetFaceDiagnostics(clearDebugEvents: true)
             recordFaceDebugEvent(.question, "identity changed \(oldValue)->\(newValue); measurements reset")
             recordFaceDebugEvent(.answer, "identity changed \(oldValue)->\(newValue); measurements reset")
         }
@@ -487,11 +435,11 @@ struct FlipCard: View {
 
         return ZStack {
             if preloadsHiddenFace || isFlipped {
-                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
+                cardFace(zone: backZone, marker: .answer)
                     .modifier(FlipFaceModifier(rotationDegrees: rotation + 180))
             }
 
-            cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
+            cardFace(zone: frontZone, marker: .question)
                 .modifier(FlipFaceModifier(rotationDegrees: rotation))
         }
     }
@@ -499,7 +447,7 @@ struct FlipCard: View {
     private var staticSwapBody: some View {
         ZStack {
             if preloadsHiddenFace || isFlipped {
-                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
+                cardFace(zone: backZone, marker: .answer)
                     .staticSwapFaceState(
                         isVisible: isFlipped,
                         textMotion: staticSwapTextMotion,
@@ -508,7 +456,7 @@ struct FlipCard: View {
                     .zIndex(isFlipped ? 2 : 1)
             }
 
-            cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
+            cardFace(zone: frontZone, marker: .question)
                 .staticSwapFaceState(
                     isVisible: !isFlipped,
                     textMotion: staticSwapTextMotion,
@@ -521,11 +469,10 @@ struct FlipCard: View {
     @ViewBuilder
     private func cardFace(
         zone: ZoneModel,
-        marker: FaceMarker,
-        contentSize: Binding<CGSize>
+        marker: FaceMarker
     ) -> some View {
         cardShell(marker: marker) {
-            cardFaceContent(zone: zone, marker: marker, contentSize: contentSize)
+            cardFaceContent(zone: zone, marker: marker)
         }
     }
 
@@ -564,176 +511,10 @@ struct FlipCard: View {
     @ViewBuilder
     private func cardFaceContent(
         zone: ZoneModel,
-        marker: FaceMarker,
-        contentSize: Binding<CGSize>
+        marker: FaceMarker
     ) -> some View {
-        adaptiveScrollableContent(zone: zone, marker: marker, contentSize: contentSize)
+        adaptiveScrollableContent(zone: zone, marker: marker)
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func measuredFaceContent(
-        zone: ZoneModel,
-        marker: FaceMarker,
-        contentSize: Binding<CGSize>,
-        containerSize: CGSize,
-        contentWidth: CGFloat,
-        centersLeafBlocks: Bool,
-        minimumMeasuredHeight: CGFloat,
-        maximumMeasuredHeight: CGFloat
-    ) -> some View {
-        ZoneContentRenderView(
-            zone: zone,
-            fontScale: playModeTextScale,
-            availableWidth: contentWidth,
-            centersLeafBlocks: centersLeafBlocks,
-            animatesLayoutChanges: false,
-            showsDebugGuides: showsZoneContentGuides,
-            collectsDebugMetrics: onLayoutDebugSnapshot != nil,
-            leafTapBehavior: .richContentOnly,
-            onTap: onTap
-        )
-            .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
-            .frame(width: contentWidth, alignment: .topLeading)
-            .onGeometryChange(for: CGSize.self) { proxy in
-            CGSize(
-                width: ceil(proxy.size.width),
-                height: ceil(proxy.size.height)
-            )
-        } action: { newSize in
-            updateMeasuredFaceContentSize(
-                newSize,
-                marker: marker,
-                contentSize: contentSize,
-                containerSize: containerSize,
-                minimumMeasuredHeight: minimumMeasuredHeight,
-                maximumMeasuredHeight: maximumMeasuredHeight,
-                source: "root-geometry"
-            )
-        }
-            .onPreferenceChange(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
-            let expectedLeafCount = ZoneContentRenderPolicy.renderableLeafCount(in: zone)
-            guard let blockSize = measuredContentSize(
-                from: bounds,
-                expectedLeafCount: expectedLeafCount,
-                fallbackWidth: contentWidth
-            ) else {
-                let reportedLeafCount = Set(
-                    bounds
-                        .filter { $0.kind == "leaf" }
-                        .map(\.zoneID)
-                ).count
-                recordFaceDebugEvent(
-                    marker,
-                    "geometry ignored incomplete-bounds reported=\(reportedLeafCount) expected=\(expectedLeafCount)"
-                )
-                return
-            }
-            updateMeasuredFaceContentSize(
-                blockSize,
-                marker: marker,
-                contentSize: contentSize,
-                containerSize: containerSize,
-                minimumMeasuredHeight: minimumMeasuredHeight,
-                maximumMeasuredHeight: maximumMeasuredHeight,
-                source: "leaf-block-bounds"
-            )
-        }
-    }
-
-    private func updateMeasuredFaceContentSize(
-        _ newSize: CGSize,
-        marker: FaceMarker,
-        contentSize: Binding<CGSize>,
-        containerSize: CGSize,
-        minimumMeasuredHeight: CGFloat,
-        maximumMeasuredHeight: CGFloat,
-        source: String
-    ) {
-        guard containerSize.width > 1, containerSize.height > 1 else {
-                recordFaceDebugEvent(marker, "geometry ignored pending-container container=\(debugSize(containerSize)) raw=\(debugSize(newSize))")
-                return
-            }
-        guard newSize.width > 0, newSize.height > 0 else {
-            recordFaceDebugEvent(marker, "geometry ignored non-positive source=\(source) raw=\(debugSize(newSize))")
-            return
-        }
-        guard newSize.height + 0.5 >= minimumMeasuredHeight else {
-            recordFaceDebugEvent(marker, "geometry rejected source=\(source) raw=\(debugSize(newSize)) minH=\(debugMetric(minimumMeasuredHeight)) old=\(debugSize(contentSize.wrappedValue))")
-            return
-        }
-        guard newSize.height <= maximumMeasuredHeight else {
-            recordFaceDebugEvent(marker, "geometry rejected oversized source=\(source) raw=\(debugSize(newSize)) maxH=\(debugMetric(maximumMeasuredHeight)) old=\(debugSize(contentSize.wrappedValue))")
-            return
-        }
-
-        let oldSize = contentSize.wrappedValue
-        let oldSource = measurementSource(for: marker)
-        if source == "root-geometry",
-           oldSource == "leaf-block-bounds",
-           oldSize.height > 0,
-           newSize.height <= oldSize.height + 0.5 {
-            recordFaceDebugEvent(
-                marker,
-                "geometry ignored root-fallback-after-leaf raw=\(debugSize(newSize)) old=\(debugSize(oldSize))"
-            )
-            return
-        }
-
-        if source == "root-geometry",
-           oldSize.height > 0,
-           newSize.height > oldSize.height * 1.5,
-           newSize.height - oldSize.height > 120 {
-            recordFaceDebugEvent(marker, "geometry rejected stale-root raw=\(debugSize(newSize)) old=\(debugSize(oldSize))")
-            return
-        }
-
-        if abs(oldSize.width - newSize.width) > 0.5
-            || abs(oldSize.height - newSize.height) > 0.5 {
-            contentSize.wrappedValue = newSize
-            setMeasurementSource(source, for: marker)
-            recordFaceDebugEvent(marker, "geometry accepted source=\(source) old=\(debugSize(oldSize)) new=\(debugSize(newSize)) minH=\(debugMetric(minimumMeasuredHeight))")
-        } else {
-            recordFaceDebugEvent(marker, "geometry unchanged source=\(source) raw=\(debugSize(newSize)) old=\(debugSize(oldSize))")
-        }
-    }
-
-    private func measuredContentSize(
-        from bounds: [ZoneContentRenderBlockBounds],
-        expectedLeafCount: Int,
-        fallbackWidth: CGFloat
-    ) -> CGSize? {
-        let framesByZone = Dictionary(
-            bounds.compactMap { bound -> (UUID, CGRect)? in
-                guard bound.kind == "leaf" else { return nil }
-                let frame = bound.frame
-                guard !frame.isNull,
-                      !frame.isInfinite,
-                      frame.width > 0,
-                      frame.height > 0 else {
-                    return nil
-                }
-                return (bound.zoneID, frame)
-            },
-            uniquingKeysWith: { _, latest in latest }
-        )
-        guard expectedLeafCount > 0,
-              framesByZone.count == expectedLeafCount else {
-            return nil
-        }
-        let frames = Array(framesByZone.values)
-        let rootGroupHeight = bounds
-            .first(where: { $0.kind == "group" && $0.path == "root" })
-            .map { max($0.blockSize.height, $0.frame.height) }
-            ?? 0
-
-        let minY = min(frames.map(\.minY).min() ?? 0, 0)
-        let maxY = frames.map(\.maxY).max() ?? 0
-        let maxX = frames.map(\.maxX).max() ?? fallbackWidth
-        return CGSize(
-            width: ceil(max(fallbackWidth, maxX)),
-            height: ceil(max(max(maxY - minY, rootGroupHeight), 1))
-        )
     }
 
     // MARK: - Adaptive Scroll Content
@@ -748,117 +529,59 @@ struct FlipCard: View {
     @ViewBuilder
     private func adaptiveScrollableContent(
         zone: ZoneModel,
-        marker: FaceMarker,
-        contentSize: Binding<CGSize>
+        marker: FaceMarker
     ) -> some View {
         GeometryReader { available in
             let fallbackVerticalAlignment = ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
             let faceVerticalAlignment = zone.verticalAlignment.resolved(fallback: fallbackVerticalAlignment)
-            let availableContentWidth = max(available.size.width - (hPad * 2), 1)
-            let estimatedContentSize = ZoneContentEstimator.estimatedSize(
-                for: zone,
-                fontScale: playModeTextScale,
-                availableWidth: availableContentWidth
-            )
-            let layoutMeasuredContentSize = resolvedFaceMeasuredContentSize(
-                contentSize.wrappedValue,
-                estimatedContentSize: estimatedContentSize
-            )
-            let layout = ZoneContentLayout(
-                containerSize: available.size,
+            let layoutContext = ZoneContentSurfaceLayoutContext.viewport(
+                size: available.size,
                 horizontalPadding: hPad,
                 verticalPadding: vPad,
-                estimatedContentSize: estimatedContentSize,
-                measuredContentSize: layoutMeasuredContentSize,
-                verticalAlignment: faceVerticalAlignment
+                verticalAlignment: faceVerticalAlignment,
+                verticalScrollPolicy: .automatic,
+                scrollResetToken: marker == visibleMarker ? scrollResetGeneration : -1
             )
-            let layoutDebugKey = faceLayoutDebugKey(
-                marker: marker,
-                rawMeasuredContentSize: contentSize.wrappedValue,
-                appliedMeasuredContentSize: layoutMeasuredContentSize,
-                estimatedContentSize: estimatedContentSize,
-                layout: layout
+            let renderConfiguration = ZoneContentSurfaceRenderConfiguration(
+                centersLeafBlocks: faceVerticalAlignment == .center,
+                animatesLayoutChanges: false,
+                showsDebugGuides: showsZoneContentGuides,
+                showsViewportDebugGuide: showsZoneContentGuides,
+                collectsDebugMetrics: onLayoutDebugSnapshot != nil,
+                leafTapBehavior: .richContentOnly
             )
+            let diagnosticsHandler: ((ZoneContentSurfaceDiagnostics) -> Void)? = onLayoutDebugSnapshot == nil
+                ? nil
+                : { diagnostics in
+                    updateLayoutDebugSnapshot(
+                        marker: marker,
+                        diagnostics: diagnostics
+                    )
+                }
+            let debugEventHandler: ((String) -> Void)? = onLayoutDebugSnapshot == nil
+                ? nil
+                : { event in
+                    recordFaceDebugEvent(marker, event)
+                }
 
             if zone.hasContent {
-                ScrollView(.vertical, showsIndicators: false) {
-                    ZStack(alignment: .topLeading) {
-                        scrollOffsetProbe(marker: marker)
-
-                        if showsZoneContentGuides {
-                            zoneContentDebugGuides(layout: layout)
-                        }
-
-                        measuredFaceContent(
-                            zone: zone,
-                            marker: marker,
-                            contentSize: contentSize,
-                            containerSize: available.size,
-                            contentWidth: layout.availableContentWidth,
-                            centersLeafBlocks: faceVerticalAlignment == .center,
-                            minimumMeasuredHeight: minimumFaceMeasurementHeight(
-                                estimatedContentSize: estimatedContentSize
-                            ),
-                            maximumMeasuredHeight: maximumFaceMeasurementHeight(
-                                estimatedContentSize: estimatedContentSize,
-                                containerSize: available.size
-                            )
-                        )
-                            .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { leafSnapshots in
-                            updateLayoutDebugSnapshot(
-                                marker: marker,
-                                layout: layout,
-                                leafSnapshots: leafSnapshots
-                            )
-                        }
-                            .padding(.top, vPad + layout.contentTopInset)
-                            .padding(.leading, hPad)
-                            .padding(.bottom, vPad + layout.contentBottomInset)
-                    }
-                        .frame(
-                        width: available.size.width,
-                        height: layout.scrollContentHeight,
-                        alignment: .topLeading
-                    )
-                }
-                    .scrollDisabled(layout.contentFitsVertically)
-                    .background(
-                    PlayModeScrollBounceDisabler(
-                        resetToken: marker == visibleMarker ? scrollResetGeneration : -1
-                    )
+                ZoneContentSurface(
+                    zone: zone,
+                    fontScale: playModeTextScale,
+                    layoutContext: layoutContext,
+                    renderConfiguration: renderConfiguration,
+                    identity: "\(contentIdentity)-\(marker.debugTitle)",
+                    coordinateSpaceName: scrollCoordinateSpaceName(marker),
+                    onTap: onTap,
+                    onDiagnosticsChange: diagnosticsHandler,
+                    onDebugEvent: debugEventHandler
                 )
-                    .coordinateSpace(name: scrollCoordinateSpaceName(marker))
-                    .id(scrollContainerIdentity(marker))
-                    .frame(width: available.size.width, height: available.size.height)
-                    .onAppear {
-                    recordFaceDebugEvent(marker, "layout appear \(layoutDebugKey)")
-                }
-                    .onChange(of: layoutDebugKey) { _, newValue in
-                    recordFaceDebugEvent(marker, "layout changed \(newValue)")
-                }
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
                     .contentShape(Rectangle())
             }
         }
-    }
-
-    @ViewBuilder
-    private func zoneContentDebugGuides(layout: ZoneContentLayout) -> some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .stroke(
-            Color.cyan.opacity(0.9),
-            style: StrokeStyle(lineWidth: 1.6, dash: [7, 5])
-        )
-            .frame(
-            width: layout.debugAvailableFrame.width,
-            height: layout.debugAvailableFrame.height,
-            alignment: .topLeading
-        )
-            .padding(.leading, hPad)
-            .padding(.top, vPad)
-            .allowsHitTesting(false)
     }
 
     // MARK: - Empty State
@@ -894,11 +617,7 @@ struct FlipCard: View {
         isFlipped ? .answer : .question
     }
 
-    private func resetFaceMeasurements(clearDebugEvents: Bool = false) {
-        frontContentSize = .zero
-        backContentSize = .zero
-        frontMeasurementSource = "none"
-        backMeasurementSource = "none"
+    private func resetFaceDiagnostics(clearDebugEvents: Bool = false) {
         latestFrontLayoutDebugSnapshot = nil
         latestBackLayoutDebugSnapshot = nil
         if clearDebugEvents {
@@ -907,39 +626,18 @@ struct FlipCard: View {
         }
     }
 
-    private func minimumFaceMeasurementHeight(estimatedContentSize: CGSize) -> CGFloat {
-        max(1, ceil(estimatedContentSize.height * 0.25))
-    }
-
-    private func maximumFaceMeasurementHeight(
-        estimatedContentSize: CGSize,
-        containerSize: CGSize
-    ) -> CGFloat {
-        max(
-            ceil(estimatedContentSize.height * 12),
-            ceil(containerSize.height * 12),
-            1
-        )
-    }
-
-    private func resolvedFaceMeasuredContentSize(
-        _ measuredSize: CGSize,
-        estimatedContentSize: CGSize
-    ) -> CGSize {
-        guard measuredSize.width > 0, measuredSize.height > 0 else { return .zero }
-        guard measuredSize.height + 0.5 >= minimumFaceMeasurementHeight(estimatedContentSize: estimatedContentSize) else {
-            return .zero
-        }
-
-        return measuredSize
-    }
-
     private func updateLayoutDebugSnapshot(
         marker: FaceMarker,
-        layout: ZoneContentLayout,
-        leafSnapshots: [ZoneContentLeafLayoutDebugSnapshot]
+        diagnostics: ZoneContentSurfaceDiagnostics
     ) {
-        guard onLayoutDebugSnapshot != nil else { return }
+        guard onLayoutDebugSnapshot != nil,
+              let layout = diagnostics.metrics.layout else {
+            return
+        }
+        recordFaceDebugEvent(
+            marker,
+            "layout changed \(faceLayoutDebugKey(marker: marker, metrics: diagnostics.metrics, layout: layout))"
+        )
 
         let snapshot = ZoneContentLayoutDebugSnapshot(
             face: marker.debugTitle,
@@ -949,13 +647,13 @@ struct FlipCard: View {
             availableContentSize: roundedSize(layout.debugAvailableFrame),
             estimatedContentSize: roundedSize(layout.estimatedContentSize),
             measuredContentSize: roundedSize(layout.measuredContentSize),
-            measurementSource: measurementSource(for: marker),
+            measurementSource: diagnostics.metrics.measurementSource,
             contentBodyHeight: ceil(layout.contentBodyHeight),
             contentFitsVertically: layout.contentFitsVertically,
             centeredTopInset: ceil(layout.centeredTopInset),
             scrollContentHeight: ceil(layout.scrollContentHeight),
             faceDebugEvents: faceDebugEvents(for: marker),
-            leafSnapshots: leafSnapshots.sorted { $0.path < $1.path }
+            leafSnapshots: diagnostics.leafSnapshots
         )
 
         switch marker {
@@ -987,54 +685,18 @@ struct FlipCard: View {
         "FlashcardFaceScroll-\(contentIdentity)-\(marker.debugTitle)"
     }
 
-    private func scrollContainerIdentity(_ marker: FaceMarker) -> String {
-        "\(contentIdentity)-\(marker.debugTitle)-scroll"
-    }
-
-    private func measurementSource(for marker: FaceMarker) -> String {
-        switch marker {
-        case .question:
-            return frontMeasurementSource
-        case .answer:
-            return backMeasurementSource
-        }
-    }
-
-    private func setMeasurementSource(_ source: String, for marker: FaceMarker) {
-        switch marker {
-        case .question:
-            frontMeasurementSource = source
-        case .answer:
-            backMeasurementSource = source
-        }
-    }
-
-    @ViewBuilder
-    private func scrollOffsetProbe(marker: FaceMarker) -> some View {
-        Color.clear
-            .frame(width: 1, height: 1)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.frame(in: .named(scrollCoordinateSpaceName(marker))).minY
-            } action: { minY in
-                recordFaceDebugEvent(marker, "scroll probe minY=\(debugMetric(minY)) offset=\(debugMetric(-minY)) visible=\(visibleMarker.debugTitle)")
-            }
-            .allowsHitTesting(false)
-    }
-
     private func faceLayoutDebugKey(
         marker: FaceMarker,
-        rawMeasuredContentSize: CGSize,
-        appliedMeasuredContentSize: CGSize,
-        estimatedContentSize: CGSize,
+        metrics: ZoneContentSurfaceMetrics,
         layout: ZoneContentLayout
     ) -> String {
         [
             "face=\(marker.debugTitle)",
             "container=\(debugSize(layout.containerSize))",
             "available=\(debugSize(layout.debugAvailableFrame))",
-            "estimate=\(debugSize(estimatedContentSize))",
-            "rawMeasured=\(debugSize(rawMeasuredContentSize))",
-            "appliedMeasured=\(debugSize(appliedMeasuredContentSize))",
+            "estimate=\(debugSize(layout.estimatedContentSize))",
+            "rawMeasured=\(debugSize(metrics.rawMeasuredContentSize))",
+            "appliedMeasured=\(debugSize(metrics.appliedMeasuredContentSize))",
             "bodyH=\(debugMetric(layout.contentBodyHeight))",
             "fits=\(layout.contentFitsVertically)",
             "topInset=\(debugMetric(layout.contentTopInset))",

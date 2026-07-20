@@ -347,7 +347,7 @@ private func zoneAlignmentHighlight(
 
 // MARK: - Zone Content Content Layout
 
-struct ZoneContentLayout {
+struct ZoneContentLayout: Equatable {
     let containerSize: CGSize
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat

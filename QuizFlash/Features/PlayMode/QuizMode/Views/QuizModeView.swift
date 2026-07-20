@@ -1856,11 +1856,7 @@ struct QuizPlaybackZoneContent: View {
 
     var body: some View {
         let width = max(availableWidth, 1)
-
-        ZoneContentRenderView(
-            zone: zone,
-            fontScale: fontScale,
-            availableWidth: width,
+        let renderConfiguration = ZoneContentSurfaceRenderConfiguration(
             centersLeafBlocks: centersLeafBlocks,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
             animatesLayoutChanges: false,
@@ -1871,19 +1867,26 @@ struct QuizPlaybackZoneContent: View {
             zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
             textVerticalPadding: textVerticalPadding,
             textHorizontalPaddingOverride: textHorizontalPaddingOverride,
-            collectsDebugMetrics: showsLayoutDebug,
-            onTap: onTap,
-            onBlockBoundsChange: onBlockBoundsChange,
-            onRootBlockWidthChange: onMeasuredWidthChange
+            collectsDebugMetrics: showsLayoutDebug
         )
-        .frame(width: width, alignment: .topLeading)
-        .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
+        let diagnosticsHandler: ((ZoneContentSurfaceDiagnostics) -> Void)? = showsLayoutDebug
+            ? { diagnostics in
+                onLeafDebugSnapshotsChange?(diagnostics.leafSnapshots)
+            }
+            : nil
+
+        ZoneContentSurface(
+            zone: zone,
+            fontScale: fontScale,
+            layoutContext: .intrinsic(width: width),
+            renderConfiguration: renderConfiguration,
+            onTap: onTap,
+            onMeasuredWidthChange: onMeasuredWidthChange,
+            onBlockBoundsChange: onBlockBoundsChange,
+            onDiagnosticsChange: diagnosticsHandler
+        )
         .transaction { transaction in
             transaction.animation = nil
-        }
-        .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
-            guard showsLayoutDebug else { return }
-            onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })
         }
         .background(alignment: .topLeading) {
             if showsLayoutDebug {
