@@ -47,7 +47,12 @@ struct QuizFlashOnboardingView: View {
                     )
                     .padding(.top, metrics.topContentPadding)
                     .padding(.horizontal, metrics.horizontalContentPadding)
-                    .padding(.bottom, metrics.bottomControlsHeight + metrics.displayBottomSpacing)
+                    .padding(
+                        .bottom,
+                        metrics.bottomControlsHeight
+                            + metrics.displayBottomSpacing
+                            - (items[currentIndex].kind == .practiceFlow ? metrics.practiceFlowDisplayExtension : 0)
+                    )
 
                 bottomControls(metrics: metrics)
 
@@ -302,6 +307,10 @@ private struct QuizFlashOnboardingLayoutMetrics {
 
     var displayBottomSpacing: CGFloat {
         height * 0.018
+    }
+
+    var practiceFlowDisplayExtension: CGFloat {
+        min(max(height * 0.026, 20), 24)
     }
 
     var bottomControlsHeight: CGFloat {
@@ -1761,7 +1770,7 @@ private struct AIFlowLayoutMetrics {
     }
 
     private var cardsVerticalShift: CGFloat {
-        min(max(topInset - 8, 0), 54)
+        min(max(topInset - 22, 0), 54)
     }
 
     private var lowerCardOuterOffset: CGFloat {
