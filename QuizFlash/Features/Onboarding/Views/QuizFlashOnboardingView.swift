@@ -1419,7 +1419,6 @@ private struct PracticeFlowOnboardingPage: View {
                     ),
                     style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round)
                 )
-                .rotationEffect(.degrees(-90))
                 .padding(1)
         }
         .shadow(color: themeManager.accentColor.color.opacity(0.18 * processorTraceProgress), radius: 22)
@@ -1451,15 +1450,15 @@ private struct PracticeFlowOnboardingPage: View {
 
             generatedCard(index: index)
                 .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-                .position(motion.position)
-                .scaleEffect(motion.scale)
-                .rotationEffect(.degrees(motion.rotation))
-                .opacity(cardOpacity(for: index, progress: progress))
                 .scaleRevealMotion(
                     isVisible: cardIsVisible(index),
                     reduceMotion: reduceMotion,
                     hiddenOpacity: 0.001
                 )
+                .position(motion.position)
+                .scaleEffect(motion.scale)
+                .rotationEffect(.degrees(motion.rotation))
+                .opacity(cardOpacity(for: index, progress: progress))
                 .shadow(
                     color: index == activeCardIndex
                         ? themeManager.accentColor.color.opacity(0.22)
@@ -1517,7 +1516,7 @@ private struct PracticeFlowOnboardingPage: View {
         }
         .padding(11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(themeManager.textPrimary.opacity(0.085), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .background(themeManager.surfacePrimary, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 17, style: .continuous)
                 .strokeBorder(themeManager.accentColor.color.opacity(0.22), lineWidth: 1)
