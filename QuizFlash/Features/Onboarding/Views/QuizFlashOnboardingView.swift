@@ -1277,7 +1277,7 @@ private struct PracticeFlowOnboardingPage: View {
     @State private var activeCardProgress: CGFloat = 0
     @State private var hasCompletedSequence = false
 
-    private static let generatedCardCount = 5
+    private static let generatedCardCount = 7
 
     var body: some View {
         GeometryReader { proxy in
@@ -1578,20 +1578,20 @@ private struct PracticeFlowOnboardingPage: View {
 
         try await Task.sleep(for: .milliseconds(20))
 
-        try await animate(duration: 0.18, animation: .easeOut(duration: 0.18)) {
+        try await animate(duration: 0.10, animation: .easeOut(duration: 0.10)) {
             activeCardProgress = 0.18
         }
 
         try await animate(
-            duration: 0.48,
-            animation: .linear(duration: 0.48)
+            duration: 0.27,
+            animation: .linear(duration: 0.27)
         ) {
             activeCardProgress = 1.065
         }
 
         try await animate(
-            duration: 0.28,
-            animation: .spring(response: 0.24, dampingFraction: 0.62)
+            duration: 0.17,
+            animation: .spring(response: 0.16, dampingFraction: 0.66)
         ) {
             activeCardProgress = 1
         }
@@ -1602,7 +1602,7 @@ private struct PracticeFlowOnboardingPage: View {
             activeCardProgress = 0
         }
 
-        try await Task.sleep(for: .milliseconds(70))
+        try await Task.sleep(for: .milliseconds(20))
     }
 
     @MainActor
@@ -1753,7 +1753,7 @@ private struct AIFlowLayoutMetrics {
     }
 
     private var cardRowOffset: CGFloat {
-        (cardHeight / 2) + 8
+        (cardHeight / 2) + 5
     }
 
     private var cardsTopY: CGFloat {
@@ -1761,26 +1761,38 @@ private struct AIFlowLayoutMetrics {
     }
 
     private var cardsVerticalShift: CGFloat {
-        min(max(topInset - 20, 0), 36)
+        min(max(topInset - 8, 0), 54)
+    }
+
+    private var lowerCardOuterOffset: CGFloat {
+        min(cardWidth * 1.18, ((containerSize.width - cardWidth) / 2) - 4)
+    }
+
+    private var lowerCardInnerOffset: CGFloat {
+        lowerCardOuterOffset / 3
     }
 
     private func cardOffset(for index: Int) -> CGSize {
         switch index {
-        case 0: CGSize(width: -cardColumnOffset, height: -cardRowOffset)
+        case 0: CGSize(width: -cardColumnOffset, height: -cardRowOffset + 3)
         case 1: CGSize(width: 0, height: -cardRowOffset - 5)
-        case 2: CGSize(width: cardColumnOffset, height: -cardRowOffset)
-        case 3: CGSize(width: -(cardColumnOffset / 2), height: cardRowOffset)
-        default: CGSize(width: cardColumnOffset / 2, height: cardRowOffset)
+        case 2: CGSize(width: cardColumnOffset, height: -cardRowOffset + 2)
+        case 3: CGSize(width: -lowerCardOuterOffset, height: cardRowOffset + 2)
+        case 4: CGSize(width: -lowerCardInnerOffset, height: cardRowOffset - 2)
+        case 5: CGSize(width: lowerCardInnerOffset, height: cardRowOffset + 1)
+        default: CGSize(width: lowerCardOuterOffset, height: cardRowOffset + 4)
         }
     }
 
     private func cardRotation(for index: Int) -> Double {
         switch index {
-        case 0: -5
+        case 0: -6
         case 1: -1
-        case 2: 5
-        case 3: -3
-        default: 3
+        case 2: 6
+        case 3: -4
+        case 4: 2
+        case 5: -2
+        default: 4
         }
     }
 }
