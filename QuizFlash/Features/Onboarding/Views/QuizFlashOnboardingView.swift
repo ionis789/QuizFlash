@@ -33,7 +33,10 @@ struct QuizFlashOnboardingView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let metrics = QuizFlashOnboardingLayoutMetrics(containerSize: proxy.size)
+            let metrics = QuizFlashOnboardingLayoutMetrics(
+                containerSize: proxy.size,
+                safeTopInset: proxy.safeAreaInsets.top
+            )
 
             ZStack(alignment: .bottom) {
                 themeManager.screenBackground
@@ -280,6 +283,7 @@ struct QuizFlashOnboardingView: View {
 
 private struct QuizFlashOnboardingLayoutMetrics {
     let containerSize: CGSize
+    let safeTopInset: CGFloat
 
     private var width: CGFloat {
         max(containerSize.width, 1)
@@ -310,7 +314,7 @@ private struct QuizFlashOnboardingLayoutMetrics {
     }
 
     var practiceFlowDisplayExtension: CGFloat {
-        min(max(height * 0.026, 20), 24)
+        min(max(height * 0.032, 24), 32)
     }
 
     var bottomControlsHeight: CGFloat {
@@ -334,11 +338,11 @@ private struct QuizFlashOnboardingLayoutMetrics {
     }
 
     var chromeHorizontalPadding: CGFloat {
-        width * 0.038
+        UIConstants.Layout.compactScreenEdgeInset
     }
 
     var chromeTopPadding: CGFloat {
-        height * 0.046
+        safeTopInset + UIConstants.Layout.deckNavigationTopPadding
     }
 
     var deviceFrameMetrics: QuizFlashOnboardingDeviceFrameMetrics {
@@ -1293,7 +1297,11 @@ private struct PracticeFlowOnboardingPage: View {
             let metrics = AIFlowLayoutMetrics(containerSize: proxy.size)
 
             ZStack {
-                sourceMaterial(width: metrics.sourceWidth, height: metrics.sourceHeight)
+                sourceMaterial(
+                    width: metrics.sourceWidth,
+                    height: metrics.sourceHeight,
+                    scale: metrics.contentScale
+                )
                     .position(x: metrics.centerX, y: metrics.sourceY)
                     .scaleRevealMotion(
                         isVisible: sourceIsVisible,
@@ -1301,10 +1309,18 @@ private struct PracticeFlowOnboardingPage: View {
                         hiddenOpacity: 0.001
                     )
 
-                flowConnector(height: metrics.inputConnectorHeight, progress: inputConnectorProgress)
+                flowConnector(
+                    height: metrics.inputConnectorHeight,
+                    progress: inputConnectorProgress,
+                    scale: metrics.contentScale
+                )
                     .position(x: metrics.centerX, y: metrics.inputConnectorY)
 
-                aiProcessor(width: metrics.processorWidth, height: metrics.processorHeight)
+                aiProcessor(
+                    width: metrics.processorWidth,
+                    height: metrics.processorHeight,
+                    scale: metrics.contentScale
+                )
                     .position(x: metrics.centerX, y: metrics.processorY)
                     .scaleRevealMotion(
                         isVisible: processorIsVisible,
@@ -1312,7 +1328,11 @@ private struct PracticeFlowOnboardingPage: View {
                         hiddenOpacity: 0.001
                     )
 
-                flowConnector(height: metrics.outputConnectorHeight, progress: outputConnectorProgress)
+                flowConnector(
+                    height: metrics.outputConnectorHeight,
+                    progress: outputConnectorProgress,
+                    scale: metrics.contentScale
+                )
                     .position(x: metrics.centerX, y: metrics.outputConnectorY)
 
                 generatedCards(metrics: metrics)
@@ -1333,88 +1353,94 @@ private struct PracticeFlowOnboardingPage: View {
         }
     }
 
-    private func sourceMaterial(width: CGFloat, height: CGFloat) -> some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
+    private func sourceMaterial(width: CGFloat, height: CGFloat, scale: CGFloat) -> some View {
+        HStack(spacing: UIConstants.Spacing.medium * scale) {
             ZStack {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                RoundedRectangle(cornerRadius: 15 * scale, style: .continuous)
                     .fill(themeManager.accentColor.color.opacity(0.16))
 
                 Image(systemName: "doc.richtext.fill")
-                    .font(.system(size: 25, weight: .semibold))
+                    .font(.system(size: 25 * scale, weight: .semibold))
                     .foregroundStyle(themeManager.accentColor.color)
             }
-            .frame(width: 54, height: 62)
+            .frame(width: 54 * scale, height: 62 * scale)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10 * scale) {
                 Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
-                    .font(.headline.weight(.bold))
+                    .font(.system(size: 17 * scale, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
 
-                sourcePreview
+                sourcePreview(scale: scale)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.horizontal, UIConstants.Spacing.medium * scale)
         .frame(width: width, height: height)
-        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(
+            themeManager.textPrimary.opacity(0.07),
+            in: RoundedRectangle(cornerRadius: 22 * scale, style: .continuous)
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22 * scale, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: max(scale, 1))
         }
         .shadow(
             color: themeManager.accentColor.color.opacity(0.08),
-            radius: 14,
-            y: 8
+            radius: 14 * scale,
+            y: 8 * scale
         )
     }
 
-    private var sourcePreview: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 6) {
+    private func sourcePreview(scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 7 * scale) {
+            HStack(spacing: 6 * scale) {
                 Capsule()
                     .fill(themeManager.textPrimary.opacity(0.30))
-                    .frame(width: 82, height: 7)
+                    .frame(width: 82 * scale, height: 7 * scale)
 
                 Capsule()
                     .fill(themeManager.accentColor.color.opacity(0.48))
-                    .frame(width: 38, height: 7)
+                    .frame(width: 38 * scale, height: 7 * scale)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 6 * scale) {
                 Capsule()
                     .fill(themeManager.textPrimary.opacity(0.18))
-                    .frame(width: 54, height: 7)
+                    .frame(width: 54 * scale, height: 7 * scale)
 
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
                     .fill(themeManager.textPrimary.opacity(0.12))
-                    .frame(width: 30, height: 14)
+                    .frame(width: 30 * scale, height: 14 * scale)
 
                 Capsule()
                     .fill(themeManager.textPrimary.opacity(0.22))
-                    .frame(width: 46, height: 7)
+                    .frame(width: 46 * scale, height: 7 * scale)
             }
         }
     }
 
-    private func aiProcessor(width: CGFloat, height: CGFloat) -> some View {
-        HStack(spacing: 10) {
+    private func aiProcessor(width: CGFloat, height: CGFloat, scale: CGFloat) -> some View {
+        HStack(spacing: 10 * scale) {
             Image(systemName: "sparkles")
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 22 * scale, weight: .bold))
                 .foregroundStyle(themeManager.accentColor.color)
 
             Text("AI")
-                .font(.title3.weight(.bold))
+                .font(.system(size: 20 * scale, weight: .bold))
                 .foregroundStyle(themeManager.textPrimary)
         }
         .frame(width: width, height: height)
-        .background(themeManager.textPrimary.opacity(0.075), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(
+            themeManager.textPrimary.opacity(0.075),
+            in: RoundedRectangle(cornerRadius: 24 * scale, style: .continuous)
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24 * scale, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: max(scale, 1))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 24 * scale, style: .continuous)
                 .trim(from: 0, to: processorTraceProgress)
                 .stroke(
                     LinearGradient(
@@ -1426,14 +1452,17 @@ private struct PracticeFlowOnboardingPage: View {
                         startPoint: .leading,
                         endPoint: .trailing
                     ),
-                    style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: 1.7 * scale, lineCap: .round, lineJoin: .round)
                 )
-                .padding(1)
+                .padding(scale)
         }
-        .shadow(color: themeManager.accentColor.color.opacity(0.18 * processorTraceProgress), radius: 22)
+        .shadow(
+            color: themeManager.accentColor.color.opacity(0.18 * processorTraceProgress),
+            radius: 22 * scale
+        )
     }
 
-    private func flowConnector(height: CGFloat, progress: CGFloat) -> some View {
+    private func flowConnector(height: CGFloat, progress: CGFloat, scale: CGFloat) -> some View {
         Capsule()
             .fill(
                 LinearGradient(
@@ -1446,10 +1475,10 @@ private struct PracticeFlowOnboardingPage: View {
                     endPoint: .bottom
                 )
             )
-            .frame(width: 3, height: height)
+            .frame(width: 3 * scale, height: height)
             .scaleEffect(x: 1, y: progress, anchor: .top)
             .opacity(Double(min(progress * 4, 1)))
-        .frame(width: 16, height: height)
+        .frame(width: 16 * scale, height: height)
     }
 
     private func generatedCards(metrics: AIFlowLayoutMetrics) -> some View {
@@ -1457,7 +1486,7 @@ private struct PracticeFlowOnboardingPage: View {
             let progress = cardProgress(for: index)
             let motion = metrics.cardMotion(for: index, progress: progress)
 
-            generatedCard(index: index)
+            generatedCard(index: index, scale: metrics.contentScale)
                 .frame(width: metrics.cardWidth, height: metrics.cardHeight)
                 .scaleRevealMotion(
                     isVisible: cardIsVisible(index),
@@ -1495,40 +1524,43 @@ private struct PracticeFlowOnboardingPage: View {
         return Double(min(progress * 5, 1))
     }
 
-    private func generatedCard(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+    private func generatedCard(index: Int, scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 7 * scale) {
             HStack {
                 ZStack {
                     Circle()
                         .fill(themeManager.accentColor.color.opacity(0.20))
 
                     Image(systemName: index.isMultiple(of: 2) ? "rectangle.on.rectangle" : "checklist")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 9 * scale, weight: .bold))
                         .foregroundStyle(themeManager.accentColor.color)
                 }
-                .frame(width: 20, height: 20)
+                .frame(width: 20 * scale, height: 20 * scale)
 
                 Spacer(minLength: 0)
 
                 Circle()
                     .fill(themeManager.accentColor.color.opacity(0.52))
-                    .frame(width: 5, height: 5)
+                    .frame(width: 5 * scale, height: 5 * scale)
             }
 
             Capsule()
                 .fill(themeManager.textPrimary.opacity(0.24))
-                .frame(height: 6)
+                .frame(height: 6 * scale)
 
             Capsule()
                 .fill(themeManager.textPrimary.opacity(0.12))
-                .frame(width: 38, height: 6)
+                .frame(width: 38 * scale, height: 6 * scale)
         }
-        .padding(9)
+        .padding(9 * scale)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(themeManager.surfacePrimary, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(
+            themeManager.surfacePrimary,
+            in: RoundedRectangle(cornerRadius: 15 * scale, style: .continuous)
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .strokeBorder(themeManager.accentColor.color.opacity(0.22), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 15 * scale, style: .continuous)
+                .strokeBorder(themeManager.accentColor.color.opacity(0.22), lineWidth: max(scale, 1))
         }
     }
 
@@ -1580,27 +1612,35 @@ private struct PracticeFlowOnboardingPage: View {
     private func deliverCard(at index: Int) async throws {
         try Task.checkCancellation()
 
+        let velocity = 1 + (Double(index) * 0.10)
+        let releaseDuration = 0.08 / velocity
+        let fallDuration = 0.23 / velocity
+        let settleDuration = 0.13 / velocity
+
         withTransaction(Transaction(animation: nil)) {
             activeCardIndex = index
             activeCardProgress = 0
         }
 
-        try await Task.sleep(for: .milliseconds(20))
+        try await Task.sleep(for: .milliseconds(12))
 
-        try await animate(duration: 0.10, animation: .easeOut(duration: 0.10)) {
+        try await animate(
+            duration: releaseDuration,
+            animation: .easeOut(duration: releaseDuration)
+        ) {
             activeCardProgress = 0.18
         }
 
         try await animate(
-            duration: 0.27,
-            animation: .linear(duration: 0.27)
+            duration: fallDuration,
+            animation: .linear(duration: fallDuration)
         ) {
             activeCardProgress = 1.065
         }
 
         try await animate(
-            duration: 0.17,
-            animation: .spring(response: 0.16, dampingFraction: 0.66)
+            duration: settleDuration,
+            animation: .spring(response: settleDuration, dampingFraction: 0.66)
         ) {
             activeCardProgress = 1
         }
@@ -1611,7 +1651,7 @@ private struct PracticeFlowOnboardingPage: View {
             activeCardProgress = 0
         }
 
-        try await Task.sleep(for: .milliseconds(20))
+        try await Task.sleep(for: .milliseconds(10))
     }
 
     @MainActor
@@ -1664,8 +1704,15 @@ private struct PracticeFlowOnboardingPage: View {
 private struct AIFlowLayoutMetrics {
     let containerSize: CGSize
 
+    var contentScale: CGFloat {
+        min(max(containerSize.width / 390, 0.86), 1.50)
+    }
+
     private var diagramHeight: CGFloat {
-        min(max(containerSize.height * 0.76, 430), 570)
+        min(
+            max(containerSize.height * 0.76, 430 * contentScale),
+            570 * contentScale
+        )
     }
 
     private var topInset: CGFloat {
@@ -1673,13 +1720,21 @@ private struct AIFlowLayoutMetrics {
     }
 
     var centerX: CGFloat { containerSize.width / 2 }
-    var sourceWidth: CGFloat { min(containerSize.width * 0.84, 330) }
-    var sourceHeight: CGFloat { min(max(diagramHeight * 0.19, 96), 108) }
-    var processorWidth: CGFloat { min(containerSize.width * 0.48, 188) }
-    var processorHeight: CGFloat { 68 }
-    var cardHeight: CGFloat { 76 }
+    var sourceWidth: CGFloat { min(containerSize.width * 0.84, 330 * contentScale) }
+    var sourceHeight: CGFloat {
+        min(
+            max(diagramHeight * 0.19, 96 * contentScale),
+            108 * contentScale
+        )
+    }
+    var processorWidth: CGFloat { min(containerSize.width * 0.48, 188 * contentScale) }
+    var processorHeight: CGFloat { 68 * contentScale }
+    var cardHeight: CGFloat { 76 * contentScale }
     var cardWidth: CGFloat {
-        min(max((containerSize.width - 28) / 3, 88), 108)
+        min(
+            max((containerSize.width - (28 * contentScale)) / 3, 88 * contentScale),
+            108 * contentScale
+        )
     }
 
     var sourceY: CGFloat { topInset + (sourceHeight / 2) }
@@ -1689,35 +1744,45 @@ private struct AIFlowLayoutMetrics {
     }
 
     var inputConnectorHeight: CGFloat {
-        max(processorY - (processorHeight / 2) - sourceY - (sourceHeight / 2) - 14, 28)
+        max(
+            processorY - (processorHeight / 2) - sourceY - (sourceHeight / 2) - (14 * contentScale),
+            28 * contentScale
+        )
     }
 
     var inputConnectorY: CGFloat {
-        sourceY + (sourceHeight / 2) + 7 + (inputConnectorHeight / 2)
+        sourceY + (sourceHeight / 2) + (7 * contentScale) + (inputConnectorHeight / 2)
     }
 
     var outputConnectorHeight: CGFloat {
-        max(cardsTopY - processorY - (processorHeight / 2) - 14, 28)
+        max(
+            cardsTopY - processorY - (processorHeight / 2) - (14 * contentScale),
+            28 * contentScale
+        )
     }
 
     var outputConnectorY: CGFloat {
-        processorY + (processorHeight / 2) + 7 + (outputConnectorHeight / 2)
+        processorY + (processorHeight / 2) + (7 * contentScale) + (outputConnectorHeight / 2)
     }
 
     func cardMotion(for index: Int, progress: CGFloat) -> AIFlowCardMotion {
         let travelProgress = min(max(progress, 0), 1)
         let finalOffset = cardOffset(for: index)
         let finalRotation = cardRotation(for: index)
-        let launchDirection: CGFloat = index.isMultiple(of: 2) ? -1 : 1
+        let launchDirection: CGFloat = if finalOffset.width == 0 {
+            index.isMultiple(of: 2) ? -1 : 1
+        } else {
+            finalOffset.width < 0 ? -1 : 1
+        }
         let releaseThreshold: CGFloat = 0.18
 
         let start = CGPoint(
             x: centerX,
-            y: processorY + (processorHeight / 2) - 6
+            y: processorY + (processorHeight / 2) - (6 * contentScale)
         )
         let release = CGPoint(
             x: centerX,
-            y: outputConnectorY + (outputConnectorHeight / 2) + 4
+            y: outputConnectorY + (outputConnectorHeight / 2) + (4 * contentScale)
         )
         let end = CGPoint(
             x: centerX + finalOffset.width,
@@ -1736,7 +1801,7 @@ private struct AIFlowLayoutMetrics {
             let horizontalProgress = fallProgress * fallProgress * (3 - (2 * fallProgress))
             let gravityProgress = fallProgress * fallProgress
             let lateralArc = launchDirection
-                * (14 + CGFloat(index * 2))
+                * ((14 * contentScale) + (CGFloat(index * 2) * contentScale))
                 * CGFloat(sin(.pi * Double(fallProgress)))
 
             position = CGPoint(
@@ -1748,21 +1813,28 @@ private struct AIFlowLayoutMetrics {
         let impactProgress = min(max((progress - 1) / 0.065, 0), 1)
         let launchRotation = finalRotation + Double(launchDirection * 18)
         let baseScale = 0.56 + (0.44 * travelProgress)
+        let velocityStretch = CGFloat(sin(.pi * Double(travelProgress))) * 0.035
 
         return AIFlowCardMotion(
-            position: CGPoint(x: position.x, y: position.y + (impactProgress * 7)),
-            scaleX: baseScale + (impactProgress * 0.045),
-            scaleY: baseScale - (impactProgress * 0.055),
+            position: CGPoint(
+                x: position.x,
+                y: position.y + (impactProgress * 7 * contentScale)
+            ),
+            scaleX: baseScale - velocityStretch + (impactProgress * 0.045),
+            scaleY: baseScale + velocityStretch - (impactProgress * 0.055),
             rotation: launchRotation + ((finalRotation - launchRotation) * Double(travelProgress))
         )
     }
 
     private var cardColumnOffset: CGFloat {
-        min(cardWidth + 8, ((containerSize.width - cardWidth) / 2) - 10)
+        min(
+            cardWidth + (8 * contentScale),
+            ((containerSize.width - cardWidth) / 2) - (10 * contentScale)
+        )
     }
 
     private var cardRowOffset: CGFloat {
-        (cardHeight / 2) + 5
+        (cardHeight / 2) + (5 * contentScale)
     }
 
     private var cardsTopY: CGFloat {
@@ -1770,11 +1842,17 @@ private struct AIFlowLayoutMetrics {
     }
 
     private var cardsVerticalShift: CGFloat {
-        min(max(topInset - 22, 0), 54)
+        min(
+            max(topInset - (22 * contentScale), 0),
+            54 * contentScale
+        )
     }
 
     private var lowerCardOuterOffset: CGFloat {
-        min(cardWidth * 1.18, ((containerSize.width - cardWidth) / 2) - 4)
+        min(
+            cardWidth * 1.18,
+            ((containerSize.width - cardWidth) / 2) - (4 * contentScale)
+        )
     }
 
     private var lowerCardInnerOffset: CGFloat {
@@ -1783,13 +1861,13 @@ private struct AIFlowLayoutMetrics {
 
     private func cardOffset(for index: Int) -> CGSize {
         switch index {
-        case 0: CGSize(width: -cardColumnOffset, height: -cardRowOffset + 3)
-        case 1: CGSize(width: 0, height: -cardRowOffset - 5)
-        case 2: CGSize(width: cardColumnOffset, height: -cardRowOffset + 2)
-        case 3: CGSize(width: -lowerCardOuterOffset, height: cardRowOffset + 2)
-        case 4: CGSize(width: -lowerCardInnerOffset, height: cardRowOffset - 2)
-        case 5: CGSize(width: lowerCardInnerOffset, height: cardRowOffset + 1)
-        default: CGSize(width: lowerCardOuterOffset, height: cardRowOffset + 4)
+        case 0: CGSize(width: -cardColumnOffset, height: -cardRowOffset + (3 * contentScale))
+        case 1: CGSize(width: 0, height: -cardRowOffset - (5 * contentScale))
+        case 2: CGSize(width: cardColumnOffset, height: -cardRowOffset + (2 * contentScale))
+        case 3: CGSize(width: -lowerCardOuterOffset, height: cardRowOffset + (2 * contentScale))
+        case 4: CGSize(width: -lowerCardInnerOffset, height: cardRowOffset - (2 * contentScale))
+        case 5: CGSize(width: lowerCardInnerOffset, height: cardRowOffset + contentScale)
+        default: CGSize(width: lowerCardOuterOffset, height: cardRowOffset + (4 * contentScale))
         }
     }
 
