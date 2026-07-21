@@ -110,7 +110,7 @@ struct QuizFlashOnboardingView: View {
         case .welcome:
             WelcomeOnboardingPage(isActive: isActive || welcomeDemoIsActive)
         case .practiceFlow:
-            PracticeFlowOnboardingPage()
+            PracticeFlowOnboardingPage(isActive: isActive)
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
         }
@@ -1261,22 +1261,39 @@ private enum WelcomeQuizAnswerState {
 
 /// Shows source material passing through QuizFlash AI and becoming study cards.
 private struct PracticeFlowOnboardingPage: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+
+    let isActive: Bool
+
+    @State private var generatedCardCount = 0
+    @State private var cardsAreVisible = true
+    @State private var factoryIsPulsing = false
+    @State private var gearRotation = 0.0
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer(minLength: UIConstants.Spacing.standard)
 
             sourceMaterial
-            pipelineConnector
+                .padding(.bottom, UIConstants.Spacing.large)
             aiFactory
+                .padding(.bottom, UIConstants.Spacing.extraLarge)
             generatedCards
 
             Spacer(minLength: UIConstants.Spacing.standard)
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: animationTaskID) {
+            guard isActive, !reduceMotion else {
+                showStaticResult()
+                return
+            }
+
+            await runGenerationLoop()
+        }
     }
 
     private var sourceMaterial: some View {
@@ -1306,105 +1323,54 @@ private struct PracticeFlowOnboardingPage: View {
         }
     }
 
-    private var pipelineConnector: some View {
-        ZStack(alignment: .bottom) {
-            Capsule()
-                .fill(themeManager.accentColor.color.opacity(0.42))
-                .frame(width: 2, height: 38)
-
-            Image(systemName: "chevron.compact.down")
-                .font(.system(size: 13, weight: .black))
-                .foregroundStyle(themeManager.accentColor.color)
-                .offset(y: 3)
-        }
-        .frame(height: 42)
-    }
-
     private var aiFactory: some View {
-        VStack(spacing: UIConstants.Spacing.medium) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 45, weight: .bold))
-                        .foregroundStyle(themeManager.accentColor.color)
-                        .offset(x: -13, y: 6)
+        ZStack {
+            Circle()
+                .fill(themeManager.accentColor.color.opacity(0.12))
+                .frame(width: 122, height: 122)
 
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 31, weight: .bold))
-                        .foregroundStyle(themeManager.textPrimary.opacity(0.74))
-                        .offset(x: 18, y: -12)
-                }
-                .frame(width: 82, height: 66)
+            Circle()
+                .fill(themeManager.accentColor.color.opacity(0.11))
+                .frame(width: 88, height: 88)
 
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    HStack(spacing: UIConstants.Spacing.tiny) {
-                        Image(systemName: "sparkles")
-                        Text(AppLocalization.string("QuizFlash AI", locale: appPreferences.resolvedLocale))
-                    }
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(themeManager.textPrimary)
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 52, weight: .bold))
+                .foregroundStyle(themeManager.accentColor.color)
+                .rotationEffect(.degrees(gearRotation))
+                .offset(x: -11, y: 9)
 
-                    HStack(spacing: 6) {
-                        ForEach(0..<4, id: \.self) { index in
-                            Capsule()
-                                .fill(
-                                    index == 3
-                                        ? themeManager.accentColor.color
-                                        : themeManager.textPrimary.opacity(0.18)
-                                )
-                                .frame(width: index == 3 ? 22 : 8, height: 8)
-                        }
-                    }
-                }
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(themeManager.textPrimary.opacity(0.82))
+                .rotationEffect(.degrees(-gearRotation * 1.35))
+                .offset(x: 24, y: -20)
 
-                Spacer(minLength: 0)
-            }
-
-            Capsule()
-                .fill(Color.black.opacity(0.44))
-                .frame(width: 112, height: 12)
-                .overlay {
-                    Capsule()
-                        .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
-                }
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(themeManager.textPrimary)
+                .scaleEffect(factoryIsPulsing ? 1.18 : 0.88)
+                .opacity(factoryIsPulsing ? 1 : 0.58)
+                .offset(x: 39, y: 31)
         }
-        .padding(.horizontal, UIConstants.Spacing.large)
-        .padding(.vertical, UIConstants.Spacing.medium)
-        .frame(maxWidth: .infinity)
-        .background(themeManager.accentColor.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(themeManager.accentColor.color.opacity(0.38), lineWidth: 1.4)
-        }
+        .frame(height: 122)
+        .scaleEffect(factoryIsPulsing ? 1.04 : 1)
+        .shadow(color: themeManager.accentColor.color.opacity(factoryIsPulsing ? 0.22 : 0.08), radius: 22)
     }
 
     private var generatedCards: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(themeManager.accentColor.color.opacity(0.42))
-                .frame(width: 2, height: 18)
-
-            HStack(spacing: 0) {
-                ForEach(0..<3, id: \.self) { _ in
-                    Capsule()
-                        .fill(themeManager.accentColor.color.opacity(0.42))
-                        .frame(width: 2, height: 18)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(themeManager.accentColor.color.opacity(0.42))
-                    .frame(height: 2)
-                    .padding(.horizontal, UIConstants.Spacing.extraLarge + UIConstants.Spacing.standard)
-            }
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                ForEach(0..<3, id: \.self) { index in
-                    generatedCard(index: index)
-                }
+        HStack(spacing: UIConstants.Spacing.small) {
+            ForEach(0..<3, id: \.self) { index in
+                generatedCard(index: index)
+                    .scaleEffect(index < generatedCardCount ? 1 : 0.56)
+                    .rotationEffect(.degrees(index < generatedCardCount ? 0 : Double(index - 1) * 8))
+                    .offset(
+                        x: index < generatedCardCount ? 0 : CGFloat(1 - index) * 94,
+                        y: index < generatedCardCount ? 0 : -94
+                    )
+                    .opacity(index < generatedCardCount && cardsAreVisible ? 1 : 0)
             }
         }
+        .frame(height: 82)
     }
 
     private func sourceLine(width: CGFloat) -> some View {
@@ -1424,10 +1390,6 @@ private struct PracticeFlowOnboardingPage: View {
                     .frame(width: 24, height: 7)
 
                 Spacer(minLength: 0)
-
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(themeManager.accentColor.color)
             }
 
             Capsule()
@@ -1445,6 +1407,66 @@ private struct PracticeFlowOnboardingPage: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
         }
+    }
+
+    @MainActor
+    private func runGenerationLoop() async {
+        resetAnimation()
+
+        do {
+            while !Task.isCancelled {
+                try await Task.sleep(for: .milliseconds(460))
+
+                for cardCount in 1...3 {
+                    withAnimation(.smooth(duration: UIConstants.Animation.standard, extraBounce: 0.04)) {
+                        factoryIsPulsing = true
+                        gearRotation += 62
+                    }
+
+                    try await Task.sleep(for: .milliseconds(210))
+
+                    withAnimation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0.12)) {
+                        generatedCardCount = cardCount
+                        factoryIsPulsing = false
+                    }
+
+                    try await Task.sleep(for: .milliseconds(470))
+                }
+
+                try await Task.sleep(for: .milliseconds(1_150))
+
+                withAnimation(.easeOut(duration: UIConstants.Animation.standard)) {
+                    cardsAreVisible = false
+                }
+
+                try await Task.sleep(for: .milliseconds(280))
+                resetAnimation()
+            }
+        } catch {
+            resetAnimation()
+        }
+    }
+
+    @MainActor
+    private func resetAnimation() {
+        withTransaction(Transaction(animation: nil)) {
+            generatedCardCount = 0
+            cardsAreVisible = true
+            factoryIsPulsing = false
+        }
+    }
+
+    @MainActor
+    private func showStaticResult() {
+        withTransaction(Transaction(animation: nil)) {
+            generatedCardCount = isActive ? 3 : 0
+            cardsAreVisible = true
+            factoryIsPulsing = false
+        }
+    }
+
+    private var animationTaskID: String {
+        "\(isActive)-\(reduceMotion)"
     }
 }
 
