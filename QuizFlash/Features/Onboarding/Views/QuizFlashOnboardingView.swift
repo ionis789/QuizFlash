@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - QuizFlash Onboarding View
 
@@ -35,7 +36,7 @@ struct QuizFlashOnboardingView: View {
         GeometryReader { proxy in
             let metrics = QuizFlashOnboardingLayoutMetrics(
                 containerSize: proxy.size,
-                safeTopInset: proxy.safeAreaInsets.top
+                safeTopInset: resolvedSafeAreaTop(from: proxy.safeAreaInsets.top)
             )
 
             ZStack(alignment: .bottom) {
@@ -277,6 +278,18 @@ struct QuizFlashOnboardingView: View {
     private func pageOpacity(for index: Int) -> Double {
         index == currentIndex ? 1 : 0.74
     }
+
+    private func resolvedSafeAreaTop(from proxySafeAreaTop: CGFloat) -> CGFloat {
+        if proxySafeAreaTop > 0 {
+            return proxySafeAreaTop
+        }
+
+        let activeWindowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })
+
+        return activeWindowScene?.windows.first(where: \.isKeyWindow)?.safeAreaInsets.top ?? 0
+    }
 }
 
 // MARK: - Layout Metrics
@@ -403,6 +416,10 @@ private struct WelcomeOnboardingLayoutMetrics {
         availableVerticalRemainder * 0.58
     }
 
+    var contentVerticalOffset: CGFloat {
+        min(max(height * 0.034, 22), 36)
+    }
+
     private var baseTitleSize: CGFloat {
         sqrt(width * height) * 0.078
     }
@@ -492,6 +509,7 @@ private struct WelcomeOnboardingPage: View {
             }
             .padding(.horizontal, metrics.horizontalPadding)
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+            .offset(y: metrics.contentVerticalOffset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
@@ -1908,32 +1926,130 @@ private struct CardsTargetOnboardingPage: View {
         )
     }
 
-    var body: some View {
-        VStack {
-            Spacer(minLength: 0)
-
-            TickValuePicker(
-                value: tickSelection,
-                range: 1 ... tickUpperBound,
-                onChange: setTickSelection,
-                isCompact: true
-            ) { value in
-                String(
-                    format: AppLocalization.string("%d cards per day", locale: appPreferences.resolvedLocale),
-                    locale: appPreferences.resolvedLocale,
-                    value * AppPreferences.dailyCardsGoalStep
-                )
-            }
-
-            Spacer(minLength: 0)
+    private var pickerSelection: Binding<Int> {
+        Binding {
+            tickSelection - 1
+        } set: { newSelection in
+            setTickSelection(newSelection + 1)
         }
-        .padding(.horizontal, UIConstants.Spacing.extraLarge)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let metrics = CardsTargetOnboardingLayoutMetrics(containerSize: proxy.size)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                VStack(spacing: metrics.valueLabelSpacing) {
+                    Text("\(cardsTarget)")
+                        .font(.system(size: metrics.valueFontSize, weight: .heavy).monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                        .statusTextMotion(trigger: cardsTarget)
+
+                    Text(AppLocalization.string("cards per day", locale: appPreferences.resolvedLocale))
+                        .font(.system(size: metrics.labelFontSize, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(0.86))
+                }
+                .frame(height: metrics.valueBlockHeight)
+
+                Circle()
+                    .fill(Color.primary.opacity(0.20))
+                    .frame(width: metrics.markerSize, height: metrics.markerSize)
+                    .padding(.top, metrics.markerTopSpacing)
+
+                TickPicker(
+                    count: tickUpperBound - 1,
+                    config: metrics.pickerConfig,
+                    selection: pickerSelection,
+                    highlightedRange: nil
+                )
+                .padding(.top, metrics.pickerTopSpacing)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: metrics.contentMaxWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .offset(y: metrics.contentVerticalOffset)
+            .padding(.horizontal, metrics.horizontalPadding)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func setTickSelection(_ selection: Int) {
         cardsTarget = min(selection, tickUpperBound) * AppPreferences.dailyCardsGoalStep
         appPreferences.dailyCardsGoal = cardsTarget
+    }
+}
+
+private struct CardsTargetOnboardingLayoutMetrics {
+    let containerSize: CGSize
+
+    private var width: CGFloat {
+        max(containerSize.width, 1)
+    }
+
+    private var height: CGFloat {
+        max(containerSize.height, 1)
+    }
+
+    private var contentScale: CGFloat {
+        min(max(width / 390, 0.90), 1.28)
+    }
+
+    var contentMaxWidth: CGFloat {
+        min(width, 560)
+    }
+
+    var horizontalPadding: CGFloat {
+        max(width * 0.075, UIConstants.Spacing.large)
+    }
+
+    var contentVerticalOffset: CGFloat {
+        min(max(height * 0.070, 38), 68)
+    }
+
+    var valueFontSize: CGFloat {
+        54 * contentScale
+    }
+
+    var labelFontSize: CGFloat {
+        20 * contentScale
+    }
+
+    var valueLabelSpacing: CGFloat {
+        2 * contentScale
+    }
+
+    var valueBlockHeight: CGFloat {
+        82 * contentScale
+    }
+
+    var markerSize: CGFloat {
+        7 * contentScale
+    }
+
+    var markerTopSpacing: CGFloat {
+        16 * contentScale
+    }
+
+    var pickerTopSpacing: CGFloat {
+        10 * contentScale
+    }
+
+    var pickerConfig: TickPickerConfig {
+        TickPickerConfig(
+            tickWidth: 2 * contentScale,
+            tickHeight: 28 * contentScale,
+            tickHPadding: 5 * contentScale,
+            inActiveHeightProgress: 0.48,
+            interactionHeight: 62 * contentScale,
+            tickAreaTopPadding: 4 * contentScale,
+            activeTint: ThemeManager.shared.roleColor(.labelPrimaryForeground),
+            inActiveTint: .primary,
+            alignment: .bottom
+        )
     }
 }
 

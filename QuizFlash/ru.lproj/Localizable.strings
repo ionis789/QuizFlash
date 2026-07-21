@@ -46,6 +46,7 @@
 "%d cards lined up today" = "На сегодня подготовлено %d карточек";
 "%d cards moved today" = "%d карточек пройдено сегодня";
 "%d cards per day" = "%d карточек в день";
+"cards per day" = "карточек в день";
 "%d cards reviewed" = "%d карточек пройдено";
 "%d cards reviewed today." = "%d карточек пройдено сегодня.";
 "%d chars" = "%d символов";
