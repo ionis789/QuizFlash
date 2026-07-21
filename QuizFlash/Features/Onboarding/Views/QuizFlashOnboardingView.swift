@@ -1306,7 +1306,7 @@ private struct PracticeFlowOnboardingPage: View {
                 flowConnector(height: metrics.outputConnectorHeight, progress: outputConnectorProgress)
                     .position(x: metrics.centerX, y: metrics.outputConnectorY)
 
-                generatedCardStack(metrics: metrics)
+                generatedCards(metrics: metrics)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .accessibilityHidden(true)
@@ -1443,7 +1443,7 @@ private struct PracticeFlowOnboardingPage: View {
         .frame(width: 16, height: height)
     }
 
-    private func generatedCardStack(metrics: AIFlowLayoutMetrics) -> some View {
+    private func generatedCards(metrics: AIFlowLayoutMetrics) -> some View {
         ForEach(0..<Self.generatedCardCount, id: \.self) { index in
             let progress = cardProgress(for: index)
             let motion = metrics.cardMotion(for: index, progress: progress)
@@ -1487,38 +1487,38 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     private func generatedCard(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
                 ZStack {
                     Circle()
                         .fill(themeManager.accentColor.color.opacity(0.20))
 
                     Image(systemName: index.isMultiple(of: 2) ? "rectangle.on.rectangle" : "checklist")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(themeManager.accentColor.color)
                 }
-                .frame(width: 24, height: 24)
+                .frame(width: 20, height: 20)
 
                 Spacer(minLength: 0)
 
                 Circle()
                     .fill(themeManager.accentColor.color.opacity(0.52))
-                    .frame(width: 6, height: 6)
+                    .frame(width: 5, height: 5)
             }
 
             Capsule()
                 .fill(themeManager.textPrimary.opacity(0.24))
-                .frame(height: 7)
+                .frame(height: 6)
 
             Capsule()
                 .fill(themeManager.textPrimary.opacity(0.12))
-                .frame(width: 48, height: 7)
+                .frame(width: 38, height: 6)
         }
-        .padding(11)
+        .padding(9)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(themeManager.surfacePrimary, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .background(themeManager.surfacePrimary, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .strokeBorder(themeManager.accentColor.color.opacity(0.22), lineWidth: 1)
         }
     }
@@ -1661,12 +1661,16 @@ private struct AIFlowLayoutMetrics {
     var sourceHeight: CGFloat { min(max(diagramHeight * 0.19, 96), 108) }
     var processorWidth: CGFloat { min(containerSize.width * 0.48, 188) }
     var processorHeight: CGFloat { 68 }
-    var cardHeight: CGFloat { min(max(diagramHeight * 0.17, 88), 98) }
-    var cardWidth: CGFloat { min(containerSize.width * 0.46, 174) }
+    var cardHeight: CGFloat { 76 }
+    var cardWidth: CGFloat {
+        min(max((containerSize.width - 28) / 3, 88), 108)
+    }
 
     var sourceY: CGFloat { topInset + (sourceHeight / 2) }
     var processorY: CGFloat { topInset + (diagramHeight * 0.48) }
-    var cardsY: CGFloat { topInset + diagramHeight - (cardHeight / 2) }
+    var cardsY: CGFloat {
+        topInset + diagramHeight - cardRowOffset - (cardHeight / 2)
+    }
 
     var inputConnectorHeight: CGFloat {
         max(processorY - (processorHeight / 2) - sourceY - (sourceHeight / 2) - 14, 28)
@@ -1677,7 +1681,7 @@ private struct AIFlowLayoutMetrics {
     }
 
     var outputConnectorHeight: CGFloat {
-        max(cardsY - (cardHeight / 2) - processorY - (processorHeight / 2) - 14, 28)
+        max(cardsTopY - processorY - (processorHeight / 2) - 14, 28)
     }
 
     var outputConnectorY: CGFloat {
@@ -1687,8 +1691,8 @@ private struct AIFlowLayoutMetrics {
     func cardMotion(for index: Int, progress: CGFloat) -> AIFlowCardMotion {
         let clampedProgress = min(max(progress, 0), 1)
         let inverseProgress = 1 - clampedProgress
-        let finalOffset = stackOffset(for: index)
-        let finalRotation = stackRotation(for: index)
+        let finalOffset = cardOffset(for: index)
+        let finalRotation = cardRotation(for: index)
         let launchDirection: CGFloat = index.isMultiple(of: 2) ? -1 : 1
 
         let start = CGPoint(
@@ -1721,23 +1725,35 @@ private struct AIFlowLayoutMetrics {
         )
     }
 
-    private func stackOffset(for index: Int) -> CGSize {
+    private var cardColumnOffset: CGFloat {
+        min(cardWidth + 8, ((containerSize.width - cardWidth) / 2) - 10)
+    }
+
+    private var cardRowOffset: CGFloat {
+        (cardHeight / 2) + 8
+    }
+
+    private var cardsTopY: CGFloat {
+        cardsY - cardRowOffset - (cardHeight / 2)
+    }
+
+    private func cardOffset(for index: Int) -> CGSize {
         switch index {
-        case 0: CGSize(width: -13, height: 14)
-        case 1: CGSize(width: 12, height: 10)
-        case 2: CGSize(width: -8, height: 7)
-        case 3: CGSize(width: 7, height: 3)
-        default: .zero
+        case 0: CGSize(width: -cardColumnOffset, height: -cardRowOffset)
+        case 1: CGSize(width: 0, height: -cardRowOffset - 5)
+        case 2: CGSize(width: cardColumnOffset, height: -cardRowOffset)
+        case 3: CGSize(width: -(cardColumnOffset / 2), height: cardRowOffset)
+        default: CGSize(width: cardColumnOffset / 2, height: cardRowOffset)
         }
     }
 
-    private func stackRotation(for index: Int) -> Double {
+    private func cardRotation(for index: Int) -> Double {
         switch index {
-        case 0: -8
-        case 1: 7
-        case 2: -4.5
-        case 3: 3.5
-        default: 0
+        case 0: -5
+        case 1: -1
+        case 2: 5
+        case 3: -3
+        default: 3
         }
     }
 }
