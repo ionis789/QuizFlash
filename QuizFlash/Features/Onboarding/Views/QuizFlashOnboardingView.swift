@@ -1268,26 +1268,52 @@ private struct PracticeFlowOnboardingPage: View {
     let isActive: Bool
 
     @State private var generationCycle = 0
-    @State private var factoryIsPulsing = false
-    @State private var gearRotation = 0.0
-    @State private var sourceLineIndex = 0
-    @State private var sourceSweepProgress: CGFloat = 0
+    @State private var targetSlot = 0
+    @State private var phase: AIFlowPhase = .resting
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: UIConstants.Spacing.standard)
+        GeometryReader { proxy in
+            let metrics = AIFlowLayoutMetrics(containerSize: proxy.size)
 
-            sourceMaterial
-                .padding(.bottom, UIConstants.Spacing.large)
-            aiFactory
-                .padding(.bottom, UIConstants.Spacing.extraLarge)
-                .zIndex(1)
-            generatedCards
-                .zIndex(0)
+            ZStack {
+                sourceMaterial(width: metrics.sourceWidth, height: metrics.sourceHeight)
+                    .position(x: metrics.centerX, y: metrics.sourceY)
 
-            Spacer(minLength: UIConstants.Spacing.standard)
+                flowConnector(height: metrics.inputConnectorHeight, isActive: phase.emphasizesInputConnector)
+                    .position(x: metrics.centerX, y: metrics.inputConnectorY)
+
+                inputFragment
+                    .position(x: metrics.centerX, y: metrics.inputFragmentY(progress: phase.inputProgress))
+                    .scaleEffect(phase.inputFragmentScale)
+                    .opacity(phase.inputFragmentOpacity)
+
+                aiProcessor(width: metrics.processorWidth, height: metrics.processorHeight)
+                    .position(x: metrics.centerX, y: metrics.processorY)
+
+                flowConnector(height: metrics.outputConnectorHeight, isActive: phase.emphasizesOutputConnector)
+                    .position(x: metrics.centerX, y: metrics.outputConnectorY)
+
+                generatedCards(metrics: metrics)
+
+                generatedCard(index: generationCycle + targetSlot + 1, isNewest: true)
+                    .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+                    .position(
+                        x: metrics.outputCardX(progress: phase.outputProgress, targetSlot: targetSlot),
+                        y: metrics.outputCardY(progress: phase.outputProgress)
+                    )
+                    .scaleEffect(phase.outputCardScale)
+                    .rotationEffect(.degrees(phase.outputCardRotation))
+                    .opacity(phase.outputCardOpacity)
+                    .shadow(
+                        color: themeManager.accentColor.color.opacity(0.20 * phase.outputCardOpacity),
+                        radius: 18,
+                        y: 10
+                    )
+                    .zIndex(2)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .accessibilityHidden(true)
         }
-        .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: animationTaskID) {
             guard isActive, !reduceMotion else {
@@ -1299,147 +1325,266 @@ private struct PracticeFlowOnboardingPage: View {
         }
     }
 
-    private var sourceMaterial: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                Image(systemName: "doc.text.fill")
-                    .foregroundStyle(themeManager.accentColor.color)
+    private func sourceMaterial(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(themeManager.textPrimary.opacity(0.035))
+                .frame(width: width * 0.91, height: height * 0.88)
+                .rotationEffect(.degrees(-3))
+                .offset(x: -5, y: -8)
 
-                Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(themeManager.textPrimary.opacity(0.045))
+                .frame(width: width * 0.94, height: height * 0.92)
+                .rotationEffect(.degrees(2.2))
+                .offset(x: 5, y: -3)
+
+            HStack(spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(themeManager.accentColor.color.opacity(0.16))
+
+                    Image(systemName: "doc.richtext.fill")
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(themeManager.accentColor.color)
+                }
+                .frame(width: 54, height: 62)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(themeManager.textPrimary)
+
+                    sourcePreview
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, UIConstants.Spacing.medium)
+            .frame(width: width, height: height)
+            .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+            }
+            .overlay {
+                sourceScan(width: width, height: height)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+        }
+        .frame(width: width, height: height)
+        .scaleEffect(phase.sourceScale)
+        .shadow(
+            color: themeManager.accentColor.color.opacity(phase.isScanning ? 0.15 : 0.04),
+            radius: phase.isScanning ? 18 : 10,
+            y: 8
+        )
+    }
+
+    private var sourcePreview: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Capsule()
+                    .fill(themeManager.textPrimary.opacity(0.30))
+                    .frame(width: 82, height: 7)
+
+                Capsule()
+                    .fill(themeManager.accentColor.color.opacity(0.48))
+                    .frame(width: 38, height: 7)
+            }
+
+            HStack(spacing: 6) {
+                Capsule()
+                    .fill(themeManager.textPrimary.opacity(0.18))
+                    .frame(width: 54, height: 7)
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(themeManager.textPrimary.opacity(0.12))
+                    .frame(width: 30, height: 14)
+
+                Capsule()
+                    .fill(themeManager.textPrimary.opacity(0.22))
+                    .frame(width: 46, height: 7)
+            }
+        }
+    }
+
+    private func sourceScan(width: CGFloat, height: CGFloat) -> some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        themeManager.accentColor.color.opacity(0.06),
+                        themeManager.accentColor.color.opacity(0.28),
+                        themeManager.accentColor.color.opacity(0.06),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(width: 56, height: height)
+            .offset(x: ((width + 56) * phase.scanProgress) - ((width + 56) / 2))
+            .opacity(phase.scanOpacity)
+    }
+
+    private func aiProcessor(width: CGFloat, height: CGFloat) -> some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.28 : 0.16))
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .scaleEffect(phase.processorIsActive ? 1.10 : 0.94)
+                    .rotationEffect(.degrees(phase.processorIsActive ? 6 : 0))
+            }
+            .frame(width: 52, height: 52)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("QuizFlash")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(themeManager.textPrimary)
 
-                Spacer(minLength: 0)
+                Text("AI")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.accentColor.color)
             }
 
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                sourceLine(width: 0.92, index: 0)
-                sourceLine(width: 0.68, index: 1)
-                sourceLine(width: 0.80, index: 2)
-            }
-        }
-        .padding(UIConstants.Spacing.medium)
-        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(themeManager.textPrimary.opacity(0.09), lineWidth: 1)
-        }
-    }
+            Spacer(minLength: 0)
 
-    private var aiFactory: some View {
-        ZStack {
-            Circle()
-                .fill(themeManager.accentColor.color.opacity(0.12))
-                .frame(width: 122, height: 122)
-
-            Circle()
-                .fill(themeManager.accentColor.color.opacity(0.11))
-                .frame(width: 88, height: 88)
-
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 52, weight: .bold))
-                .foregroundStyle(themeManager.accentColor.color)
-                .rotationEffect(.degrees(gearRotation))
-                .offset(x: -11, y: 9)
-
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(themeManager.textPrimary.opacity(0.82))
-                .rotationEffect(.degrees(-gearRotation * 1.35))
-                .offset(x: 24, y: -20)
-
-            Image(systemName: "sparkles")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(themeManager.textPrimary)
-                .scaleEffect(factoryIsPulsing ? 1.18 : 0.88)
-                .opacity(factoryIsPulsing ? 1 : 0.58)
-                .offset(x: 39, y: 31)
-        }
-        .frame(height: 122)
-        .scaleEffect(factoryIsPulsing ? 1.04 : 1)
-        .shadow(color: themeManager.accentColor.color.opacity(factoryIsPulsing ? 0.22 : 0.08), radius: 22)
-    }
-
-    private var generatedCards: some View {
-        GeometryReader { proxy in
-            let spacing = UIConstants.Spacing.small
-            let cardWidth = (proxy.size.width - (spacing * 2)) / 3
-            let cardStep = cardWidth + spacing
-
-            ZStack {
-                ForEach(0..<5, id: \.self) { cardID in
-                    let slot = cardSlot(for: cardID)
-
-                    generatedCard(index: cardID)
-                        .frame(width: cardWidth, height: 82)
-                        .scaleEffect(cardScale(for: slot))
-                        .rotationEffect(.degrees(cardRotation(for: slot)))
-                        .offset(
-                            x: cardHorizontalOffset(for: slot, step: cardStep),
-                            y: cardVerticalOffset(for: slot)
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(
+                            index <= phase.processingDot
+                                ? themeManager.accentColor.color
+                                : themeManager.textPrimary.opacity(0.15)
                         )
-                        .opacity(cardOpacity(for: slot))
-                        .shadow(
-                            color: slot == 2
-                                ? themeManager.accentColor.color.opacity(0.16)
-                                : .clear,
-                            radius: 14,
-                            y: 8
-                        )
-                        .zIndex(slot == 3 ? 0 : 1)
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(index == phase.processingDot ? 1.22 : 1)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 82)
+        .padding(.horizontal, 12)
+        .frame(width: width, height: height)
+        .background(themeManager.textPrimary.opacity(0.075), in: RoundedRectangle(cornerRadius: 25, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.72 : 0.26),
+                            themeManager.textPrimary.opacity(0.08)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: phase.processorIsActive ? 1.5 : 1
+                )
+        }
+        .scaleEffect(phase.processorScale)
+        .shadow(
+            color: themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.22 : 0.06),
+            radius: phase.processorIsActive ? 24 : 12
+        )
     }
 
-    private func sourceLine(width: CGFloat, index: Int) -> some View {
-        GeometryReader { proxy in
-            let lineWidth = proxy.size.width * width
-            let sweepWidth = min(lineWidth * 0.28, 62)
+    private func flowConnector(height: CGFloat, isActive: Bool) -> some View {
+        ZStack {
+            Capsule()
+                .fill(themeManager.textPrimary.opacity(0.10))
+                .frame(width: 3, height: height)
 
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(themeManager.textSecondary.opacity(0.28))
-                    .frame(width: lineWidth, height: 7)
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            themeManager.accentColor.color.opacity(0.16),
+                            themeManager.accentColor.color.opacity(0.88),
+                            themeManager.accentColor.color.opacity(0.16)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: isActive ? 4 : 2, height: height * (isActive ? 0.88 : 0.45))
+                .opacity(isActive ? 1 : 0.34)
+        }
+        .frame(width: 16, height: height)
+    }
 
+    private var inputFragment: some View {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(themeManager.accentColor.color)
+            .frame(width: 15, height: 20)
+            .overlay {
                 Capsule()
-                    .fill(themeManager.accentColor.color.opacity(0.88))
-                    .frame(width: sweepWidth, height: 7)
-                    .offset(x: max(lineWidth - sweepWidth, 0) * sourceSweepProgress)
-                    .opacity(sourceLineIndex == index && factoryIsPulsing ? 0.78 : 0)
+                    .fill(themeManager.textPrimary.opacity(0.78))
+                    .frame(width: 7, height: 2)
             }
-            .frame(width: lineWidth, height: 7)
-            .clipShape(Capsule())
-        }
-        .frame(height: 7)
+            .shadow(color: themeManager.accentColor.color.opacity(0.38), radius: 8)
     }
 
-    private func generatedCard(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+    private func generatedCards(metrics: AIFlowLayoutMetrics) -> some View {
+        ForEach(0..<3, id: \.self) { slot in
+            generatedCard(index: generationCycle + slot, isNewest: phase.settledSlot == slot)
+                .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+                .position(x: metrics.cardX(for: slot), y: metrics.cardsY)
+                .scaleEffect(phase.cardScale(for: slot))
+                .rotationEffect(.degrees(slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)))
+                .opacity(phase.isProducing(into: slot) ? 0.34 : 1)
+                .shadow(
+                    color: phase.settledSlot == slot
+                        ? themeManager.accentColor.color.opacity(0.22)
+                        : .black.opacity(0.14),
+                    radius: phase.settledSlot == slot ? 18 : 10,
+                    y: 8
+                )
+        }
+    }
+
+    private func generatedCard(index: Int, isNewest: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(themeManager.accentColor.color.opacity(index == 1 ? 0.72 : 0.40))
-                    .frame(width: 24, height: 7)
+                ZStack {
+                    Circle()
+                        .fill(themeManager.accentColor.color.opacity(isNewest ? 0.30 : 0.17))
+
+                    Image(systemName: index.isMultiple(of: 2) ? "rectangle.on.rectangle" : "checklist")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(themeManager.accentColor.color)
+                }
+                .frame(width: 24, height: 24)
 
                 Spacer(minLength: 0)
+
+                Circle()
+                    .fill(themeManager.accentColor.color.opacity(isNewest ? 0.78 : 0.32))
+                    .frame(width: 6, height: 6)
             }
 
             Capsule()
-                .fill(themeManager.textPrimary.opacity(0.14))
+                .fill(themeManager.textPrimary.opacity(0.24))
                 .frame(height: 7)
 
             Capsule()
-                .fill(themeManager.textPrimary.opacity(0.09))
-                .frame(width: 46, height: 7)
+                .fill(themeManager.textPrimary.opacity(0.12))
+                .frame(width: 48, height: 7)
         }
-        .padding(UIConstants.Spacing.small)
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
-        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(themeManager.textPrimary.opacity(isNewest ? 0.095 : 0.065), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .strokeBorder(
+                    isNewest
+                        ? themeManager.accentColor.color.opacity(0.42)
+                        : themeManager.textPrimary.opacity(0.10),
+                    lineWidth: isNewest ? 1.3 : 1
+                )
         }
     }
 
@@ -1449,25 +1594,32 @@ private struct PracticeFlowOnboardingPage: View {
 
         do {
             while !Task.isCancelled {
+                try await Task.sleep(for: .milliseconds(420))
+                await animate(to: .scanning, duration: 0.78)
+                try await Task.sleep(for: .milliseconds(180))
+
+                await animate(to: .feeding, duration: 0.70)
+                try await Task.sleep(for: .milliseconds(120))
+
+                for dot in 0..<3 {
+                    await animate(to: .processing(dot), duration: 0.18)
+                    try await Task.sleep(for: .milliseconds(145))
+                }
+
                 withTransaction(Transaction(animation: nil)) {
-                    sourceLineIndex = generationCycle % 3
-                    sourceSweepProgress = 0
+                    targetSlot = generationCycle % 3
                 }
+                await animate(to: .producing(targetSlot), duration: 0.66, bounce: 0.04)
+                try await Task.sleep(for: .milliseconds(90))
 
-                withAnimation(.easeInOut(duration: UIConstants.Animation.slow)) {
-                    factoryIsPulsing = true
-                    gearRotation += 92
-                    sourceSweepProgress = 1
+                withAnimation(.smooth(duration: 0.38, extraBounce: 0.13)) {
+                    phase = .settling(targetSlot)
+                    generationCycle += 1
                 }
+                try await Task.sleep(for: .milliseconds(620))
 
-                try await Task.sleep(for: .milliseconds(480))
-
-                withAnimation(.smooth(duration: 0.68, extraBounce: 0.11)) {
-                    generationCycle = (generationCycle + 1) % 5
-                    factoryIsPulsing = false
-                }
-
-                try await Task.sleep(for: .milliseconds(780))
+                await animate(to: .resting, duration: 0.36)
+                try await Task.sleep(for: .milliseconds(260))
             }
         } catch {
             showStaticResult()
@@ -1475,62 +1627,191 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     @MainActor
+    private func animate(
+        to newPhase: AIFlowPhase,
+        duration: TimeInterval,
+        bounce: Double = 0.02
+    ) async {
+        guard !Task.isCancelled else { return }
+
+        withAnimation(.smooth(duration: duration, extraBounce: bounce)) {
+            phase = newPhase
+        }
+    }
+
+    @MainActor
     private func showStaticResult() {
         withTransaction(Transaction(animation: nil)) {
             generationCycle = 0
-            factoryIsPulsing = false
-            sourceLineIndex = 0
-            sourceSweepProgress = 0
+            targetSlot = 0
+            phase = .resting
         }
-    }
-
-    private func cardSlot(for cardID: Int) -> Int {
-        (cardID - generationCycle + 5) % 5
-    }
-
-    private func cardHorizontalOffset(for slot: Int, step: CGFloat) -> CGFloat {
-        switch slot {
-        case 0: -step
-        case 1: 0
-        case 2: step
-        case 3: 0
-        default: -step * 1.65
-        }
-    }
-
-    private func cardVerticalOffset(for slot: Int) -> CGFloat {
-        switch slot {
-        case 3: -112
-        case 4: 12
-        default: 0
-        }
-    }
-
-    private func cardScale(for slot: Int) -> CGFloat {
-        switch slot {
-        case 0, 2: 0.96
-        case 1: 1.02
-        case 3: 0.54
-        default: 0.84
-        }
-    }
-
-    private func cardRotation(for slot: Int) -> Double {
-        switch slot {
-        case 0: -2
-        case 2: 2
-        case 3: 7
-        case 4: -7
-        default: 0
-        }
-    }
-
-    private func cardOpacity(for slot: Int) -> Double {
-        slot <= 2 ? 1 : 0
     }
 
     private var animationTaskID: String {
         "\(isActive)-\(reduceMotion)"
+    }
+}
+
+private struct AIFlowLayoutMetrics {
+    let containerSize: CGSize
+
+    private var diagramHeight: CGFloat {
+        min(max(containerSize.height * 0.76, 430), 570)
+    }
+
+    private var topInset: CGFloat {
+        max((containerSize.height - diagramHeight) / 2, 18)
+    }
+
+    var centerX: CGFloat { containerSize.width / 2 }
+    var sourceWidth: CGFloat { min(containerSize.width * 0.84, 330) }
+    var sourceHeight: CGFloat { min(max(diagramHeight * 0.20, 96), 112) }
+    var processorWidth: CGFloat { min(containerSize.width * 0.64, 238) }
+    var processorHeight: CGFloat { 76 }
+    var cardHeight: CGFloat { min(max(diagramHeight * 0.18, 88), 102) }
+    var cardSpacing: CGFloat { 10 }
+    var cardWidth: CGFloat { min((containerSize.width - (cardSpacing * 2) - 8) / 3, 104) }
+
+    var sourceY: CGFloat { topInset + (sourceHeight / 2) }
+    var processorY: CGFloat { topInset + (diagramHeight * 0.48) }
+    var cardsY: CGFloat { topInset + diagramHeight - (cardHeight / 2) }
+
+    var inputConnectorHeight: CGFloat {
+        max(processorY - (processorHeight / 2) - sourceY - (sourceHeight / 2) - 14, 28)
+    }
+
+    var inputConnectorY: CGFloat {
+        sourceY + (sourceHeight / 2) + 7 + (inputConnectorHeight / 2)
+    }
+
+    var outputConnectorHeight: CGFloat {
+        max(cardsY - (cardHeight / 2) - processorY - (processorHeight / 2) - 14, 28)
+    }
+
+    var outputConnectorY: CGFloat {
+        processorY + (processorHeight / 2) + 7 + (outputConnectorHeight / 2)
+    }
+
+    func inputFragmentY(progress: CGFloat) -> CGFloat {
+        let start = sourceY + (sourceHeight / 2) + 9
+        let end = processorY - (processorHeight / 2) - 9
+        return start + ((end - start) * progress)
+    }
+
+    func cardX(for slot: Int) -> CGFloat {
+        centerX + (CGFloat(slot - 1) * (cardWidth + cardSpacing))
+    }
+
+    func outputCardX(progress: CGFloat, targetSlot: Int) -> CGFloat {
+        centerX + ((cardX(for: targetSlot) - centerX) * progress)
+    }
+
+    func outputCardY(progress: CGFloat) -> CGFloat {
+        let start = processorY + (processorHeight / 2) + (cardHeight * 0.20)
+        return start + ((cardsY - start) * progress)
+    }
+}
+
+private enum AIFlowPhase: Equatable {
+    case resting
+    case scanning
+    case feeding
+    case processing(Int)
+    case producing(Int)
+    case settling(Int)
+
+    var isScanning: Bool { self == .scanning }
+    var scanProgress: CGFloat { isScanning ? 1 : 0 }
+    var scanOpacity: Double { isScanning ? 1 : 0 }
+    var sourceScale: CGFloat { isScanning ? 1.015 : 1 }
+
+    var inputProgress: CGFloat {
+        switch self {
+        case .feeding, .processing, .producing, .settling:
+            1
+        case .resting, .scanning:
+            0
+        }
+    }
+
+    var inputFragmentOpacity: Double { self == .feeding ? 1 : 0 }
+    var inputFragmentScale: CGFloat { self == .feeding ? 1 : 0.72 }
+
+    var processingDot: Int {
+        if case let .processing(dot) = self { return dot }
+        return -1
+    }
+
+    var processorIsActive: Bool {
+        switch self {
+        case .feeding, .processing, .producing:
+            true
+        case .resting, .scanning, .settling:
+            false
+        }
+    }
+
+    var processorScale: CGFloat {
+        switch self {
+        case .processing:
+            1.025
+        case .feeding, .producing:
+            1.012
+        case .resting, .scanning, .settling:
+            1
+        }
+    }
+
+    var emphasizesInputConnector: Bool { self == .feeding }
+
+    var emphasizesOutputConnector: Bool {
+        switch self {
+        case .processing, .producing, .settling:
+            true
+        case .resting, .scanning, .feeding:
+            false
+        }
+    }
+
+    var outputProgress: CGFloat {
+        switch self {
+        case .producing, .settling:
+            1
+        case .resting, .scanning, .feeding, .processing:
+            0
+        }
+    }
+
+    var outputCardOpacity: Double {
+        if case .producing = self { return 1 }
+        return 0
+    }
+
+    var outputCardScale: CGFloat {
+        if case .producing = self { return 1 }
+        return 0.30
+    }
+
+    var outputCardRotation: Double {
+        if case let .producing(slot) = self {
+            return slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)
+        }
+        return 0
+    }
+
+    var settledSlot: Int? {
+        if case let .settling(slot) = self { return slot }
+        return nil
+    }
+
+    func isProducing(into slot: Int) -> Bool {
+        if case let .producing(target) = self { return target == slot }
+        return false
+    }
+
+    func cardScale(for slot: Int) -> CGFloat {
+        settledSlot == slot ? 1.045 : 1
     }
 }
 
