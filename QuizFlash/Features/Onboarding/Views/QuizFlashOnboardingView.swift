@@ -1267,8 +1267,9 @@ private struct PracticeFlowOnboardingPage: View {
 
     let isActive: Bool
 
-    @State private var generationCycle = 0
     @State private var targetSlot = 0
+    @State private var revealedCardCount = 0
+    @State private var hasCompletedSequence = false
     @State private var phase: AIFlowPhase = .resting
 
     var body: some View {
@@ -1278,6 +1279,7 @@ private struct PracticeFlowOnboardingPage: View {
             ZStack {
                 sourceMaterial(width: metrics.sourceWidth, height: metrics.sourceHeight)
                     .position(x: metrics.centerX, y: metrics.sourceY)
+                    .opacity(phase.sourceOpacity)
 
                 flowConnector(height: metrics.inputConnectorHeight, isActive: phase.emphasizesInputConnector)
                     .position(x: metrics.centerX, y: metrics.inputConnectorY)
@@ -1295,7 +1297,7 @@ private struct PracticeFlowOnboardingPage: View {
 
                 generatedCards(metrics: metrics)
 
-                generatedCard(index: generationCycle + targetSlot + 1, isNewest: true)
+                generatedCard(index: targetSlot, isNewest: true)
                     .frame(width: metrics.cardWidth, height: metrics.cardHeight)
                     .position(
                         x: metrics.outputCardX(progress: phase.outputProgress, targetSlot: targetSlot),
@@ -1316,12 +1318,14 @@ private struct PracticeFlowOnboardingPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: animationTaskID) {
-            guard isActive, !reduceMotion else {
-                showStaticResult()
+            guard isActive else { return }
+
+            guard !reduceMotion else {
+                showCompletedResult()
                 return
             }
 
-            await runGenerationLoop()
+            await runGenerationSequence()
         }
     }
 
@@ -1517,33 +1521,53 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     private var inputFragment: some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(themeManager.accentColor.color)
-            .frame(width: 15, height: 20)
-            .overlay {
-                Capsule()
-                    .fill(themeManager.textPrimary.opacity(0.78))
-                    .frame(width: 7, height: 2)
-            }
-            .shadow(color: themeManager.accentColor.color.opacity(0.38), radius: 8)
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(themeManager.accentColor.color)
+
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.black.opacity(0.66))
+        }
+        .frame(width: 29, height: 34)
+        .shadow(color: themeManager.accentColor.color.opacity(0.42), radius: 10)
     }
 
     private func generatedCards(metrics: AIFlowLayoutMetrics) -> some View {
         ForEach(0..<3, id: \.self) { slot in
-            generatedCard(index: generationCycle + slot, isNewest: phase.settledSlot == slot)
-                .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-                .position(x: metrics.cardX(for: slot), y: metrics.cardsY)
-                .scaleEffect(phase.cardScale(for: slot))
-                .rotationEffect(.degrees(slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)))
-                .opacity(phase.isProducing(into: slot) ? 0.34 : 1)
-                .shadow(
-                    color: phase.settledSlot == slot
-                        ? themeManager.accentColor.color.opacity(0.22)
-                        : .black.opacity(0.14),
-                    radius: phase.settledSlot == slot ? 18 : 10,
-                    y: 8
-                )
+            ZStack {
+                cardPlaceholder
+
+                if slot < revealedCardCount {
+                    generatedCard(index: slot, isNewest: phase.settledSlot == slot)
+                        .transition(.scale(scale: 0.88).combined(with: .opacity))
+                }
+            }
+            .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+            .position(x: metrics.cardX(for: slot), y: metrics.cardsY)
+            .scaleEffect(phase.cardScale(for: slot))
+            .rotationEffect(.degrees(slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)))
+            .opacity(phase.isProducing(into: slot) ? 0.44 : 1)
+            .shadow(
+                color: phase.settledSlot == slot
+                    ? themeManager.accentColor.color.opacity(0.22)
+                    : .black.opacity(0.12),
+                radius: phase.settledSlot == slot ? 18 : 10,
+                y: 8
+            )
         }
+    }
+
+    private var cardPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 17, style: .continuous)
+            .fill(themeManager.textPrimary.opacity(0.025))
+            .overlay {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .strokeBorder(
+                        themeManager.textPrimary.opacity(0.09),
+                        style: StrokeStyle(lineWidth: 1, dash: [5, 5])
+                    )
+            }
     }
 
     private func generatedCard(index: Int, isNewest: Bool) -> some View {
@@ -1589,40 +1613,43 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     @MainActor
-    private func runGenerationLoop() async {
-        showStaticResult()
+    private func runGenerationSequence() async {
+        guard !hasCompletedSequence else {
+            showCompletedResult()
+            return
+        }
+
+        showInitialState()
 
         do {
-            while !Task.isCancelled {
-                try await Task.sleep(for: .milliseconds(420))
-                await animate(to: .scanning, duration: 0.78)
-                try await Task.sleep(for: .milliseconds(180))
+            try await Task.sleep(for: .milliseconds(360))
+            try await animate(to: .scanning, duration: 0.62)
+            try await animate(to: .feeding, duration: 0.72, bounce: 0.03)
 
-                await animate(to: .feeding, duration: 0.70)
-                try await Task.sleep(for: .milliseconds(120))
-
-                for dot in 0..<3 {
-                    await animate(to: .processing(dot), duration: 0.18)
-                    try await Task.sleep(for: .milliseconds(145))
-                }
-
-                withTransaction(Transaction(animation: nil)) {
-                    targetSlot = generationCycle % 3
-                }
-                await animate(to: .producing(targetSlot), duration: 0.66, bounce: 0.04)
-                try await Task.sleep(for: .milliseconds(90))
-
-                withAnimation(.smooth(duration: 0.38, extraBounce: 0.13)) {
-                    phase = .settling(targetSlot)
-                    generationCycle += 1
-                }
-                try await Task.sleep(for: .milliseconds(620))
-
-                await animate(to: .resting, duration: 0.36)
-                try await Task.sleep(for: .milliseconds(260))
+            for dot in 0..<3 {
+                try await animate(to: .processing(dot), duration: 0.24)
             }
+
+            for slot in 0..<3 {
+                withTransaction(Transaction(animation: nil)) {
+                    targetSlot = slot
+                    phase = .processing(2)
+                }
+
+                try await animate(to: .producing(slot), duration: 0.54, bounce: 0.05)
+
+                withAnimation(.smooth(duration: 0.30, extraBounce: 0.12)) {
+                    revealedCardCount = slot + 1
+                    phase = .settling(slot)
+                }
+                try await Task.sleep(for: .milliseconds(320))
+            }
+
+            try await animate(to: .complete, duration: 0.40)
+            hasCompletedSequence = true
         } catch {
-            showStaticResult()
+            guard !Task.isCancelled else { return }
+            showInitialState()
         }
     }
 
@@ -1631,20 +1658,32 @@ private struct PracticeFlowOnboardingPage: View {
         to newPhase: AIFlowPhase,
         duration: TimeInterval,
         bounce: Double = 0.02
-    ) async {
-        guard !Task.isCancelled else { return }
+    ) async throws {
+        try Task.checkCancellation()
 
         withAnimation(.smooth(duration: duration, extraBounce: bounce)) {
             phase = newPhase
         }
+
+        try await Task.sleep(for: .seconds(duration))
     }
 
     @MainActor
-    private func showStaticResult() {
+    private func showInitialState() {
         withTransaction(Transaction(animation: nil)) {
-            generationCycle = 0
             targetSlot = 0
+            revealedCardCount = 0
             phase = .resting
+        }
+    }
+
+    @MainActor
+    private func showCompletedResult() {
+        withTransaction(Transaction(animation: nil)) {
+            targetSlot = 2
+            revealedCardCount = 3
+            phase = .complete
+            hasCompletedSequence = true
         }
     }
 
@@ -1720,15 +1759,38 @@ private enum AIFlowPhase: Equatable {
     case processing(Int)
     case producing(Int)
     case settling(Int)
+    case complete
 
     var isScanning: Bool { self == .scanning }
     var scanProgress: CGFloat { isScanning ? 1 : 0 }
     var scanOpacity: Double { isScanning ? 1 : 0 }
-    var sourceScale: CGFloat { isScanning ? 1.015 : 1 }
+    var sourceScale: CGFloat {
+        switch self {
+        case .scanning:
+            1.015
+        case .feeding:
+            0.97
+        case .processing, .producing, .settling, .complete:
+            0.96
+        case .resting:
+            1
+        }
+    }
+
+    var sourceOpacity: Double {
+        switch self {
+        case .resting, .scanning:
+            1
+        case .feeding:
+            0.82
+        case .processing, .producing, .settling, .complete:
+            0.68
+        }
+    }
 
     var inputProgress: CGFloat {
         switch self {
-        case .feeding, .processing, .producing, .settling:
+        case .feeding, .processing, .producing, .settling, .complete:
             1
         case .resting, .scanning:
             0
@@ -1747,7 +1809,7 @@ private enum AIFlowPhase: Equatable {
         switch self {
         case .feeding, .processing, .producing:
             true
-        case .resting, .scanning, .settling:
+        case .resting, .scanning, .settling, .complete:
             false
         }
     }
@@ -1758,7 +1820,7 @@ private enum AIFlowPhase: Equatable {
             1.025
         case .feeding, .producing:
             1.012
-        case .resting, .scanning, .settling:
+        case .resting, .scanning, .settling, .complete:
             1
         }
     }
@@ -1769,14 +1831,14 @@ private enum AIFlowPhase: Equatable {
         switch self {
         case .processing, .producing, .settling:
             true
-        case .resting, .scanning, .feeding:
+        case .resting, .scanning, .feeding, .complete:
             false
         }
     }
 
     var outputProgress: CGFloat {
         switch self {
-        case .producing, .settling:
+        case .producing, .settling, .complete:
             1
         case .resting, .scanning, .feeding, .processing:
             0
