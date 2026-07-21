@@ -1456,7 +1456,7 @@ private struct PracticeFlowOnboardingPage: View {
                     hiddenOpacity: 0.001
                 )
                 .position(motion.position)
-                .scaleEffect(motion.scale)
+                .scaleEffect(x: motion.scaleX, y: motion.scaleY)
                 .rotationEffect(.degrees(motion.rotation))
                 .opacity(cardOpacity(for: index, progress: progress))
                 .shadow(
@@ -1578,13 +1578,20 @@ private struct PracticeFlowOnboardingPage: View {
 
         try await Task.sleep(for: .milliseconds(20))
 
-        try await animate(duration: 0.16, animation: .easeOut(duration: 0.16)) {
-            activeCardProgress = 0.28
+        try await animate(duration: 0.18, animation: .easeOut(duration: 0.18)) {
+            activeCardProgress = 0.18
         }
 
         try await animate(
-            duration: 0.44,
-            animation: .timingCurve(0.20, 0.74, 0.18, 1, duration: 0.44)
+            duration: 0.48,
+            animation: .linear(duration: 0.48)
+        ) {
+            activeCardProgress = 1.065
+        }
+
+        try await animate(
+            duration: 0.28,
+            animation: .spring(response: 0.24, dampingFraction: 0.62)
         ) {
             activeCardProgress = 1
         }
@@ -1595,7 +1602,7 @@ private struct PracticeFlowOnboardingPage: View {
             activeCardProgress = 0
         }
 
-        try await Task.sleep(for: .milliseconds(90))
+        try await Task.sleep(for: .milliseconds(70))
     }
 
     @MainActor
@@ -1669,7 +1676,7 @@ private struct AIFlowLayoutMetrics {
     var sourceY: CGFloat { topInset + (sourceHeight / 2) }
     var processorY: CGFloat { topInset + (diagramHeight * 0.48) }
     var cardsY: CGFloat {
-        topInset + diagramHeight - cardRowOffset - (cardHeight / 2)
+        topInset + diagramHeight - cardRowOffset - (cardHeight / 2) + cardsVerticalShift
     }
 
     var inputConnectorHeight: CGFloat {
@@ -1689,39 +1696,55 @@ private struct AIFlowLayoutMetrics {
     }
 
     func cardMotion(for index: Int, progress: CGFloat) -> AIFlowCardMotion {
-        let clampedProgress = min(max(progress, 0), 1)
-        let inverseProgress = 1 - clampedProgress
+        let travelProgress = min(max(progress, 0), 1)
         let finalOffset = cardOffset(for: index)
         let finalRotation = cardRotation(for: index)
         let launchDirection: CGFloat = index.isMultiple(of: 2) ? -1 : 1
+        let releaseThreshold: CGFloat = 0.18
 
         let start = CGPoint(
             x: centerX,
             y: processorY + (processorHeight / 2) - 6
         )
-        let control = CGPoint(
-            x: centerX + (launchDirection * (22 + CGFloat(index * 2))),
-            y: outputConnectorY + (outputConnectorHeight * 0.74)
+        let release = CGPoint(
+            x: centerX,
+            y: outputConnectorY + (outputConnectorHeight / 2) + 4
         )
         let end = CGPoint(
             x: centerX + finalOffset.width,
             y: cardsY + finalOffset.height
         )
+        let position: CGPoint
 
-        let position = CGPoint(
-            x: (inverseProgress * inverseProgress * start.x)
-                + (2 * inverseProgress * clampedProgress * control.x)
-                + (clampedProgress * clampedProgress * end.x),
-            y: (inverseProgress * inverseProgress * start.y)
-                + (2 * inverseProgress * clampedProgress * control.y)
-                + (clampedProgress * clampedProgress * end.y)
-        )
-        let launchRotation = finalRotation + Double(launchDirection * 14)
+        if travelProgress <= releaseThreshold {
+            let releaseProgress = travelProgress / releaseThreshold
+            position = CGPoint(
+                x: centerX,
+                y: start.y + ((release.y - start.y) * releaseProgress)
+            )
+        } else {
+            let fallProgress = (travelProgress - releaseThreshold) / (1 - releaseThreshold)
+            let horizontalProgress = fallProgress * fallProgress * (3 - (2 * fallProgress))
+            let gravityProgress = fallProgress * fallProgress
+            let lateralArc = launchDirection
+                * (14 + CGFloat(index * 2))
+                * CGFloat(sin(.pi * Double(fallProgress)))
+
+            position = CGPoint(
+                x: release.x + ((end.x - release.x) * horizontalProgress) + lateralArc,
+                y: release.y + ((end.y - release.y) * gravityProgress)
+            )
+        }
+
+        let impactProgress = min(max((progress - 1) / 0.065, 0), 1)
+        let launchRotation = finalRotation + Double(launchDirection * 18)
+        let baseScale = 0.56 + (0.44 * travelProgress)
 
         return AIFlowCardMotion(
-            position: position,
-            scale: 0.54 + (0.46 * clampedProgress),
-            rotation: launchRotation + ((finalRotation - launchRotation) * Double(clampedProgress))
+            position: CGPoint(x: position.x, y: position.y + (impactProgress * 7)),
+            scaleX: baseScale + (impactProgress * 0.045),
+            scaleY: baseScale - (impactProgress * 0.055),
+            rotation: launchRotation + ((finalRotation - launchRotation) * Double(travelProgress))
         )
     }
 
@@ -1735,6 +1758,10 @@ private struct AIFlowLayoutMetrics {
 
     private var cardsTopY: CGFloat {
         cardsY - cardRowOffset - (cardHeight / 2)
+    }
+
+    private var cardsVerticalShift: CGFloat {
+        min(max(topInset - 20, 0), 36)
     }
 
     private func cardOffset(for index: Int) -> CGSize {
@@ -1760,7 +1787,8 @@ private struct AIFlowLayoutMetrics {
 
 private struct AIFlowCardMotion {
     let position: CGPoint
-    let scale: CGFloat
+    let scaleX: CGFloat
+    let scaleY: CGFloat
     let rotation: Double
 }
 
