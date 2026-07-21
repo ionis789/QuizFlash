@@ -45,6 +45,7 @@
 "%d cards left today" = "%d cards left today";
 "%d cards lined up today" = "%d cards lined up today";
 "%d cards moved today" = "%d cards moved today";
+"%d cards per day" = "%d cards per day";
 "%d cards reviewed" = "%d cards reviewed";
 "%d cards reviewed today." = "%d cards reviewed today.";
 "%d chars" = "%d chars";
@@ -201,7 +202,6 @@
 "Cards Count" = "Cards Count";
 "Cards Goal" = "Cards Goal";
 "cards moved" = "cards moved";
-"cards per day" = "cards per day";
 "CARDS(%@)" = "CARDS(%@)";
 "CARDS(%d)" = "CARDS(%d)";
 "Cellular Respiration" = "Cellular Respiration";

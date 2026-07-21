@@ -123,8 +123,8 @@ struct QuizFlashOnboardingView: View {
             } else {
                 textContent
             }
-            indicatorView
             continueButton(horizontalPadding: metrics.continueButtonHorizontalPadding)
+            indicatorView
         }
         .padding(.top, UIConstants.Spacing.large)
         .padding(.horizontal, UIConstants.Spacing.standard)
@@ -200,12 +200,11 @@ struct QuizFlashOnboardingView: View {
     }
 
     private func backButton(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
-        Button {
-            move(to: currentIndex - 1)
-        } label: {
-            Image(systemName: "chevron.left")
-        }
-        .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
+        ChromeSoftCircleSymbolButton(
+            systemName: "chevron.compact.left",
+            accessibilityLabel: AppLocalization.string("Back", locale: locale),
+            action: { move(to: currentIndex - 1) }
+        )
         .opacity(currentIndex == 0 ? 0 : 1)
         .allowsHitTesting(currentIndex > 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1409,7 +1408,6 @@ private enum PracticeOutputKind {
 /// Lets the user choose the only onboarding preference with immediate study value.
 private struct CardsTargetOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
 
     @Binding var cardsTarget: Int
 
@@ -1424,39 +1422,9 @@ private struct CardsTargetOnboardingPage: View {
         )
     }
 
-    private var goalProgress: CGFloat {
-        CGFloat(cardsTarget) / CGFloat(AppPreferences.dailyCardsGoalRange.upperBound)
-    }
-
     var body: some View {
-        VStack(spacing: UIConstants.Spacing.huge) {
-            Spacer(minLength: UIConstants.Spacing.large)
-
-            ZStack {
-                Circle()
-                    .stroke(themeManager.textPrimary.opacity(0.09), lineWidth: 14)
-
-                Circle()
-                    .trim(from: 0, to: max(goalProgress, 0.05))
-                    .stroke(
-                        themeManager.accentColor.color,
-                        style: StrokeStyle(lineWidth: 14, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.24), value: cardsTarget)
-
-                VStack(spacing: 4) {
-                    Text(cardsTarget, format: .number.locale(appPreferences.resolvedLocale))
-                        .font(.system(size: 62, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .contentTransition(.numericText())
-
-                    Text(AppLocalization.string("cards per day", locale: appPreferences.resolvedLocale))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(themeManager.textSecondary)
-                }
-            }
-            .frame(width: 210, height: 210)
+        VStack {
+            Spacer(minLength: 0)
 
             TickValuePicker(
                 value: tickSelection,
@@ -1464,10 +1432,14 @@ private struct CardsTargetOnboardingPage: View {
                 onChange: setTickSelection,
                 isCompact: true
             ) { value in
-                "\(value * AppPreferences.dailyCardsGoalStep)"
+                String(
+                    format: AppLocalization.string("%d cards per day", locale: appPreferences.resolvedLocale),
+                    locale: appPreferences.resolvedLocale,
+                    value * AppPreferences.dailyCardsGoalStep
+                )
             }
 
-            Spacer(minLength: UIConstants.Spacing.large)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

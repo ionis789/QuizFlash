@@ -45,6 +45,7 @@
 "%d cards left today" = "Сегодня осталось %d карточек";
 "%d cards lined up today" = "На сегодня подготовлено %d карточек";
 "%d cards moved today" = "%d карточек пройдено сегодня";
+"%d cards per day" = "%d карточек в день";
 "%d cards reviewed" = "%d карточек пройдено";
 "%d cards reviewed today." = "%d карточек пройдено сегодня.";
 "%d chars" = "%d символов";
@@ -201,7 +202,6 @@
 "Cards Count" = "Количество карт";
 "Cards Goal" = "Цель по карточкам";
 "cards moved" = "карточек пройдено";
-"cards per day" = "карточек в день";
 "CARDS(%@)" = "КАРТОЧКИ(%@)";
 "CARDS(%d)" = "КАРТОЧКИ(%d)";
 "Cellular Respiration" = "Клеточное дыхание";
