@@ -1267,10 +1267,11 @@ private struct PracticeFlowOnboardingPage: View {
 
     let isActive: Bool
 
-    @State private var generatedCardCount = 0
-    @State private var cardsAreVisible = true
+    @State private var generationCycle = 0
     @State private var factoryIsPulsing = false
     @State private var gearRotation = 0.0
+    @State private var sourceLineIndex = 0
+    @State private var sourceSweepProgress: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1280,7 +1281,9 @@ private struct PracticeFlowOnboardingPage: View {
                 .padding(.bottom, UIConstants.Spacing.large)
             aiFactory
                 .padding(.bottom, UIConstants.Spacing.extraLarge)
+                .zIndex(1)
             generatedCards
+                .zIndex(0)
 
             Spacer(minLength: UIConstants.Spacing.standard)
         }
@@ -1310,9 +1313,9 @@ private struct PracticeFlowOnboardingPage: View {
             }
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                sourceLine(width: 0.92)
-                sourceLine(width: 0.68)
-                sourceLine(width: 0.80)
+                sourceLine(width: 0.92, index: 0)
+                sourceLine(width: 0.68, index: 1)
+                sourceLine(width: 0.80, index: 2)
             }
         }
         .padding(UIConstants.Spacing.medium)
@@ -1358,26 +1361,57 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     private var generatedCards: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            ForEach(0..<3, id: \.self) { index in
-                generatedCard(index: index)
-                    .scaleEffect(index < generatedCardCount ? 1 : 0.56)
-                    .rotationEffect(.degrees(index < generatedCardCount ? 0 : Double(index - 1) * 8))
-                    .offset(
-                        x: index < generatedCardCount ? 0 : CGFloat(1 - index) * 94,
-                        y: index < generatedCardCount ? 0 : -94
-                    )
-                    .opacity(index < generatedCardCount && cardsAreVisible ? 1 : 0)
+        GeometryReader { proxy in
+            let spacing = UIConstants.Spacing.small
+            let cardWidth = (proxy.size.width - (spacing * 2)) / 3
+            let cardStep = cardWidth + spacing
+
+            ZStack {
+                ForEach(0..<5, id: \.self) { cardID in
+                    let slot = cardSlot(for: cardID)
+
+                    generatedCard(index: cardID)
+                        .frame(width: cardWidth, height: 82)
+                        .scaleEffect(cardScale(for: slot))
+                        .rotationEffect(.degrees(cardRotation(for: slot)))
+                        .offset(
+                            x: cardHorizontalOffset(for: slot, step: cardStep),
+                            y: cardVerticalOffset(for: slot)
+                        )
+                        .opacity(cardOpacity(for: slot))
+                        .shadow(
+                            color: slot == 2
+                                ? themeManager.accentColor.color.opacity(0.16)
+                                : .clear,
+                            radius: 14,
+                            y: 8
+                        )
+                        .zIndex(slot == 3 ? 0 : 1)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: 82)
     }
 
-    private func sourceLine(width: CGFloat) -> some View {
+    private func sourceLine(width: CGFloat, index: Int) -> some View {
         GeometryReader { proxy in
-            Capsule()
-                .fill(themeManager.textSecondary.opacity(0.28))
-                .frame(width: proxy.size.width * width, height: 7)
+            let lineWidth = proxy.size.width * width
+            let sweepWidth = min(lineWidth * 0.28, 62)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(themeManager.textSecondary.opacity(0.28))
+                    .frame(width: lineWidth, height: 7)
+
+                Capsule()
+                    .fill(themeManager.accentColor.color.opacity(0.88))
+                    .frame(width: sweepWidth, height: 7)
+                    .offset(x: max(lineWidth - sweepWidth, 0) * sourceSweepProgress)
+                    .opacity(sourceLineIndex == index && factoryIsPulsing ? 0.78 : 0)
+            }
+            .frame(width: lineWidth, height: 7)
+            .clipShape(Capsule())
         }
         .frame(height: 7)
     }
@@ -1411,58 +1445,88 @@ private struct PracticeFlowOnboardingPage: View {
 
     @MainActor
     private func runGenerationLoop() async {
-        resetAnimation()
+        showStaticResult()
 
         do {
             while !Task.isCancelled {
-                try await Task.sleep(for: .milliseconds(460))
-
-                for cardCount in 1...3 {
-                    withAnimation(.smooth(duration: UIConstants.Animation.standard, extraBounce: 0.04)) {
-                        factoryIsPulsing = true
-                        gearRotation += 62
-                    }
-
-                    try await Task.sleep(for: .milliseconds(210))
-
-                    withAnimation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0.12)) {
-                        generatedCardCount = cardCount
-                        factoryIsPulsing = false
-                    }
-
-                    try await Task.sleep(for: .milliseconds(470))
+                withTransaction(Transaction(animation: nil)) {
+                    sourceLineIndex = generationCycle % 3
+                    sourceSweepProgress = 0
                 }
 
-                try await Task.sleep(for: .milliseconds(1_150))
-
-                withAnimation(.easeOut(duration: UIConstants.Animation.standard)) {
-                    cardsAreVisible = false
+                withAnimation(.easeInOut(duration: UIConstants.Animation.slow)) {
+                    factoryIsPulsing = true
+                    gearRotation += 92
+                    sourceSweepProgress = 1
                 }
 
-                try await Task.sleep(for: .milliseconds(280))
-                resetAnimation()
+                try await Task.sleep(for: .milliseconds(480))
+
+                withAnimation(.smooth(duration: 0.68, extraBounce: 0.11)) {
+                    generationCycle = (generationCycle + 1) % 5
+                    factoryIsPulsing = false
+                }
+
+                try await Task.sleep(for: .milliseconds(780))
             }
         } catch {
-            resetAnimation()
-        }
-    }
-
-    @MainActor
-    private func resetAnimation() {
-        withTransaction(Transaction(animation: nil)) {
-            generatedCardCount = 0
-            cardsAreVisible = true
-            factoryIsPulsing = false
+            showStaticResult()
         }
     }
 
     @MainActor
     private func showStaticResult() {
         withTransaction(Transaction(animation: nil)) {
-            generatedCardCount = isActive ? 3 : 0
-            cardsAreVisible = true
+            generationCycle = 0
             factoryIsPulsing = false
+            sourceLineIndex = 0
+            sourceSweepProgress = 0
         }
+    }
+
+    private func cardSlot(for cardID: Int) -> Int {
+        (cardID - generationCycle + 5) % 5
+    }
+
+    private func cardHorizontalOffset(for slot: Int, step: CGFloat) -> CGFloat {
+        switch slot {
+        case 0: -step
+        case 1: 0
+        case 2: step
+        case 3: 0
+        default: -step * 1.65
+        }
+    }
+
+    private func cardVerticalOffset(for slot: Int) -> CGFloat {
+        switch slot {
+        case 3: -112
+        case 4: 12
+        default: 0
+        }
+    }
+
+    private func cardScale(for slot: Int) -> CGFloat {
+        switch slot {
+        case 0, 2: 0.96
+        case 1: 1.02
+        case 3: 0.54
+        default: 0.84
+        }
+    }
+
+    private func cardRotation(for slot: Int) -> Double {
+        switch slot {
+        case 0: -2
+        case 2: 2
+        case 3: 7
+        case 4: -7
+        default: 0
+        }
+    }
+
+    private func cardOpacity(for slot: Int) -> Double {
+        slot <= 2 ? 1 : 0
     }
 
     private var animationTaskID: String {
