@@ -46,7 +46,6 @@ key	en	ro	ru
 %d cards left today	%d cards left today	%d carduri rămase azi	Сегодня осталось %d карточек
 %d cards lined up today	%d cards lined up today	%d carduri pregătite azi	На сегодня подготовлено %d карточек
 %d cards moved today	%d cards moved today	%d carduri mutate azi	%d карточек пройдено сегодня
-%d cards per day	%d cards per day	%d carduri pe zi	%d карточек в день
 %d cards reviewed	%d cards reviewed	%d carduri revizuite	%d карточек пройдено
 %d cards reviewed today.	%d cards reviewed today.	%d carduri revizuite azi.	%d карточек пройдено сегодня.
 %d chars	%d chars	%d caractere	%d символов
@@ -57,8 +56,8 @@ key	en	ro	ru
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -147,10 +146,9 @@ Already have an account?	Already have an account?	Ai deja cont?	Уже есть 
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
-Answer from memory before checking the card.	Answer from memory before checking the card.	Răspunde din memorie înainte să verifici cardul.	Ответьте по памяти перед проверкой карточки.
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
 App Interface	App Interface	Interfața aplicației	Интерфейс приложения
@@ -168,8 +166,8 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blank	Blank	Gol	Пропуск
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -183,6 +181,7 @@ Border system for Home, cards, settings, and controls.	Border system for Home, c
 Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
+Build a daily habit	Build a daily habit	Creează un obicei zilnic	Создай ежедневную привычку
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
@@ -203,6 +202,7 @@ cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
+cards per day	cards per day	carduri pe zi	карточек в день
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
 CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
 Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
@@ -218,16 +218,15 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
+Choose a pace that feels easy to keep.	Choose a pace that feels easy to keep.	Alege un ritm ușor de păstrat.	Выбери темп, которого легко придерживаться.
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
-Choose how many cards you want to finish each day.	Choose how many cards you want to finish each day.	Alege câte carduri vrei să termini în fiecare zi.	Выберите, сколько карточек хотите проходить каждый день.
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
 Choose Photos	Choose Photos	Alege poze	Выбрать фото
 Choose where the selected decks should go.	Choose where the selected decks should go.	Alege unde să meargă deckurile selectate.	Выберите, куда переместить выбранные колоды.
 Choose where this deck should go.	Choose where this deck should go.	Alege unde să meargă acest deck.	Выберите, куда переместить эту колоду.
-Choose your zone style	Choose your zone style	Alege stilul zonelor	Выберите стиль зон
 Clean finish so far.	Clean finish so far.	Final curat până acum.	Пока чистое завершение.
 Cleanup	Cleanup	Curăță	Очистка
 Clear	Clear	Șterge	Очистить
@@ -299,7 +298,6 @@ Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete?	Delete?	Ștergi?	Удалить?
 Depth	Depth	Intensitate	Глубина
-Derivative practice	Derivative practice	Exercițiu cu derivate	Практика производных
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
@@ -367,7 +365,7 @@ Font	Font	Font	Шрифт
 Force Line Break	Force Line Break	Forțează rând nou	Принудительный перенос
 Forgot Password?	Forgot Password?	Ai uitat parola?	Забыли пароль?
 Freed	Freed	Eliberat	Фрид
-Full LaTeX support	Full LaTeX support	Suport complet LaTeX	Полная поддержка LaTeX
+From notes to practice	From notes to practice	Din notițe, direct la exersat	От заметок к практике
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
@@ -375,7 +373,6 @@ Generate a starter set with AI, or add cards manually.	Generate a starter set wi
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
-Generate or request cards with LaTeX symbols without friction.	Generate or request cards with LaTeX symbols without friction.	Poți genera sau cere carduri cu simboluri LaTeX fără probleme.	Можно без проблем генерировать или запрашивать карточки с символами LaTeX.
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -440,9 +437,9 @@ Large	Large	Mare	Крупный
 Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
-LaTeX preview formula	$\int_a^b f(x)\,dx = F(b)-F(a)$	$\int_a^b f(x)\,dx = F(b)-F(a)$	$\int_a^b f(x)\,dx = F(b)-F(a)$
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
+Learn easy with QuizFlash	Learn easy with QuizFlash	Învață ușor cu QuizFlash	Учись легко с QuizFlash
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
 Learn faster. Stay productive.	Learn faster. Stay productive.	Învață mai eficient. Rămâi productiv.	Учитесь быстрее. Оставайтесь продуктивными.
 Learning	Learning	În învățare	В изучении
@@ -470,7 +467,6 @@ Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
 Marked as correct	Marked as correct	Marcat ca corect	Отмечено как верное
 Mastered	Mastered	Stăpânite	Освоенные
-Math stays readable in play mode.	Math stays readable in play mode.	Matematica rămâne lizibilă în joc.	Математика остается читаемой в режиме игры.
 Medium	Medium	Mediu	Средний
 Minimal	Minimal	Minimală	Минимальная
 Mock AI	Mock AI	Simulare AI	Мок ИИ
@@ -519,8 +515,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
+No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -572,7 +568,6 @@ Pick a deck for today	Pick a deck for today	Alege un deck pentru azi	Выбер�
 Pick a deck for tonight	Pick a deck for tonight	Alege un deck pentru diseară	Выберите колоду на вечер
 Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Alegeți un rând deck de mai sus pentru a inspecta carduri care au aterizat curat și pe cele care mai au nevoie de o altă trecere.	Выберите ряд колоды выше, чтобы проверить карты, которые приземлились чисто, и те, которым еще нужен повторный проход.
 Pick the type of card you want to add to this deck.	Pick the type of card you want to add to this deck.	Alegeți tipul de card pe care doriți să îl adăugați la acest deck.	Выберите тип карточки, которую хотите добавить в эту колоду.
-Pick your card text size	Pick your card text size	Alege dimensiunea textului pe card	Выберите размер текста карточки
 Pills, chips, compact controls.	Pills, chips, compact controls.	Pastile, chipuri, controale compacte.	Плашки, чипы, компактные элементы.
 Pin	Pin	Fixează	Закрепить
 Pin selected cards	Pin selected cards	Fixează cardurile selectate	Закрепить выбранные карточки
@@ -598,13 +593,13 @@ Preview Mode	Preview Mode	Modul de previzualizare	Режим предварит�
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -638,8 +633,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -681,7 +676,6 @@ Selected Text	Selected Text	Text selectat	Выделенный текст
 Send Reset Link	Send Reset Link	Trimite link	Отправить ссылку
 Serif	Serif	Serif	С засечками
 Session	Session	Sesiune	Сессия
-Set your daily target	Set your daily target	Setează ținta zilnică	Задайте ежедневную цель
 Set your defaults in a few quick steps.	Set your defaults in a few quick steps.	Setează preferințele în câțiva pași rapizi.	Настройте предпочтения за несколько быстрых шагов.
 Settings	Settings	Setări	Настройки
 Settings rows, sheets, grouped surfaces.	Settings rows, sheets, grouped surfaces.	Rânduri de setări, sheet-uri, suprafețe grupate.	Строки настроек, листы, сгруппированные поверхности.
@@ -761,22 +755,19 @@ The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereas
 Thickness	Thickness	Grosime	Толщина
 This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
-This becomes your daily productivity target.	This becomes your daily productivity target.	Aceasta devine ținta ta zilnică de productivitate.	Это станет вашей ежедневной целью продуктивности.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
 This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
-This is how zones will look inside cards.	This is how zones will look inside cards.	Așa vor arăta zonele în carduri.	Так зоны будут выглядеть внутри карточек.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
-This preview uses the same scale as the editor and play mode.	This preview uses the same scale as the editor and play mode.	Această previzualizare folosește aceeași scalare ca editorul și modul de joc.	В этом предпросмотре используется тот же масштаб, что в редакторе и режиме игры.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
-This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -801,6 +792,7 @@ Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка
 Tune Shadow	Tune Shadow	Ajustează umbra	Настроить тень
 Tune Tab Blur	Tune Tab Blur	Ajustează blurul tabbarului	Настроить размытие вкладок
+Turn any topic into flashcards and quizzes.	Turn any topic into flashcards and quizzes.	Transformă orice subiect în fișe și quizuri.	Превращай любую тему во флэшкарточки и квизы.
 Type	Type	Tip	Тип
 Unavailable	Unavailable	Indisponibil	Недоступно
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
@@ -826,8 +818,6 @@ Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
 Welcome	Welcome	Bun venit	Добро пожаловать
 Welcome back	Welcome back	Bine ai revenit	С возвращением
-Welcome to QuizFlash	Welcome to QuizFlash	Bun venit în QuizFlash	Добро пожаловать в QuizFlash
-What is active recall?	What is active recall?	Ce este memorarea activă?	Что такое активное припоминание?
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
 Where it changes	Where it changes	Unde se schimbă	Где меняется
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
@@ -840,6 +830,7 @@ You can stop now and keep the cards already received, or discard this AI batch c
 You have unsaved changes in this deck.	You have unsaved changes in this deck.	Aveți modificări nesalvate în acest deck.	У вас есть несохраненные изменения в этой колоде.
 You're all set.	You're all set.	Totul este pregătit.	Все готово.
 Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
+Your notes	Your notes	Notițele tale	Твои заметки
 Zone Style	Zone Style	Stil zone	Стиль зон
 zones(%d)	zones(%d)	zone(%d)	зоны(%d)
 |	|	|	|

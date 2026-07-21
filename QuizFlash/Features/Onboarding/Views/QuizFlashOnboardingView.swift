@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 // MARK: - QuizFlash Onboarding View
 
@@ -110,14 +109,10 @@ struct QuizFlashOnboardingView: View {
         switch item.kind {
         case .welcome:
             WelcomeOnboardingPage(isActive: isActive || welcomeDemoIsActive)
-        case .zoneStyle:
-            ZoneStyleOnboardingPage(selectedStyle: zoneSurfaceStyleBinding)
-        case .latexSupport:
-            LatexSupportOnboardingPage()
+        case .practiceFlow:
+            PracticeFlowOnboardingPage()
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
-        case .textSize:
-            TextSizeOnboardingPage(textSize: defaultTextSizeBinding)
         }
     }
 
@@ -260,22 +255,6 @@ struct QuizFlashOnboardingView: View {
             guard !Task.isCancelled, currentIndex != 0 else { return }
             welcomeDemoIsActive = false
         }
-    }
-
-    // MARK: - Bindings
-
-    private var zoneSurfaceStyleBinding: Binding<AppZoneSurfaceStyle> {
-        Binding(
-            get: { appPreferences.zoneSurfaceStyle },
-            set: { appPreferences.zoneSurfaceStyle = $0 }
-        )
-    }
-
-    private var defaultTextSizeBinding: Binding<FlashcardTextSize> {
-        Binding(
-            get: { appPreferences.defaultTextSize },
-            set: { appPreferences.defaultTextSize = $0 }
-        )
     }
 
     private var animation: Animation {
@@ -428,43 +407,29 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
     static let defaultItems: [QuizFlashOnboardingItem] = [
         .init(
             id: 0,
-            titleKey: "Welcome to QuizFlash",
+            titleKey: "Learn easy with QuizFlash",
             subtitleKey: "",
             kind: .welcome
         ),
         .init(
             id: 1,
-            titleKey: "Choose your zone style",
-            subtitleKey: "This is how zones will look inside cards.",
-            kind: .zoneStyle
+            titleKey: "From notes to practice",
+            subtitleKey: "Turn any topic into flashcards and quizzes.",
+            kind: .practiceFlow
         ),
         .init(
             id: 2,
-            titleKey: "Full LaTeX support",
-            subtitleKey: "Generate or request cards with LaTeX symbols without friction.",
-            kind: .latexSupport
-        ),
-        .init(
-            id: 3,
-            titleKey: "Set your daily target",
-            subtitleKey: "Choose how many cards you want to finish each day.",
+            titleKey: "Build a daily habit",
+            subtitleKey: "Choose a pace that feels easy to keep.",
             kind: .cardsTarget
-        ),
-        .init(
-            id: 4,
-            titleKey: "Pick your card text size",
-            subtitleKey: "This preview uses the same scale as the editor and play mode.",
-            kind: .textSize
         )
     ]
 }
 
 private enum QuizFlashOnboardingPageKind: Hashable {
     case welcome
-    case zoneStyle
-    case latexSupport
+    case practiceFlow
     case cardsTarget
-    case textSize
 }
 
 // MARK: - Pages
@@ -514,7 +479,7 @@ private struct WelcomeOnboardingPage: View {
     }
 
     private func welcomeTitleLines(locale: Locale) -> [String] {
-        let title = AppLocalization.string("Welcome to QuizFlash", locale: locale)
+        let title = AppLocalization.string("Learn easy with QuizFlash", locale: locale)
 
         if let range = title.range(of: "QuizFlash", options: .caseInsensitive) {
             let firstLine = String(title[..<range.lowerBound])
@@ -1289,92 +1254,159 @@ private enum WelcomeQuizAnswerState {
     case correct
 }
 
-private struct ZoneStyleOnboardingPage: View {
+/// Shows QuizFlash's core input-to-practice flow without introducing settings.
+private struct PracticeFlowOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
-    @Binding var selectedStyle: AppZoneSurfaceStyle
-
     var body: some View {
-        VStack(spacing: UIConstants.Spacing.standard) {
-            ForEach(AppZoneSurfaceStyle.allCases) { style in
-                Button {
-                    selectedStyle = style
-                } label: {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                        HStack(spacing: UIConstants.Spacing.small) {
-                            Text(style.localizedTitle(locale: appPreferences.resolvedLocale))
-                                .font(.system(size: 28, weight: .black, design: .rounded))
-                                .foregroundStyle(themeManager.textPrimary)
+        VStack(spacing: 0) {
+            Spacer(minLength: UIConstants.Spacing.large)
 
-                            Spacer(minLength: UIConstants.Spacing.standard)
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundStyle(themeManager.accentColor.color)
 
-                            Image(systemName: selectedStyle == style ? "checkmark.circle.fill" : "circle")
-                                .font(.title2.weight(.bold))
-                                .foregroundStyle(selectedStyle == style ? themeManager.accentColor.color : themeManager.textSecondary)
-                        }
+                    Text(AppLocalization.string("Your notes", locale: appPreferences.resolvedLocale))
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(themeManager.textPrimary)
 
-                        OnboardingGameCardPreview(
-                            style: style,
-                            textSize: appPreferences.defaultTextSize,
-                            sample: .zoneStyle
-                        )
-                    }
-                    .padding(UIConstants.Spacing.large)
-                    .background(
-                        selectedStyle == style
-                            ? themeManager.accentColor.color.opacity(0.16)
-                            : themeManager.textPrimary.opacity(0.06),
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(
-                                selectedStyle == style
-                                    ? themeManager.accentColor.color.opacity(0.72)
-                                    : themeManager.textPrimary.opacity(0.10),
-                                lineWidth: 1.4
-                            )
-                    }
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 11) {
+                    noteLine(width: 0.92)
+                    noteLine(width: 0.72)
+                    noteLine(width: 0.84)
+                }
             }
+            .padding(UIConstants.Spacing.large)
+            .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(themeManager.textPrimary.opacity(0.09), lineWidth: 1)
+            }
+
+            ZStack {
+                Capsule()
+                    .fill(themeManager.textPrimary.opacity(0.10))
+                    .frame(width: 2, height: 56)
+
+                Circle()
+                    .fill(themeManager.accentColor.color)
+                    .frame(width: 42, height: 42)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.black)
+            }
+
+            HStack(spacing: UIConstants.Spacing.medium) {
+                PracticeOutputCard(kind: .flashcard)
+                PracticeOutputCard(kind: .quiz)
+            }
+
+            Spacer(minLength: UIConstants.Spacing.large)
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
-        .padding(.vertical, UIConstants.Spacing.huge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
 
-private struct LatexSupportOnboardingPage: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(AppLocalization.string("Full LaTeX support", locale: appPreferences.resolvedLocale))
-                .font(.system(size: 46, weight: .black, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.68)
-
-            Text(AppLocalization.string("Generate or request cards with LaTeX symbols without friction.", locale: appPreferences.resolvedLocale))
-                .font(.title3.weight(.medium))
-                .foregroundStyle(themeManager.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            OnboardingGameCardPreview(
-                style: appPreferences.zoneSurfaceStyle,
-                textSize: appPreferences.defaultTextSize,
-                sample: .latex
-            )
+    private func noteLine(width: CGFloat) -> some View {
+        GeometryReader { proxy in
+            Capsule()
+                .fill(themeManager.textSecondary.opacity(0.30))
+                .frame(width: proxy.size.width * width, height: 7)
         }
-        .padding(.horizontal, UIConstants.Spacing.extraLarge)
-        .padding(.vertical, UIConstants.Spacing.huge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(height: 7)
     }
 }
 
+/// A compact representation of one practice format produced by QuizFlash.
+private struct PracticeOutputCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    let kind: PracticeOutputKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack {
+                Image(systemName: kind.symbolName)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(themeManager.accentColor.color)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.accentColor.color.opacity(0.85))
+            }
+
+            Text(AppLocalization.string(kind.titleKey, locale: appPreferences.resolvedLocale))
+                .font(.headline.weight(.bold))
+                .foregroundStyle(themeManager.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+
+            kind.preview(themeManager: themeManager)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .padding(UIConstants.Spacing.medium)
+        .frame(maxWidth: .infinity, minHeight: 178, alignment: .topLeading)
+        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.09), lineWidth: 1)
+        }
+    }
+}
+
+/// The two card formats introduced in the onboarding flow diagram.
+private enum PracticeOutputKind {
+    case flashcard
+    case quiz
+
+    var titleKey: String {
+        switch self {
+        case .flashcard: "Flashcard"
+        case .quiz: "Quiz"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .flashcard: "rectangle.on.rectangle.angled"
+        case .quiz: "checklist"
+        }
+    }
+
+    @ViewBuilder
+    func preview(themeManager: ThemeManager) -> some View {
+        switch self {
+        case .flashcard:
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(themeManager.textPrimary.opacity(0.12))
+                    .frame(height: 28)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(themeManager.accentColor.color.opacity(0.20))
+                    .frame(height: 43)
+            }
+        case .quiz:
+            VStack(spacing: 7) {
+                ForEach(0..<3, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(index == 1 ? themeManager.accentColor.color.opacity(0.24) : themeManager.textPrimary.opacity(0.10))
+                        .frame(height: 24)
+                }
+            }
+        }
+    }
+}
+
+/// Lets the user choose the only onboarding preference with immediate study value.
 private struct CardsTargetOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
@@ -1392,26 +1424,39 @@ private struct CardsTargetOnboardingPage: View {
         )
     }
 
-    var body: some View {
-        VStack(spacing: UIConstants.Spacing.extraLarge) {
-            VStack(spacing: UIConstants.Spacing.small) {
-                Text(String(
-                    format: AppLocalization.string("%d cards per day", locale: appPreferences.resolvedLocale),
-                    locale: appPreferences.resolvedLocale,
-                    cardsTarget
-                ))
-                    .font(.system(size: 48, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.58)
-                    .contentTransition(.numericText())
+    private var goalProgress: CGFloat {
+        CGFloat(cardsTarget) / CGFloat(AppPreferences.dailyCardsGoalRange.upperBound)
+    }
 
-                Text(AppLocalization.string("This becomes your daily productivity target.", locale: appPreferences.resolvedLocale))
-                    .font(.headline.weight(.medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(themeManager.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+    var body: some View {
+        VStack(spacing: UIConstants.Spacing.huge) {
+            Spacer(minLength: UIConstants.Spacing.large)
+
+            ZStack {
+                Circle()
+                    .stroke(themeManager.textPrimary.opacity(0.09), lineWidth: 14)
+
+                Circle()
+                    .trim(from: 0, to: max(goalProgress, 0.05))
+                    .stroke(
+                        themeManager.accentColor.color,
+                        style: StrokeStyle(lineWidth: 14, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.24), value: cardsTarget)
+
+                VStack(spacing: 4) {
+                    Text(cardsTarget, format: .number.locale(appPreferences.resolvedLocale))
+                        .font(.system(size: 62, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .contentTransition(.numericText())
+
+                    Text(AppLocalization.string("cards per day", locale: appPreferences.resolvedLocale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(themeManager.textSecondary)
+                }
             }
+            .frame(width: 210, height: 210)
 
             TickValuePicker(
                 value: tickSelection,
@@ -1421,9 +1466,10 @@ private struct CardsTargetOnboardingPage: View {
             ) { value in
                 "\(value * AppPreferences.dailyCardsGoalStep)"
             }
+
+            Spacer(minLength: UIConstants.Spacing.large)
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
-        .padding(.vertical, UIConstants.Spacing.huge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -1431,188 +1477,6 @@ private struct CardsTargetOnboardingPage: View {
         cardsTarget = min(selection, tickUpperBound) * AppPreferences.dailyCardsGoalStep
         appPreferences.dailyCardsGoal = cardsTarget
     }
-}
-
-private struct TextSizeOnboardingPage: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    @Binding var textSize: FlashcardTextSize
-
-    var body: some View {
-        VStack(spacing: UIConstants.Spacing.large) {
-            OnboardingGameCardPreview(
-                style: appPreferences.zoneSurfaceStyle,
-                textSize: textSize,
-                sample: .textSize
-            )
-
-            TickValuePicker(
-                value: textSize.step,
-                range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep,
-                onChange: { newValue in
-                    textSize = FlashcardTextSize(step: newValue)
-                },
-                isCompact: true
-            ) { value in
-                "\(value)"
-            }
-            .padding(.horizontal, UIConstants.Spacing.small)
-
-            Text(textSize.localizedTitle(locale: appPreferences.resolvedLocale))
-                .font(.title3.weight(.black))
-                .foregroundStyle(themeManager.accentColor.color)
-                .contentTransition(.numericText())
-        }
-        .padding(.horizontal, UIConstants.Spacing.extraLarge)
-        .padding(.vertical, UIConstants.Spacing.huge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Real Card Preview
-
-private struct OnboardingGameCardPreview: View {
-    @Environment(AppPreferences.self) private var appPreferences
-
-    let style: AppZoneSurfaceStyle
-    let textSize: FlashcardTextSize
-    let sample: OnboardingGameCardSample
-
-    var body: some View {
-        GeometryReader { proxy in
-            let contentWidth = max(proxy.size.width - 28, 1)
-
-            QuizPlaybackZoneContent(
-                zone: sample.zone(locale: appPreferences.resolvedLocale),
-                fontScale: CGFloat(textSize.playModeScale),
-                availableWidth: contentWidth,
-                centersLeafBlocks: true,
-                showsZoneSurfaces: style.showsZoneSurfaces,
-                zoneHighlightStrokeStyle: StrokeStyle(lineWidth: style == .rounded ? 1.6 : 1.0),
-                showsLayoutDebug: false
-            )
-            .frame(width: contentWidth, alignment: .center)
-            .padding(14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-        .frame(maxWidth: .infinity, minHeight: sample.minimumHeight)
-        .background(
-            Color(red: 0.068, green: 0.068, blue: 0.068),
-            in: RoundedRectangle(cornerRadius: 34, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-    }
-}
-
-private enum OnboardingGameCardSample {
-    case zoneStyle
-    case textSize
-    case latex
-
-    var minimumHeight: CGFloat {
-        switch self {
-        case .zoneStyle:
-            return 128
-        case .textSize:
-            return 220
-        case .latex:
-            return 240
-        }
-    }
-
-    func zone(locale: Locale) -> ZoneModel {
-        switch self {
-        case .zoneStyle:
-            return containerZone(
-                id: Self.zoneStyleRootID,
-                children: [
-                    textZone(
-                        id: Self.zoneStyleTitleID,
-                        AppLocalization.string("Derivative practice", locale: locale),
-                        style: .title,
-                        isBold: true
-                    ),
-                    textZone(
-                        id: Self.zoneStyleBodyID,
-                        AppLocalization.string("If $f(x)=x^2$, what is $f'(x)$?", locale: locale)
-                    ),
-                ]
-            )
-        case .textSize:
-            return containerZone(
-                id: Self.textSizeRootID,
-                children: [
-                    textZone(
-                        id: Self.textSizeTitleID,
-                        AppLocalization.string("What is active recall?", locale: locale),
-                        style: .title,
-                        isBold: true
-                    ),
-                    textZone(
-                        id: Self.textSizeBodyID,
-                        AppLocalization.string("Answer from memory before checking the card.", locale: locale)
-                    ),
-                ]
-            )
-        case .latex:
-            return containerZone(
-                id: Self.latexRootID,
-                children: [
-                    textZone(
-                        id: Self.latexTitleID,
-                        AppLocalization.string("Math stays readable in play mode.", locale: locale),
-                        style: .title,
-                        isBold: true
-                    ),
-                    textZone(
-                        id: Self.latexFormulaID,
-                        AppLocalization.string("LaTeX preview formula", locale: locale)
-                    ),
-                ]
-            )
-        }
-    }
-
-    private func containerZone(id: UUID, children: [ZoneModel]) -> ZoneModel {
-        ZoneModel(
-            id: id,
-            children: children,
-            direction: .vertical
-        )
-    }
-
-    private func textZone(
-        id: UUID,
-        _ text: String,
-        style: TextBlockStyle = .body,
-        isBold: Bool = false
-    ) -> ZoneModel {
-        ZoneModel(
-            id: id,
-            contentType: .text,
-            text: text,
-            textStyle: style,
-            sizeMode: .fillWidth,
-            blockAlignment: .center,
-            textColor: .primary,
-            isBold: isBold
-        )
-    }
-
-    private static let zoneStyleRootID = UUID(uuidString: "ACFB2293-3371-42D6-9A5E-64C515D2F761")!
-    private static let zoneStyleTitleID = UUID(uuidString: "D58D1922-2D4F-455F-98E3-371D42E7A101")!
-    private static let zoneStyleBodyID = UUID(uuidString: "3AF9CFA0-BD2F-4497-97F4-B60E1FBA8D23")!
-    private static let textSizeRootID = UUID(uuidString: "6CF2C69E-269B-4C78-B389-47FE1359F4F5")!
-    private static let textSizeTitleID = UUID(uuidString: "C55C9D29-E07F-43E8-BBC5-9EE833B84923")!
-    private static let textSizeBodyID = UUID(uuidString: "78C6CE96-9A92-49B1-BE68-7F84AB7D5301")!
-    private static let latexRootID = UUID(uuidString: "5180A001-E38E-48D6-9F1E-F26971E3BA67")!
-    private static let latexTitleID = UUID(uuidString: "1D540706-56B5-43CF-A54C-64397A08AC3A")!
-    private static let latexFormulaID = UUID(uuidString: "7D4AA0BA-9BA3-4335-BE2F-EAD820E87E5C")!
 }
 
 // MARK: - Metrics
