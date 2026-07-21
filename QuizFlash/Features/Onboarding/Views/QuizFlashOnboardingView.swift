@@ -1267,10 +1267,17 @@ private struct PracticeFlowOnboardingPage: View {
 
     let isActive: Bool
 
-    @State private var targetSlot = 0
-    @State private var revealedCardCount = 0
+    @State private var sourceIsVisible = false
+    @State private var inputConnectorProgress: CGFloat = 0
+    @State private var processorIsVisible = false
+    @State private var processorTraceProgress: CGFloat = 0
+    @State private var outputConnectorProgress: CGFloat = 0
+    @State private var deliveredCardCount = 0
+    @State private var activeCardIndex: Int?
+    @State private var activeCardProgress: CGFloat = 0
     @State private var hasCompletedSequence = false
-    @State private var phase: AIFlowPhase = .resting
+
+    private static let generatedCardCount = 5
 
     var body: some View {
         GeometryReader { proxy in
@@ -1279,39 +1286,27 @@ private struct PracticeFlowOnboardingPage: View {
             ZStack {
                 sourceMaterial(width: metrics.sourceWidth, height: metrics.sourceHeight)
                     .position(x: metrics.centerX, y: metrics.sourceY)
-                    .opacity(phase.sourceOpacity)
+                    .scaleRevealMotion(
+                        isVisible: sourceIsVisible,
+                        reduceMotion: reduceMotion,
+                        hiddenOpacity: 0.001
+                    )
 
-                flowConnector(height: metrics.inputConnectorHeight, isActive: phase.emphasizesInputConnector)
+                flowConnector(height: metrics.inputConnectorHeight, progress: inputConnectorProgress)
                     .position(x: metrics.centerX, y: metrics.inputConnectorY)
-
-                inputFragment
-                    .position(x: metrics.centerX, y: metrics.inputFragmentY(progress: phase.inputProgress))
-                    .scaleEffect(phase.inputFragmentScale)
-                    .opacity(phase.inputFragmentOpacity)
 
                 aiProcessor(width: metrics.processorWidth, height: metrics.processorHeight)
                     .position(x: metrics.centerX, y: metrics.processorY)
+                    .scaleRevealMotion(
+                        isVisible: processorIsVisible,
+                        reduceMotion: reduceMotion,
+                        hiddenOpacity: 0.001
+                    )
 
-                flowConnector(height: metrics.outputConnectorHeight, isActive: phase.emphasizesOutputConnector)
+                flowConnector(height: metrics.outputConnectorHeight, progress: outputConnectorProgress)
                     .position(x: metrics.centerX, y: metrics.outputConnectorY)
 
-                generatedCards(metrics: metrics)
-
-                generatedCard(index: targetSlot, isNewest: true)
-                    .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-                    .position(
-                        x: metrics.outputCardX(progress: phase.outputProgress, targetSlot: targetSlot),
-                        y: metrics.outputCardY(progress: phase.outputProgress)
-                    )
-                    .scaleEffect(phase.outputCardScale)
-                    .rotationEffect(.degrees(phase.outputCardRotation))
-                    .opacity(phase.outputCardOpacity)
-                    .shadow(
-                        color: themeManager.accentColor.color.opacity(0.20 * phase.outputCardOpacity),
-                        radius: 18,
-                        y: 10
-                    )
-                    .zIndex(2)
+                generatedCardStack(metrics: metrics)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .accessibilityHidden(true)
@@ -1330,57 +1325,37 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     private func sourceMaterial(width: CGFloat, height: CGFloat) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(themeManager.textPrimary.opacity(0.035))
-                .frame(width: width * 0.91, height: height * 0.88)
-                .rotationEffect(.degrees(-3))
-                .offset(x: -5, y: -8)
+        HStack(spacing: UIConstants.Spacing.medium) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(themeManager.accentColor.color.opacity(0.16))
 
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(themeManager.textPrimary.opacity(0.045))
-                .frame(width: width * 0.94, height: height * 0.92)
-                .rotationEffect(.degrees(2.2))
-                .offset(x: 5, y: -3)
-
-            HStack(spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(themeManager.accentColor.color.opacity(0.16))
-
-                    Image(systemName: "doc.richtext.fill")
-                        .font(.system(size: 25, weight: .semibold))
-                        .foregroundStyle(themeManager.accentColor.color)
-                }
-                .frame(width: 54, height: 62)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    sourcePreview
-                }
-
-                Spacer(minLength: 0)
+                Image(systemName: "doc.richtext.fill")
+                    .font(.system(size: 25, weight: .semibold))
+                    .foregroundStyle(themeManager.accentColor.color)
             }
-            .padding(.horizontal, UIConstants.Spacing.medium)
-            .frame(width: width, height: height)
-            .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+            .frame(width: 54, height: 62)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(themeManager.textPrimary)
+
+                sourcePreview
             }
-            .overlay {
-                sourceScan(width: width, height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, UIConstants.Spacing.medium)
         .frame(width: width, height: height)
-        .scaleEffect(phase.sourceScale)
+        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
+        }
         .shadow(
-            color: themeManager.accentColor.color.opacity(phase.isScanning ? 0.15 : 0.04),
-            radius: phase.isScanning ? 18 : 10,
+            color: themeManager.accentColor.color.opacity(0.08),
+            radius: 14,
             y: 8
         )
     }
@@ -1413,168 +1388,111 @@ private struct PracticeFlowOnboardingPage: View {
         }
     }
 
-    private func sourceScan(width: CGFloat, height: CGFloat) -> some View {
-        Rectangle()
+    private func aiProcessor(width: CGFloat, height: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(themeManager.accentColor.color)
+
+            Text("AI")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(themeManager.textPrimary)
+        }
+        .frame(width: width, height: height)
+        .background(themeManager.textPrimary.opacity(0.075), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .trim(from: 0, to: processorTraceProgress)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            themeManager.accentColor.color.opacity(0.28),
+                            themeManager.accentColor.color,
+                            themeManager.accentColor.color.opacity(0.50)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .padding(1)
+        }
+        .shadow(color: themeManager.accentColor.color.opacity(0.18 * processorTraceProgress), radius: 22)
+    }
+
+    private func flowConnector(height: CGFloat, progress: CGFloat) -> some View {
+        Capsule()
             .fill(
                 LinearGradient(
                     colors: [
-                        .clear,
-                        themeManager.accentColor.color.opacity(0.06),
-                        themeManager.accentColor.color.opacity(0.28),
-                        themeManager.accentColor.color.opacity(0.06),
-                        .clear
+                        themeManager.accentColor.color.opacity(0.30),
+                        themeManager.accentColor.color.opacity(0.92),
+                        themeManager.accentColor.color.opacity(0.24)
                     ],
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
             )
-            .frame(width: 56, height: height)
-            .offset(x: ((width + 56) * phase.scanProgress) - ((width + 56) / 2))
-            .opacity(phase.scanOpacity)
-    }
-
-    private func aiProcessor(width: CGFloat, height: CGFloat) -> some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.28 : 0.16))
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .scaleEffect(phase.processorIsActive ? 1.10 : 0.94)
-                    .rotationEffect(.degrees(phase.processorIsActive ? 6 : 0))
-            }
-            .frame(width: 52, height: 52)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("QuizFlash")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(themeManager.textPrimary)
-
-                Text("AI")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.accentColor.color)
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 5) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(
-                            index <= phase.processingDot
-                                ? themeManager.accentColor.color
-                                : themeManager.textPrimary.opacity(0.15)
-                        )
-                        .frame(width: 6, height: 6)
-                        .scaleEffect(phase.emphasizesProcessingDot(index) ? 1.22 : 1)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(width: width, height: height)
-        .background(themeManager.textPrimary.opacity(0.075), in: RoundedRectangle(cornerRadius: 25, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 25, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.72 : 0.26),
-                            themeManager.textPrimary.opacity(0.08)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: phase.processorIsActive ? 1.5 : 1
-                )
-        }
-        .scaleEffect(phase.processorScale)
-        .shadow(
-            color: themeManager.accentColor.color.opacity(phase.processorIsActive ? 0.22 : 0.06),
-            radius: phase.processorIsActive ? 24 : 12
-        )
-    }
-
-    private func flowConnector(height: CGFloat, isActive: Bool) -> some View {
-        ZStack {
-            Capsule()
-                .fill(themeManager.textPrimary.opacity(0.10))
-                .frame(width: 3, height: height)
-
-            Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            themeManager.accentColor.color.opacity(0.16),
-                            themeManager.accentColor.color.opacity(0.88),
-                            themeManager.accentColor.color.opacity(0.16)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: isActive ? 4 : 2, height: height * (isActive ? 0.88 : 0.45))
-                .opacity(isActive ? 1 : 0.34)
-        }
+            .frame(width: 3, height: height)
+            .scaleEffect(x: 1, y: progress, anchor: .top)
+            .opacity(Double(min(progress * 4, 1)))
         .frame(width: 16, height: height)
     }
 
-    private var inputFragment: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(themeManager.accentColor.color)
+    private func generatedCardStack(metrics: AIFlowLayoutMetrics) -> some View {
+        ForEach(0..<Self.generatedCardCount, id: \.self) { index in
+            let progress = cardProgress(for: index)
+            let motion = metrics.cardMotion(for: index, progress: progress)
 
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.black.opacity(0.66))
-        }
-        .frame(width: 29, height: 34)
-        .shadow(color: themeManager.accentColor.color.opacity(0.42), radius: 10)
-    }
-
-    private func generatedCards(metrics: AIFlowLayoutMetrics) -> some View {
-        ForEach(0..<3, id: \.self) { slot in
-            ZStack {
-                cardPlaceholder
-
-                if slot < revealedCardCount {
-                    generatedCard(index: slot, isNewest: phase.settledSlot == slot)
-                }
-            }
-            .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-            .position(x: metrics.cardX(for: slot), y: metrics.cardsY)
-            .scaleEffect(phase.cardScale(for: slot))
-            .rotationEffect(.degrees(slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)))
-            .opacity(phase.isProducing(into: slot) ? 0.44 : 1)
-            .shadow(
-                color: phase.settledSlot == slot
-                    ? themeManager.accentColor.color.opacity(0.20)
-                    : .black.opacity(0.12),
-                radius: phase.settledSlot == slot ? 18 : 10,
-                y: phase.settledSlot == slot ? 10 : 8
-            )
+            generatedCard(index: index)
+                .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+                .position(motion.position)
+                .scaleEffect(motion.scale)
+                .rotationEffect(.degrees(motion.rotation))
+                .opacity(cardOpacity(for: index, progress: progress))
+                .scaleRevealMotion(
+                    isVisible: cardIsVisible(index),
+                    reduceMotion: reduceMotion,
+                    hiddenOpacity: 0.001
+                )
+                .shadow(
+                    color: index == activeCardIndex
+                        ? themeManager.accentColor.color.opacity(0.22)
+                        : .black.opacity(0.18),
+                    radius: index == activeCardIndex ? 18 : 10,
+                    y: index == activeCardIndex ? 10 : 7
+                )
+                .zIndex(Double(index + 1))
         }
     }
 
-    private var cardPlaceholder: some View {
-        RoundedRectangle(cornerRadius: 17, style: .continuous)
-            .fill(themeManager.textPrimary.opacity(0.025))
-            .overlay {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .strokeBorder(
-                        themeManager.textPrimary.opacity(0.09),
-                        style: StrokeStyle(lineWidth: 1, dash: [5, 5])
-                    )
-            }
+    private func cardProgress(for index: Int) -> CGFloat {
+        if index < deliveredCardCount { return 1 }
+        if activeCardIndex == index { return activeCardProgress }
+        return 0
     }
 
-    private func generatedCard(index: Int, isNewest: Bool) -> some View {
+    private func cardIsVisible(_ index: Int) -> Bool {
+        index < deliveredCardCount || activeCardIndex == index
+    }
+
+    private func cardOpacity(for index: Int, progress: CGFloat) -> Double {
+        if index < deliveredCardCount { return 1 }
+        guard activeCardIndex == index else { return 0 }
+        return Double(min(progress * 5, 1))
+    }
+
+    private func generatedCard(index: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 ZStack {
                     Circle()
-                        .fill(themeManager.accentColor.color.opacity(isNewest ? 0.30 : 0.17))
+                        .fill(themeManager.accentColor.color.opacity(0.20))
 
                     Image(systemName: index.isMultiple(of: 2) ? "rectangle.on.rectangle" : "checklist")
                         .font(.system(size: 10, weight: .bold))
@@ -1585,7 +1503,7 @@ private struct PracticeFlowOnboardingPage: View {
                 Spacer(minLength: 0)
 
                 Circle()
-                    .fill(themeManager.accentColor.color.opacity(isNewest ? 0.78 : 0.32))
+                    .fill(themeManager.accentColor.color.opacity(0.52))
                     .frame(width: 6, height: 6)
             }
 
@@ -1599,15 +1517,10 @@ private struct PracticeFlowOnboardingPage: View {
         }
         .padding(11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(themeManager.textPrimary.opacity(isNewest ? 0.095 : 0.065), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .background(themeManager.textPrimary.opacity(0.085), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .strokeBorder(
-                    isNewest
-                        ? themeManager.accentColor.color.opacity(0.42)
-                        : themeManager.textPrimary.opacity(0.10),
-                    lineWidth: isNewest ? 1.3 : 1
-                )
+                .strokeBorder(themeManager.accentColor.color.opacity(0.22), lineWidth: 1)
         }
     }
 
@@ -1621,30 +1534,33 @@ private struct PracticeFlowOnboardingPage: View {
         showInitialState()
 
         do {
-            try await Task.sleep(for: .milliseconds(360))
-            try await animate(to: .scanning, duration: 0.62)
-            try await animate(to: .feeding, duration: 0.72, bounce: 0.03)
+            try await Task.sleep(for: .milliseconds(100))
+            withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
+                sourceIsVisible = true
+            }
+            try await Task.sleep(for: .milliseconds(650))
 
-            for dot in 0..<3 {
-                try await animate(to: .processing(dot), duration: 0.24)
+            try await animate(duration: 0.48, animation: .easeInOut(duration: 0.48)) {
+                inputConnectorProgress = 1
             }
 
-            for slot in 0..<3 {
-                withTransaction(Transaction(animation: nil)) {
-                    targetSlot = slot
-                    phase = .processing(2)
-                }
+            withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
+                processorIsVisible = true
+            }
+            try await Task.sleep(for: .milliseconds(180))
 
-                try await animate(to: .producing(slot), duration: 0.54, bounce: 0.05)
-
-                withTransaction(Transaction(animation: nil)) {
-                    revealedCardCount = slot + 1
-                    phase = .settling(slot)
-                }
-                try await Task.sleep(for: .milliseconds(220))
+            try await animate(duration: 0.70, animation: .easeInOut(duration: 0.70)) {
+                processorTraceProgress = 1
             }
 
-            try await animate(to: .complete, duration: 0.40)
+            try await animate(duration: 0.50, animation: .easeInOut(duration: 0.50)) {
+                outputConnectorProgress = 1
+            }
+
+            for index in 0..<Self.generatedCardCount {
+                try await deliverCard(at: index)
+            }
+
             hasCompletedSequence = true
         } catch {
             guard !Task.isCancelled else { return }
@@ -1653,16 +1569,45 @@ private struct PracticeFlowOnboardingPage: View {
     }
 
     @MainActor
+    private func deliverCard(at index: Int) async throws {
+        try Task.checkCancellation()
+
+        withTransaction(Transaction(animation: nil)) {
+            activeCardIndex = index
+            activeCardProgress = 0
+        }
+
+        try await Task.sleep(for: .milliseconds(20))
+
+        try await animate(duration: 0.16, animation: .easeOut(duration: 0.16)) {
+            activeCardProgress = 0.28
+        }
+
+        try await animate(
+            duration: 0.44,
+            animation: .timingCurve(0.20, 0.74, 0.18, 1, duration: 0.44)
+        ) {
+            activeCardProgress = 1
+        }
+
+        withTransaction(Transaction(animation: nil)) {
+            deliveredCardCount = index + 1
+            activeCardIndex = nil
+            activeCardProgress = 0
+        }
+
+        try await Task.sleep(for: .milliseconds(90))
+    }
+
+    @MainActor
     private func animate(
-        to newPhase: AIFlowPhase,
         duration: TimeInterval,
-        bounce: Double = 0.02
+        animation: Animation,
+        updates: () -> Void
     ) async throws {
         try Task.checkCancellation()
 
-        withAnimation(.smooth(duration: duration, extraBounce: bounce)) {
-            phase = newPhase
-        }
+        withAnimation(animation, updates)
 
         try await Task.sleep(for: .seconds(duration))
     }
@@ -1670,18 +1615,28 @@ private struct PracticeFlowOnboardingPage: View {
     @MainActor
     private func showInitialState() {
         withTransaction(Transaction(animation: nil)) {
-            targetSlot = 0
-            revealedCardCount = 0
-            phase = .resting
+            sourceIsVisible = false
+            inputConnectorProgress = 0
+            processorIsVisible = false
+            processorTraceProgress = 0
+            outputConnectorProgress = 0
+            deliveredCardCount = 0
+            activeCardIndex = nil
+            activeCardProgress = 0
         }
     }
 
     @MainActor
     private func showCompletedResult() {
         withTransaction(Transaction(animation: nil)) {
-            targetSlot = 2
-            revealedCardCount = 3
-            phase = .complete
+            sourceIsVisible = true
+            inputConnectorProgress = 1
+            processorIsVisible = true
+            processorTraceProgress = 1
+            outputConnectorProgress = 1
+            deliveredCardCount = Self.generatedCardCount
+            activeCardIndex = nil
+            activeCardProgress = 0
             hasCompletedSequence = true
         }
     }
@@ -1704,12 +1659,11 @@ private struct AIFlowLayoutMetrics {
 
     var centerX: CGFloat { containerSize.width / 2 }
     var sourceWidth: CGFloat { min(containerSize.width * 0.84, 330) }
-    var sourceHeight: CGFloat { min(max(diagramHeight * 0.20, 96), 112) }
-    var processorWidth: CGFloat { min(containerSize.width * 0.64, 238) }
-    var processorHeight: CGFloat { 76 }
-    var cardHeight: CGFloat { min(max(diagramHeight * 0.18, 88), 102) }
-    var cardSpacing: CGFloat { 10 }
-    var cardWidth: CGFloat { min((containerSize.width - (cardSpacing * 2) - 8) / 3, 104) }
+    var sourceHeight: CGFloat { min(max(diagramHeight * 0.19, 96), 108) }
+    var processorWidth: CGFloat { min(containerSize.width * 0.48, 188) }
+    var processorHeight: CGFloat { 68 }
+    var cardHeight: CGFloat { min(max(diagramHeight * 0.17, 88), 98) }
+    var cardWidth: CGFloat { min(containerSize.width * 0.46, 174) }
 
     var sourceY: CGFloat { topInset + (sourceHeight / 2) }
     var processorY: CGFloat { topInset + (diagramHeight * 0.48) }
@@ -1731,162 +1685,68 @@ private struct AIFlowLayoutMetrics {
         processorY + (processorHeight / 2) + 7 + (outputConnectorHeight / 2)
     }
 
-    func inputFragmentY(progress: CGFloat) -> CGFloat {
-        let start = sourceY + (sourceHeight / 2) + 9
-        let end = processorY - (processorHeight / 2) - 9
-        return start + ((end - start) * progress)
+    func cardMotion(for index: Int, progress: CGFloat) -> AIFlowCardMotion {
+        let clampedProgress = min(max(progress, 0), 1)
+        let inverseProgress = 1 - clampedProgress
+        let finalOffset = stackOffset(for: index)
+        let finalRotation = stackRotation(for: index)
+        let launchDirection: CGFloat = index.isMultiple(of: 2) ? -1 : 1
+
+        let start = CGPoint(
+            x: centerX,
+            y: processorY + (processorHeight / 2) - 6
+        )
+        let control = CGPoint(
+            x: centerX + (launchDirection * (22 + CGFloat(index * 2))),
+            y: outputConnectorY + (outputConnectorHeight * 0.74)
+        )
+        let end = CGPoint(
+            x: centerX + finalOffset.width,
+            y: cardsY + finalOffset.height
+        )
+
+        let position = CGPoint(
+            x: (inverseProgress * inverseProgress * start.x)
+                + (2 * inverseProgress * clampedProgress * control.x)
+                + (clampedProgress * clampedProgress * end.x),
+            y: (inverseProgress * inverseProgress * start.y)
+                + (2 * inverseProgress * clampedProgress * control.y)
+                + (clampedProgress * clampedProgress * end.y)
+        )
+        let launchRotation = finalRotation + Double(launchDirection * 14)
+
+        return AIFlowCardMotion(
+            position: position,
+            scale: 0.54 + (0.46 * clampedProgress),
+            rotation: launchRotation + ((finalRotation - launchRotation) * Double(clampedProgress))
+        )
     }
 
-    func cardX(for slot: Int) -> CGFloat {
-        centerX + (CGFloat(slot - 1) * (cardWidth + cardSpacing))
+    private func stackOffset(for index: Int) -> CGSize {
+        switch index {
+        case 0: CGSize(width: -13, height: 14)
+        case 1: CGSize(width: 12, height: 10)
+        case 2: CGSize(width: -8, height: 7)
+        case 3: CGSize(width: 7, height: 3)
+        default: .zero
+        }
     }
 
-    func outputCardX(progress: CGFloat, targetSlot: Int) -> CGFloat {
-        centerX + ((cardX(for: targetSlot) - centerX) * progress)
-    }
-
-    func outputCardY(progress: CGFloat) -> CGFloat {
-        let start = processorY + (processorHeight / 2) + (cardHeight * 0.20)
-        return start + ((cardsY - start) * progress)
+    private func stackRotation(for index: Int) -> Double {
+        switch index {
+        case 0: -8
+        case 1: 7
+        case 2: -4.5
+        case 3: 3.5
+        default: 0
+        }
     }
 }
 
-private enum AIFlowPhase: Equatable {
-    case resting
-    case scanning
-    case feeding
-    case processing(Int)
-    case producing(Int)
-    case settling(Int)
-    case complete
-
-    var isScanning: Bool { self == .scanning }
-    var scanProgress: CGFloat {
-        self == .resting ? 0 : 1
-    }
-    var scanOpacity: Double { isScanning ? 1 : 0 }
-    var sourceScale: CGFloat {
-        switch self {
-        case .scanning:
-            1.015
-        case .feeding:
-            0.97
-        case .processing, .producing, .settling, .complete:
-            0.96
-        case .resting:
-            1
-        }
-    }
-
-    var sourceOpacity: Double {
-        switch self {
-        case .resting, .scanning:
-            1
-        case .feeding:
-            0.82
-        case .processing, .producing, .settling, .complete:
-            0.68
-        }
-    }
-
-    var inputProgress: CGFloat {
-        switch self {
-        case .feeding, .processing, .producing, .settling, .complete:
-            1
-        case .resting, .scanning:
-            0
-        }
-    }
-
-    var inputFragmentOpacity: Double { self == .feeding ? 1 : 0 }
-    var inputFragmentScale: CGFloat { self == .feeding ? 1 : 0.72 }
-
-    var processingDot: Int {
-        if case let .processing(dot) = self { return dot }
-
-        switch self {
-        case .producing, .settling, .complete:
-            return 2
-        case .resting, .scanning, .feeding, .processing:
-            return -1
-        }
-    }
-
-    var processorIsActive: Bool {
-        switch self {
-        case .feeding, .processing, .producing, .settling:
-            true
-        case .resting, .scanning, .complete:
-            false
-        }
-    }
-
-    func emphasizesProcessingDot(_ index: Int) -> Bool {
-        if case let .processing(dot) = self { return dot == index }
-        return false
-    }
-
-    var processorScale: CGFloat {
-        switch self {
-        case .processing:
-            1.025
-        case .feeding, .producing, .settling:
-            1.012
-        case .resting, .scanning, .complete:
-            1
-        }
-    }
-
-    var emphasizesInputConnector: Bool { self == .feeding }
-
-    var emphasizesOutputConnector: Bool {
-        switch self {
-        case .processing, .producing, .settling:
-            true
-        case .resting, .scanning, .feeding, .complete:
-            false
-        }
-    }
-
-    var outputProgress: CGFloat {
-        switch self {
-        case .producing, .settling, .complete:
-            1
-        case .resting, .scanning, .feeding, .processing:
-            0
-        }
-    }
-
-    var outputCardOpacity: Double {
-        if case .producing = self { return 1 }
-        return 0
-    }
-
-    var outputCardScale: CGFloat {
-        if case .producing = self { return 1 }
-        return 0.30
-    }
-
-    var outputCardRotation: Double {
-        if case let .producing(slot) = self {
-            return slot == 0 ? -2.4 : (slot == 2 ? 2.4 : 0)
-        }
-        return 0
-    }
-
-    var settledSlot: Int? {
-        if case let .settling(slot) = self { return slot }
-        return nil
-    }
-
-    func isProducing(into slot: Int) -> Bool {
-        if case let .producing(target) = self { return target == slot }
-        return false
-    }
-
-    func cardScale(for _: Int) -> CGFloat {
-        1
-    }
+private struct AIFlowCardMotion {
+    let position: CGPoint
+    let scale: CGFloat
+    let rotation: Double
 }
 
 /// Lets the user choose the only onboarding preference with immediate study value.
