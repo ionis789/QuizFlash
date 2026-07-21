@@ -1468,7 +1468,7 @@ private struct PracticeFlowOnboardingPage: View {
                                 : themeManager.textPrimary.opacity(0.15)
                         )
                         .frame(width: 6, height: 6)
-                        .scaleEffect(index == phase.processingDot ? 1.22 : 1)
+                        .scaleEffect(phase.emphasizesProcessingDot(index) ? 1.22 : 1)
                 }
             }
         }
@@ -1540,7 +1540,6 @@ private struct PracticeFlowOnboardingPage: View {
 
                 if slot < revealedCardCount {
                     generatedCard(index: slot, isNewest: phase.settledSlot == slot)
-                        .transition(.scale(scale: 0.88).combined(with: .opacity))
                 }
             }
             .frame(width: metrics.cardWidth, height: metrics.cardHeight)
@@ -1550,10 +1549,10 @@ private struct PracticeFlowOnboardingPage: View {
             .opacity(phase.isProducing(into: slot) ? 0.44 : 1)
             .shadow(
                 color: phase.settledSlot == slot
-                    ? themeManager.accentColor.color.opacity(0.22)
+                    ? themeManager.accentColor.color.opacity(0.20)
                     : .black.opacity(0.12),
                 radius: phase.settledSlot == slot ? 18 : 10,
-                y: 8
+                y: phase.settledSlot == slot ? 10 : 8
             )
         }
     }
@@ -1638,11 +1637,11 @@ private struct PracticeFlowOnboardingPage: View {
 
                 try await animate(to: .producing(slot), duration: 0.54, bounce: 0.05)
 
-                withAnimation(.smooth(duration: 0.30, extraBounce: 0.12)) {
+                withTransaction(Transaction(animation: nil)) {
                     revealedCardCount = slot + 1
                     phase = .settling(slot)
                 }
-                try await Task.sleep(for: .milliseconds(320))
+                try await Task.sleep(for: .milliseconds(220))
             }
 
             try await animate(to: .complete, duration: 0.40)
@@ -1762,7 +1761,9 @@ private enum AIFlowPhase: Equatable {
     case complete
 
     var isScanning: Bool { self == .scanning }
-    var scanProgress: CGFloat { isScanning ? 1 : 0 }
+    var scanProgress: CGFloat {
+        self == .resting ? 0 : 1
+    }
     var scanOpacity: Double { isScanning ? 1 : 0 }
     var sourceScale: CGFloat {
         switch self {
@@ -1802,25 +1803,36 @@ private enum AIFlowPhase: Equatable {
 
     var processingDot: Int {
         if case let .processing(dot) = self { return dot }
-        return -1
+
+        switch self {
+        case .producing, .settling, .complete:
+            return 2
+        case .resting, .scanning, .feeding, .processing:
+            return -1
+        }
     }
 
     var processorIsActive: Bool {
         switch self {
-        case .feeding, .processing, .producing:
+        case .feeding, .processing, .producing, .settling:
             true
-        case .resting, .scanning, .settling, .complete:
+        case .resting, .scanning, .complete:
             false
         }
+    }
+
+    func emphasizesProcessingDot(_ index: Int) -> Bool {
+        if case let .processing(dot) = self { return dot == index }
+        return false
     }
 
     var processorScale: CGFloat {
         switch self {
         case .processing:
             1.025
-        case .feeding, .producing:
+        case .feeding, .producing, .settling:
             1.012
-        case .resting, .scanning, .settling, .complete:
+        case .resting, .scanning, .complete:
             1
         }
     }
@@ -1872,8 +1884,8 @@ private enum AIFlowPhase: Equatable {
         return false
     }
 
-    func cardScale(for slot: Int) -> CGFloat {
-        settledSlot == slot ? 1.045 : 1
+    func cardScale(for _: Int) -> CGFloat {
+        1
     }
 }
 
