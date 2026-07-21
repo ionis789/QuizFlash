@@ -263,6 +263,7 @@
 "Create a deck" = "Creați un deck";
 "Create a deck to start studying from Home." = "Creează un deck ca să începi să studiezi din Acasă.";
 "Create Account" = "Creează cont";
+"Create cards with AI" = "Creează carduri cu AI";
 "Create Deck" = "Creează deck";
 "Create one from the section header." = "Creați unul din antetul secțiunii.";
 "Create your first deck" = "Creează primul tău deck";
@@ -364,7 +365,6 @@
 "Force Line Break" = "Forțează rând nou";
 "Forgot Password?" = "Ai uitat parola?";
 "Freed" = "Eliberat";
-"From notes to practice" = "Din notițe, direct la exersat";
 "Full Width" = "Lățime completă";
 "Gallery" = "Galerie";
 "Generate" = "Genera";
@@ -604,6 +604,7 @@
 "Quiz Cards" = "Carduri quiz";
 "Quiz Isn't Ready" = "Quiz-ul nu este pregătit";
 "QuizFlash" = "QuizFlash";
+"QuizFlash AI" = "QuizFlash AI";
 "QuizFlash User" = "QuizFlash Utilizator";
 "Radius %.1f" = "Raza %.1f";
 "readiness" = "pregătire";
@@ -791,7 +792,7 @@
 "Tune Header Blur" = "Ajustează blurul antetului";
 "Tune Shadow" = "Ajustează umbra";
 "Tune Tab Blur" = "Ajustează blurul tabbarului";
-"Turn any topic into flashcards and quizzes." = "Transformă orice subiect în fișe și quizuri.";
+"Turn your material into cards ready to study." = "Transformă materialul în carduri gata de învățat.";
 "Type" = "Tip";
 "Unavailable" = "Indisponibil";
 "Undo Changes" = "Anulează modificările";
@@ -829,7 +830,7 @@
 "You have unsaved changes in this deck." = "Aveți modificări nesalvate în acest deck.";
 "You're all set." = "Totul este pregătit.";
 "Your card changes couldn't be saved right now." = "Modificările cardului nu au putut fi salvate acum.";
-"Your notes" = "Notițele tale";
+"Your material" = "Materialul tău";
 "Zone Style" = "Stil zone";
 "zones(%d)" = "zone(%d)";
 "|" = "|";

@@ -263,6 +263,7 @@
 "Create a deck" = "Создать колоду";
 "Create a deck to start studying from Home." = "Создайте колоду, чтобы начать учиться с главного экрана.";
 "Create Account" = "Создать аккаунт";
+"Create cards with AI" = "Создавай карточки с AI";
 "Create Deck" = "Создать колоду";
 "Create one from the section header." = "Создайте его из заголовка раздела.";
 "Create your first deck" = "Создайте свою первую колоду";
@@ -364,7 +365,6 @@
 "Force Line Break" = "Принудительный перенос";
 "Forgot Password?" = "Забыли пароль?";
 "Freed" = "Фрид";
-"From notes to practice" = "От заметок к практике";
 "Full Width" = "На всю ширину";
 "Gallery" = "Галерея";
 "Generate" = "Генерировать";
@@ -604,6 +604,7 @@
 "Quiz Cards" = "Карточки викторины";
 "Quiz Isn't Ready" = "Режим викторины ещё не готов";
 "QuizFlash" = "__ВИКТОРИНА__";
+"QuizFlash AI" = "QuizFlash AI";
 "QuizFlash User" = "QuizFlash Пользователь";
 "Radius %.1f" = "Радиус %.1f";
 "readiness" = "готовность";
@@ -791,7 +792,7 @@
 "Tune Header Blur" = "Настроить размытие заголовка";
 "Tune Shadow" = "Настроить тень";
 "Tune Tab Blur" = "Настроить размытие вкладок";
-"Turn any topic into flashcards and quizzes." = "Превращай любую тему во флэшкарточки и квизы.";
+"Turn your material into cards ready to study." = "Превращай материал в готовые карточки для учебы.";
 "Type" = "Тип";
 "Unavailable" = "Недоступно";
 "Undo Changes" = "Отменить изменения";
@@ -829,7 +830,7 @@
 "You have unsaved changes in this deck." = "У вас есть несохраненные изменения в этой колоде.";
 "You're all set." = "Все готово.";
 "Your card changes couldn't be saved right now." = "Изменения карточки сейчас не удалось сохранить.";
-"Your notes" = "Твои заметки";
+"Your material" = "Твой материал";
 "Zone Style" = "Стиль зон";
 "zones(%d)" = "зоны(%d)";
 "|" = "|";

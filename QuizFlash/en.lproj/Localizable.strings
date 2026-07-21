@@ -263,6 +263,7 @@
 "Create a deck" = "Create a deck";
 "Create a deck to start studying from Home." = "Create a deck to start studying from Home.";
 "Create Account" = "Create Account";
+"Create cards with AI" = "Create cards with AI";
 "Create Deck" = "Create Deck";
 "Create one from the section header." = "Create one from the section header.";
 "Create your first deck" = "Create your first deck";
@@ -364,7 +365,6 @@
 "Force Line Break" = "Force Line Break";
 "Forgot Password?" = "Forgot Password?";
 "Freed" = "Freed";
-"From notes to practice" = "From notes to practice";
 "Full Width" = "Full Width";
 "Gallery" = "Gallery";
 "Generate" = "Generate";
@@ -604,6 +604,7 @@
 "Quiz Cards" = "Quiz Cards";
 "Quiz Isn't Ready" = "Quiz Isn't Ready";
 "QuizFlash" = "QuizFlash";
+"QuizFlash AI" = "QuizFlash AI";
 "QuizFlash User" = "QuizFlash User";
 "Radius %.1f" = "Radius %.1f";
 "readiness" = "readiness";
@@ -791,7 +792,7 @@
 "Tune Header Blur" = "Tune Header Blur";
 "Tune Shadow" = "Tune Shadow";
 "Tune Tab Blur" = "Tune Tab Blur";
-"Turn any topic into flashcards and quizzes." = "Turn any topic into flashcards and quizzes.";
+"Turn your material into cards ready to study." = "Turn your material into cards ready to study.";
 "Type" = "Type";
 "Unavailable" = "Unavailable";
 "Undo Changes" = "Undo Changes";
@@ -829,7 +830,7 @@
 "You have unsaved changes in this deck." = "You have unsaved changes in this deck.";
 "You're all set." = "You're all set.";
 "Your card changes couldn't be saved right now." = "Your card changes couldn't be saved right now.";
-"Your notes" = "Your notes";
+"Your material" = "Your material";
 "Zone Style" = "Zone Style";
 "zones(%d)" = "zones(%d)";
 "|" = "|";

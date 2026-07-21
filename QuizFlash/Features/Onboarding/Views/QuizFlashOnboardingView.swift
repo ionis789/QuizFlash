@@ -122,8 +122,10 @@ struct QuizFlashOnboardingView: View {
                 Spacer(minLength: 0)
             } else {
                 textContent
+                    .frame(height: metrics.descriptionHeight)
             }
             continueButton(horizontalPadding: metrics.continueButtonHorizontalPadding)
+                .padding(.top, items[currentIndex].kind == .welcome ? 0 : UIConstants.Spacing.small)
             indicatorView
         }
         .padding(.top, UIConstants.Spacing.large)
@@ -303,7 +305,11 @@ private struct QuizFlashOnboardingLayoutMetrics {
     }
 
     var bottomControlsHeight: CGFloat {
-        height * (0.20 - (aspectRatio * 0.070))
+        max(height * (0.235 - (aspectRatio * 0.040)), 184)
+    }
+
+    var descriptionHeight: CGFloat {
+        max(height * 0.068, 54)
     }
 
     var bottomControlsWidth: CGFloat {
@@ -412,8 +418,8 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
         ),
         .init(
             id: 1,
-            titleKey: "From notes to practice",
-            subtitleKey: "Turn any topic into flashcards and quizzes.",
+            titleKey: "Create cards with AI",
+            subtitleKey: "Turn your material into cards ready to study.",
             kind: .practiceFlow
         ),
         .init(
@@ -1253,154 +1259,191 @@ private enum WelcomeQuizAnswerState {
     case correct
 }
 
-/// Shows QuizFlash's core input-to-practice flow without introducing settings.
+/// Shows source material passing through QuizFlash AI and becoming study cards.
 private struct PracticeFlowOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: UIConstants.Spacing.large)
+            Spacer(minLength: UIConstants.Spacing.standard)
 
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Image(systemName: "doc.text.fill")
-                        .foregroundStyle(themeManager.accentColor.color)
+            sourceMaterial
+            pipelineConnector
+            aiFactory
+            generatedCards
 
-                    Text(AppLocalization.string("Your notes", locale: appPreferences.resolvedLocale))
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    Spacer(minLength: 0)
-                }
-
-                VStack(alignment: .leading, spacing: 11) {
-                    noteLine(width: 0.92)
-                    noteLine(width: 0.72)
-                    noteLine(width: 0.84)
-                }
-            }
-            .padding(UIConstants.Spacing.large)
-            .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(themeManager.textPrimary.opacity(0.09), lineWidth: 1)
-            }
-
-            ZStack {
-                Capsule()
-                    .fill(themeManager.textPrimary.opacity(0.10))
-                    .frame(width: 2, height: 56)
-
-                Circle()
-                    .fill(themeManager.accentColor.color)
-                    .frame(width: 42, height: 42)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(.black)
-            }
-
-            HStack(spacing: UIConstants.Spacing.medium) {
-                PracticeOutputCard(kind: .flashcard)
-                PracticeOutputCard(kind: .quiz)
-            }
-
-            Spacer(minLength: UIConstants.Spacing.large)
+            Spacer(minLength: UIConstants.Spacing.standard)
         }
         .padding(.horizontal, UIConstants.Spacing.extraLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func noteLine(width: CGFloat) -> some View {
-        GeometryReader { proxy in
-            Capsule()
-                .fill(themeManager.textSecondary.opacity(0.30))
-                .frame(width: proxy.size.width * width, height: 7)
-        }
-        .frame(height: 7)
-    }
-}
-
-/// A compact representation of one practice format produced by QuizFlash.
-private struct PracticeOutputCard: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let kind: PracticeOutputKind
-
-    var body: some View {
+    private var sourceMaterial: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack {
-                Image(systemName: kind.symbolName)
-                    .font(.headline.weight(.bold))
+            HStack(spacing: UIConstants.Spacing.small) {
+                Image(systemName: "doc.text.fill")
                     .foregroundStyle(themeManager.accentColor.color)
 
-                Spacer(minLength: 0)
+                Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(themeManager.textPrimary)
 
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.accentColor.color.opacity(0.85))
+                Spacer(minLength: 0)
             }
 
-            Text(AppLocalization.string(kind.titleKey, locale: appPreferences.resolvedLocale))
-                .font(.headline.weight(.bold))
-                .foregroundStyle(themeManager.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.76)
-
-            kind.preview(themeManager: themeManager)
-                .frame(maxHeight: .infinity, alignment: .top)
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                sourceLine(width: 0.92)
+                sourceLine(width: 0.68)
+                sourceLine(width: 0.80)
+            }
         }
         .padding(UIConstants.Spacing.medium)
-        .frame(maxWidth: .infinity, minHeight: 178, alignment: .topLeading)
         .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(themeManager.textPrimary.opacity(0.09), lineWidth: 1)
         }
     }
-}
 
-/// The two card formats introduced in the onboarding flow diagram.
-private enum PracticeOutputKind {
-    case flashcard
-    case quiz
+    private var pipelineConnector: some View {
+        ZStack(alignment: .bottom) {
+            Capsule()
+                .fill(themeManager.accentColor.color.opacity(0.42))
+                .frame(width: 2, height: 38)
 
-    var titleKey: String {
-        switch self {
-        case .flashcard: "Flashcard"
-        case .quiz: "Quiz"
+            Image(systemName: "chevron.compact.down")
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(themeManager.accentColor.color)
+                .offset(y: 3)
         }
+        .frame(height: 42)
     }
 
-    var symbolName: String {
-        switch self {
-        case .flashcard: "rectangle.on.rectangle.angled"
-        case .quiz: "checklist"
-        }
-    }
+    private var aiFactory: some View {
+        VStack(spacing: UIConstants.Spacing.medium) {
+            HStack(spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 45, weight: .bold))
+                        .foregroundStyle(themeManager.accentColor.color)
+                        .offset(x: -13, y: 6)
 
-    @ViewBuilder
-    func preview(themeManager: ThemeManager) -> some View {
-        switch self {
-        case .flashcard:
-            VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(themeManager.textPrimary.opacity(0.12))
-                    .frame(height: 28)
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(themeManager.accentColor.color.opacity(0.20))
-                    .frame(height: 43)
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 31, weight: .bold))
+                        .foregroundStyle(themeManager.textPrimary.opacity(0.74))
+                        .offset(x: 18, y: -12)
+                }
+                .frame(width: 82, height: 66)
+
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    HStack(spacing: UIConstants.Spacing.tiny) {
+                        Image(systemName: "sparkles")
+                        Text(AppLocalization.string("QuizFlash AI", locale: appPreferences.resolvedLocale))
+                    }
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(themeManager.textPrimary)
+
+                    HStack(spacing: 6) {
+                        ForEach(0..<4, id: \.self) { index in
+                            Capsule()
+                                .fill(
+                                    index == 3
+                                        ? themeManager.accentColor.color
+                                        : themeManager.textPrimary.opacity(0.18)
+                                )
+                                .frame(width: index == 3 ? 22 : 8, height: 8)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
             }
-        case .quiz:
-            VStack(spacing: 7) {
-                ForEach(0..<3, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(index == 1 ? themeManager.accentColor.color.opacity(0.24) : themeManager.textPrimary.opacity(0.10))
-                        .frame(height: 24)
+
+            Capsule()
+                .fill(Color.black.opacity(0.44))
+                .frame(width: 112, height: 12)
+                .overlay {
+                    Capsule()
+                        .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.vertical, UIConstants.Spacing.medium)
+        .frame(maxWidth: .infinity)
+        .background(themeManager.accentColor.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(themeManager.accentColor.color.opacity(0.38), lineWidth: 1.4)
+        }
+    }
+
+    private var generatedCards: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(themeManager.accentColor.color.opacity(0.42))
+                .frame(width: 2, height: 18)
+
+            HStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Capsule()
+                        .fill(themeManager.accentColor.color.opacity(0.42))
+                        .frame(width: 2, height: 18)
+                        .frame(maxWidth: .infinity)
                 }
             }
+            .overlay(alignment: .top) {
+                Capsule()
+                    .fill(themeManager.accentColor.color.opacity(0.42))
+                    .frame(height: 2)
+                    .padding(.horizontal, UIConstants.Spacing.extraLarge + UIConstants.Spacing.standard)
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                ForEach(0..<3, id: \.self) { index in
+                    generatedCard(index: index)
+                }
+            }
+        }
+    }
+
+    private func sourceLine(width: CGFloat) -> some View {
+        GeometryReader { proxy in
+            Capsule()
+                .fill(themeManager.textSecondary.opacity(0.28))
+                .frame(width: proxy.size.width * width, height: 7)
+        }
+        .frame(height: 7)
+    }
+
+    private func generatedCard(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            HStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(themeManager.accentColor.color.opacity(index == 1 ? 0.72 : 0.40))
+                    .frame(width: 24, height: 7)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(themeManager.accentColor.color)
+            }
+
+            Capsule()
+                .fill(themeManager.textPrimary.opacity(0.14))
+                .frame(height: 7)
+
+            Capsule()
+                .fill(themeManager.textPrimary.opacity(0.09))
+                .frame(width: 46, height: 7)
+        }
+        .padding(UIConstants.Spacing.small)
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+        .background(themeManager.textPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(themeManager.textPrimary.opacity(0.10), lineWidth: 1)
         }
     }
 }

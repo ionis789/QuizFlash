@@ -264,6 +264,7 @@ Create	Create	Creează	Создать
 Create a deck	Create a deck	Creați un deck	Создать колоду
 Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
 Create Account	Create Account	Creează cont	Создать аккаунт
+Create cards with AI	Create cards with AI	Creează carduri cu AI	Создавай карточки с AI
 Create Deck	Create Deck	Creează deck	Создать колоду
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
@@ -365,7 +366,6 @@ Font	Font	Font	Шрифт
 Force Line Break	Force Line Break	Forțează rând nou	Принудительный перенос
 Forgot Password?	Forgot Password?	Ai uitat parola?	Забыли пароль?
 Freed	Freed	Eliberat	Фрид
-From notes to practice	From notes to practice	Din notițe, direct la exersat	От заметок к практике
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
@@ -605,6 +605,7 @@ Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
 Quiz Isn't Ready	Quiz Isn't Ready	Quiz-ul nu este pregătit	Режим викторины ещё не готов
 QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
+QuizFlash AI	QuizFlash AI	QuizFlash AI	QuizFlash AI
 QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
 Radius %.1f	Radius %.1f	Raza %.1f	Радиус %.1f
 readiness	readiness	pregătire	готовность
@@ -792,7 +793,7 @@ Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка
 Tune Shadow	Tune Shadow	Ajustează umbra	Настроить тень
 Tune Tab Blur	Tune Tab Blur	Ajustează blurul tabbarului	Настроить размытие вкладок
-Turn any topic into flashcards and quizzes.	Turn any topic into flashcards and quizzes.	Transformă orice subiect în fișe și quizuri.	Превращай любую тему во флэшкарточки и квизы.
+Turn your material into cards ready to study.	Turn your material into cards ready to study.	Transformă materialul în carduri gata de învățat.	Превращай материал в готовые карточки для учебы.
 Type	Type	Tip	Тип
 Unavailable	Unavailable	Indisponibil	Недоступно
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
@@ -830,7 +831,7 @@ You can stop now and keep the cards already received, or discard this AI batch c
 You have unsaved changes in this deck.	You have unsaved changes in this deck.	Aveți modificări nesalvate în acest deck.	У вас есть несохраненные изменения в этой колоде.
 You're all set.	You're all set.	Totul este pregătit.	Все готово.
 Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
-Your notes	Your notes	Notițele tale	Твои заметки
+Your material	Your material	Materialul tău	Твой материал
 Zone Style	Zone Style	Stil zone	Стиль зон
 zones(%d)	zones(%d)	zone(%d)	зоны(%d)
 |	|	|	|
