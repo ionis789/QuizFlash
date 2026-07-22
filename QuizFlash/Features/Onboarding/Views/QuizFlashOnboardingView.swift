@@ -128,19 +128,23 @@ struct QuizFlashOnboardingView: View {
     private func bottomControls(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
         VStack(spacing: UIConstants.Spacing.medium) {
             if items[currentIndex].kind == .welcome {
-                Spacer(minLength: 0)
+                Text(AppLocalization.string(items[currentIndex].subtitleKey, locale: locale))
+                    .font(.callout.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.80))
+                    .frame(height: metrics.welcomeDescriptionHeight)
             } else {
                 textContent
                     .frame(height: metrics.descriptionHeight)
             }
+
             continueButton(horizontalPadding: metrics.continueButtonHorizontalPadding)
-                .padding(.top, items[currentIndex].kind == .welcome ? 0 : UIConstants.Spacing.small)
+                .padding(.top, UIConstants.Spacing.small)
             indicatorView
         }
-        .padding(.top, UIConstants.Spacing.large)
         .padding(.horizontal, UIConstants.Spacing.standard)
         .frame(width: metrics.bottomControlsWidth)
-        .frame(height: metrics.bottomControlsHeight)
+        .frame(height: metrics.bottomControlsHeight, alignment: .bottom)
         .padding(.bottom, metrics.bottomControlsBottomPadding)
     }
 
@@ -163,6 +167,7 @@ struct QuizFlashOnboardingView: View {
                         Text(AppLocalization.string(item.subtitleKey, locale: locale))
                             .font(.callout.weight(.medium))
                             .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.80))
                     }
@@ -331,15 +336,19 @@ private struct QuizFlashOnboardingLayoutMetrics {
     }
 
     var bottomControlsHeight: CGFloat {
-        max(height * (0.235 - (aspectRatio * 0.040)), 184)
+        max(height * (0.250 - (aspectRatio * 0.035)), 200)
     }
 
     var descriptionHeight: CGFloat {
-        max(height * 0.068, 54)
+        min(max(height * 0.090, 72), 82)
+    }
+
+    var welcomeDescriptionHeight: CGFloat {
+        min(max(height * 0.032, 24), 30)
     }
 
     var bottomControlsWidth: CGFloat {
-        width * (0.90 - (aspectRatio * 0.18))
+        min(width * 0.96, 680)
     }
 
     var bottomControlsBottomPadding: CGFloat {
@@ -443,7 +452,7 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
         .init(
             id: 0,
             titleKey: "Learn easy with QuizFlash",
-            subtitleKey: "",
+            subtitleKey: "Learn, practice, remember.",
             kind: .welcome
         ),
         .init(
@@ -2039,15 +2048,17 @@ private struct CardsTargetOnboardingLayoutMetrics {
     }
 
     var pickerConfig: TickPickerConfig {
-        TickPickerConfig(
-            tickWidth: 2 * contentScale,
-            tickHeight: 28 * contentScale,
-            tickHPadding: 5 * contentScale,
+        let accent = ThemeManager.shared.accentColor.color
+
+        return TickPickerConfig(
+            tickWidth: 3 * contentScale,
+            tickHeight: 30 * contentScale,
+            tickHPadding: 8 * contentScale,
             inActiveHeightProgress: 0.48,
-            interactionHeight: 62 * contentScale,
+            interactionHeight: 66 * contentScale,
             tickAreaTopPadding: 4 * contentScale,
-            activeTint: ThemeManager.shared.roleColor(.labelPrimaryForeground),
-            inActiveTint: .primary,
+            activeTint: accent.opacity(0.98),
+            inActiveTint: accent.opacity(0.72),
             alignment: .bottom
         )
     }
