@@ -438,6 +438,7 @@
 "Last opened %@." = "Deschis ultima dată %@.";
 "Last week" = "Săptămâna trecută";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.";
+"LaTeX support" = "Suport LaTeX";
 "Layout" = "Aranjare";
 "Learn easy with QuizFlash" = "Învață ușor cu QuizFlash";
 "Learn fast and effectively." = "Învață rapid și eficient.";
@@ -736,6 +737,7 @@
 "Tap + to add your first card" = "Atinge + ca să adaugi primul card";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.";
 "Tap cards" = "Atinge carduri";
+"Tap the flashcard to flip it." = "Atinge cardul pentru a-l întoarce.";
 "Tap the label above to flip the card" = "Atingeți eticheta de mai sus pentru a răsturna card";
 "Target cleared for today" = "Ținta e atinsă azi";
 "Template examples" = "Exemple de șabloane";
@@ -748,6 +750,7 @@
 "The current AI generation will stop immediately." = "Generația actuală de AI se va opri imediat.";
 "The email or password is incorrect." = "Emailul sau parola este incorectă.";
 "The first AI results will appear here in a moment." = "Primele rezultate AI vor apărea aici în curând.";
+"The Gaussian integral equals:" = "Integrala Gaussiană este egală cu:";
 "The interface stays readable while authored card content can be tuned separately for review comfort." = "Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.";
 "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text." = "Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.";
 "The persisted JSON trace could not be loaded. It may have been deleted or corrupted." = "Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.";
@@ -820,6 +823,7 @@
 "Welcome" = "Bun venit";
 "Welcome back" = "Bine ai revenit";
 "What is eventual consistency?" = "Ce este consistenta eventuala?";
+"What is the value of this integral?" = "Care este valoarea acestei integrale?";
 "Where it changes" = "Unde se schimbă";
 "Widget Border Radius" = "Raza chenarului widgetului";
 "XP" = "XP";

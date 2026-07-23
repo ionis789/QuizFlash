@@ -120,6 +120,8 @@ struct QuizFlashOnboardingView: View {
             WelcomeOnboardingPage(isActive: isActive || welcomeDemoIsActive)
         case .practiceFlow:
             PracticeFlowOnboardingPage(isActive: isActive)
+        case .latexSupport:
+            LatexSupportOnboardingPage(isActive: isActive)
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
         }
@@ -451,6 +453,12 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
         ),
         .init(
             id: 2,
+            titleKey: "LaTeX support",
+            subtitleKey: "Tap the flashcard to flip it.",
+            kind: .latexSupport
+        ),
+        .init(
+            id: 3,
             titleKey: "Build a daily habit",
             subtitleKey: "Choose a pace that feels easy to keep.",
             kind: .cardsTarget
@@ -461,6 +469,7 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
 private enum QuizFlashOnboardingPageKind: Hashable {
     case welcome
     case practiceFlow
+    case latexSupport
     case cardsTarget
 }
 
@@ -1589,26 +1598,26 @@ private struct PracticeFlowOnboardingPage: View {
         showInitialState()
 
         do {
-            try await Task.sleep(for: .milliseconds(100))
+            try await Task.sleep(for: .milliseconds(60))
             withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
                 sourceIsVisible = true
             }
-            try await Task.sleep(for: .milliseconds(650))
+            try await Task.sleep(for: .milliseconds(380))
 
-            try await animate(duration: 0.48, animation: .easeInOut(duration: 0.48)) {
+            try await animate(duration: 0.30, animation: .easeInOut(duration: 0.30)) {
                 inputConnectorProgress = 1
             }
 
             withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
                 processorIsVisible = true
             }
-            try await Task.sleep(for: .milliseconds(180))
+            try await Task.sleep(for: .milliseconds(100))
 
-            try await animate(duration: 0.70, animation: .easeInOut(duration: 0.70)) {
+            try await animate(duration: 0.42, animation: .easeInOut(duration: 0.42)) {
                 processorTraceProgress = 1
             }
 
-            try await animate(duration: 0.50, animation: .easeInOut(duration: 0.50)) {
+            try await animate(duration: 0.30, animation: .easeInOut(duration: 0.30)) {
                 outputConnectorProgress = 1
             }
 
@@ -1627,10 +1636,10 @@ private struct PracticeFlowOnboardingPage: View {
     private func deliverCard(at index: Int) async throws {
         try Task.checkCancellation()
 
-        let velocity = 1 + (Double(index) * 0.10)
-        let releaseDuration = 0.08 / velocity
-        let fallDuration = 0.23 / velocity
-        let settleDuration = 0.13 / velocity
+        let velocity = 1.22 + (Double(index) * 0.13)
+        let releaseDuration = 0.07 / velocity
+        let fallDuration = 0.19 / velocity
+        let settleDuration = 0.11 / velocity
 
         withTransaction(Transaction(animation: nil)) {
             activeCardIndex = index
@@ -1906,6 +1915,117 @@ private struct AIFlowCardMotion {
     let rotation: Double
 }
 
+/// Demonstrates the same flippable KaTeX-backed flashcard used in Play Mode.
+private struct LatexSupportOnboardingPage: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let isActive: Bool
+
+    @State private var isFlipped = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            let metrics = LatexSupportOnboardingLayoutMetrics(containerSize: proxy.size)
+            let frontZone = Self.formulaZone(
+                id: Self.frontZoneID,
+                text: "\(AppLocalization.string("What is the value of this integral?", locale: appPreferences.resolvedLocale))\n\n$$\\int_0^\\infty e^{-x^2}\\,dx$$"
+            )
+            let backZone = Self.formulaZone(
+                id: Self.backZoneID,
+                text: "\(AppLocalization.string("The Gaussian integral equals:", locale: appPreferences.resolvedLocale))\n\n$$\\frac{\\sqrt{\\pi}}{2}$$"
+            )
+
+            FlipCard(
+                frontZone: frontZone,
+                backZone: backZone,
+                isFlipped: $isFlipped,
+                preloadsHiddenFace: true,
+                tapAnimationStyle: .flip3D,
+                contentAlignment: .center,
+                textSize: FlashcardTextSize(step: 1),
+                onTap: flipCard
+            )
+            .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleRevealMotion(
+                isVisible: isActive,
+                reduceMotion: reduceMotion,
+                hiddenOpacity: 0.001
+            )
+            .allowsHitTesting(isActive)
+            .accessibilityLabel(
+                AppLocalization.string("Tap the flashcard to flip it.", locale: appPreferences.resolvedLocale)
+            )
+            .accessibilityAddTraits(.isButton)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: isActive) { _, newValue in
+            guard !newValue else { return }
+            withTransaction(Transaction(animation: nil)) {
+                isFlipped = false
+            }
+        }
+    }
+
+    private func flipCard() {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.58)
+
+        if reduceMotion {
+            isFlipped.toggle()
+        } else {
+            withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
+                isFlipped.toggle()
+            }
+        }
+    }
+
+    private static let frontZoneID = UUID(uuidString: "49131036-5B53-43B4-B25E-DC343C0AB4A9")!
+    private static let backZoneID = UUID(uuidString: "AE80CD1B-B8F2-43DB-8685-773CD0F6D18A")!
+
+    private static func formulaZone(id: UUID, text: String) -> ZoneModel {
+        var zone = ZoneModel()
+        zone.id = id
+        zone.contentType = .text
+        zone.text = text
+        zone.textStyle = .body
+        zone.sizeMode = .fillWidth
+        zone.blockAlignment = .center
+        zone.verticalAlignment = .center
+        return zone
+    }
+}
+
+private struct LatexSupportOnboardingLayoutMetrics {
+    let containerSize: CGSize
+
+    private var width: CGFloat {
+        max(containerSize.width, 1)
+    }
+
+    private var height: CGFloat {
+        max(containerSize.height, 1)
+    }
+
+    var contentScale: CGFloat {
+        min(max(width / 390, 0.88), 1.35)
+    }
+
+    var cardWidth: CGFloat {
+        min(
+            width * 0.82,
+            height * 0.75 * 0.72,
+            330 * contentScale
+        )
+    }
+
+    var cardHeight: CGFloat {
+        cardWidth / 0.72
+    }
+}
+
 /// Lets the user choose the only onboarding preference with immediate study value.
 private struct CardsTargetOnboardingPage: View {
     @Environment(AppPreferences.self) private var appPreferences
@@ -2072,4 +2192,5 @@ private struct QuizFlashOnboardingDeviceFrameMetrics {
     )
     .environment(AppPreferences.shared)
     .environment(ThemeManager.shared)
+    .environment(DevelopmentPreferences.shared)
 }

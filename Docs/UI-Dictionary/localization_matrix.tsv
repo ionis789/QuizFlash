@@ -438,6 +438,7 @@ Large	Large	Mare	Крупный
 Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
+LaTeX support	LaTeX support	Suport LaTeX	Поддержка LaTeX
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
 Learn easy with QuizFlash	Learn easy with QuizFlash	Învață ușor cu QuizFlash	Учись легко с QuizFlash
@@ -737,6 +738,7 @@ Tap + to add a card, or generate cards with AI.	Tap + to add a card, or generate
 Tap + to add your first card	Tap + to add your first card	Atinge + ca să adaugi primul card	Нажмите +, чтобы добавить первую карточку
 Tap another day in the chart or start a short review block to build this week with meaningful history.	Tap another day in the chart or start a short review block to build this week with meaningful history.	Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.	Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.
 Tap cards	Tap cards	Atinge carduri	Нажмите на карточки
+Tap the flashcard to flip it.	Tap the flashcard to flip it.	Atinge cardul pentru a-l întoarce.	Нажми на карточку, чтобы перевернуть её.
 Tap the label above to flip the card	Tap the label above to flip the card	Atingeți eticheta de mai sus pentru a răsturna card	Коснитесь ярлыка выше, чтобы перевернуть карту.
 Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
 Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
@@ -749,6 +751,7 @@ Text: %@	Text: %@	Text: %@	Текст: %@
 The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
 The email or password is incorrect.	The email or password is incorrect.	Emailul sau parola este incorectă.	Email или пароль неверны.
 The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
+The Gaussian integral equals:	The Gaussian integral equals:	Integrala Gaussiană este egală cu:	Интеграл Гаусса равен:
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
@@ -821,6 +824,7 @@ Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный 
 Welcome	Welcome	Bun venit	Добро пожаловать
 Welcome back	Welcome back	Bine ai revenit	С возвращением
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
+What is the value of this integral?	What is the value of this integral?	Care este valoarea acestei integrale?	Чему равен этот интеграл?
 Where it changes	Where it changes	Unde se schimbă	Где меняется
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP

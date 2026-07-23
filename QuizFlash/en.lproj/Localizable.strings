@@ -438,6 +438,7 @@
 "Last opened %@." = "Last opened %@.";
 "Last week" = "Last week";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.";
+"LaTeX support" = "LaTeX support";
 "Layout" = "Layout";
 "Learn easy with QuizFlash" = "Learn easy with QuizFlash";
 "Learn fast and effectively." = "Learn fast and effectively.";
@@ -736,6 +737,7 @@
 "Tap + to add your first card" = "Tap + to add your first card";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Tap another day in the chart or start a short review block to build this week with meaningful history.";
 "Tap cards" = "Tap cards";
+"Tap the flashcard to flip it." = "Tap the flashcard to flip it.";
 "Tap the label above to flip the card" = "Tap the label above to flip the card";
 "Target cleared for today" = "Target cleared for today";
 "Template examples" = "Template examples";
@@ -748,6 +750,7 @@
 "The current AI generation will stop immediately." = "The current AI generation will stop immediately.";
 "The email or password is incorrect." = "The email or password is incorrect.";
 "The first AI results will appear here in a moment." = "The first AI results will appear here in a moment.";
+"The Gaussian integral equals:" = "The Gaussian integral equals:";
 "The interface stays readable while authored card content can be tuned separately for review comfort." = "The interface stays readable while authored card content can be tuned separately for review comfort.";
 "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text." = "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.";
 "The persisted JSON trace could not be loaded. It may have been deleted or corrupted." = "The persisted JSON trace could not be loaded. It may have been deleted or corrupted.";
@@ -820,6 +823,7 @@
 "Welcome" = "Welcome";
 "Welcome back" = "Welcome back";
 "What is eventual consistency?" = "What is eventual consistency?";
+"What is the value of this integral?" = "What is the value of this integral?";
 "Where it changes" = "Where it changes";
 "Widget Border Radius" = "Widget Border Radius";
 "XP" = "XP";

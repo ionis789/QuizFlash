@@ -438,6 +438,7 @@
 "Last opened %@." = "Последний раз открывали %@.";
 "Last week" = "Прошлая неделя";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.";
+"LaTeX support" = "Поддержка LaTeX";
 "Layout" = "Разметка";
 "Learn easy with QuizFlash" = "Учись легко с QuizFlash";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
@@ -736,6 +737,7 @@
 "Tap + to add your first card" = "Нажмите +, чтобы добавить первую карточку";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.";
 "Tap cards" = "Нажмите на карточки";
+"Tap the flashcard to flip it." = "Нажми на карточку, чтобы перевернуть её.";
 "Tap the label above to flip the card" = "Коснитесь ярлыка выше, чтобы перевернуть карту.";
 "Target cleared for today" = "Цель на сегодня закрыта";
 "Template examples" = "Примеры шаблонов";
@@ -748,6 +750,7 @@
 "The current AI generation will stop immediately." = "Нынешнее поколение ИИ немедленно остановится.";
 "The email or password is incorrect." = "Email или пароль неверны.";
 "The first AI results will appear here in a moment." = "Первые результаты AI скоро появятся здесь.";
+"The Gaussian integral equals:" = "Интеграл Гаусса равен:";
 "The interface stays readable while authored card content can be tuned separately for review comfort." = "Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.";
 "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text." = "В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.";
 "The persisted JSON trace could not be loaded. It may have been deleted or corrupted." = "Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.";
@@ -820,6 +823,7 @@
 "Welcome" = "Добро пожаловать";
 "Welcome back" = "С возвращением";
 "What is eventual consistency?" = "Что такое конечная согласованность?";
+"What is the value of this integral?" = "Чему равен этот интеграл?";
 "Where it changes" = "Где меняется";
 "Widget Border Radius" = "Радиус границы виджета";
 "XP" = "XP";
