@@ -440,7 +440,6 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.";
 "Layout" = "Aranjare";
 "Learn easy with QuizFlash" = "Învață ușor cu QuizFlash";
-"Learn, practice, remember." = "Învață, exersează, reține.";
 "Learn fast and effectively." = "Învață rapid și eficient.";
 "Learn faster. Stay productive." = "Învață mai eficient. Rămâi productiv.";
 "Learning" = "În învățare";
@@ -588,6 +587,7 @@
 "Preparing request" = "Se pregătește cererea";
 "Preparing source" = "Se pregătește sursa";
 "Preparing your material" = "Pregătirea materialului dvs";
+"Practice today. Remember tomorrow." = "Exersează azi. Reține mâine.";
 "PREVIEW" = "PREVIZUALIZARE";
 "Preview" = "Previzualizare";
 "Preview Mode" = "Modul de previzualizare";
@@ -831,7 +831,7 @@
 "You have unsaved changes in this deck." = "Aveți modificări nesalvate în acest deck.";
 "You're all set." = "Totul este pregătit.";
 "Your card changes couldn't be saved right now." = "Modificările cardului nu au putut fi salvate acum.";
-"Your material" = "Materialul tău";
+"Your notes" = "Notițele tale";
 "Zone Style" = "Stil zone";
 "zones(%d)" = "zone(%d)";
 "|" = "|";

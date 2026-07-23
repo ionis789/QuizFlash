@@ -440,7 +440,6 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.";
 "Layout" = "Layout";
 "Learn easy with QuizFlash" = "Learn easy with QuizFlash";
-"Learn, practice, remember." = "Learn, practice, remember.";
 "Learn fast and effectively." = "Learn fast and effectively.";
 "Learn faster. Stay productive." = "Learn faster. Stay productive.";
 "Learning" = "Learning";
@@ -588,6 +587,7 @@
 "Preparing request" = "Preparing request";
 "Preparing source" = "Preparing source";
 "Preparing your material" = "Preparing your material";
+"Practice today. Remember tomorrow." = "Practice today. Remember tomorrow.";
 "PREVIEW" = "PREVIEW";
 "Preview" = "Preview";
 "Preview Mode" = "Preview Mode";
@@ -831,7 +831,7 @@
 "You have unsaved changes in this deck." = "You have unsaved changes in this deck.";
 "You're all set." = "You're all set.";
 "Your card changes couldn't be saved right now." = "Your card changes couldn't be saved right now.";
-"Your material" = "Your material";
+"Your notes" = "Your notes";
 "Zone Style" = "Zone Style";
 "zones(%d)" = "zones(%d)";
 "|" = "|";

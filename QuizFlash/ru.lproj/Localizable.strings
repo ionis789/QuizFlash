@@ -440,7 +440,6 @@
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.";
 "Layout" = "Разметка";
 "Learn easy with QuizFlash" = "Учись легко с QuizFlash";
-"Learn, practice, remember." = "Учись, практикуйся, запоминай.";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
 "Learn faster. Stay productive." = "Учитесь быстрее. Оставайтесь продуктивными.";
 "Learning" = "В изучении";
@@ -588,6 +587,7 @@
 "Preparing request" = "Подготовка запроса";
 "Preparing source" = "Подготовка источника";
 "Preparing your material" = "Подготовка вашего материала";
+"Practice today. Remember tomorrow." = "Практикуйся сегодня. Помни завтра.";
 "PREVIEW" = "ПРЕДПРОСМОТР";
 "Preview" = "Предварительный просмотр";
 "Preview Mode" = "Режим предварительного просмотра";
@@ -831,7 +831,7 @@
 "You have unsaved changes in this deck." = "У вас есть несохраненные изменения в этой колоде.";
 "You're all set." = "Все готово.";
 "Your card changes couldn't be saved right now." = "Изменения карточки сейчас не удалось сохранить.";
-"Your material" = "Твой материал";
+"Your notes" = "Твои заметки";
 "Zone Style" = "Стиль зон";
 "zones(%d)" = "зоны(%d)";
 "|" = "|";

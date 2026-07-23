@@ -127,16 +127,8 @@ struct QuizFlashOnboardingView: View {
 
     private func bottomControls(metrics: QuizFlashOnboardingLayoutMetrics) -> some View {
         VStack(spacing: UIConstants.Spacing.medium) {
-            if items[currentIndex].kind == .welcome {
-                Text(AppLocalization.string(items[currentIndex].subtitleKey, locale: locale))
-                    .font(.callout.weight(.medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.80))
-                    .frame(height: metrics.welcomeDescriptionHeight)
-            } else {
-                textContent
-                    .frame(height: metrics.descriptionHeight)
-            }
+            textContent
+                .frame(height: metrics.descriptionHeight)
 
             continueButton(horizontalPadding: metrics.continueButtonHorizontalPadding)
                 .padding(.top, UIConstants.Spacing.small)
@@ -343,10 +335,6 @@ private struct QuizFlashOnboardingLayoutMetrics {
         min(max(height * 0.090, 72), 82)
     }
 
-    var welcomeDescriptionHeight: CGFloat {
-        min(max(height * 0.032, 24), 30)
-    }
-
     var bottomControlsWidth: CGFloat {
         min(width * 0.96, 680)
     }
@@ -451,8 +439,8 @@ private struct QuizFlashOnboardingItem: Identifiable, Hashable {
     static let defaultItems: [QuizFlashOnboardingItem] = [
         .init(
             id: 0,
-            titleKey: "Learn easy with QuizFlash",
-            subtitleKey: "Learn, practice, remember.",
+            titleKey: "Study smarter",
+            subtitleKey: "Practice today. Remember tomorrow.",
             kind: .welcome
         ),
         .init(
@@ -1393,7 +1381,7 @@ private struct PracticeFlowOnboardingPage: View {
             .frame(width: 54 * scale, height: 62 * scale)
 
             VStack(alignment: .leading, spacing: 10 * scale) {
-                Text(AppLocalization.string("Your material", locale: appPreferences.resolvedLocale))
+                Text(AppLocalization.string("Your notes", locale: appPreferences.resolvedLocale))
                     .font(.system(size: 17 * scale, weight: .bold))
                     .foregroundStyle(themeManager.textPrimary)
 
@@ -1436,9 +1424,9 @@ private struct PracticeFlowOnboardingPage: View {
                     .fill(themeManager.textPrimary.opacity(0.18))
                     .frame(width: 54 * scale, height: 7 * scale)
 
-                RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
-                    .fill(themeManager.textPrimary.opacity(0.12))
-                    .frame(width: 30 * scale, height: 14 * scale)
+                Capsule()
+                    .fill(themeManager.textPrimary.opacity(0.14))
+                    .frame(width: 30 * scale, height: 7 * scale)
 
                 Capsule()
                     .fill(themeManager.textPrimary.opacity(0.22))
