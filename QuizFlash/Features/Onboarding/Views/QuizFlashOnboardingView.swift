@@ -1937,32 +1937,35 @@ private struct LatexSupportOnboardingPage: View {
             )
 
             ZStack {
-                FlipCard(
-                    frontZone: frontZone,
-                    backZone: backZone,
-                    isFlipped: $isFlipped,
-                    preloadsHiddenFace: true,
-                    tapAnimationStyle: .flip3D,
-                    contentAlignment: .center,
-                    textSize: FlashcardTextSize(step: 1)
-                )
+                ZStack {
+                    FlipCard(
+                        frontZone: frontZone,
+                        backZone: backZone,
+                        isFlipped: $isFlipped,
+                        preloadsHiddenFace: true,
+                        tapAnimationStyle: .flip3D,
+                        contentAlignment: .center,
+                        textSize: FlashcardTextSize(step: 1)
+                    )
 
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: flipCard)
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: flipCard)
+                }
+                .frame(width: metrics.cardWidth, height: metrics.cardHeight)
+                .offset(y: metrics.cardVerticalOffset)
+                .scaleRevealMotion(
+                    isVisible: isActive,
+                    reduceMotion: reduceMotion,
+                    hiddenOpacity: 0.001
+                )
+                .allowsHitTesting(isActive)
+                .accessibilityLabel(
+                    AppLocalization.string("Tap the flashcard to flip it.", locale: appPreferences.resolvedLocale)
+                )
+                .accessibilityAddTraits(.isButton)
             }
-            .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scaleRevealMotion(
-                isVisible: isActive,
-                reduceMotion: reduceMotion,
-                hiddenOpacity: 0.001
-            )
-            .allowsHitTesting(isActive)
-            .accessibilityLabel(
-                AppLocalization.string("Tap the flashcard to flip it.", locale: appPreferences.resolvedLocale)
-            )
-            .accessibilityAddTraits(.isButton)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: isActive) { _, newValue in
@@ -2028,6 +2031,10 @@ private struct LatexSupportOnboardingLayoutMetrics {
 
     var cardHeight: CGFloat {
         cardWidth / 0.72
+    }
+
+    var cardVerticalOffset: CGFloat {
+        min(max(height * 0.035, 18), 30)
     }
 }
 
