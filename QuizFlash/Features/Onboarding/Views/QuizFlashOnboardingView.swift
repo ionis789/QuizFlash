@@ -55,7 +55,10 @@ struct QuizFlashOnboardingView: View {
                         .bottom,
                         metrics.bottomControlsHeight
                             + metrics.displayBottomSpacing
-                            - (items[currentIndex].kind == .practiceFlow ? metrics.practiceFlowDisplayExtension : 0)
+                            - displayExtension(
+                                for: items[currentIndex].kind,
+                                metrics: metrics
+                            )
                     )
 
                 bottomControls(metrics: metrics)
@@ -278,6 +281,20 @@ struct QuizFlashOnboardingView: View {
         index == currentIndex ? 1 : 0.74
     }
 
+    private func displayExtension(
+        for kind: QuizFlashOnboardingPageKind,
+        metrics: QuizFlashOnboardingLayoutMetrics
+    ) -> CGFloat {
+        switch kind {
+        case .practiceFlow:
+            metrics.practiceFlowDisplayExtension
+        case .latexSupport:
+            metrics.latexSupportDisplayExtension
+        case .welcome, .cardsTarget:
+            0
+        }
+    }
+
     private func resolvedSafeAreaTop(from proxySafeAreaTop: CGFloat) -> CGFloat {
         if proxySafeAreaTop > 0 {
             return proxySafeAreaTop
@@ -327,6 +344,10 @@ private struct QuizFlashOnboardingLayoutMetrics {
 
     var practiceFlowDisplayExtension: CGFloat {
         min(max(height * 0.032, 24), 32)
+    }
+
+    var latexSupportDisplayExtension: CGFloat {
+        min(max(height * 0.070, 56), 84)
     }
 
     var bottomControlsHeight: CGFloat {
