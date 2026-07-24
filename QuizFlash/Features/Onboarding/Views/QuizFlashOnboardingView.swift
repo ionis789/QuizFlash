@@ -1950,6 +1950,7 @@ private struct LatexSupportOnboardingPage: View {
     let isActive: Bool
 
     @State private var isFlipped = false
+    @State private var cardIsVisible = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -1982,11 +1983,11 @@ private struct LatexSupportOnboardingPage: View {
                 .frame(width: metrics.cardWidth, height: metrics.cardHeight)
                 .offset(y: metrics.cardVerticalOffset)
                 .scaleRevealMotion(
-                    isVisible: isActive,
+                    isVisible: cardIsVisible,
                     reduceMotion: reduceMotion,
                     hiddenOpacity: 0.001
                 )
-                .allowsHitTesting(isActive)
+                .allowsHitTesting(isActive && cardIsVisible)
                 .accessibilityLabel(
                     AppLocalization.string("Tap the flashcard to flip it.", locale: appPreferences.resolvedLocale)
                 )
@@ -1995,6 +1996,19 @@ private struct LatexSupportOnboardingPage: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: isActive) {
+            if isActive {
+                withTransaction(Transaction(animation: nil)) {
+                    cardIsVisible = false
+                }
+
+                try? await Task.sleep(for: ScaleRevealMotion.revealDelay)
+                guard !Task.isCancelled, isActive else { return }
+                cardIsVisible = true
+            } else {
+                cardIsVisible = false
+            }
+        }
         .onChange(of: isActive) { _, newValue in
             guard !newValue else { return }
             withTransaction(Transaction(animation: nil)) {
