@@ -44,7 +44,6 @@ struct QuizFlashOnboardingView: View {
                     .ignoresSafeArea()
 
                 onboardingDisplayView(metrics: metrics)
-                    .compositingGroup()
                     .scaleEffect(
                         items[currentIndex].zoomScale,
                         anchor: items[currentIndex].zoomAnchor
@@ -100,17 +99,24 @@ struct QuizFlashOnboardingView: View {
         .clipShape(shape)
         .overlay {
             ZStack {
-                shape
-                    .stroke(.white.opacity(frameMetrics.highlightOpacity), lineWidth: frameMetrics.highlightLineWidth)
+                ZStack {
+                    shape
+                        .stroke(.white.opacity(frameMetrics.highlightOpacity), lineWidth: frameMetrics.highlightLineWidth)
 
-                shape
-                    .stroke(.black, lineWidth: frameMetrics.outerLineWidth)
+                    shape
+                        .stroke(.black, lineWidth: frameMetrics.outerLineWidth)
 
-                shape
-                    .stroke(.black, lineWidth: frameMetrics.innerLineWidth)
-                    .padding(frameMetrics.innerPadding)
+                    shape
+                        .stroke(.black, lineWidth: frameMetrics.innerLineWidth)
+                        .padding(frameMetrics.innerPadding)
+                }
+                .padding(frameMetrics.overlayPadding)
+                .allowsHitTesting(false)
+
+                LatexSupportOnboardingPage(
+                    isActive: items[currentIndex].kind == .latexSupport
+                )
             }
-            .padding(frameMetrics.overlayPadding)
         }
         .aspectRatio(0.75, contentMode: .fit)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -124,7 +130,7 @@ struct QuizFlashOnboardingView: View {
         case .practiceFlow:
             PracticeFlowOnboardingPage(isActive: isActive)
         case .latexSupport:
-            LatexSupportOnboardingPage(isActive: isActive)
+            Color.clear
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
         }
