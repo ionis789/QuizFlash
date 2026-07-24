@@ -23,6 +23,8 @@ struct QuizFlashOnboardingView: View {
     @State private var cardsTarget = AppPreferences.defaultDailyCardsGoal
     @State private var welcomeDemoIsActive = true
     @State private var welcomeDemoStopTask: Task<Void, Never>?
+    @State private var latexCardRendersAboveFrame = false
+    @State private var latexOverlayTask: Task<Void, Never>?
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -70,6 +72,7 @@ struct QuizFlashOnboardingView: View {
         .onAppear(perform: syncStateFromPreferences)
         .onDisappear {
             welcomeDemoStopTask?.cancel()
+            latexOverlayTask?.cancel()
         }
     }
 
@@ -116,6 +119,9 @@ struct QuizFlashOnboardingView: View {
                 LatexSupportOnboardingPage(
                     isActive: items[currentIndex].kind == .latexSupport
                 )
+                .opacity(latexCardRendersAboveFrame ? 1 : 0)
+                .allowsHitTesting(latexCardRendersAboveFrame)
+                .accessibilityHidden(!latexCardRendersAboveFrame)
             }
         }
         .aspectRatio(0.75, contentMode: .fit)
@@ -130,7 +136,10 @@ struct QuizFlashOnboardingView: View {
         case .practiceFlow:
             PracticeFlowOnboardingPage(isActive: isActive)
         case .latexSupport:
-            Color.clear
+            LatexSupportOnboardingPage(isActive: isActive)
+                .opacity(latexCardRendersAboveFrame ? 0 : 1)
+                .allowsHitTesting(!latexCardRendersAboveFrame)
+                .accessibilityHidden(latexCardRendersAboveFrame)
         case .cardsTarget:
             CardsTargetOnboardingPage(cardsTarget: $cardsTarget)
         }
@@ -248,10 +257,40 @@ struct QuizFlashOnboardingView: View {
         let nextIndex = min(max(proposedIndex, 0), items.count - 1)
         guard nextIndex != currentIndex else { return }
 
+        prepareLatexCardForPageTransition()
         updateWelcomeDemoActivity(from: currentIndex, to: nextIndex)
 
         withAnimation(animation) {
             currentIndex = nextIndex
+        }
+
+        scheduleLatexCardOverlayIfNeeded(for: nextIndex)
+    }
+
+    private func prepareLatexCardForPageTransition() {
+        latexOverlayTask?.cancel()
+
+        withTransaction(Transaction(animation: nil)) {
+            latexCardRendersAboveFrame = false
+        }
+    }
+
+    private func scheduleLatexCardOverlayIfNeeded(for index: Int) {
+        guard items[index].kind == .latexSupport else { return }
+
+        latexOverlayTask = Task { @MainActor in
+            let transitionDelay: Duration = reduceMotion ? .milliseconds(240) : .milliseconds(720)
+            try? await Task.sleep(for: transitionDelay)
+
+            guard !Task.isCancelled,
+                  currentIndex == index,
+                  items[currentIndex].kind == .latexSupport else {
+                return
+            }
+
+            withTransaction(Transaction(animation: nil)) {
+                latexCardRendersAboveFrame = true
+            }
         }
     }
 
@@ -1950,7 +1989,6 @@ private struct LatexSupportOnboardingPage: View {
     let isActive: Bool
 
     @State private var isFlipped = false
-    @State private var cardIsVisible = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -1983,11 +2021,11 @@ private struct LatexSupportOnboardingPage: View {
                 .frame(width: metrics.cardWidth, height: metrics.cardHeight)
                 .offset(y: metrics.cardVerticalOffset)
                 .scaleRevealMotion(
-                    isVisible: cardIsVisible,
+                    isVisible: isActive,
                     reduceMotion: reduceMotion,
                     hiddenOpacity: 0.001
                 )
-                .allowsHitTesting(isActive && cardIsVisible)
+                .allowsHitTesting(isActive)
                 .accessibilityLabel(
                     AppLocalization.string("Tap the flashcard to flip it.", locale: appPreferences.resolvedLocale)
                 )
@@ -1996,19 +2034,6 @@ private struct LatexSupportOnboardingPage: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: isActive) {
-            if isActive {
-                withTransaction(Transaction(animation: nil)) {
-                    cardIsVisible = false
-                }
-
-                try? await Task.sleep(for: ScaleRevealMotion.revealDelay)
-                guard !Task.isCancelled, isActive else { return }
-                cardIsVisible = true
-            } else {
-                cardIsVisible = false
-            }
-        }
         .onChange(of: isActive) { _, newValue in
             guard !newValue else { return }
             withTransaction(Transaction(animation: nil)) {
