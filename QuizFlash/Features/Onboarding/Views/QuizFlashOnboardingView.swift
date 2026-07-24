@@ -1936,16 +1936,21 @@ private struct LatexSupportOnboardingPage: View {
                 text: "\(AppLocalization.string("The Gaussian integral equals:", locale: appPreferences.resolvedLocale))\n\n$$\\frac{\\sqrt{\\pi}}{2}$$"
             )
 
-            FlipCard(
-                frontZone: frontZone,
-                backZone: backZone,
-                isFlipped: $isFlipped,
-                preloadsHiddenFace: true,
-                tapAnimationStyle: .flip3D,
-                contentAlignment: .center,
-                textSize: FlashcardTextSize(step: 1),
-                onTap: flipCard
-            )
+            ZStack {
+                FlipCard(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    isFlipped: $isFlipped,
+                    preloadsHiddenFace: true,
+                    tapAnimationStyle: .flip3D,
+                    contentAlignment: .center,
+                    textSize: FlashcardTextSize(step: 1)
+                )
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: flipCard)
+            }
             .frame(width: metrics.cardWidth, height: metrics.cardHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scaleRevealMotion(
@@ -2015,9 +2020,9 @@ private struct LatexSupportOnboardingLayoutMetrics {
 
     var cardWidth: CGFloat {
         min(
-            width * 0.82,
-            height * 0.75 * 0.72,
-            330 * contentScale
+            width * 0.94,
+            height * 0.93 * 0.72,
+            380 * contentScale
         )
     }
 
