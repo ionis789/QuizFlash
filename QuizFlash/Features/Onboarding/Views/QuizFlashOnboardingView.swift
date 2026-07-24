@@ -279,7 +279,7 @@ struct QuizFlashOnboardingView: View {
         guard items[index].kind == .latexSupport else { return }
 
         latexOverlayTask = Task { @MainActor in
-            let transitionDelay: Duration = reduceMotion ? .milliseconds(240) : .milliseconds(720)
+            let transitionDelay: Duration = reduceMotion ? .milliseconds(240) : .seconds(1)
             try? await Task.sleep(for: transitionDelay)
 
             guard !Task.isCancelled,
