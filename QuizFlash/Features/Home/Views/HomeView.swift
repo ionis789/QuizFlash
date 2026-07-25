@@ -183,7 +183,8 @@ struct HomeView: View {
                     configuration: .sheet(
                         heightMode: .custom(0.52),
                         showsDefaultTopProgressiveBlur: false,
-                        showsCloseButton: true
+                        showsCloseButton: false,
+                        avoidsKeyboard: true
                     )
                 ) { safeAreaInsets in
                     CreateFolderSheet(

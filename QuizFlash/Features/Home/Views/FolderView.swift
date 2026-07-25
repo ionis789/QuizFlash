@@ -237,8 +237,8 @@ struct CreateFolderSheet: View {
 
     private var contentTopPadding: CGFloat {
         max(
-            topChromeClearance + 34,
-            safeAreaInsets.top + UIConstants.Size.actionButton + UIConstants.Spacing.extraLarge
+            topChromeClearance + UIConstants.Spacing.extraLarge,
+            safeAreaInsets.top + UIConstants.Spacing.extraLarge
         )
     }
 
@@ -253,7 +253,6 @@ struct CreateFolderSheet: View {
             Text(localized("New Folder"))
                 .font(.system(size: 32, weight: .black))
                 .foregroundStyle(themeManager.textPrimary)
-                .padding(.trailing, 72)
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
@@ -264,12 +263,6 @@ struct CreateFolderSheet: View {
                     .submitLabel(.done)
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    Text(localized("Label Color"))
-                        .font(.system(size: 14, weight: .black))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.7)
-
                     HStack(spacing: UIConstants.Spacing.standard) {
                         ForEach(colorOptions, id: \.self) { hex in
                             Button {

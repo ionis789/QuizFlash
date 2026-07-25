@@ -1546,6 +1546,7 @@ private struct HomeDashboardDeckMetaLine: View {
 }
 
 private struct HomeDashboardFolderCard: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
@@ -1555,6 +1556,21 @@ private struct HomeDashboardFolderCard: View {
 
     private var folderColor: Color {
         Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
+    }
+
+    private var borderColor: Color {
+        AppBorderRenderer.color(
+            for: .homeCard,
+            preferences: appPreferences.borderDesign,
+            colorScheme: colorScheme
+        )
+    }
+
+    private var borderLineWidth: CGFloat {
+        AppBorderRenderer.lineWidth(
+            for: .homeCard,
+            preferences: appPreferences.borderDesign
+        )
     }
 
     var body: some View {
@@ -1594,7 +1610,7 @@ private struct HomeDashboardFolderCard: View {
                     .fill(themeManager.roleColor(.widgetSurfaceFill))
                     .overlay {
                         RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
-                            .strokeBorder(folderColor.opacity(0.08), lineWidth: 1)
+                            .strokeBorder(borderColor, lineWidth: borderLineWidth)
                     }
             }
         }
