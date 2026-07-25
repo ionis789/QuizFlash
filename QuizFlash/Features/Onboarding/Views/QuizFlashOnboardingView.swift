@@ -104,9 +104,6 @@ struct QuizFlashOnboardingView: View {
             ZStack {
                 ZStack {
                     shape
-                        .stroke(.white.opacity(frameMetrics.highlightOpacity), lineWidth: frameMetrics.highlightLineWidth)
-
-                    shape
                         .stroke(.black, lineWidth: frameMetrics.outerLineWidth)
 
                     shape
@@ -426,12 +423,10 @@ private struct QuizFlashOnboardingLayoutMetrics {
     var deviceFrameMetrics: QuizFlashOnboardingDeviceFrameMetrics {
         QuizFlashOnboardingDeviceFrameMetrics(
             cornerRadius: diagonalScale * 0.035,
-            highlightLineWidth: width * 0.0036,
             outerLineWidth: width * 0.0045,
             innerLineWidth: width * 0.0036,
             innerPadding: width * 0.0045,
-            overlayPadding: -(width * 0.0054),
-            highlightOpacity: 0.85
+            overlayPadding: -(width * 0.0054)
         )
     }
 }
@@ -2019,7 +2014,6 @@ private struct LatexSupportOnboardingPage: View {
                         .onTapGesture(perform: flipCard)
                 }
                 .frame(width: metrics.cardWidth, height: metrics.cardHeight)
-                .offset(y: metrics.cardVerticalOffset)
                 .scaleRevealMotion(
                     isVisible: isActive,
                     reduceMotion: reduceMotion,
@@ -2097,10 +2091,6 @@ private struct LatexSupportOnboardingLayoutMetrics {
 
     var cardHeight: CGFloat {
         cardWidth / 0.72
-    }
-
-    var cardVerticalOffset: CGFloat {
-        min(max(height * 0.035, 18), 30)
     }
 }
 
@@ -2254,12 +2244,10 @@ private struct CardsTargetOnboardingLayoutMetrics {
 
 private struct QuizFlashOnboardingDeviceFrameMetrics {
     let cornerRadius: CGFloat
-    let highlightLineWidth: CGFloat
     let outerLineWidth: CGFloat
     let innerLineWidth: CGFloat
     let innerPadding: CGFloat
     let overlayPadding: CGFloat
-    let highlightOpacity: CGFloat
 }
 
 #Preview {
