@@ -1357,6 +1357,37 @@ private enum WelcomeQuizAnswerState {
     case correct
 }
 
+@MainActor
+private final class PracticeFlowHapticFeedback {
+    private let softImpact = UIImpactFeedbackGenerator(style: .soft)
+    private let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
+
+    func prepare() {
+        softImpact.prepare()
+        mediumImpact.prepare()
+    }
+
+    func sourceDidAppear() {
+        softImpact.impactOccurred(intensity: 0.36)
+        mediumImpact.prepare()
+    }
+
+    func processorDidActivate() {
+        mediumImpact.impactOccurred(intensity: 0.50)
+        softImpact.prepare()
+    }
+
+    func cardDidLand(at index: Int, total: Int) {
+        let progress = CGFloat(index + 1) / CGFloat(total)
+        softImpact.impactOccurred(intensity: 0.32 + (0.30 * progress))
+        softImpact.prepare()
+    }
+
+    func sequenceDidComplete() {
+        mediumImpact.impactOccurred(intensity: 0.64)
+    }
+}
+
 /// Shows source material passing through QuizFlash AI and becoming study cards.
 private struct PracticeFlowOnboardingPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1374,6 +1405,7 @@ private struct PracticeFlowOnboardingPage: View {
     @State private var activeCardIndex: Int?
     @State private var activeCardProgress: CGFloat = 0
     @State private var hasCompletedSequence = false
+    @State private var hapticFeedback = PracticeFlowHapticFeedback()
 
     private static let generatedCardCount = 7
 
@@ -1657,12 +1689,14 @@ private struct PracticeFlowOnboardingPage: View {
         }
 
         showInitialState()
+        hapticFeedback.prepare()
 
         do {
             try await Task.sleep(for: .milliseconds(60))
             withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
                 sourceIsVisible = true
             }
+            hapticFeedback.sourceDidAppear()
             try await Task.sleep(for: .milliseconds(380))
 
             try await animate(duration: 0.30, animation: .easeInOut(duration: 0.30)) {
@@ -1672,6 +1706,7 @@ private struct PracticeFlowOnboardingPage: View {
             withAnimation(ScaleRevealMotion.animation(reduceMotion: false)) {
                 processorIsVisible = true
             }
+            hapticFeedback.processorDidActivate()
             try await Task.sleep(for: .milliseconds(100))
 
             try await animate(duration: 0.42, animation: .easeInOut(duration: 0.42)) {
@@ -1687,6 +1722,7 @@ private struct PracticeFlowOnboardingPage: View {
             }
 
             hasCompletedSequence = true
+            hapticFeedback.sequenceDidComplete()
         } catch {
             guard !Task.isCancelled else { return }
             showInitialState()
@@ -1722,6 +1758,7 @@ private struct PracticeFlowOnboardingPage: View {
         ) {
             activeCardProgress = 1.065
         }
+        hapticFeedback.cardDidLand(at: index, total: Self.generatedCardCount)
 
         try await animate(
             duration: settleDuration,
