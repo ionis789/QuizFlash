@@ -132,8 +132,12 @@ enum FullScreenSheetHeightMode: Sendable {
     case custom(CGFloat)
     case absolute(CGFloat)
     case adaptiveAbsolute(CGFloat, maxFraction: CGFloat)
+    case safeAreaAbsolute(CGFloat, maxFraction: CGFloat)
 
-    fileprivate func resolvedHeight(in containerHeight: CGFloat) -> CGFloat {
+    fileprivate func resolvedHeight(
+        in containerHeight: CGFloat,
+        bottomSafeAreaInset: CGFloat = 0
+    ) -> CGFloat {
         let fraction: CGFloat
         switch self {
         case .fullScreen:
@@ -149,9 +153,20 @@ enum FullScreenSheetHeightMode: Sendable {
         case .adaptiveAbsolute(let value, let maxFraction):
             let resolvedMaxFraction = min(max(maxFraction, 0.22), 1)
             return min(max(value, containerHeight * 0.22), containerHeight * resolvedMaxFraction)
+        case .safeAreaAbsolute(let value, let maxFraction):
+            let resolvedMaxFraction = min(max(maxFraction, 0.22), 1)
+            let heightWithSafeArea = max(value, 1) + max(bottomSafeAreaInset, 0)
+            return min(heightWithSafeArea, containerHeight * resolvedMaxFraction)
         }
 
         return max(containerHeight * fraction, 1)
+    }
+
+    fileprivate var alignsToWindowBottom: Bool {
+        if case .safeAreaAbsolute = self {
+            return true
+        }
+        return false
     }
 }
 
@@ -825,15 +840,25 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let containerWidth = max(windowSize.width, 1)
         let keyboardInset = resolvedKeyboardInset(containerHeight: containerHeight)
         let availableContainerHeight = max(containerHeight - keyboardInset, 1)
-        let visibleSheetHeight = configuration.heightMode.resolvedHeight(in: availableContainerHeight)
+        let contentBottomSafeArea = keyboardInset > 0 ? 0 : windowSafeAreaInsets.bottom
+        let visibleSheetHeight = configuration.heightMode.resolvedHeight(
+            in: availableContainerHeight,
+            bottomSafeAreaInset: contentBottomSafeArea
+        )
         let sheetHeight = min(visibleSheetHeight + keyboardInset, containerHeight)
         let sheetTopY = max(containerHeight - sheetHeight, 0)
         let isFullHeightSheet = sheetTopY <= 0.5
         let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
         let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
-        let sheetBottomOverscan = isFullHeightSheet || keyboardInset > 0
+        let sheetBottomOverscan = isFullHeightSheet
+            || keyboardInset > 0
+            || configuration.heightMode.alignsToWindowBottom
             ? 0
             : max(windowSafeAreaInsets.bottom, UIConstants.Size.bottomChromeBarHeight)
+        let sheetBottomAlignmentOffset = configuration.ignoresSafeArea
+            && configuration.heightMode.alignsToWindowBottom
+            ? windowSafeAreaInsets.bottom
+            : 0
         let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
             sheetTopY: sheetTopY,
             additionalTopInset: dragIndicatorInset,
@@ -914,7 +939,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
-        .animation(presentationAnimation, value: sheetHeight)
         .animation(keyboardAvoidanceAnimation, value: keyboardInset)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
@@ -925,6 +949,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .offset(y: visibleSheetOffset)
+        .offset(y: sheetBottomAlignmentOffset)
 
         let baseView = ZStack(alignment: .bottom) {
             if isFullHeightSheet, configuration.showsBackdropBlur {

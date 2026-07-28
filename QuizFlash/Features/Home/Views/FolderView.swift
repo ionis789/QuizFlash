@@ -237,8 +237,8 @@ struct CreateFolderSheet: View {
 
     private var contentTopPadding: CGFloat {
         max(
-            topChromeClearance + UIConstants.Spacing.extraLarge,
-            safeAreaInsets.top + UIConstants.Spacing.extraLarge
+            topChromeClearance + UIConstants.Spacing.large,
+            safeAreaInsets.top + UIConstants.Spacing.large
         )
     }
 
@@ -305,8 +305,6 @@ struct CreateFolderSheet: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSave)
-
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, UIConstants.Spacing.large)
         .padding(.top, contentTopPadding)
