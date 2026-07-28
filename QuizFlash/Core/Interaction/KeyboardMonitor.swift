@@ -16,6 +16,7 @@ final class KeyboardMonitor {
     private(set) var isVisible = false
     private(set) var visibleHeight: CGFloat = 0
     private(set) var animationDuration: TimeInterval = 0.25
+    private(set) var animationCurveRaw = UIView.AnimationCurve.easeInOut.rawValue
     private(set) var animationOptions: UIView.AnimationOptions = [.curveEaseInOut]
 
     private var observers: [NSObjectProtocol] = []
@@ -38,7 +39,7 @@ final class KeyboardMonitor {
                 let endFrame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
                 let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval
                 let curveRaw = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int
-                Task { @MainActor [weak self] in
+                MainActor.assumeIsolated {
                     self?.handle(
                         notificationName: notificationName,
                         endFrame: endFrame,
@@ -73,10 +74,11 @@ final class KeyboardMonitor {
         )
 #endif
 
-        if let animationDuration {
+        if let animationDuration, animationDuration > 0 {
             self.animationDuration = animationDuration
         }
         if let animationCurveRaw {
+            self.animationCurveRaw = animationCurveRaw
             self.animationOptions = UIView.AnimationOptions(rawValue: UInt(animationCurveRaw << 16))
         }
 
@@ -142,6 +144,40 @@ final class KeyboardMonitor {
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)
+    }
+
+    /// SwiftUI equivalent of the timing information supplied by UIKit.
+    ///
+    /// UIKit can report its private keyboard curve as raw value `7`. When that
+    /// value is not representable by the public enum, Core Animation's default
+    /// cubic curve is the public timing function that matches the keyboard
+    /// transition more closely than SwiftUI's symmetric `easeInOut`.
+    var swiftUIAnimation: Animation {
+        let duration = max(animationDuration, 1.0 / 120.0)
+
+        let publicCurveRange = UIView.AnimationCurve.easeInOut.rawValue...UIView.AnimationCurve.linear.rawValue
+        if publicCurveRange.contains(animationCurveRaw),
+           let curve = UIView.AnimationCurve(rawValue: animationCurveRaw) {
+            let timingParameters = UICubicTimingParameters(animationCurve: curve)
+            let first = timingParameters.controlPoint1
+            let second = timingParameters.controlPoint2
+
+            return .timingCurve(
+                Double(first.x),
+                Double(first.y),
+                Double(second.x),
+                Double(second.y),
+                duration: duration
+            )
+        }
+
+        return .timingCurve(
+            0.25,
+            0.10,
+            0.25,
+            1.00,
+            duration: duration
+        )
     }
 }
 

@@ -826,7 +826,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var keyboardAvoidanceAnimation: Animation {
-        .easeInOut(duration: max(keyboardMonitor.animationDuration, UIConstants.Animation.instant))
+        keyboardMonitor.swiftUIAnimation
     }
 
     private var locale: Locale {
