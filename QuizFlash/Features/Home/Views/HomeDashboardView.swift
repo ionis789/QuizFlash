@@ -109,10 +109,6 @@ struct HomeDashboardView: View {
         allDeckCount == 0
     }
 
-    private var showsLibrarySection: Bool {
-        !recentDeckSnapshots.isEmpty || !folderSnapshots.isEmpty || (!showsWorkspaceOnboarding && allDeckCount > 0)
-    }
-
     private var sectionSpacing: CGFloat {
         usesRegularMetrics ? 24 : 20
     }
@@ -138,12 +134,10 @@ struct HomeDashboardView: View {
                 .padding(.horizontal, contentHorizontalInset)
                 .homeDashboardSectionMotion()
 
-            if showsLibrarySection {
-                boundedSection(librarySection)
-                    .padding(.top, sectionSpacing)
-                    .padding(.horizontal, contentHorizontalInset)
-                    .homeDashboardSectionMotion()
-            }
+            boundedSection(librarySection)
+                .padding(.top, sectionSpacing)
+                .padding(.horizontal, contentHorizontalInset)
+                .homeDashboardSectionMotion()
 
             if showsWorkspaceOnboarding {
                 boundedSection(workspaceSetupSection)

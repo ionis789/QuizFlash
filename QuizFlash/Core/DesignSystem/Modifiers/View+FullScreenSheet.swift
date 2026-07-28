@@ -423,6 +423,19 @@ private struct FullScreenSheetDebugProbe: View {
 
 private func fullScreenSheetDebugLog(_ identifier: String?, _ message: String) {
     guard let identifier else { return }
+
+    if SheetKeyboardDebugTrace.isActive(identifier: identifier) {
+        SheetKeyboardDebugTrace.record(
+            identifier: identifier,
+            event: message.hasPrefix("hosting.layout")
+                ? "host.layout"
+                : "sheet.event",
+            details: ["value": message],
+            buffered: !message.hasPrefix("hosting.layout")
+        )
+        return
+    }
+
     print("AUTH_LAYOUT_DEBUG \(debugTimestamp()) sheet=\(identifier) \(message)")
 }
 
@@ -1093,6 +1106,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     layer: "full-screen-sheet"
                 )
             }
+#if DEBUG
+            if let debugIdentifier = configuration.debugIdentifier {
+                SheetKeyboardDebugTrace.end(identifier: debugIdentifier)
+            }
+#endif
         }
         .onChange(of: hasActiveChildPresentation) { _, hasActiveChildPresentation in
             guard hasActiveChildPresentation else { return }
