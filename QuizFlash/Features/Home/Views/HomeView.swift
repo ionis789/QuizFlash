@@ -51,6 +51,8 @@ struct HomeView: View {
         category: "HomeLayout"
     )
     private static let edgeShadowDebugScreenID = EdgeShadowDebugScreenID.homeCalendar
+    /// Keeps a black buffer below the short form while the keyboard enters.
+    private static let createFolderSheetHeight: CGFloat = 360
 
     // MARK: - Body
 
@@ -181,7 +183,7 @@ struct HomeView: View {
                 .fullScreenSheet(
                     isPresented: $viewModel.showCreateFolder,
                     configuration: .sheet(
-                        heightMode: .safeAreaAbsolute(240, maxFraction: 0.78),
+                        heightMode: .safeAreaAbsolute(Self.createFolderSheetHeight, maxFraction: 0.78),
                         showsDefaultTopProgressiveBlur: false,
                         showsCloseButton: false,
                         avoidsKeyboard: true,
