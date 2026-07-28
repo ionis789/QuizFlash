@@ -125,7 +125,7 @@ private final class FullScreenSheetPresentationCoordinator {
 // MARK: - Sheet Configuration
 
 /// Available presentation heights for the shared QuizFlash sheet surface.
-enum FullScreenSheetHeightMode: Sendable {
+enum FullScreenSheetHeightMode: Sendable, Equatable {
     case fullScreen
     case medium
     case small
@@ -826,7 +826,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var keyboardAvoidanceAnimation: Animation {
-        keyboardMonitor.swiftUIAnimation
+        .easeInOut(duration: max(keyboardMonitor.animationDuration, UIConstants.Animation.instant))
     }
 
     private var locale: Locale {
@@ -952,6 +952,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
+        .animation(presentationAnimation, value: configuration.heightMode)
         .animation(keyboardAvoidanceAnimation, value: keyboardInset)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
