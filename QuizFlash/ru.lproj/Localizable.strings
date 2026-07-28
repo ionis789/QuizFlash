@@ -143,6 +143,7 @@
 "All Decks" = "Все колоды";
 "All folders" = "Все папки";
 "Almost ready" = "Почти готово";
+"An AI provider API key is not configured." = "Ключ API поставщика ИИ не настроен.";
 "Already have an account?" = "Уже есть аккаунт?";
 "Also visible in %@" = "Также видно в %@";
 "An account with this email already exists." = "Аккаунт с этим email уже существует.";
@@ -430,7 +431,6 @@
 "Keep your focus" = "Сохраняйте фокус";
 "Keeping the current list stable while the next result set is prepared." = "Текущий список остается стабильным, пока готовится следующий набор результатов.";
 "Label Color" = "Цвет метки";
-"Labs" = "Лабы";
 "Landed" = "Уверенно";
 "Language" = "Язык";
 "Large" = "Крупный";

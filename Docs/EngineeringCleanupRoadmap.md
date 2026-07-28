@@ -29,11 +29,10 @@ Date: 2026-04-08
 3. `Features/DeckEditor/Views/AIGenerationSheetView.swift` — `1574`
 4. `Services/AI/AIFlashcardService+Prompting.swift` — `1534`
 5. `Features/DeckEditor/Components/AIWorkspaceViews.swift` — `1421`
-6. `Features/FeatureLab/Views/SharedUICatalogView.swift` — `1313`
-7. `Features/Home/ViewModels/HomeDashboardCalculator.swift` — `1202`
-8. `Domain/Models/CardModel.swift` — `1107`
-9. `Features/PlayMode/FlashCardsMode/Components/SwipeableCard.swift` — `1050`
-10. `Services/AI/AIFlashcardService+Networking.swift` — `1005`
+6. `Features/Home/ViewModels/HomeDashboardCalculator.swift` — `1202`
+7. `Domain/Models/CardModel.swift` — `1107`
+8. `Features/PlayMode/FlashCardsMode/Components/SwipeableCard.swift` — `1050`
+9. `Services/AI/AIFlashcardService+Networking.swift` — `1005`
 
 ## Confirmed Weak Points
 
@@ -189,32 +188,27 @@ Scope:
 
 Deliverables:
 - add `AppFeatures`
-- gate Labs tab, dev routes, debug overlays, AI trace tooling, internal labs from one place
-- remove remaining production-facing entry points to dev screens
+- gate debug overlays and AI trace tooling from one place
+- remove development-only tabs, routes, and production-facing entry points
 
 Exit:
-- `Release` build has no Labs tab
-- `Release` navigation cannot reach dev screens
+- user navigation contains no development-only destinations
 - visual debug toggles are unavailable in `Release`
 
-### Phase 1. Finish dev tooling separation
+### Phase 1. Remove development-only UI
 
 Scope:
-- move all dev-only screens under `Features/FeatureLab`
-- remove dev concerns from `Features/Settings`
+- remove development-only screens and routes from the user application
+- keep only user-facing settings in `Settings`
 
 Deliverables:
-- move:
-  - `AIProviderSettingsView`
-  - `AIDebugTraceHistoryView`
-  - `LatexSymbolLabView`
-- introduce `DevelopmentPreferences`
-- keep only user-facing settings in `Settings`
+- remove Feature Lab screens, routes, resources, and Settings entry points
+- keep production-used diagnostics behind build-flavor gates
 
 Exit:
 - `Features/Settings` contains only production settings
-- all dev navigation starts from Labs
-- no direct dependency from production settings to dev tooling
+- no developer navigation exists in the user application
+- production settings have no dependency on developer tooling
 
 ### Phase 2. Replace risky infra patterns still touching launch paths
 
@@ -325,8 +319,8 @@ Scope:
 - add tests for infra and shell gaps
 
 Add tests for:
-- build gating / Labs visibility
-- dev settings routing
+- build-flavor gating
+- user-facing tab inventory
 - `MiniCardPreviewLayoutCalculator`
 - `CustomContextMenu` layout and dismiss decisions
 - settings / preferences migration paths
@@ -367,8 +361,7 @@ Exit:
 
 ### PR 2
 
-- move all dev-only views into `FeatureLab`
-- add `DevelopmentPreferences`
+- remove obsolete development-only views and preferences
 - clean `Settings`
 
 ### PR 3
@@ -389,7 +382,8 @@ Exit:
 
 - `Release` is clean by configuration, not by manual cleanup
 - `Settings` contains only user-facing settings
-- Labs owns all development tooling
+- developer UI is absent from the user application
+- retained diagnostics are build-flavor gated
 - shared components are render-only
 - shared infra is geometry-based and actor-safe
 - theme access is consistent

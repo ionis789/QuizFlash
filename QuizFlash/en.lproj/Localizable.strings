@@ -143,6 +143,7 @@
 "All Decks" = "All Decks";
 "All folders" = "All folders";
 "Almost ready" = "Almost ready";
+"An AI provider API key is not configured." = "An AI provider API key is not configured.";
 "Already have an account?" = "Already have an account?";
 "Also visible in %@" = "Also visible in %@";
 "An account with this email already exists." = "An account with this email already exists.";
@@ -430,7 +431,6 @@
 "Keep your focus" = "Keep your focus";
 "Keeping the current list stable while the next result set is prepared." = "Keeping the current list stable while the next result set is prepared.";
 "Label Color" = "Label Color";
-"Labs" = "Labs";
 "Landed" = "Landed";
 "Language" = "Language";
 "Large" = "Large";

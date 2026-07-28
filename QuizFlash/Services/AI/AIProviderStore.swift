@@ -326,7 +326,7 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
             return editorValidationMessage
         }
         if trimmedAPIKey.isEmpty {
-            return "Add an API key in Labs > Development Settings > Developer AI."
+            return "An AI provider API key is not configured."
         }
         return nil
     }
@@ -336,7 +336,7 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
             return validationMessage
         }
         if trimmedAPIKey.isEmpty {
-            return AppLocalization.string("Add an API key in Labs > Development Settings > Developer AI.", locale: locale)
+            return AppLocalization.string("An AI provider API key is not configured.", locale: locale)
         }
         return nil
     }

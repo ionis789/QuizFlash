@@ -15,7 +15,6 @@ final class DevelopmentPreferences {
     static let shared = DevelopmentPreferences()
 
     private enum Keys {
-        static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
         static let deckWorkspaceMockAIEnabled = "preferences.development.deckWorkspaceMockAIEnabled"
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
         static let zoneContentLayoutDebugEnabled = "preferences.development.zoneContentLayoutDebugEnabled"
@@ -25,24 +24,12 @@ final class DevelopmentPreferences {
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
         static let edgeShadowDebugDefaultsVersion = "preferences.development.edgeShadowDebugDefaultsVersion"
-        static let customSheetTuningEnabled = "preferences.development.customSheetTuningEnabled"
-        static let customSheetDebugSettings = "preferences.development.customSheetDebugSettings"
     }
 
     private static let currentEdgeShadowDebugDefaultsVersion = 2
 
     private let userDefaults: UserDefaults
     @ObservationIgnored private var edgeShadowDebugSettingsPersistenceTask: Task<Void, Never>?
-
-    /// Enables verbose AI generation tracing for development builds.
-    var aiDebugTracingEnabled: Bool {
-        didSet {
-            userDefaults.set(
-                aiDebugTracingEnabled,
-                forKey: Keys.aiDebugTracingEnabled
-            )
-        }
-    }
 
     /// Shows the mock AI generation shortcut in the deck workspace.
     var deckWorkspaceMockAIEnabled: Bool {
@@ -114,23 +101,6 @@ final class DevelopmentPreferences {
         }
     }
 
-    /// Shows the floating global tuning panel for shared custom-sheet presentation.
-    var customSheetTuningEnabled: Bool {
-        didSet {
-            userDefaults.set(
-                customSheetTuningEnabled,
-                forKey: Keys.customSheetTuningEnabled
-            )
-        }
-    }
-
-    /// Shared debug tuning applied to every custom sheet at once.
-    var customSheetDebugSettings: CustomSheetDebugSettings {
-        didSet {
-            persistCustomSheetDebugSettings()
-        }
-    }
-
     private var edgeShadowDebugSettingsByScreen: [String: EdgeShadowDebugSettings] {
         didSet {
             scheduleEdgeShadowDebugSettingsPersistence()
@@ -139,9 +109,6 @@ final class DevelopmentPreferences {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-        self.aiDebugTracingEnabled = userDefaults.object(
-            forKey: Keys.aiDebugTracingEnabled
-        ) as? Bool ?? AppFeatures.current.enablesAITraceTooling
         self.deckWorkspaceMockAIEnabled = userDefaults.object(
             forKey: Keys.deckWorkspaceMockAIEnabled
         ) as? Bool ?? false
@@ -165,10 +132,6 @@ final class DevelopmentPreferences {
         ) as? Bool ?? false
         Self.migrateEdgeShadowDebugDefaultsIfNeeded(in: userDefaults)
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
-        self.customSheetTuningEnabled = userDefaults.object(
-            forKey: Keys.customSheetTuningEnabled
-        ) as? Bool ?? false
-        self.customSheetDebugSettings = Self.loadCustomSheetDebugSettings(from: userDefaults)
     }
 
     func edgeShadowSettings(for screenID: String) -> EdgeShadowDebugSettings {
@@ -234,25 +197,4 @@ final class DevelopmentPreferences {
         )
     }
 
-    private func persistCustomSheetDebugSettings() {
-        if customSheetDebugSettings == .default {
-            userDefaults.removeObject(forKey: Keys.customSheetDebugSettings)
-            return
-        }
-
-        let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(customSheetDebugSettings) else { return }
-        userDefaults.set(data, forKey: Keys.customSheetDebugSettings)
-    }
-
-    private static func loadCustomSheetDebugSettings(
-        from userDefaults: UserDefaults
-    ) -> CustomSheetDebugSettings {
-        guard let data = userDefaults.data(forKey: Keys.customSheetDebugSettings) else {
-            return .default
-        }
-
-        let decoder = JSONDecoder()
-        return (try? decoder.decode(CustomSheetDebugSettings.self, from: data)) ?? .default
-    }
 }

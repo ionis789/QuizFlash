@@ -16,23 +16,11 @@ nonisolated struct AppFeatures: Sendable {
         self.buildFlavor = buildFlavor
     }
 
-    var showsLabsTab: Bool {
-        false
-    }
-
-    var allowsDevelopmentRoutes: Bool {
-        true
-    }
-
-    var showsInternalLabs: Bool {
-        true
-    }
-
     var showsVisualDebugOverlays: Bool {
-        true
+        buildFlavor == .development
     }
 
     var enablesAITraceTooling: Bool {
-        true
+        buildFlavor == .development
     }
 }

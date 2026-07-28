@@ -28,9 +28,6 @@ final class NavigationManager {
     /// The navigation stack for the **Library** tab.
     var libraryPath = NavigationPath()
 
-    /// The navigation stack for the **Labs** tab.
-    var labsPath = NavigationPath()
-
     /// The navigation stack for the **Create** tab.
     var createPath = NavigationPath()
 
@@ -61,7 +58,6 @@ final class NavigationManager {
         switch activeTab {
         case .home: homePath = NavigationPath()
         case .library: libraryPath = NavigationPath()
-        case .labs: labsPath = NavigationPath()
         case .create: createPath = NavigationPath()
         case .settings: settingsPath = NavigationPath()
         }
@@ -75,7 +71,6 @@ final class NavigationManager {
         switch activeTab {
         case .home: homePath.append(route)
         case .library: libraryPath.append(route)
-        case .labs: labsPath.append(route)
         case .create: createPath.append(route)
         case .settings: settingsPath.append(route)
         }
@@ -108,14 +103,6 @@ final class NavigationManager {
         createWorkspaceEditingDeckID = nil
     }
 
-    /// Clears labs-only tab state now that Labs lives under Settings.
-    func sanitizeForFeatures(_ features: AppFeatures = .current) {
-        labsPath = NavigationPath()
-
-        if activeTab == .labs {
-            activeTab = .settings
-        }
-    }
 }
 
 // MARK: - App Route
@@ -161,103 +148,6 @@ extension AppRoute: Hashable {
         // `backLabel` excluded — consistent with `Equatable` above.
         case .folder(let f, _): hasher.combine(3)
             hasher.combine(f.persistentModelID)
-        }
-    }
-}
-
-// MARK: - Feature Lab Route
-
-/// Routes owned by the feature-lab section inside Settings.
-enum FeatureLabRoute: Hashable, CaseIterable {
-    case developmentSettings
-    case flashCardsPlayModeSimulation
-    case animatedObjectsLab
-    case sharedUICatalog
-    case contextMenu
-    case progressiveBlurHeaderLab
-}
-
-extension FeatureLabRoute {
-    /// Returns `true` when the route should be reachable in the current feature set.
-    func isAvailable(in features: AppFeatures) -> Bool {
-        switch self {
-        case .developmentSettings:
-            return features.allowsDevelopmentRoutes
-        case .flashCardsPlayModeSimulation, .animatedObjectsLab, .sharedUICatalog, .contextMenu, .progressiveBlurHeaderLab:
-            return features.showsInternalLabs
-        }
-    }
-
-    /// Visible labs destinations for one build flavor.
-    static func visibleRoutes(in features: AppFeatures) -> [FeatureLabRoute] {
-        allCases.filter { $0.isAvailable(in: features) }
-    }
-
-    var title: String {
-        switch self {
-        case .developmentSettings:
-            return "Development Settings"
-        case .flashCardsPlayModeSimulation:
-            return "FlashCards Play Mode Simulation"
-        case .animatedObjectsLab:
-            return "Animated Objects Lab"
-        case .sharedUICatalog:
-            return "Shared UI Catalog"
-        case .contextMenu:
-            return "Context Menu Lab"
-        case .progressiveBlurHeaderLab:
-            return "Progressive Blur Header"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .developmentSettings:
-            return "AI, traces, debug toggles."
-        case .flashCardsPlayModeSimulation:
-            return "Infinite swipe sandbox with real flashcard chrome."
-        case .animatedObjectsLab:
-            return "Standalone motion objects and playback tuning."
-        case .sharedUICatalog:
-            return "Shared views and modifiers."
-        case .contextMenu:
-            return "Context menu test surfaces."
-        case .progressiveBlurHeaderLab:
-            return "Sticky header blur package sandbox."
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .developmentSettings:
-            return "slider.horizontal.3"
-        case .flashCardsPlayModeSimulation:
-            return "rectangle.stack.fill"
-        case .animatedObjectsLab:
-            return "sparkles"
-        case .sharedUICatalog:
-            return "square.grid.2x2"
-        case .contextMenu:
-            return "ellipsis.rectangle"
-        case .progressiveBlurHeaderLab:
-            return "rectangle.tophalf.filled"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .developmentSettings:
-            return .purple
-        case .flashCardsPlayModeSimulation:
-            return .orange
-        case .animatedObjectsLab:
-            return .cyan
-        case .sharedUICatalog:
-            return .cyan
-        case .contextMenu:
-            return .red
-        case .progressiveBlurHeaderLab:
-            return .mint
         }
     }
 }

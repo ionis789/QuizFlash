@@ -323,7 +323,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             ]
         case .screenBackgroundPrimary:
             [
-                ThemeStudioUsageReference(title: "Main app shell", detail: "Home, Library, Deck, Create, and Labs root screens."),
+                ThemeStudioUsageReference(title: "Main app shell", detail: "Home, Library, Deck, Create, and Settings root screens."),
                 ThemeStudioUsageReference(title: "Large scrolling surfaces", detail: "The dark canvas behind cards, lists, and floating chrome.")
             ]
         case .screenBackgroundGrouped:

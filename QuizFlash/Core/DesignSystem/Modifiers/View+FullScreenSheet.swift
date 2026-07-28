@@ -203,7 +203,6 @@ struct FullScreenSheetConfiguration: Sendable {
     var avoidsKeyboard: Bool = false
     var appliesDefaultDragTopOverlay: Bool = false
     var hidesTabBar: Bool = true
-    var coversTabBar: Bool = false
     var debugIdentifier: String? = nil
 
     /// Standard rounded QuizFlash sheet with drag indicator and clipped top corners.
@@ -220,7 +219,6 @@ struct FullScreenSheetConfiguration: Sendable {
         showsCloseButton: Bool = false,
         avoidsKeyboard: Bool = false,
         hidesTabBar: Bool = true,
-        coversTabBar: Bool = false,
         debugIdentifier: String? = nil
     ) -> FullScreenSheetConfiguration {
         var configuration = FullScreenSheetConfiguration(
@@ -236,8 +234,7 @@ struct FullScreenSheetConfiguration: Sendable {
             showsCloseButton: showsCloseButton,
             avoidsKeyboard: avoidsKeyboard,
             appliesDefaultDragTopOverlay: false,
-            hidesTabBar: hidesTabBar,
-            coversTabBar: coversTabBar
+            hidesTabBar: hidesTabBar
         )
         configuration.debugIdentifier = debugIdentifier
         return configuration
@@ -255,7 +252,6 @@ struct FullScreenSheetConfiguration: Sendable {
         showsCloseButton: Bool = false,
         avoidsKeyboard: Bool = false,
         hidesTabBar: Bool = true,
-        coversTabBar: Bool = false,
         debugIdentifier: String? = nil
     ) -> FullScreenSheetConfiguration {
         var configuration = FullScreenSheetConfiguration(
@@ -271,76 +267,49 @@ struct FullScreenSheetConfiguration: Sendable {
             showsCloseButton: showsCloseButton,
             avoidsKeyboard: avoidsKeyboard,
             appliesDefaultDragTopOverlay: false,
-            hidesTabBar: hidesTabBar,
-            coversTabBar: coversTabBar
+            hidesTabBar: hidesTabBar
         )
         configuration.debugIdentifier = debugIdentifier
         return configuration
     }
 }
 
-// MARK: - Shared Debug Settings
+// MARK: - Shared Sheet Motion
 
-struct CustomSheetDebugSettings: Codable, Equatable {
-    var backdropBlurRadius: CGFloat = 18
-    var backdropPresentationDelay: CGFloat = UIConstants.Animation.medium * 0.18
-    var backdropPresentationDuration: CGFloat = UIConstants.Animation.medium * 1.65
-    var backdropDismissDuration: CGFloat = UIConstants.Animation.medium * 0.18
-    var blurRadius: CGFloat = 3.12
-    var blurFadeExtension: CGFloat = 27
-    var blurTintOpacityTop: CGFloat = 0
-    var blurTintOpacityMiddle: CGFloat = 0
-    var blurAreaHeight: CGFloat = 24
-    var topBlurRevealDistance: CGFloat = 44
-    var contentTopInset: CGFloat = 18
-    var scrimOpacity: CGFloat = 0
+/// Canonical motion contract for every QuizFlash custom sheet.
+enum FullScreenSheetMotion {
+    static let duration = UIConstants.Animation.sheet
 
-    static let `default` = CustomSheetDebugSettings()
-
-    init(
-        backdropBlurRadius: CGFloat = 18,
-        backdropPresentationDelay: CGFloat = UIConstants.Animation.medium * 0.18,
-        backdropPresentationDuration: CGFloat = UIConstants.Animation.medium * 1.65,
-        backdropDismissDuration: CGFloat = UIConstants.Animation.medium * 0.18,
-        blurRadius: CGFloat = 3.12,
-        blurFadeExtension: CGFloat = 27,
-        blurTintOpacityTop: CGFloat = 0,
-        blurTintOpacityMiddle: CGFloat = 0,
-        blurAreaHeight: CGFloat = 24,
-        topBlurRevealDistance: CGFloat = 44,
-        contentTopInset: CGFloat = 18,
-        scrimOpacity: CGFloat = 0
-    ) {
-        self.backdropBlurRadius = backdropBlurRadius
-        self.backdropPresentationDelay = backdropPresentationDelay
-        self.backdropPresentationDuration = backdropPresentationDuration
-        self.backdropDismissDuration = backdropDismissDuration
-        self.blurRadius = blurRadius
-        self.blurFadeExtension = blurFadeExtension
-        self.blurTintOpacityTop = blurTintOpacityTop
-        self.blurTintOpacityMiddle = blurTintOpacityMiddle
-        self.blurAreaHeight = blurAreaHeight
-        self.topBlurRevealDistance = topBlurRevealDistance
-        self.contentTopInset = contentTopInset
-        self.scrimOpacity = scrimOpacity
+    static func animation(duration: Double = duration) -> Animation {
+        .smooth(duration: max(duration, 0), extraBounce: 0)
     }
 
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = Self.default
-        backdropBlurRadius = try values.decodeIfPresent(CGFloat.self, forKey: .backdropBlurRadius) ?? defaults.backdropBlurRadius
-        backdropPresentationDelay = try values.decodeIfPresent(CGFloat.self, forKey: .backdropPresentationDelay) ?? defaults.backdropPresentationDelay
-        backdropPresentationDuration = try values.decodeIfPresent(CGFloat.self, forKey: .backdropPresentationDuration) ?? defaults.backdropPresentationDuration
-        backdropDismissDuration = try values.decodeIfPresent(CGFloat.self, forKey: .backdropDismissDuration) ?? defaults.backdropDismissDuration
-        blurRadius = try values.decodeIfPresent(CGFloat.self, forKey: .blurRadius) ?? defaults.blurRadius
-        blurFadeExtension = try values.decodeIfPresent(CGFloat.self, forKey: .blurFadeExtension) ?? defaults.blurFadeExtension
-        blurTintOpacityTop = try values.decodeIfPresent(CGFloat.self, forKey: .blurTintOpacityTop) ?? defaults.blurTintOpacityTop
-        blurTintOpacityMiddle = try values.decodeIfPresent(CGFloat.self, forKey: .blurTintOpacityMiddle) ?? defaults.blurTintOpacityMiddle
-        blurAreaHeight = try values.decodeIfPresent(CGFloat.self, forKey: .blurAreaHeight) ?? defaults.blurAreaHeight
-        topBlurRevealDistance = try values.decodeIfPresent(CGFloat.self, forKey: .topBlurRevealDistance) ?? defaults.topBlurRevealDistance
-        contentTopInset = try values.decodeIfPresent(CGFloat.self, forKey: .contentTopInset) ?? defaults.contentTopInset
-        scrimOpacity = try values.decodeIfPresent(CGFloat.self, forKey: .scrimOpacity) ?? defaults.scrimOpacity
+    static func travelDistance(sheetHeight: CGFloat) -> CGFloat {
+        max(sheetHeight, 1)
     }
+
+    static func continuationDuration(
+        from currentOffset: CGFloat,
+        to targetOffset: CGFloat,
+        travelDistance: CGFloat
+    ) -> Double {
+        let normalizedDistance = min(
+            max(abs(targetOffset - currentOffset) / max(travelDistance, 1), 0),
+            1
+        )
+        return duration * Double(normalizedDistance)
+    }
+}
+
+private enum FullScreenSheetAppearance {
+    static let backdropBlurRadius: CGFloat = 18
+    static let blurRadius: CGFloat = 3.12
+    static let blurFadeExtension: CGFloat = 27
+    static let blurTintOpacityTop: CGFloat = 0
+    static let blurTintOpacityMiddle: CGFloat = 0
+    static let blurAreaHeight: CGFloat = 24
+    static let contentTopInset: CGFloat = 18
+    static let scrimOpacity: CGFloat = 0
 }
 
 private func fullScreenSheetPresentationTransaction() -> Transaction {
@@ -423,19 +392,6 @@ private struct FullScreenSheetDebugProbe: View {
 
 private func fullScreenSheetDebugLog(_ identifier: String?, _ message: String) {
     guard let identifier else { return }
-
-    if SheetKeyboardDebugTrace.isActive(identifier: identifier) {
-        SheetKeyboardDebugTrace.record(
-            identifier: identifier,
-            event: message.hasPrefix("hosting.layout")
-                ? "host.layout"
-                : "sheet.event",
-            details: ["value": message],
-            buffered: !message.hasPrefix("hosting.layout")
-        )
-        return
-    }
-
     print("AUTH_LAYOUT_DEBUG \(debugTimestamp()) sheet=\(identifier) \(message)")
 }
 
@@ -559,41 +515,22 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
     @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
-    private var requiresModalCover: Bool {
-        configuration.coversTabBar && !configuration.hidesTabBar
-    }
-
-    @ViewBuilder
     func body(content presenterContent: Content) -> some View {
-        if requiresModalCover {
-            presenterContent
-                .onAppear(perform: syncMountedPresentation)
-                .onChange(of: isPresented) { _, _ in
-                    syncMountedPresentation()
-                }
-                .fullScreenCover(isPresented: mountedPresentationBinding) {
+        presenterContent
+            .onAppear(perform: syncMountedPresentation)
+            .onChange(of: isPresented) { _, _ in
+                syncMountedPresentation()
+            }
+            .overlay(alignment: .bottom) {
+                if isSheetMounted {
                     presentedSheet
-                        .presentationBackground(.clear)
-                        .interactiveDismissDisabled(true)
+                        .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                         .ignoresSafeArea(.keyboard, edges: .bottom)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.identity)
+                        .zIndex(1)
                 }
-        } else {
-            presenterContent
-                .onAppear(perform: syncMountedPresentation)
-                .onChange(of: isPresented) { _, _ in
-                    syncMountedPresentation()
-                }
-                .overlay(alignment: .bottom) {
-                    if isSheetMounted {
-                        presentedSheet
-                            .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
-                            .ignoresSafeArea(.keyboard, edges: .bottom)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .transition(.identity)
-                            .zIndex(1)
-                    }
-                }
-        }
+            }
     }
 
     private var presentedSheet: some View {
@@ -637,19 +574,6 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
         }
     }
 
-    private var mountedPresentationBinding: Binding<Bool> {
-        Binding(
-            get: { isSheetMounted },
-            set: { newValue in
-                if newValue {
-                    isSheetMounted = true
-                } else {
-                    requestAnimatedExternalDismiss()
-                }
-            }
-        )
-    }
-
     private func syncMountedPresentation() {
         if isPresented {
             isSheetMounted = true
@@ -685,41 +609,22 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
     @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
-    private var requiresModalCover: Bool {
-        configuration.coversTabBar && !configuration.hidesTabBar
-    }
-
-    @ViewBuilder
     func body(content presenterContent: Content) -> some View {
-        if requiresModalCover {
-            presenterContent
-                .onAppear(perform: syncMountedPresentation)
-                .onChange(of: item?.id) { _, _ in
-                    syncMountedPresentation()
-                }
-                .fullScreenCover(item: mountedItemBinding) { wrappedItem in
+        presenterContent
+            .onAppear(perform: syncMountedPresentation)
+            .onChange(of: item?.id) { _, _ in
+                syncMountedPresentation()
+            }
+            .overlay(alignment: .bottom) {
+                if let wrappedItem = item ?? mountedItem {
                     presentedSheet(for: wrappedItem)
-                        .presentationBackground(.clear)
-                        .interactiveDismissDisabled(true)
+                        .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
                         .ignoresSafeArea(.keyboard, edges: .bottom)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.identity)
+                        .zIndex(1)
                 }
-        } else {
-            presenterContent
-                .onAppear(perform: syncMountedPresentation)
-                .onChange(of: item?.id) { _, _ in
-                    syncMountedPresentation()
-                }
-                .overlay(alignment: .bottom) {
-                    if let wrappedItem = item ?? mountedItem {
-                        presentedSheet(for: wrappedItem)
-                            .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
-                            .ignoresSafeArea(.keyboard, edges: .bottom)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .transition(.identity)
-                            .zIndex(1)
-                    }
-                }
-        }
+            }
     }
 
     private func presentedSheet(for wrappedItem: Item) -> some View {
@@ -752,19 +657,6 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
             parentPresentationCoordinator?.setChildPresentationActive(presentationID, false)
             updateSheetTabBarHidden(false)
         }
-    }
-
-    private var mountedItemBinding: Binding<Item?> {
-        Binding(
-            get: { item ?? mountedItem },
-            set: { newValue in
-                if let newValue {
-                    mountedItem = newValue
-                } else {
-                    requestAnimatedExternalDismiss()
-                }
-            }
-        )
     }
 
     private func syncMountedPresentation() {
@@ -800,7 +692,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @ViewBuilder var background: Background
 
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var offset: CGFloat = 0
@@ -817,13 +708,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var stableWindowMetrics: FullScreenSheetWindowMetrics?
 
-    private var dismissalAnimation: Animation {
-        .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
-    }
-
-    private var presentationAnimation: Animation {
-        .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
-    }
+    private var presentationAnimation: Animation { FullScreenSheetMotion.animation() }
 
     private var keyboardAvoidanceAnimation: Animation {
         .easeInOut(duration: max(keyboardMonitor.animationDuration, UIConstants.Animation.instant))
@@ -861,8 +746,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let sheetHeight = min(visibleSheetHeight + keyboardInset, containerHeight)
         let sheetTopY = max(containerHeight - sheetHeight, 0)
         let isFullHeightSheet = sheetTopY <= 0.5
-        let dismissalDistance = isFullHeightSheet ? containerHeight : sheetHeight
-        let progressDistance = isAnimatingDismiss ? dismissalDistance : containerHeight
+        let dismissalDistance = FullScreenSheetMotion.travelDistance(sheetHeight: sheetHeight)
         let sheetBottomOverscan = isFullHeightSheet
             || keyboardInset > 0
             || configuration.heightMode.alignsToWindowBottom
@@ -878,8 +762,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             keyboardInset: keyboardInset
         )
         let dragProgress = min(max(offset / max(dismissalDistance, 1), 0), 1)
-        let visibleSheetOffset = offset + ((1 - presentationProgress) * containerHeight)
-        let visibleSheetProgress = 1 - min(max(visibleSheetOffset / max(progressDistance, 1), 0), 1)
+        let visibleSheetOffset = offset + ((1 - presentationProgress) * dismissalDistance)
+        let visibleSheetProgress = 1 - min(max(visibleSheetOffset / dismissalDistance, 0), 1)
         let effectiveBackdropProgress = fullScreenSheetClampedProgress(visibleSheetProgress)
         let topBlurRevealProgress = resolvedTopBlurRevealProgress(scrollOffset: contentScrollOffset)
         let topChromeDragHeight = resolvedTopChromeDragHeight(contentSafeAreaInsets: contentSafeAreaInsets)
@@ -993,22 +877,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
             sheetSurface
 
-#if DEBUG
-            if developmentPreferences.customSheetTuningEnabled {
-                CustomSheetDebugFloatingPanel(
-                    settings: Binding(
-                        get: { developmentPreferences.customSheetDebugSettings },
-                        set: { developmentPreferences.customSheetDebugSettings = $0 }
-                    ),
-                    onReset: {
-                        developmentPreferences.customSheetDebugSettings = .default
-                    }
-                )
-                .padding(.trailing, UIConstants.Spacing.large)
-                .padding(.bottom, max(windowSafeAreaInsets.bottom, UIConstants.Spacing.large) + UIConstants.Size.bottomChromeBarHeight)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            }
-#endif
         }
         .frame(width: containerWidth, height: containerHeight, alignment: .bottom)
         .contentShape(.rect)
@@ -1107,11 +975,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     layer: "full-screen-sheet"
                 )
             }
-#if DEBUG
-            if let debugIdentifier = configuration.debugIdentifier {
-                SheetKeyboardDebugTrace.end(identifier: debugIdentifier)
-            }
-#endif
         }
         .onChange(of: hasActiveChildPresentation) { _, hasActiveChildPresentation in
             guard hasActiveChildPresentation else { return }
@@ -1173,12 +1036,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 #if DEBUG
         fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.animation.start")
 #endif
-        Task { @MainActor in
-            await Task.yield()
-            guard hasStartedPresentationAnimation, !isAnimatingDismiss else { return }
-            withAnimation(presentationAnimation) {
-                presentationProgress = 1
-            }
+        guard !isAnimatingDismiss else { return }
+        withAnimation(presentationAnimation) {
+            presentationProgress = 1
         }
     }
 
@@ -1212,7 +1072,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         includesDimOverlay: Bool = true
     ) -> some View {
         ZStack {
-            BackgroundBlurView(radius: resolvedCustomSheetSettings.backdropBlurRadius)
+            BackgroundBlurView(radius: FullScreenSheetAppearance.backdropBlurRadius)
                 .ignoresSafeArea()
 
             if includesDimOverlay {
@@ -1312,13 +1172,22 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         if predictedEnd > dismissalDistance * 0.28 {
             animateDismiss(dismissalDistance: dismissalDistance, completion: completion)
         } else {
-            withAnimation(dismissalAnimation) { offset = 0 }
-            if translation < dismissalDistance * 0.05 {
+            let continuationDuration = FullScreenSheetMotion.continuationDuration(
+                from: offset,
+                to: 0,
+                travelDistance: dismissalDistance
+            )
+            withAnimation(FullScreenSheetMotion.animation(duration: continuationDuration)) {
+                offset = 0
+            }
+            if continuationDuration <= 0 {
                 scrollDisabled = false
                 completion?()
             } else {
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+                    try? await Task.sleep(
+                        for: .milliseconds(animationDurationMilliseconds(continuationDuration))
+                    )
                     scrollDisabled = false
                     completion?()
                 }
@@ -1333,9 +1202,18 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         guard !isAnimatingDismiss else { return }
         guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
             dismissCoordinator.onBlockedDismiss?()
-            withAnimation(dismissalAnimation) { offset = 0 }
+            let continuationDuration = FullScreenSheetMotion.continuationDuration(
+                from: offset,
+                to: 0,
+                travelDistance: dismissalDistance
+            )
+            withAnimation(FullScreenSheetMotion.animation(duration: continuationDuration)) {
+                offset = 0
+            }
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+                try? await Task.sleep(
+                    for: .milliseconds(animationDurationMilliseconds(continuationDuration))
+                )
                 scrollDisabled = false
                 completion?()
             }
@@ -1345,12 +1223,19 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         scrollDisabled = true
         onDismissStart()
 
-        withAnimation(dismissalAnimation) {
+        let continuationDuration = FullScreenSheetMotion.continuationDuration(
+            from: offset,
+            to: dismissalDistance,
+            travelDistance: dismissalDistance
+        )
+        withAnimation(FullScreenSheetMotion.animation(duration: continuationDuration)) {
             offset = dismissalDistance
         }
 
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+            try? await Task.sleep(
+                for: .milliseconds(animationDurationMilliseconds(continuationDuration))
+            )
             var tx = Transaction()
             tx.disablesAnimations = true
             withTransaction(tx) { onDismiss() }
@@ -1385,7 +1270,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         contentSafeAreaInsets: UIEdgeInsets
     ) -> CGFloat {
         return max(
-            contentSafeAreaInsets.top + resolvedCustomSheetSettings.blurAreaHeight,
+            contentSafeAreaInsets.top + FullScreenSheetAppearance.blurAreaHeight,
             1
         )
     }
@@ -1403,7 +1288,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         contentSafeAreaInsets: UIEdgeInsets
     ) -> CGFloat {
         max(
-            resolvedCustomSheetSettings.contentTopInset,
+            FullScreenSheetAppearance.contentTopInset,
             0
         )
     }
@@ -1415,10 +1300,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private var defaultSheetTopBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
         ScreenTopProgressiveBlurConfiguration(
-            maxBlurRadius: resolvedCustomSheetSettings.blurRadius,
-            fadeExtension: resolvedCustomSheetSettings.blurFadeExtension,
-            tintOpacityTop: Double(resolvedCustomSheetSettings.blurTintOpacityTop),
-            tintOpacityMiddle: Double(resolvedCustomSheetSettings.blurTintOpacityMiddle)
+            maxBlurRadius: FullScreenSheetAppearance.blurRadius,
+            fadeExtension: FullScreenSheetAppearance.blurFadeExtension,
+            tintOpacityTop: Double(FullScreenSheetAppearance.blurTintOpacityTop),
+            tintOpacityMiddle: Double(FullScreenSheetAppearance.blurTintOpacityMiddle)
         )
     }
 
@@ -1426,15 +1311,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         sheetTopY: CGFloat,
         containerHeight: CGFloat
     ) -> Double {
-        Double(min(max(resolvedCustomSheetSettings.scrimOpacity, 0), 1))
+        Double(min(max(FullScreenSheetAppearance.scrimOpacity, 0), 1))
     }
 
-    private var resolvedCustomSheetSettings: CustomSheetDebugSettings {
-        developmentPreferences.customSheetDebugSettings
-    }
-
-    private var animationDurationMilliseconds: Int {
-        Int(UIConstants.Animation.medium * 1_000)
+    private func animationDurationMilliseconds(_ duration: Double) -> Int {
+        Int((duration * 1_000).rounded())
     }
 
     private func resolvedDragActivationHeight(sheetHeight: CGFloat) -> CGFloat? {

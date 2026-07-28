@@ -140,15 +140,35 @@ struct SettingsView: View {
         } message: {
             Text(AppLocalization.string("This deletes your Firebase account. Local decks stay on this device.", locale: appPreferences.resolvedLocale))
         }
-        .sheet(isPresented: $showDeleteAccountPasswordSheet) {
-            deleteAccountPasswordSheet
-                .presentationDetents([.height(250)])
-                .presentationBackground(.background)
+        .fullScreenSheet(
+            isPresented: $showDeleteAccountPasswordSheet,
+            configuration: .sheet(
+                heightMode: .safeAreaAbsolute(250, maxFraction: 0.72),
+                showsDefaultTopProgressiveBlur: false,
+                avoidsKeyboard: true
+            )
+        ) { safeAreaInsets in
+            KeyboardAdaptiveSheetContent {
+                deleteAccountPasswordSheet
+                    .padding(.bottom, safeAreaInsets.bottom)
+            }
+        } background: {
+            themeManager.groupedScreenBackground
         }
-        .sheet(isPresented: $isEditingDisplayName) {
-            editDisplayNameSheet
-                .presentationDetents([.height(220)])
-                .presentationBackground(.background)
+        .fullScreenSheet(
+            isPresented: $isEditingDisplayName,
+            configuration: .sheet(
+                heightMode: .safeAreaAbsolute(220, maxFraction: 0.68),
+                showsDefaultTopProgressiveBlur: false,
+                avoidsKeyboard: true
+            )
+        ) { safeAreaInsets in
+            KeyboardAdaptiveSheetContent {
+                editDisplayNameSheet
+                    .padding(.bottom, safeAreaInsets.bottom)
+            }
+        } background: {
+            themeManager.groupedScreenBackground
         }
         .alert(
             AppLocalization.string("Something went wrong", locale: appPreferences.resolvedLocale),
@@ -546,23 +566,6 @@ struct SettingsView: View {
                     )
                 }
                 .noPressEffectButtonStyle()
-            }
-
-            if !FeatureLabRoute.visibleRoutes(in: .current).isEmpty {
-                settingsBlock {
-                    NavigationLink {
-                        FeatureLabView()
-                    } label: {
-                        SettingsNavigationRow(
-                            icon: "testtube.2",
-                            tint: themeManager.accentColor.color,
-                            title: "Labs",
-                            detail: nil,
-                            value: nil
-                        )
-                    }
-                    .noPressEffectButtonStyle()
-                }
             }
 
             settingsBlock {

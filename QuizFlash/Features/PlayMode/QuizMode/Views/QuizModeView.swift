@@ -194,8 +194,7 @@ private struct QuizModeSessionView: View {
                 showsBackdropBlur: true,
                 showsDefaultTopProgressiveBlur: false,
                 showsCloseButton: false,
-                hidesTabBar: true,
-                coversTabBar: false
+                hidesTabBar: true
             )
         ) { safeArea in
             explanationSheetContent(safeAreaInsets: safeArea)

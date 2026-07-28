@@ -57,8 +57,7 @@ extension DeckContentView {
                 backgroundReceivesDragProgress: true,
                 showsBackdropBlur: true,
                 showsDefaultTopProgressiveBlur: false,
-                hidesTabBar: false,
-                coversTabBar: true
+                hidesTabBar: true
             )
         ) { mode, safeArea in
             if mode == .flashcards,
@@ -140,8 +139,7 @@ extension DeckContentView {
                 heightMode: .fullScreen,
                 backgroundReceivesDragProgress: false,
                 showsBackdropBlur: true,
-                hidesTabBar: true,
-                coversTabBar: true
+                hidesTabBar: true
             )
         ) { presentation, safeArea in
             if let editingDeck = context.safeModel(for: presentation.id, as: DeckModel.self) {

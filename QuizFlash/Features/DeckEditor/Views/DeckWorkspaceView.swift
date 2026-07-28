@@ -559,8 +559,7 @@ struct DeckWorkspaceView: View {
                     backgroundReceivesDragProgress: true,
                     showsBackdropBlur: true,
                     showsDefaultTopProgressiveBlur: false,
-                    hidesTabBar: true,
-                    coversTabBar: false
+                    hidesTabBar: true
                 )
             ) { safeArea in
                 AIGenerationSourcePickerSheetView(
@@ -579,8 +578,7 @@ struct DeckWorkspaceView: View {
                     backgroundReceivesDragProgress: true,
                     showsBackdropBlur: true,
                     showsDefaultTopProgressiveBlur: false,
-                    hidesTabBar: true,
-                    coversTabBar: true
+                    hidesTabBar: true
                 )
             ) { _, safeArea in
                 AIGenerationSheetView(

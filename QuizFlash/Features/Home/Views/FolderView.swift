@@ -258,18 +258,6 @@ struct CreateFolderSheet: View {
                         .tint(themeManager.roleColor(.buttonPrimaryFill))
                         .focused($isTitleFocused)
                         .submitLabel(.done)
-                        .onSubmit {
-#if DEBUG
-                            SheetKeyboardDebugTrace.record(
-                                identifier: "home.create-folder",
-                                event: "textfield.submit",
-                                details: [
-                                    "focused": String(isTitleFocused),
-                                    "titleLength": String(viewModel.newFolderTitle.count)
-                                ]
-                            )
-#endif
-                        }
 
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                         HStack(spacing: UIConstants.Spacing.standard) {
@@ -302,11 +290,6 @@ struct CreateFolderSheet: View {
                 }
                 .padding(UIConstants.Spacing.large)
                 .duoSurface(cornerRadius: 28)
-#if DEBUG
-                .background {
-                    FolderSheetFrameProbe(label: "field-card")
-                }
-#endif
 
                 Button {
                     viewModel.createFolder(context: context)
@@ -328,50 +311,8 @@ struct CreateFolderSheet: View {
             .padding(.top, contentTopPadding)
             .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.standard))
             .frame(maxWidth: .infinity, alignment: .topLeading)
-#if DEBUG
-            .background {
-                FolderSheetFrameProbe(label: "form-content")
-            }
-#endif
-        }
-        .onAppear {
-#if DEBUG
-            SheetKeyboardDebugTrace.record(
-                identifier: "home.create-folder",
-                event: "content.appear",
-                details: [
-                    "safeTop": debugFolderSheetValue(safeAreaInsets.top),
-                    "safeBottom": debugFolderSheetValue(safeAreaInsets.bottom),
-                    "topChromeClearance": debugFolderSheetValue(topChromeClearance),
-                    "contentTopPadding": debugFolderSheetValue(contentTopPadding)
-                ]
-            )
-#endif
-        }
-        .onChange(of: isTitleFocused) { oldValue, newValue in
-#if DEBUG
-            SheetKeyboardDebugTrace.record(
-                identifier: "home.create-folder",
-                event: "focus.changed",
-                details: [
-                    "from": String(oldValue),
-                    "to": String(newValue),
-                    "titleLength": String(viewModel.newFolderTitle.count)
-                ]
-            )
-#endif
         }
         .onDisappear {
-#if DEBUG
-            SheetKeyboardDebugTrace.record(
-                identifier: "home.create-folder",
-                event: "content.disappear",
-                details: [
-                    "focused": String(isTitleFocused),
-                    "sheetPresented": String(viewModel.showCreateFolder)
-                ]
-            )
-#endif
             if !viewModel.showCreateFolder {
                 viewModel.newFolderTitle = ""
             }
@@ -430,80 +371,3 @@ struct CreateFolderSheet: View {
         .accessibilityLabel(localized("Custom Color"))
     }
 }
-
-#if DEBUG
-private struct FolderSheetFrameProbe: UIViewRepresentable {
-    let label: String
-
-    func makeUIView(context: Context) -> FolderSheetFrameProbeView {
-        FolderSheetFrameProbeView(label: label)
-    }
-
-    func updateUIView(_ uiView: FolderSheetFrameProbeView, context: Context) {
-        uiView.label = label
-        uiView.reportIfChanged()
-    }
-}
-
-private final class FolderSheetFrameProbeView: UIView {
-    var label: String
-    private var lastSummary: String?
-
-    init(label: String) {
-        self.label = label
-        super.init(frame: .zero)
-        backgroundColor = .clear
-        isUserInteractionEnabled = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        reportIfChanged()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        reportIfChanged()
-    }
-
-    func reportIfChanged() {
-        guard window != nil else { return }
-
-        let windowFrame = convert(bounds, to: window)
-        let presentationFrame = layer.presentation()?.frame ?? .null
-        let summary = [
-            "label=\(label)",
-            "local=\(debugFolderSheetFrame(frame))",
-            "window=\(debugFolderSheetFrame(windowFrame))",
-            "presentation=\(debugFolderSheetFrame(presentationFrame))"
-        ].joined(separator: " ")
-
-        guard summary != lastSummary else { return }
-        lastSummary = summary
-        SheetKeyboardDebugTrace.record(
-            identifier: "home.create-folder",
-            event: "content.frame",
-            details: ["value": summary],
-            buffered: false
-        )
-    }
-}
-
-private func debugFolderSheetFrame(_ frame: CGRect) -> String {
-    [
-        "x:\(debugFolderSheetValue(frame.minX))",
-        "y:\(debugFolderSheetValue(frame.minY))",
-        "w:\(debugFolderSheetValue(frame.width))",
-        "h:\(debugFolderSheetValue(frame.height))"
-    ].joined(separator: ",")
-}
-
-private func debugFolderSheetValue(_ value: CGFloat) -> String {
-    String(format: "%.2f", value)
-}
-#endif

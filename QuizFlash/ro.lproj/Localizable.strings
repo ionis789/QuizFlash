@@ -143,6 +143,7 @@
 "All Decks" = "Toate deckurile";
 "All folders" = "Toate foldere";
 "Almost ready" = "Aproape gata";
+"An AI provider API key is not configured." = "Cheia API pentru furnizorul AI nu este configurată.";
 "Already have an account?" = "Ai deja cont?";
 "Also visible in %@" = "Vizibil și în %@";
 "An account with this email already exists." = "Există deja un cont cu acest email.";
@@ -430,7 +431,6 @@
 "Keep your focus" = "Păstrează-ți focusul";
 "Keeping the current list stable while the next result set is prepared." = "Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.";
 "Label Color" = "Culoare etichetă";
-"Labs" = "Laborator";
 "Landed" = "Reușite";
 "Language" = "Limbă";
 "Large" = "Mare";

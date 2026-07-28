@@ -8,25 +8,19 @@ import SwiftUI
 enum AppTabBar: String, CaseIterable, Identifiable {
     case home = "HOME"
     case library = "LIBRARY"
-    case labs = "LABS"
     case create = "CREATE"
     case settings = "SETTINGS"
 
     var id: String { rawValue }
 
-    static func visibleTabs(features: AppFeatures) -> [AppTabBar] {
-        return [.home, .library, .create, .settings]
-    }
-
     static var visibleTabs: [AppTabBar] {
-        visibleTabs(features: .current)
+        [.home, .library, .create, .settings]
     }
 
     var title: String {
         switch self {
         case .home: return "Home"
         case .library: return "Library"
-        case .labs: return "Labs"
         case .create: return "Create"
         case .settings: return "Settings"
         }
@@ -38,8 +32,6 @@ enum AppTabBar: String, CaseIterable, Identifiable {
             return AppLocalization.string("Home", locale: locale)
         case .library:
             return AppLocalization.string("Library", locale: locale)
-        case .labs:
-            return AppLocalization.string("Labs", locale: locale)
         case .create:
             return AppLocalization.string("Create", locale: locale)
         case .settings:
@@ -51,7 +43,6 @@ enum AppTabBar: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "bolt.fill"
         case .library: return "rectangle.stack.fill"
-        case .labs: return "testtube.2"
         case .create: return "book.and.wrench"
         case .settings: return "gearshape"
         }

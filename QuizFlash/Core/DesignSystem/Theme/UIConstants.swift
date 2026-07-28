@@ -332,6 +332,8 @@ enum UIConstants {
         static let instant: Double = 0.15
         /// 0.25 s — standard UI transitions (expand/collapse, fade).
         static let standard: Double = 0.25
+        /// 0.28 s — shared opening and closing duration for every custom sheet.
+        static let sheet: Double = 0.28
         /// 0.35 s — slightly slower transitions for larger elements.
         static let medium: Double = 0.35
         /// 0.08 s — lead time that lets UIKit tab motion start before a heavy `TabView` switch commits.

@@ -43,7 +43,7 @@ enum SwipeArrowAnimatedObjectPhase: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Short title used in lab controls.
+    /// Short diagnostic title for the playback phase.
     var title: String {
         switch self {
         case .idle:
@@ -97,7 +97,7 @@ enum SwipeArrowAnimationResource {
         if let animation = LottieAnimation.named(
             name,
             bundle: .main,
-            subdirectory: "Features/FeatureLab/Resources/Lottie"
+            subdirectory: "Features/PlayMode/Shared/Resources/Lottie"
         ) {
             return animation
         }
@@ -118,12 +118,12 @@ enum SwipeArrowAnimationResource {
             bundle.url(
                 forResource: name,
                 withExtension: "json",
-                subdirectory: "Features/FeatureLab/Resources/Lottie"
+                subdirectory: "Features/PlayMode/Shared/Resources/Lottie"
             ),
             bundle.url(
                 forResource: name,
                 withExtension: "json",
-                subdirectory: "FeatureLab/Resources/Lottie"
+                subdirectory: "PlayMode/Shared/Resources/Lottie"
             )
         ]
 
@@ -152,7 +152,7 @@ enum SwipeArrowAnimationResource {
 
 // MARK: - Swipe Arrow Animated Object View
 
-/// Shared visual object used for swipe-arrow motion in labs and Play Mode.
+/// Shared visual object used for swipe-arrow motion in Play Mode.
 struct SwipeArrowAnimatedObjectView: View {
     let presentation: SwipeArrowAnimatedObjectPresentation
     let isCompact: Bool

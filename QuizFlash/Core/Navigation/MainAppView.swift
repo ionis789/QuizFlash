@@ -126,10 +126,6 @@ struct MainAppView: View {
         router.activeTab == .create
     }
 
-    private var appFeatures: AppFeatures {
-        .current
-    }
-
     /// The raw `TabView` selection binding. Tab semantics such as reselect and
     /// delayed cross-tab commits are handled by `CustomTabBar` instead.
     private var tabViewSelection: Binding<AppTabBar> {
@@ -321,11 +317,6 @@ struct MainAppView: View {
                 "main-app.task.begin",
                 layer: "main-app"
             )
-            router.sanitizeForFeatures(appFeatures)
-            AuthFlowDebugTrace.record(
-                "main-app.task.after-sanitize",
-                layer: "main-app"
-            )
             await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
             AuthFlowDebugTrace.record(
                 "main-app.task.after-ai-restore",
@@ -356,28 +347,6 @@ struct MainAppView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(migrationErrorMessage)
-        }
-    }
-
-    @ViewBuilder
-    private func featureLabDestination(for route: FeatureLabRoute) -> some View {
-        if route.isAvailable(in: appFeatures) {
-            switch route {
-            case .developmentSettings:
-                DevelopmentSettingsView()
-            case .flashCardsPlayModeSimulation:
-                FlashCardsPlayModeSimulationView()
-            case .animatedObjectsLab:
-                AnimatedObjectsLabView()
-            case .sharedUICatalog:
-                SharedUICatalogView()
-            case .contextMenu:
-                ContextMenuLabView()
-            case .progressiveBlurHeaderLab:
-                ProgressiveBlurHeaderLabView()
-            }
-        } else {
-            EmptyView()
         }
     }
 
@@ -587,9 +556,6 @@ struct MainAppView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: AppRoute.self) { route in
                         appRouteDestination(for: route)
-                    }
-                    .navigationDestination(for: FeatureLabRoute.self) { route in
-                        featureLabDestination(for: route)
                     }
             }
             .tag(AppTabBar.settings)

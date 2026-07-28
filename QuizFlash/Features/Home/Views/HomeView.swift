@@ -186,8 +186,7 @@ struct HomeView: View {
                         heightMode: .safeAreaAbsolute(Self.createFolderSheetHeight, maxFraction: 0.78),
                         showsDefaultTopProgressiveBlur: false,
                         showsCloseButton: false,
-                        avoidsKeyboard: true,
-                        debugIdentifier: "home.create-folder"
+                        avoidsKeyboard: true
                     )
                 ) { safeAreaInsets in
                     CreateFolderSheet(
@@ -259,15 +258,6 @@ struct HomeView: View {
     }
 
     private func presentCreateFolder() {
-#if DEBUG
-        SheetKeyboardDebugTrace.begin(
-            identifier: "home.create-folder",
-            details: [
-                "trigger": "home.create-folder",
-                "titleLength": String(viewModel.newFolderTitle.count)
-            ]
-        )
-#endif
         viewModel.showCreateFolder = true
     }
 

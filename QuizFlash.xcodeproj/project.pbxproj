@@ -163,7 +163,7 @@
 		CB27A62B2F89A0FC00666115 /* Exceptions for "QuizFlash" folder in "QuizFlashTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Features/FeatureLab/Resources/Lottie/swipe_arrow.json,
+				Features/PlayMode/Shared/Resources/Lottie/swipe_arrow.json,
 			);
 			target = D0A100082F70000100TEST00 /* QuizFlashTests */;
 		};
