@@ -250,10 +250,6 @@ struct CreateFolderSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(localized("New Folder"))
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(themeManager.textPrimary)
-
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
                     .font(.system(size: 22, weight: .bold))

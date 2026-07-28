@@ -181,7 +181,7 @@ struct HomeView: View {
                 .fullScreenSheet(
                     isPresented: $viewModel.showCreateFolder,
                     configuration: .sheet(
-                        heightMode: .custom(0.52),
+                        heightMode: .adaptiveAbsolute(300, maxFraction: 0.78),
                         showsDefaultTopProgressiveBlur: false,
                         showsCloseButton: false,
                         avoidsKeyboard: true
