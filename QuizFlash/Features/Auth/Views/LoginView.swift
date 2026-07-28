@@ -39,8 +39,6 @@ struct LoginView: View {
     @State private var authSheetPresentationTask: Task<Void, Never>?
     @State private var authWalkthroughVisibilityTask: Task<Void, Never>?
     @State private var isAuthWalkthroughHiddenBySheet = false
-    @State private var isAuthWalkthroughAnimationPausedForSheet = false
-    @State private var isAuthWalkthroughFrozenForWelcome = false
     @State private var authenticationHandoffAttemptID: UUID?
     @State private var authenticationWelcomeAttemptID: UUID?
     @State private var isAuthenticationCenterContentVisible = true
@@ -48,8 +46,6 @@ struct LoginView: View {
 
     let showsAuthWalkthrough: Bool
     let showsAuthWalkthroughBolt: Bool
-    let showsAuthWalkthroughText: Bool
-    let allowsAuthWalkthroughAnimation: Bool
     let allowsAuthSheetPresentation: Bool
     let launchBoltNamespace: Namespace.ID?
     let onAuthWalkthroughPrepared: () -> Void
@@ -57,13 +53,9 @@ struct LoginView: View {
     let onAuthenticationAttemptCancelled: @MainActor (UUID) -> Void
     let onAuthenticationHandoffCompleted: @MainActor (UUID) -> Void
 
-    private static let authenticationWelcomeFreezeDelay: Duration = .milliseconds(50)
-
     init(
         showsAuthWalkthrough: Bool = true,
         showsAuthWalkthroughBolt: Bool = true,
-        showsAuthWalkthroughText: Bool = true,
-        allowsAuthWalkthroughAnimation: Bool = true,
         allowsAuthSheetPresentation: Bool = true,
         launchBoltNamespace: Namespace.ID? = nil,
         onAuthWalkthroughPrepared: @escaping () -> Void = {},
@@ -73,8 +65,6 @@ struct LoginView: View {
     ) {
         self.showsAuthWalkthrough = showsAuthWalkthrough
         self.showsAuthWalkthroughBolt = showsAuthWalkthroughBolt
-        self.showsAuthWalkthroughText = showsAuthWalkthroughText
-        self.allowsAuthWalkthroughAnimation = allowsAuthWalkthroughAnimation
         self.allowsAuthSheetPresentation = allowsAuthSheetPresentation
         self.launchBoltNamespace = launchBoltNamespace
         self.onAuthWalkthroughPrepared = onAuthWalkthroughPrepared
@@ -285,15 +275,9 @@ struct LoginView: View {
 
                 ZStack {
                     if showsAuthWalkthrough, isAuthenticationCenterContentVisible {
-                        AuthWalkthroughText(
-                            phrases: walkthroughPhrases,
+                        AuthStaticBolt(
                             symbolColor: themeManager.accentColor.color,
-                            reduceMotion: reduceMotion,
-                            animates: allowsAuthWalkthroughAnimation
-                                && !isAuthWalkthroughAnimationPausedForSheet,
-                            freezesContent: isAuthWalkthroughFrozenForWelcome,
                             showsBolt: showsAuthWalkthroughBolt,
-                            showsText: showsAuthWalkthroughText,
                             launchBoltNamespace: launchBoltNamespace,
                             onPrepared: onAuthWalkthroughPrepared
                         )
@@ -332,7 +316,6 @@ struct LoginView: View {
         }
         .onAppear {
             isAuthWalkthroughHiddenBySheet = isEmailAuthSheetActive
-            isAuthWalkthroughAnimationPausedForSheet = isEmailAuthSheetActive
         }
         .onChange(of: isEmailAuthSheetActive) { _, shouldHide in
             scheduleAuthWalkthroughVisibility(shouldHide: shouldHide)
@@ -500,7 +483,6 @@ struct LoginView: View {
         authWalkthroughVisibilityTask = Task { @MainActor in
             guard !reduceMotion else {
                 isAuthWalkthroughHiddenBySheet = shouldHide
-                isAuthWalkthroughAnimationPausedForSheet = shouldHide
                 return
             }
 
@@ -509,35 +491,14 @@ struct LoginView: View {
                 guard !Task.isCancelled else { return }
 
                 isAuthWalkthroughHiddenBySheet = true
-
-                try? await Task.sleep(for: .seconds(UIConstants.Animation.standard))
-                guard !Task.isCancelled else { return }
-
-                isAuthWalkthroughAnimationPausedForSheet = true
                 return
             }
-
-            isAuthWalkthroughAnimationPausedForSheet = true
 
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
             isAuthWalkthroughHiddenBySheet = false
-
-            try? await Task.sleep(for: .seconds(UIConstants.Animation.standard))
-            guard !Task.isCancelled else { return }
-
-            isAuthWalkthroughAnimationPausedForSheet = false
         }
-    }
-
-    private var walkthroughPhrases: [String] {
-        [
-            AppLocalization.string("Let's study", locale: locale),
-            AppLocalization.string("Let's review", locale: locale),
-            AppLocalization.string("Let's master", locale: locale),
-            AppLocalization.string("Let's focus", locale: locale)
-        ]
     }
 
     private func presentError(_ error: Error) {
@@ -616,22 +577,6 @@ struct LoginView: View {
                     extra: ["reason": "missing-or-stale-attempt"]
                 )
             )
-            return
-        }
-
-        AuthFlowDebugTrace.record(
-            "welcome.walkthrough-freeze.requested",
-            layer: "login-view",
-            details: ["attempt": attemptID.uuidString]
-        )
-        isAuthWalkthroughFrozenForWelcome = true
-
-        guard await waitForAuthenticationWelcomePhase(
-            "freeze-walkthrough",
-            reduceMotion ? .milliseconds(10) : Self.authenticationWelcomeFreezeDelay,
-            attemptID: attemptID
-        ) else {
-            isAuthWalkthroughFrozenForWelcome = false
             return
         }
 
@@ -1296,7 +1241,7 @@ private struct AuthLoginSheetContent: View {
 
 // MARK: - Auth Walkthrough Text
 
-private struct AuthWalkthroughText: View {
+struct AuthWalkthroughText: View {
     let phrases: [String]
     let symbolColor: Color
     let reduceMotion: Bool
@@ -1504,6 +1449,34 @@ private struct AuthIntro: Identifiable {
     var backgroundColor: Color
     var symbolOffset: CGFloat = 0
     var textOffset: CGFloat = 0
+}
+
+// MARK: - Auth Static Bolt
+
+private struct AuthStaticBolt: View {
+    let symbolColor: Color
+    let showsBolt: Bool
+    let launchBoltNamespace: Namespace.ID?
+    let onPrepared: () -> Void
+
+    var body: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: 38, weight: .heavy))
+            .foregroundStyle(symbolColor)
+            .frame(width: 38, height: 38)
+            .modifier(
+                AuthLaunchBoltGeometryModifier(
+                    namespace: launchBoltNamespace,
+                    isSource: false
+                )
+            )
+            .opacity(showsBolt ? 1 : 0)
+            .animation(nil, value: showsBolt)
+            .frame(maxWidth: .infinity)
+            .frame(height: 86)
+            .accessibilityHidden(true)
+            .onAppear(perform: onPrepared)
+    }
 }
 
 // MARK: - Auth Landing Buttons

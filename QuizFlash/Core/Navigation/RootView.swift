@@ -52,7 +52,6 @@ struct RootView: View {
     @State private var isLaunchBoltReadyForTransfer = false
     @State private var hasStartedAuthBoltTransfer = false
     @State private var isAuthWalkthroughBoltVisible = false
-    @State private var isAuthWalkthroughTextVisible = false
     @State private var isAuthSheetPresentationReleased = false
     @State private var authenticatedHandoffAttemptID: UUID?
     @Namespace private var authLaunchBoltNamespace
@@ -173,12 +172,6 @@ struct RootView: View {
         LoginView(
             showsAuthWalkthrough: true,
             showsAuthWalkthroughBolt: isAuthWalkthroughBoltVisible
-                || releasesAuthUIAfterLaunch
-                || keepsAuthWalkthroughVisibleDuringHandoff,
-            showsAuthWalkthroughText: isAuthWalkthroughTextVisible
-                || releasesAuthUIAfterLaunch
-                || keepsAuthWalkthroughVisibleDuringHandoff,
-            allowsAuthWalkthroughAnimation: isAuthWalkthroughTextVisible
                 || releasesAuthUIAfterLaunch
                 || keepsAuthWalkthroughVisibleDuringHandoff,
             allowsAuthSheetPresentation: isAuthSheetPresentationReleased || releasesAuthUIAfterLaunch,
@@ -532,7 +525,6 @@ struct RootView: View {
             ? .easeInOut(duration: 0.12)
             : .smooth(duration: 0.18, extraBounce: 0)
         let transferDelay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(180)
-        let textRevealDelay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(260)
 
 #if DEBUG
         authLaunchDebugLog("transfer source=true destinationReady=true")
@@ -547,17 +539,9 @@ struct RootView: View {
             guard !Task.isCancelled else { return }
 
 #if DEBUG
-            authLaunchDebugLog("sheet released boltVisible=true textVisible=false")
+            authLaunchDebugLog("sheet released boltVisible=true")
 #endif
             isAuthSheetPresentationReleased = true
-
-            try? await Task.sleep(for: textRevealDelay)
-            guard !Task.isCancelled else { return }
-
-#if DEBUG
-            authLaunchDebugLog("walkthrough text released")
-#endif
-            isAuthWalkthroughTextVisible = true
         }
     }
 }
