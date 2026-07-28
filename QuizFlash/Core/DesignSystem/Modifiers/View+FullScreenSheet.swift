@@ -708,11 +708,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var stableWindowMetrics: FullScreenSheetWindowMetrics?
 
-    private var presentationAnimation: Animation { FullScreenSheetMotion.animation() }
-
-    private var keyboardAvoidanceAnimation: Animation {
-        .easeInOut(duration: max(keyboardMonitor.animationDuration, UIConstants.Animation.instant))
-    }
+    private var sheetMotionAnimation: Animation { FullScreenSheetMotion.animation() }
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -808,7 +804,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             )
             .frame(width: containerWidth, height: visibleSheetHeight, alignment: .top)
             .opacity(Double(effectiveBackdropProgress))
-            .animation(presentationAnimation, value: presentationProgress)
+            .animation(sheetMotionAnimation, value: presentationProgress)
             .environment(\.fullScreenSheetDragProgress, dragProgress)
 
             if configuration.showsDefaultTopProgressiveBlur {
@@ -836,8 +832,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
-        .animation(presentationAnimation, value: configuration.heightMode)
-        .animation(keyboardAvoidanceAnimation, value: keyboardInset)
+        .animation(sheetMotionAnimation, value: configuration.heightMode)
+        .animation(sheetMotionAnimation, value: keyboardInset)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
                 backgroundView(dragProgress: dragProgress)
@@ -1037,7 +1033,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         fullScreenSheetDebugLog(configuration.debugIdentifier, "presentation.animation.start")
 #endif
         guard !isAnimatingDismiss else { return }
-        withAnimation(presentationAnimation) {
+        withAnimation(sheetMotionAnimation) {
             presentationProgress = 1
         }
     }
