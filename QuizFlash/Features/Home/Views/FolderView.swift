@@ -237,8 +237,8 @@ struct CreateFolderSheet: View {
 
     private var contentTopPadding: CGFloat {
         max(
-            topChromeClearance + UIConstants.Spacing.large,
-            safeAreaInsets.top + UIConstants.Spacing.large
+            topChromeClearance + UIConstants.Spacing.extraLarge,
+            safeAreaInsets.top + UIConstants.Spacing.extraLarge
         )
     }
 
@@ -249,67 +249,69 @@ struct CreateFolderSheet: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+        KeyboardAdaptiveSheetContent {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .tint(themeManager.roleColor(.buttonPrimaryFill))
-                    .focused($isTitleFocused)
-                    .submitLabel(.done)
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                    TextField(localized("Folder Name"), text: $viewModel.newFolderTitle)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .tint(themeManager.roleColor(.buttonPrimaryFill))
+                        .focused($isTitleFocused)
+                        .submitLabel(.done)
 
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                    HStack(spacing: UIConstants.Spacing.standard) {
-                        ForEach(colorOptions, id: \.self) { hex in
-                            Button {
-                                viewModel.newFolderColorHex = hex
-                            } label: {
-                                let color = Color(hex: hex) ?? themeManager.roleColor(.buttonPrimaryFill)
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 34, height: 34)
-                                    .overlay {
-                                        Circle()
-                                            .strokeBorder(
-                                                viewModel.newFolderColorHex == hex
-                                                    ? themeManager.textPrimary
-                                                    : Color.clear,
-                                                lineWidth: 3
-                                            )
-                                    }
-                                    .contentShape(Circle())
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                        HStack(spacing: UIConstants.Spacing.standard) {
+                            ForEach(colorOptions, id: \.self) { hex in
+                                Button {
+                                    viewModel.newFolderColorHex = hex
+                                } label: {
+                                    let color = Color(hex: hex) ?? themeManager.roleColor(.buttonPrimaryFill)
+                                    Circle()
+                                        .fill(color)
+                                        .frame(width: 34, height: 34)
+                                        .overlay {
+                                            Circle()
+                                                .strokeBorder(
+                                                    viewModel.newFolderColorHex == hex
+                                                        ? themeManager.textPrimary
+                                                        : Color.clear,
+                                                    lineWidth: 3
+                                                )
+                                        }
+                                        .contentShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(localized("Label Color"))
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(localized("Label Color"))
-                        }
 
-                        customColorPicker
+                            customColorPicker
+                        }
                     }
                 }
-            }
-            .padding(UIConstants.Spacing.large)
-            .duoSurface(cornerRadius: 28)
+                .padding(UIConstants.Spacing.large)
+                .duoSurface(cornerRadius: 28)
 
-            Button {
-                viewModel.createFolder(context: context)
-            } label: {
-                Text(localized("Save"))
-                    .font(.system(size: 18, weight: .black))
-                    .foregroundStyle(canSave ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background {
-                        Capsule(style: .continuous)
-                            .fill(canSave ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.roleColor(.widgetSurfaceFill))
-                    }
+                Button {
+                    viewModel.createFolder(context: context)
+                } label: {
+                    Text(localized("Save"))
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundStyle(canSave ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background {
+                            Capsule(style: .continuous)
+                                .fill(canSave ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.roleColor(.widgetSurfaceFill))
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
             }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.top, contentTopPadding)
+            .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.standard))
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, UIConstants.Spacing.large)
-        .padding(.top, contentTopPadding)
-        .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onDisappear {
             if !viewModel.showCreateFolder {
                 viewModel.newFolderTitle = ""

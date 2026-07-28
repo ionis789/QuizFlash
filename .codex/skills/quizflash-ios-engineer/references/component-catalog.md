@@ -68,6 +68,7 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 | `LibraryModalsAndDialogs` | `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift` | `viewModel`, `context`, `decks` | Reusable modifier bundle for Library sheets, importers, and confirmation dialogs |
 | `LibraryAlerts` | `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift` | `viewModel` | Shared alert modifier bundle for Library success/error alerts |
 | `fullScreenSheet` | `QuizFlash/Core/DesignSystem/Modifiers/View+FullScreenSheet.swift` | `isPresented` or `item`, `ignoresSafeArea`, `backgroundReceivesDragProgress`, `dragDismissActivationHeight`, `content`, `background` | QuizFlash-standard immersive presentations with custom drag-dismiss |
+| `KeyboardAdaptiveSheetContent` | `QuizFlash/Core/DesignSystem/Components/KeyboardAdaptiveSheetContent.swift` | `isScrollable`, `content` | Standard scroll and keyboard-dismiss host for every custom sheet that contains text input |
 | `StandardSheetTopStripBackground` | `QuizFlash/Features/DeckEditor/Views/CardPreviewModeView.swift` | none | Shared dark immersive sheet backdrop with the standardized top-only drag strip used by card preview and deck edit/create flows |
 | `StandardCardContextMenu` | `QuizFlash/Core/DesignSystem/Components/StandardCardContextMenu.swift` | `title`, `summary`, `indicatorTint`, `isPinned`, action closures | The only custom menu surface used for card-level actions across deck detail and deck editor |
 

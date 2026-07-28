@@ -859,19 +859,10 @@ private struct AuthLoginSheetContent: View {
     }
 
     var body: some View {
-        Group {
-            if displayedMode == .actions {
-                contentStack
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .dismissKeyboardOnBackgroundTap()
-            } else {
-                ScrollView(showsIndicators: false) {
-                    contentStack
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollDismissesKeyboard(.interactively)
-                .dismissKeyboardOnBackgroundTap()
-            }
+        KeyboardAdaptiveSheetContent(
+            isScrollable: displayedMode != .actions
+        ) {
+            contentStack
         }
 #if DEBUG
         .authLayoutDebugFrame("content.root.\(displayedMode)")
