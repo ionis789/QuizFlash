@@ -101,7 +101,12 @@ struct PlayModeSettingsScreen: View {
                     ? AppLocalization.string("Static text motion: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.staticSwapTextMotion.localizedTitle(locale: locale))
                     : AppLocalization.string("Static text motion applies only when Static Swap is selected.", locale: locale),
                 AppLocalization.string("Content alignment: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.contentAlignment.localizedTitle(locale: locale)),
-                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.textSize.localizedTitle(locale: locale))
+                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(
+                    of: "%@",
+                    with: flashcardSettings
+                        .resolvedTextSize(default: appPreferences.defaultTextSize)
+                        .localizedTitle(locale: locale)
+                )
             ]
         case .quiz:
             return [
@@ -109,7 +114,12 @@ struct PlayModeSettingsScreen: View {
                 AppLocalization.string("Validation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.answerValidation.localizedTitle(locale: locale)),
                 AppLocalization.string("Explanation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.explanationTiming.localizedTitle(locale: locale)),
                 quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale),
-                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.textSize.localizedTitle(locale: locale))
+                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(
+                    of: "%@",
+                    with: quizSettings
+                        .resolvedTextSize(default: appPreferences.defaultTextSize)
+                        .localizedTitle(locale: locale)
+                )
             ]
         }
     }
@@ -269,29 +279,32 @@ struct PlayModeSettingsScreen: View {
     // MARK: - Persistence
 
     private func loadSettings() {
-        let isNewlyCreated = deck.playModeSettings == nil
-        let model = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
-        settingsModel = model
-
         hasLoadedSettings = false
-        flashcardSettings = model.flashcardSettings
-        quizSettings = model.quizSettings
-        if isNewlyCreated {
-            flashcardSettings.textSize = appPreferences.defaultTextSize
-            quizSettings.textSize = appPreferences.defaultTextSize
+        if let model = deck.playModeSettings {
+            settingsModel = model
+            flashcardSettings = model.flashcardSettings
+            quizSettings = model.quizSettings
+        } else {
+            settingsModel = nil
+            flashcardSettings = FlashcardModeSettings()
+            quizSettings = QuizModeSettings()
         }
         hasLoadedSettings = true
-
-        if isNewlyCreated {
-            persistSettingsIfNeeded()
-        }
     }
 
     private func persistSettingsIfNeeded() {
-        guard hasLoadedSettings, let settingsModel else { return }
+        guard hasLoadedSettings else { return }
 
-        settingsModel.flashcardSettings = flashcardSettings
-        settingsModel.quizSettings = quizSettings
+        let resolvedModel: DeckPlayModeSettingsModel
+        if let settingsModel {
+            resolvedModel = settingsModel
+        } else {
+            resolvedModel = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
+            settingsModel = resolvedModel
+        }
+
+        resolvedModel.flashcardSettings = flashcardSettings
+        resolvedModel.quizSettings = quizSettings
         deck.editedAt = Date()
 
         do {

@@ -308,7 +308,7 @@ final class AppPreferences {
     static let dailyCardsGoalRange = 1...500
     static let dailyCardsGoalStep = 5
 
-    private static let currentTextSizeScaleVersion = 2
+    private static let currentTextSizeScaleVersion = 3
 
     private let userDefaults: UserDefaults
 
@@ -422,6 +422,7 @@ final class AppPreferences {
             rawValue: userDefaults.string(forKey: Keys.zoneSurfaceStyle) ?? ""
         ) ?? .simple
         self.borderDesign = Self.resolvedBorderDesign(from: userDefaults)
+        userDefaults.set(defaultTextSize.rawValue, forKey: Keys.defaultTextSize)
         userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
         AppLocalization.applyLanguageOverride(appLanguage)
     }
@@ -436,9 +437,8 @@ final class AppPreferences {
         }
 
         let scaleVersion = userDefaults.integer(forKey: Keys.defaultTextSizeScaleVersion)
-        if scaleVersion < currentTextSizeScaleVersion,
-           storedStep == FlashcardTextSize.legacyMaximumStep {
-            return .large
+        if scaleVersion < currentTextSizeScaleVersion {
+            return FlashcardTextSize.migratedLegacyStep(storedStep)
         }
 
         return FlashcardTextSize(step: storedStep)

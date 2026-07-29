@@ -23,7 +23,7 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences(userDefaults: defaults)
         preferences.weekStartDay = .monday
         preferences.createDeckSortOrder = .oldest
-        preferences.defaultTextSize = FlashcardTextSize(step: 8)
+        preferences.defaultTextSize = FlashcardTextSize(step: 5)
         preferences.zoneSurfaceStyle = .rounded
         preferences.borderDesign = AppBorderDesignPreferences(
             preset: .bold,
@@ -35,7 +35,7 @@ final class AppPreferencesTests: XCTestCase {
         let reloadedPreferences = AppPreferences(userDefaults: defaults)
         XCTAssertEqual(reloadedPreferences.weekStartDay, .monday)
         XCTAssertEqual(reloadedPreferences.createDeckSortOrder, .oldest)
-        XCTAssertEqual(reloadedPreferences.defaultTextSize, FlashcardTextSize(step: 8))
+        XCTAssertEqual(reloadedPreferences.defaultTextSize, FlashcardTextSize(step: 5))
         XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
         XCTAssertEqual(
             reloadedPreferences.borderDesign,

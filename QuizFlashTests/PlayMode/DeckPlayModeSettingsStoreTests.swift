@@ -41,6 +41,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         XCTAssertEqual(decoded.contentAlignment, .center)
         XCTAssertEqual(decoded.textSize, .large)
+        XCTAssertTrue(decoded.usesAppTextSize)
     }
 
     func testFlashcardSettingsEncodingDropsRemovedFaceAndFlipFields() throws {
@@ -69,6 +70,56 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         XCTAssertEqual(decoded.contentAlignment, .top)
         XCTAssertEqual(decoded.textSize, .large)
+        XCTAssertTrue(decoded.usesAppTextSize)
+    }
+
+    func testLegacyMaximumTextSizeMigratesToAppDefault() throws {
+        let legacyPayload = """
+        {
+          "schemaVersion": 5,
+          "textSize": 10
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
+
+        XCTAssertEqual(decoded.textSize, .large)
+        XCTAssertTrue(decoded.usesAppTextSize)
+    }
+
+    func testLegacyCustomTextSizePreservesAnApproximateOverride() throws {
+        let legacyPayload = """
+        {
+          "schemaVersion": 5,
+          "textSize": 4
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
+
+        XCTAssertEqual(decoded.textSize, .normal)
+        XCTAssertFalse(decoded.usesAppTextSize)
+    }
+
+    func testLegacyTextSizeScaleMapsToSevenStableSteps() {
+        XCTAssertEqual(FlashcardTextSize.migratedLegacyStep(0), FlashcardTextSize(step: 1))
+        XCTAssertEqual(FlashcardTextSize.migratedLegacyStep(4), .normal)
+        XCTAssertEqual(FlashcardTextSize.migratedLegacyStep(10), .large)
+        XCTAssertEqual(FlashcardTextSize.allCases.count, 7)
+        XCTAssertEqual(FlashcardTextSize(step: 0).playModeScale, 0.72)
+    }
+
+    func testNewModeSettingsResolveTheCurrentAppTextSize() {
+        let globalSize = FlashcardTextSize(step: 1)
+
+        XCTAssertEqual(
+            FlashcardModeSettings().resolvedTextSize(default: globalSize),
+            globalSize
+        )
+        XCTAssertEqual(
+            QuizModeSettings().resolvedTextSize(default: globalSize),
+            globalSize
+        )
     }
 
     func testFlashcardLayoutSettingsPersistThroughDeckSettingsBucket() throws {
@@ -81,12 +132,14 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         var flashcardSettings = settings.flashcardSettings
         flashcardSettings.contentAlignment = .center
         flashcardSettings.textSize = .normal
+        flashcardSettings.usesAppTextSize = false
         settings.flashcardSettings = flashcardSettings
         try context.save()
 
         let resolvedAgain = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         XCTAssertEqual(resolvedAgain.flashcardSettings.contentAlignment, .center)
         XCTAssertEqual(resolvedAgain.flashcardSettings.textSize, .normal)
+        XCTAssertFalse(resolvedAgain.flashcardSettings.usesAppTextSize)
     }
 }
 

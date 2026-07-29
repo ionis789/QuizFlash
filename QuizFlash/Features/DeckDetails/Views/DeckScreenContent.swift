@@ -206,9 +206,7 @@ extension DeckContentView {
 
     private var resolvedFlashcardSettings: FlashcardModeSettings {
         var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
-        if deck.playModeSettings == nil {
-            settings.textSize = appPreferences.defaultTextSize
-        }
+        settings.textSize = settings.resolvedTextSize(default: appPreferences.defaultTextSize)
         return settings
     }
 
@@ -218,7 +216,7 @@ extension DeckContentView {
             return resolvedFlashcardSettings.textSize
         case .quiz:
             if let settings = deck.playModeSettings?.quizSettings {
-                return settings.textSize
+                return settings.resolvedTextSize(default: appPreferences.defaultTextSize)
             }
             return appPreferences.defaultTextSize
         }

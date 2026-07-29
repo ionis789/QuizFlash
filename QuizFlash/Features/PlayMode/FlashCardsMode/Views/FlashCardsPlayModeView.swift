@@ -2504,10 +2504,12 @@ private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
 /// Wraps `FlashCardsPlayModeView` and owns the session view model for the
 /// lifetime of a single play-mode presentation.
 struct DefaultModePlay: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let deck: DeckModel
     var safeAreaInsets: UIEdgeInsets = .zero
 
-    @State private var viewModel: FlashCardsPlayModeViewModel
+    @State private var viewModel: FlashCardsPlayModeViewModel?
 
     init(
         deck: DeckModel,
@@ -2516,19 +2518,31 @@ struct DefaultModePlay: View {
     ) {
         self.deck = deck
         self.safeAreaInsets = safeAreaInsets
-        _viewModel = State(
-            initialValue: viewModel ?? FlashCardsPlayModeViewModel(
-                deck: deck,
-                settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
-            )
-        )
+        _viewModel = State(initialValue: viewModel)
     }
 
     var body: some View {
-        FlashCardsPlayModeView(
-            deck: deck,
-            safeAreaInsets: safeAreaInsets,
-            viewModel: viewModel
-        )
+        Group {
+            if let viewModel {
+                FlashCardsPlayModeView(
+                    deck: deck,
+                    safeAreaInsets: safeAreaInsets,
+                    viewModel: viewModel
+                )
+            } else {
+                Color.clear
+                    .onAppear {
+                        guard viewModel == nil else { return }
+                        var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+                        settings.textSize = settings.resolvedTextSize(
+                            default: appPreferences.defaultTextSize
+                        )
+                        viewModel = FlashCardsPlayModeViewModel(
+                            deck: deck,
+                            settings: settings
+                        )
+                    }
+            }
+        }
     }
 }

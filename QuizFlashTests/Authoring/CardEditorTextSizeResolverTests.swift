@@ -12,7 +12,7 @@ final class CardEditorTextSizeResolverTests: XCTestCase {
     func testDeckOverrideTakesPriorityOverGlobalDefault() {
         let resolved = CardEditorTextSizeResolver.resolve(
             override: FlashcardTextSize(step: 2),
-            defaultTextSize: FlashcardTextSize(step: 8)
+            defaultTextSize: FlashcardTextSize(step: 5)
         )
 
         XCTAssertEqual(resolved, FlashcardTextSize(step: 2))

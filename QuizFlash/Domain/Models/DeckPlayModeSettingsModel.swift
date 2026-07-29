@@ -111,10 +111,9 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
 /// Controls how large flashcard text renders during play mode.
 nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hashable, Sendable {
     static let minimumStep = 0
-    static let maximumStep = 10
-    static let legacyMaximumStep = 6
-    static let normal = FlashcardTextSize(step: 6)
-    static let large = FlashcardTextSize(step: 10)
+    static let maximumStep = 6
+    static let normal = FlashcardTextSize(step: 3)
+    static let large = FlashcardTextSize(step: 6)
     static let allCases: [FlashcardTextSize] = (minimumStep...maximumStep).map { FlashcardTextSize(step: $0) }
 
     let step: Int
@@ -129,35 +128,45 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
     /// Human-readable option label shown in the settings UI.
     var title: String {
         switch step {
-        case 0...2: return "Small"
-        case 3...5: return "Medium"
-        case 6...7: return "Normal"
+        case 0...1: return "Small"
+        case 2:     return "Medium"
+        case 3:     return "Normal"
         default:    return "Large"
         }
     }
 
     func localizedTitle(locale: Locale) -> String {
         switch step {
-        case 0...2: return AppLocalization.string("Small", locale: locale)
-        case 3...5: return AppLocalization.string("Medium", locale: locale)
-        case 6...7: return AppLocalization.string("Normal", locale: locale)
+        case 0...1: return AppLocalization.string("Small", locale: locale)
+        case 2:     return AppLocalization.string("Medium", locale: locale)
+        case 3:     return AppLocalization.string("Normal", locale: locale)
         default:    return AppLocalization.string("Large", locale: locale)
         }
     }
 
     var playModeScale: Double {
         switch step {
-        case 0: return 0.82
-        case 1: return 0.90
-        case 2: return 0.98
-        case 3: return 1.06
-        case 4: return 1.10
-        case 5: return 1.18
-        case 6: return 1.28
-        case 7: return 1.39
-        case 8: return 1.50
-        case 9: return 1.62
-        default: return 1.74
+        case 0: return 0.72
+        case 1: return 0.84
+        case 2: return 0.96
+        case 3: return 1.08
+        case 4: return 1.22
+        case 5: return 1.40
+        default: return 1.62
+        }
+    }
+
+    /// Maps the former 11-step scale to the closest size on the current
+    /// seven-step scale. This keeps existing preferences visually stable
+    /// without exposing legacy index values in the UI.
+    static func migratedLegacyStep(_ legacyStep: Int) -> FlashcardTextSize {
+        switch min(max(legacyStep, 0), 10) {
+        case 0...1: return FlashcardTextSize(step: 1)
+        case 2:     return FlashcardTextSize(step: 2)
+        case 3...4: return FlashcardTextSize(step: 3)
+        case 5...6: return FlashcardTextSize(step: 4)
+        case 7...8: return FlashcardTextSize(step: 5)
+        default:    return FlashcardTextSize(step: 6)
         }
     }
 
@@ -192,7 +201,7 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
 
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 5
+    private static let currentSchemaVersion = 6
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
@@ -201,6 +210,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .center
     var textSize: FlashcardTextSize = .large
+    var usesAppTextSize: Bool = true
 
     init(
         order: FlashcardSessionOrder = .studyPriority,
@@ -208,7 +218,8 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
-        textSize: FlashcardTextSize = .large
+        textSize: FlashcardTextSize = .large,
+        usesAppTextSize: Bool = true
     ) {
         self.schemaVersion = Self.currentSchemaVersion
         self.order = order
@@ -217,6 +228,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
         self.textSize = textSize
+        self.usesAppTextSize = usesAppTextSize
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -227,6 +239,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         case staticSwapTextMotion
         case contentAlignment
         case textSize
+        case usesAppTextSize
     }
 
     init(from decoder: Decoder) throws {
@@ -240,10 +253,16 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.contentAlignment = decodedSchemaVersion < 2 && decodedContentAlignment == .top
             ? .center
             : decodedContentAlignment
-        let decodedTextSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize) ?? .large
-        self.textSize = decodedSchemaVersion < 5 && decodedTextSize.step == FlashcardTextSize.legacyMaximumStep
-            ? .large
-            : decodedTextSize
+        let legacyTextSizeStep: Int? = decodedSchemaVersion < Self.currentSchemaVersion
+            ? try? container.decode(Int.self, forKey: .textSize)
+            : nil
+        let storedTextSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize)
+        let decodedTextSize = legacyTextSizeStep.map(FlashcardTextSize.migratedLegacyStep)
+            ?? storedTextSize
+            ?? .large
+        self.textSize = decodedTextSize
+        self.usesAppTextSize = try container.decodeIfPresent(Bool.self, forKey: .usesAppTextSize)
+            ?? (legacyTextSizeStep == nil || legacyTextSizeStep == 10)
         self.schemaVersion = Self.currentSchemaVersion
     }
 
@@ -256,6 +275,11 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
         try container.encode(contentAlignment, forKey: .contentAlignment)
         try container.encode(textSize, forKey: .textSize)
+        try container.encode(usesAppTextSize, forKey: .usesAppTextSize)
+    }
+
+    func resolvedTextSize(default defaultTextSize: FlashcardTextSize) -> FlashcardTextSize {
+        usesAppTextSize ? defaultTextSize : textSize
     }
 }
 
@@ -309,11 +333,77 @@ nonisolated enum QuizAnswerValidationMode: String, Codable, CaseIterable, Identi
 
 /// Quiz runtime preferences persisted per deck.
 nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
+    private static let currentSchemaVersion = 2
+
+    private var schemaVersion: Int = Self.currentSchemaVersion
     var shuffleChoices: Bool = false
     var explanationTiming: QuizExplanationTiming = .afterCheck
     var answerValidation: QuizAnswerValidationMode = .instantCheck
     var retryIncorrectQuestions: Bool = true
     var textSize: FlashcardTextSize = .large
+    var usesAppTextSize: Bool = true
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case shuffleChoices
+        case explanationTiming
+        case answerValidation
+        case retryIncorrectQuestions
+        case textSize
+        case usesAppTextSize
+    }
+
+    init(
+        shuffleChoices: Bool = false,
+        explanationTiming: QuizExplanationTiming = .afterCheck,
+        answerValidation: QuizAnswerValidationMode = .instantCheck,
+        retryIncorrectQuestions: Bool = true,
+        textSize: FlashcardTextSize = .large,
+        usesAppTextSize: Bool = true
+    ) {
+        self.schemaVersion = Self.currentSchemaVersion
+        self.shuffleChoices = shuffleChoices
+        self.explanationTiming = explanationTiming
+        self.answerValidation = answerValidation
+        self.retryIncorrectQuestions = retryIncorrectQuestions
+        self.textSize = textSize
+        self.usesAppTextSize = usesAppTextSize
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        self.shuffleChoices = try container.decodeIfPresent(Bool.self, forKey: .shuffleChoices) ?? false
+        self.explanationTiming = try container.decodeIfPresent(QuizExplanationTiming.self, forKey: .explanationTiming) ?? .afterCheck
+        self.answerValidation = try container.decodeIfPresent(QuizAnswerValidationMode.self, forKey: .answerValidation) ?? .instantCheck
+        self.retryIncorrectQuestions = try container.decodeIfPresent(Bool.self, forKey: .retryIncorrectQuestions) ?? true
+        let legacyTextSizeStep: Int? = decodedSchemaVersion < Self.currentSchemaVersion
+            ? try? container.decode(Int.self, forKey: .textSize)
+            : nil
+        let storedTextSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize)
+        let decodedTextSize = legacyTextSizeStep.map(FlashcardTextSize.migratedLegacyStep)
+            ?? storedTextSize
+            ?? .large
+        self.textSize = decodedTextSize
+        self.usesAppTextSize = try container.decodeIfPresent(Bool.self, forKey: .usesAppTextSize)
+            ?? (legacyTextSizeStep == nil || legacyTextSizeStep == 10)
+        self.schemaVersion = Self.currentSchemaVersion
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(Self.currentSchemaVersion, forKey: .schemaVersion)
+        try container.encode(shuffleChoices, forKey: .shuffleChoices)
+        try container.encode(explanationTiming, forKey: .explanationTiming)
+        try container.encode(answerValidation, forKey: .answerValidation)
+        try container.encode(retryIncorrectQuestions, forKey: .retryIncorrectQuestions)
+        try container.encode(textSize, forKey: .textSize)
+        try container.encode(usesAppTextSize, forKey: .usesAppTextSize)
+    }
+
+    func resolvedTextSize(default defaultTextSize: FlashcardTextSize) -> FlashcardTextSize {
+        usesAppTextSize ? defaultTextSize : textSize
+    }
 }
 
 // MARK: - Deck Play Mode Settings Model

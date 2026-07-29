@@ -145,6 +145,7 @@ private struct CompactFlashcardSettingsCard: View {
                 icon: "textformat.size",
                 tint: accentTint,
                 textSize: $flashcardSettings.textSize,
+                usesAppTextSize: $flashcardSettings.usesAppTextSize,
                 isDense: true
             )
         }
@@ -273,6 +274,7 @@ private struct CompactQuizSettingsCard: View {
                 icon: "textformat.size",
                 tint: accentTint,
                 textSize: $quizSettings.textSize,
+                usesAppTextSize: $quizSettings.usesAppTextSize,
                 isDense: true
             )
         }
@@ -281,56 +283,80 @@ private struct CompactQuizSettingsCard: View {
 }
 
 private struct CompactTextSizeSliderRow: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let title: LocalizedStringResource
     let icon: String
     let tint: Color
     @Binding var textSize: FlashcardTextSize
+    @Binding var usesAppTextSize: Bool
     @State private var isExpanded = false
     var isDense = false
 
+    private var resolvedTextSize: FlashcardTextSize {
+        usesAppTextSize ? appPreferences.defaultTextSize : textSize
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: isExpanded ? UIConstants.Spacing.medium : 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isExpanded.toggle()
+            HStack(spacing: UIConstants.Spacing.small) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.medium) {
+                        CompactSettingsIcon(systemName: icon, tint: tint)
+
+                        Text(title)
+                            .font(.system(size: isDense ? 17 : 18, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Spacer(minLength: UIConstants.Spacing.small)
+
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack(spacing: UIConstants.Spacing.medium) {
-                    CompactSettingsIcon(systemName: icon, tint: tint)
+                .noPressEffectButtonStyle()
 
-                    Text(title)
-                        .font(.system(size: isDense ? 17 : 18, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: UIConstants.Spacing.small)
-
-                    Text("\(textSize.step)")
-                        .font(.system(size: 14, weight: .bold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                        .duoMetricPill(tint: tint)
-                        .contentTransition(.numericText())
+                Button {
+                    withAnimation(.selectionToolbarSpring) {
+                        usesAppTextSize = true
+                    }
+                } label: {
+                    Text(AppLocalization.string("Default", locale: appPreferences.resolvedLocale))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(usesAppTextSize ? .primary : .secondary)
+                        .padding(.horizontal, UIConstants.Spacing.medium)
+                        .frame(height: 34)
+                        .background(
+                            usesAppTextSize ? tint.opacity(0.16) : Color.primary.opacity(0.06),
+                            in: Capsule(style: .continuous)
+                        )
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(usesAppTextSize ? .isSelected : [])
             }
-            .noPressEffectButtonStyle()
 
             if isExpanded {
-                TickValuePicker(
-                    value: textSize.step,
-                    range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep,
+                TextSizeScalePicker(
+                    textSize: resolvedTextSize,
+                    previewText: AppLocalization.string("Comfortable reading", locale: appPreferences.resolvedLocale),
                     onChange: { newValue in
-                        textSize = FlashcardTextSize(step: newValue)
-                    },
-                    isCompact: true
-                ) { value in
-                    "\(value)"
-                }
+                        textSize = newValue
+                        usesAppTextSize = false
+                    }
+                )
                 .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
         .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
-        .frame(minHeight: isExpanded ? (isDense ? 132 : 148) : (isDense ? 70 : 78))
+        .frame(minHeight: isExpanded ? (isDense ? 178 : 194) : (isDense ? 70 : 78))
         .duoControlSurface(tint: tint)
         .animation(.easeInOut(duration: 0.16), value: isExpanded)
     }

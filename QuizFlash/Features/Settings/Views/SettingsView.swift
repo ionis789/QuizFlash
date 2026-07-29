@@ -1105,29 +1105,21 @@ struct SettingsView: View {
 
                     Spacer(minLength: UIConstants.Spacing.standard)
 
-                    Text("\(appPreferences.defaultTextSize.step)")
-                        .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(themeManager.textPrimary)
-                        .padding(.horizontal, UIConstants.Spacing.medium)
-                        .frame(height: 34)
-                        .background(themeManager.accentColor.color.opacity(0.10), in: Capsule())
-                        .contentTransition(.numericText())
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .rotationEffect(.degrees(isTextSizeExpanded ? 180 : 0))
                 }
                 .contentShape(Rectangle())
             }
             .noPressEffectButtonStyle()
 
             if isTextSizeExpanded {
-                TickValuePicker(
-                    value: appPreferences.defaultTextSize.step,
-                    range: FlashcardTextSize.minimumStep ... FlashcardTextSize.maximumStep,
-                    onChange: { newValue in
-                        appPreferences.defaultTextSize = FlashcardTextSize(step: newValue)
-                    },
-                    isCompact: true
-                ) { value in
-                    "\(value)"
-                }
+                TextSizeScalePicker(
+                    textSize: appPreferences.defaultTextSize,
+                    previewText: AppLocalization.string("Comfortable reading", locale: appPreferences.resolvedLocale),
+                    onChange: { appPreferences.defaultTextSize = $0 }
+                )
                 .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }

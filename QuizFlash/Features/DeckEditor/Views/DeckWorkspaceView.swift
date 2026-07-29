@@ -150,9 +150,13 @@ struct DeckWorkspaceView: View {
 
         switch kind {
         case .flashcard:
-            return settings.flashcardSettings.textSize
+            return settings.flashcardSettings.resolvedTextSize(
+                default: appPreferences.defaultTextSize
+            )
         case .quiz:
-            return settings.quizSettings.textSize
+            return settings.quizSettings.resolvedTextSize(
+                default: appPreferences.defaultTextSize
+            )
         }
     }
 

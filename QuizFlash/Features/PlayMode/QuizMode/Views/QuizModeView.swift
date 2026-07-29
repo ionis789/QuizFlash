@@ -47,9 +47,7 @@ struct QuizModeView: View {
 
     private var resolvedSettings: QuizModeSettings {
         var settings = deck.playModeSettings?.quizSettings ?? QuizModeSettings()
-        if deck.playModeSettings == nil {
-            settings.textSize = appPreferences.defaultTextSize
-        }
+        settings.textSize = settings.resolvedTextSize(default: appPreferences.defaultTextSize)
         return settings
     }
 }
