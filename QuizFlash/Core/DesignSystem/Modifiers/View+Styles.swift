@@ -87,6 +87,11 @@ extension Animation {
         .spring(response: 0.3, dampingFraction: 0.9)
     }
 
+    /// Shared motion for compact inline sections and their disclosure indicators.
+    static var compactExpansion: Animation {
+        .easeInOut(duration: 0.18)
+    }
+
     /// Shared spring used by tab-item emphasis inside the floating tab bar.
     static var tabItemSpring: Animation {
         .spring(response: 0.32, dampingFraction: 0.9)

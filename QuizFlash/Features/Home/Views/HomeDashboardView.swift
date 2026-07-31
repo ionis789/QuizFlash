@@ -121,10 +121,6 @@ struct HomeDashboardView: View {
         usesRegularMetrics ? 360 : 256
     }
 
-    private var weeklyStatsExpandAnimation: Animation {
-        .easeInOut(duration: 0.18)
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -258,7 +254,7 @@ struct HomeDashboardView: View {
 
         return Button {
             guard canExpand else { return }
-            withAnimation(weeklyStatsExpandAnimation) {
+            withAnimation(.compactExpansion) {
                 isWeeklyStatsExpanded.toggle()
             }
         } label: {

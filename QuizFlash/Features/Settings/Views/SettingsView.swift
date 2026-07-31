@@ -1092,7 +1092,7 @@ struct SettingsView: View {
     private var textSizeSettings: some View {
         VStack(alignment: .leading, spacing: isTextSizeExpanded ? UIConstants.Spacing.medium : 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                withAnimation(.compactExpansion) {
                     isTextSizeExpanded.toggle()
                 }
             } label: {
@@ -1105,10 +1105,14 @@ struct SettingsView: View {
 
                     Spacer(minLength: UIConstants.Spacing.standard)
 
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .rotationEffect(.degrees(isTextSizeExpanded ? 180 : 0))
+                    Image(
+                        systemName: isTextSizeExpanded
+                            ? "chevron.compact.up"
+                            : "chevron.compact.down"
+                    )
+                    .font(.system(size: 15, weight: .black))
+                    .foregroundStyle(themeManager.accentColor.color)
+                    .frame(width: 30, height: 30)
                 }
                 .contentShape(Rectangle())
             }
@@ -1123,7 +1127,6 @@ struct SettingsView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
-        .animation(.easeInOut(duration: 0.16), value: isTextSizeExpanded)
     }
 
     private func formattedMicroUSD(_ value: Int) -> String {
