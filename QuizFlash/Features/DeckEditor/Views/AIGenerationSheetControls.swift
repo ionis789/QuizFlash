@@ -410,9 +410,8 @@ private struct TickPickerScrollView: UIViewRepresentable {
             let newIndex = nearestIndex(in: scrollView)
             guard newIndex != scrollIndex else { return }
 
-            let previousIndex = scrollIndex
             scrollIndex = newIndex
-            animationRange = min(previousIndex, newIndex) ... max(previousIndex, newIndex)
+            animationRange = newIndex ... newIndex
             updateTickAppearance(in: scrollView, animated: true)
             feedbackGenerator.selectionChanged()
             feedbackGenerator.prepare()

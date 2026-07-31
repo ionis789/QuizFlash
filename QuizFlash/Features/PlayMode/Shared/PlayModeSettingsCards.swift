@@ -314,11 +314,6 @@ private struct CompactTextSizeSliderRow: View {
                             .lineLimit(1)
 
                         Spacer(minLength: UIConstants.Spacing.small)
-
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     }
                     .contentShape(Rectangle())
                 }
