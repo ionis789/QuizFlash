@@ -308,7 +308,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
     var highlightedRange: ClosedRange<Int>?
     var onEditingChanged: (Bool) -> Void
 
-    var tickStride: CGFloat {
+    var minimumTickStride: CGFloat {
         config.tickWidth + (config.tickHPadding * 2)
     }
 
@@ -463,7 +463,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         private func applyLayout(in scrollView: UIScrollView) -> Bool {
-            let tickStride = parent.tickStride
+            let tickStride = resolvedTickStride(in: scrollView)
             let contentWidth = CGFloat(tickViews.count) * tickStride
             let horizontalInset = max((scrollView.bounds.width - tickStride) / 2, 0)
             let layoutChanged = abs(lastLayoutWidth - scrollView.bounds.width) > 0.5 || abs(lastTickStride - tickStride) > 0.5
@@ -521,6 +521,8 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         private func frameForTick(at index: Int, in scrollView: UIScrollView, fullHeight: Bool) -> CGRect {
+            let tickStride = currentTickStride(in: scrollView)
+            let horizontalInset = max((tickStride - parent.config.tickWidth) / 2, 0)
             let height = parent.config.tickHeight * (fullHeight ? 1 : parent.config.inActiveHeightProgress)
             let tickAreaHeight = parent.config.tickHeight
             let tickAreaY = min(
@@ -539,7 +541,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
             }
 
             return CGRect(
-                x: (CGFloat(index) * parent.tickStride) + parent.config.tickHPadding,
+                x: (CGFloat(index) * tickStride) + horizontalInset,
                 y: y,
                 width: parent.config.tickWidth,
                 height: height
@@ -560,7 +562,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
 
         private func scrollToIndex(_ index: Int, in scrollView: UIScrollView, animated: Bool) {
             let safeIndex = clamped(index)
-            let xOffset = (CGFloat(safeIndex) * parent.tickStride) - scrollView.contentInset.left
+            let xOffset = (CGFloat(safeIndex) * currentTickStride(in: scrollView)) - scrollView.contentInset.left
 
             isApplyingProgrammaticScroll = true
             scrollView.setContentOffset(CGPoint(x: xOffset, y: 0), animated: animated)
@@ -575,8 +577,22 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         private func nearestIndex(in scrollView: UIScrollView) -> Int {
-            let rawIndex = (scrollView.contentOffset.x + scrollView.contentInset.left) / parent.tickStride
+            let rawIndex = (scrollView.contentOffset.x + scrollView.contentInset.left) / currentTickStride(in: scrollView)
             return clamped(Int(rawIndex.rounded()))
+        }
+
+        private func resolvedTickStride(in scrollView: UIScrollView) -> CGFloat {
+            guard parent.count > 0 else { return parent.minimumTickStride }
+
+            let widthFillingStride = max(
+                (scrollView.bounds.width - parent.config.tickWidth) / CGFloat(parent.count),
+                0
+            )
+            return max(parent.minimumTickStride, widthFillingStride)
+        }
+
+        private func currentTickStride(in scrollView: UIScrollView) -> CGFloat {
+            lastTickStride > 0 ? lastTickStride : resolvedTickStride(in: scrollView)
         }
 
         private func clamped(_ index: Int) -> Int {
