@@ -11,11 +11,24 @@ struct TextSizeScalePicker: View {
     let textSize: FlashcardTextSize
     let previewText: String
     let onChange: (FlashcardTextSize) -> Void
+    @State private var liveTextSize: FlashcardTextSize
+    @State private var isInteracting = false
+
+    init(
+        textSize: FlashcardTextSize,
+        previewText: String,
+        onChange: @escaping (FlashcardTextSize) -> Void
+    ) {
+        self.textSize = textSize
+        self.previewText = previewText
+        self.onChange = onChange
+        _liveTextSize = State(initialValue: textSize)
+    }
 
     private var selection: Binding<Int> {
         Binding(
-            get: { textSize.step },
-            set: { onChange(FlashcardTextSize(step: $0)) }
+            get: { liveTextSize.step },
+            set: { liveTextSize = FlashcardTextSize(step: $0) }
         )
     }
 
@@ -37,7 +50,7 @@ struct TextSizeScalePicker: View {
             Text(previewText)
                 .font(
                     .system(
-                        size: 17 * CGFloat(textSize.playModeScale),
+                        size: 17 * CGFloat(liveTextSize.playModeScale),
                         weight: .semibold,
                         design: .rounded
                     )
@@ -47,8 +60,7 @@ struct TextSizeScalePicker: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.74)
                 .frame(maxWidth: .infinity, minHeight: 54)
-                .statusTextMotion(trigger: textSize.step)
-                .animation(.smooth(duration: 0.20, extraBounce: 0), value: textSize.step)
+                .animation(.smooth(duration: 0.16, extraBounce: 0), value: liveTextSize.step)
 
             HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
                 Text("A")
@@ -60,10 +72,11 @@ struct TextSizeScalePicker: View {
                     count: FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep,
                     config: pickerConfig,
                     selection: selection,
-                    highlightedRange: nil
+                    highlightedRange: nil,
+                    onEditingChanged: handleEditingChanged
                 )
                 .accessibilityLabel("Text Size")
-                .accessibilityValue("\(textSize.step + 1) of \(FlashcardTextSize.allCases.count)")
+                .accessibilityValue("\(liveTextSize.step + 1) of \(FlashcardTextSize.allCases.count)")
 
                 Text("A")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -72,5 +85,16 @@ struct TextSizeScalePicker: View {
             }
         }
         .padding(.horizontal, UIConstants.Spacing.tiny)
+        .onChange(of: textSize) { _, newValue in
+            guard !isInteracting else { return }
+            liveTextSize = newValue
+        }
+    }
+
+    private func handleEditingChanged(_ isEditing: Bool) {
+        isInteracting = isEditing
+
+        guard !isEditing, liveTextSize != textSize else { return }
+        onChange(liveTextSize)
     }
 }

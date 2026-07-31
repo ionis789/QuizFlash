@@ -287,13 +287,15 @@ struct TickPicker: View {
     var config: TickPickerConfig
     @Binding var selection: Int
     var highlightedRange: ClosedRange<Int>? = nil
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
     var body: some View {
         TickPickerScrollView(
             count: count,
             config: config,
             selection: $selection,
-            highlightedRange: highlightedRange
+            highlightedRange: highlightedRange,
+            onEditingChanged: onEditingChanged
         )
         .frame(height: config.interactionHeight)
     }
@@ -304,6 +306,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
     var config: TickPickerConfig
     @Binding var selection: Int
     var highlightedRange: ClosedRange<Int>?
+    var onEditingChanged: (Bool) -> Void
 
     var tickStride: CGFloat {
         config.tickWidth + (config.tickHPadding * 2)
@@ -401,6 +404,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
             animationRange = scrollIndex ... scrollIndex
             updateTickAppearance(in: scrollView, animated: false)
             feedbackGenerator.prepare()
+            parent.onEditingChanged(true)
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -422,11 +426,13 @@ private struct TickPickerScrollView: UIViewRepresentable {
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
             if !decelerate {
                 snapToNearestIndex(in: scrollView)
+                parent.onEditingChanged(false)
             }
         }
 
         func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
             snapToNearestIndex(in: scrollView)
+            parent.onEditingChanged(false)
         }
 
         func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
@@ -502,7 +508,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
 
             if animated {
                 UIView.animate(
-                    withDuration: 0.3,
+                    withDuration: 0.16,
                     delay: 0,
                     usingSpringWithDamping: 1,
                     initialSpringVelocity: 0,
