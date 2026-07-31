@@ -27,7 +27,6 @@ struct TextSizeScalePicker: View {
             inActiveHeightProgress: 0.46,
             interactionHeight: 48,
             tickAreaTopPadding: 4,
-            activeTint: ThemeManager.shared.roleColor(.labelPrimaryForeground),
             inActiveTint: .primary,
             alignment: .center
         )

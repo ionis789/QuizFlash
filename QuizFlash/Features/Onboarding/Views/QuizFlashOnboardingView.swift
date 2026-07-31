@@ -2270,7 +2270,6 @@ private struct CardsTargetOnboardingLayoutMetrics {
             inActiveHeightProgress: 0.48,
             interactionHeight: 66 * contentScale,
             tickAreaTopPadding: 4 * contentScale,
-            activeTint: accent.opacity(0.98),
             inActiveTint: accent.opacity(0.72),
             alignment: .bottom
         )
