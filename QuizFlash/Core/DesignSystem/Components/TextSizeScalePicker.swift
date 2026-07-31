@@ -39,7 +39,7 @@ struct TextSizeScalePicker: View {
             tickHPadding: 8,
             inActiveHeightProgress: 0.46,
             interactionHeight: 48,
-            tickAreaTopPadding: 4,
+            tickAreaTopPadding: UIConstants.Spacing.medium,
             inActiveTint: .primary,
             alignment: .center
         )
@@ -62,10 +62,15 @@ struct TextSizeScalePicker: View {
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .animation(.smooth(duration: 0.16, extraBounce: 0), value: liveTextSize.step)
 
-            HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
                 Text("A")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
+                    .frame(
+                        width: UIConstants.Size.iconLarge,
+                        height: pickerConfig.interactionHeight,
+                        alignment: .center
+                    )
                     .accessibilityHidden(true)
 
                 TickPicker(
@@ -81,6 +86,11 @@ struct TextSizeScalePicker: View {
                 Text("A")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
+                    .frame(
+                        width: UIConstants.Size.iconLarge,
+                        height: pickerConfig.interactionHeight,
+                        alignment: .center
+                    )
                     .accessibilityHidden(true)
             }
         }
