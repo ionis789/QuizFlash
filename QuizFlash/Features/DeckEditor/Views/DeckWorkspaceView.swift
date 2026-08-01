@@ -52,7 +52,7 @@ struct DeckWorkspaceView: View {
     @State var physicalSafeBottom: CGFloat = 0
     @State var showUnsavedChangesDialog = false
     @State var showDeleteDeckConfirmation = false
-    @State var showAddCardTypeDialog = false
+    @State var showAddCardTypePicker = false
     @State var allowDismissWithoutConfirmation = false
     @State var hasCapturedPhysicalSafeBottom = false
     @State var isHistoricalCardsCollapsed = true
@@ -80,6 +80,18 @@ struct DeckWorkspaceView: View {
     // MARK: - Computed Properties
     var accent: Color { themeManager.accentColor.color }
     var locale: Locale { appPreferences.resolvedLocale }
+
+    var compactOptionPickerConfiguration: FullScreenSheetConfiguration {
+        .sheet(
+            heightMode: .custom(0.35),
+            dragActivationArea: .fullSurface,
+            showsDragIndicator: false,
+            backgroundReceivesDragProgress: true,
+            showsBackdropBlur: true,
+            showsDefaultTopProgressiveBlur: false,
+            hidesTabBar: true
+        )
+    }
 
     func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -555,16 +567,19 @@ struct DeckWorkspaceView: View {
     var generationSheetContent: some View {
         viewContent
             .fullScreenSheet(
-                isPresented: $viewModel.showAIPickerOptions,
-                configuration: .sheet(
-                    heightMode: .custom(0.35),
-                    dragActivationArea: .fullSurface,
-                    showsDragIndicator: false,
-                    backgroundReceivesDragProgress: true,
-                    showsBackdropBlur: true,
-                    showsDefaultTopProgressiveBlur: false,
-                    hidesTabBar: true
+                isPresented: $showAddCardTypePicker,
+                configuration: compactOptionPickerConfiguration
+            ) { safeArea in
+                ManualCardTypePickerSheetView(
+                    safeAreaInsets: safeArea,
+                    onSelect: openCardEditor
                 )
+            } background: {
+                AIGenerationSheetBackground()
+            }
+            .fullScreenSheet(
+                isPresented: $viewModel.showAIPickerOptions,
+                configuration: compactOptionPickerConfiguration
             ) { safeArea in
                 AIGenerationSourcePickerSheetView(
                     safeAreaInsets: safeArea,
@@ -695,12 +710,6 @@ struct DeckWorkspaceView: View {
             Button(localized("Keep Editing"), role: .cancel) { }
         } message: {
             Text(localized("You have unsaved changes in this deck."))
-        }
-        .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
-            addCardTypeButtons
-            Button(localized("Cancel"), role: .cancel) { }
-        } message: {
-            Text(localized("Pick the type of card you want to add to this deck."))
         }
         .confirmationDialog(localized("Stop AI generation?"), isPresented: $viewModel.showAICancelDialog, titleVisibility: .visible) {
             if viewModel.hasGeneratedCardsInCurrentAISession {

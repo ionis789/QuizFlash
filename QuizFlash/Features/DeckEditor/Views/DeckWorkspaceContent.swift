@@ -304,20 +304,14 @@ extension DeckWorkspaceView {
 
             Button {
                 isTitleFocused = false
-                showAddCardTypeDialog = true
+                showAddCardTypePicker = true
             } label: {
-                HStack(spacing: 9) {
-                    Text(localized("Add manually"))
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.primary.opacity(0.86))
-
-                    Image(systemName: "chevron.compact.right")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(.secondary.opacity(0.62))
-                }
-                .padding(.horizontal, UIConstants.Spacing.small)
-                .padding(.vertical, 8)
-                .contentShape(Capsule(style: .continuous))
+                Text(localized("Add manually"))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.primary.opacity(0.86))
+                    .padding(.horizontal, UIConstants.Spacing.small)
+                    .padding(.vertical, 8)
+                    .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(localized("Add manually"))
@@ -405,7 +399,7 @@ extension DeckWorkspaceView {
     func openCardEditor(for kind: CardKind) {
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
-        showAddCardTypeDialog = false
+        showAddCardTypePicker = false
         viewModel.presentCardEditor(for: kind)
     }
 
