@@ -16,6 +16,7 @@ struct SettingsView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
     @Environment(\.dismiss) private var dismiss
@@ -487,6 +488,32 @@ struct SettingsView: View {
                         option.localizedTitle(locale: locale)
                     }
                 )
+            }
+
+            if AppFeatures.current.showsVisualDebugOverlays {
+                settingsBlock {
+                    ColorPicker(
+                        selection: partialSheetBackgroundColorBinding,
+                        supportsOpacity: false
+                    ) {
+                        HStack(spacing: UIConstants.Spacing.medium) {
+                            SettingsRowIcon(
+                                icon: "rectangle.bottomhalf.filled",
+                                tint: themeManager.accentColor.color
+                            )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(AppLocalization.string("Partial Sheet Background", locale: appPreferences.resolvedLocale))
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(themeManager.textPrimary)
+
+                                Text(developmentPreferences.partialSheetBackgroundHex)
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .foregroundStyle(themeManager.textSecondary)
+                            }
+                        }
+                    }
+                }
             }
 
             settingsBlock {
@@ -1143,6 +1170,20 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.appLanguage },
             set: { appPreferences.appLanguage = $0 }
+        )
+    }
+
+    private var partialSheetBackgroundColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(hex: developmentPreferences.partialSheetBackgroundHex)
+                    ?? Color(hex: DevelopmentPreferences.defaultPartialSheetBackgroundHex)
+                    ?? .black
+            },
+            set: { color in
+                guard let hex = color.toHex() else { return }
+                developmentPreferences.setPartialSheetBackgroundHex(hex)
+            }
         )
     }
 

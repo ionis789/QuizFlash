@@ -15,6 +15,7 @@ final class DevelopmentPreferences {
     static let shared = DevelopmentPreferences()
 
     private enum Keys {
+        static let partialSheetBackgroundHex = "preferences.development.partialSheetBackgroundHex"
         static let deckWorkspaceMockAIEnabled = "preferences.development.deckWorkspaceMockAIEnabled"
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
         static let zoneContentLayoutDebugEnabled = "preferences.development.zoneContentLayoutDebugEnabled"
@@ -27,9 +28,17 @@ final class DevelopmentPreferences {
     }
 
     private static let currentEdgeShadowDebugDefaultsVersion = 2
+    static let defaultPartialSheetBackgroundHex = "#18131F"
 
     private let userDefaults: UserDefaults
     @ObservationIgnored private var edgeShadowDebugSettingsPersistenceTask: Task<Void, Never>?
+
+    /// Dedicated development color used only by non-full-screen custom sheets.
+    private(set) var partialSheetBackgroundHex: String {
+        didSet {
+            userDefaults.set(partialSheetBackgroundHex, forKey: Keys.partialSheetBackgroundHex)
+        }
+    }
 
     /// Shows the mock AI generation shortcut in the deck workspace.
     var deckWorkspaceMockAIEnabled: Bool {
@@ -109,6 +118,9 @@ final class DevelopmentPreferences {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        self.partialSheetBackgroundHex = userDefaults.string(
+            forKey: Keys.partialSheetBackgroundHex
+        ) ?? Self.defaultPartialSheetBackgroundHex
         self.deckWorkspaceMockAIEnabled = userDefaults.object(
             forKey: Keys.deckWorkspaceMockAIEnabled
         ) as? Bool ?? false
@@ -132,6 +144,11 @@ final class DevelopmentPreferences {
         ) as? Bool ?? false
         Self.migrateEdgeShadowDebugDefaultsIfNeeded(in: userDefaults)
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
+    }
+
+    func setPartialSheetBackgroundHex(_ hex: String) {
+        guard Self.isValidHexColor(hex) else { return }
+        partialSheetBackgroundHex = hex.uppercased()
     }
 
     func edgeShadowSettings(for screenID: String) -> EdgeShadowDebugSettings {
@@ -195,6 +212,13 @@ final class DevelopmentPreferences {
             currentEdgeShadowDebugDefaultsVersion,
             forKey: Keys.edgeShadowDebugDefaultsVersion
         )
+    }
+
+    private static func isValidHexColor(_ hex: String) -> Bool {
+        let normalized = hex.replacingOccurrences(of: "#", with: "")
+        guard normalized.count == 6 || normalized.count == 8 else { return false }
+        return CharacterSet(charactersIn: normalized)
+            .isSubset(of: CharacterSet(charactersIn: "0123456789ABCDEFabcdef"))
     }
 
 }

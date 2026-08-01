@@ -692,6 +692,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @ViewBuilder var background: Background
 
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var offset: CGFloat = 0
@@ -732,6 +733,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     var body: some View {
         let containerHeight = max(windowSize.height, 1)
         let containerWidth = max(windowSize.width, 1)
+        let restingSheetHeight = configuration.heightMode.resolvedHeight(
+            in: containerHeight,
+            bottomSafeAreaInset: windowSafeAreaInsets.bottom
+        )
+        let usesPartialSheetBackground = restingSheetHeight < containerHeight - 0.5
         let keyboardInset = resolvedKeyboardInset(containerHeight: containerHeight)
         let availableContainerHeight = max(containerHeight - keyboardInset, 1)
         let contentBottomSafeArea = keyboardInset > 0 ? 0 : windowSafeAreaInsets.bottom
@@ -775,7 +781,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         )
 
         let sheetSurface = ZStack(alignment: .top) {
-            backgroundView(dragProgress: dragProgress)
+            resolvedSheetBackground(
+                dragProgress: dragProgress,
+                usesPartialSheetBackground: usesPartialSheetBackground
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(sheetShape)
 
@@ -836,7 +845,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .animation(sheetMotionAnimation, value: keyboardInset)
         .background(alignment: .bottom) {
             if sheetBottomOverscan > 0 {
-                backgroundView(dragProgress: dragProgress)
+                resolvedSheetBackground(
+                    dragProgress: dragProgress,
+                    usesPartialSheetBackground: usesPartialSheetBackground
+                )
                     .frame(width: containerWidth, height: sheetBottomOverscan)
                     .offset(y: sheetBottomOverscan)
                     .allowsHitTesting(false)
@@ -1045,6 +1057,20 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 .environment(\.fullScreenSheetDragProgress, dragProgress)
         } else {
             background
+        }
+    }
+
+    @ViewBuilder
+    private func resolvedSheetBackground(
+        dragProgress: CGFloat,
+        usesPartialSheetBackground: Bool
+    ) -> some View {
+        if AppFeatures.current.showsVisualDebugOverlays,
+           usesPartialSheetBackground,
+           let color = Color(hex: developmentPreferences.partialSheetBackgroundHex) {
+            color
+        } else {
+            backgroundView(dragProgress: dragProgress)
         }
     }
 

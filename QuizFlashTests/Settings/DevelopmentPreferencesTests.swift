@@ -20,12 +20,14 @@ final class DevelopmentPreferencesTests: XCTestCase {
         preferences.deckGridTextLayoutDebugEnabled = true
         preferences.zoneContentLayoutDebugEnabled = true
         preferences.playModeDeveloperModeEnabled = true
+        preferences.setPartialSheetBackgroundHex("#221A2B")
 
         let reloadedPreferences = DevelopmentPreferences(userDefaults: defaults)
         XCTAssertTrue(reloadedPreferences.deckWorkspaceMockAIEnabled)
         XCTAssertTrue(reloadedPreferences.deckGridTextLayoutDebugEnabled)
         XCTAssertTrue(reloadedPreferences.zoneContentLayoutDebugEnabled)
         XCTAssertTrue(reloadedPreferences.playModeDeveloperModeEnabled)
+        XCTAssertEqual(reloadedPreferences.partialSheetBackgroundHex, "#221A2B")
     }
 
     func testDevelopmentPreferencesHydrateFromPersistedKeys() {
