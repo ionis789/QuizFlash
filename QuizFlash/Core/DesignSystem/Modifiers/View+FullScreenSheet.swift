@@ -279,6 +279,7 @@ struct FullScreenSheetConfiguration: Sendable {
 /// Canonical motion contract for every QuizFlash custom sheet.
 enum FullScreenSheetMotion {
     static let duration = UIConstants.Animation.sheet
+    static let minimumSettleDuration = duration * 0.6
 
     static func animation(duration: Double = duration) -> Animation {
         .smooth(duration: max(duration, 0), extraBounce: 0)
@@ -298,6 +299,22 @@ enum FullScreenSheetMotion {
             1
         )
         return duration * Double(normalizedDistance)
+    }
+
+    static func settleDuration(
+        from currentOffset: CGFloat,
+        to targetOffset: CGFloat,
+        travelDistance: CGFloat
+    ) -> Double {
+        guard abs(targetOffset - currentOffset) > 0.5 else { return 0 }
+        return max(
+            continuationDuration(
+                from: currentOffset,
+                to: targetOffset,
+                travelDistance: travelDistance
+            ),
+            minimumSettleDuration
+        )
     }
 }
 
@@ -1194,7 +1211,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         if predictedEnd > dismissalDistance * 0.28 {
             animateDismiss(dismissalDistance: dismissalDistance, completion: completion)
         } else {
-            let continuationDuration = FullScreenSheetMotion.continuationDuration(
+            let continuationDuration = FullScreenSheetMotion.settleDuration(
                 from: offset,
                 to: 0,
                 travelDistance: dismissalDistance
@@ -1224,7 +1241,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         guard !isAnimatingDismiss else { return }
         guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
             dismissCoordinator.onBlockedDismiss?()
-            let continuationDuration = FullScreenSheetMotion.continuationDuration(
+            let continuationDuration = FullScreenSheetMotion.settleDuration(
                 from: offset,
                 to: 0,
                 travelDistance: dismissalDistance

@@ -68,4 +68,25 @@ final class FullScreenSheetMotionTests: XCTestCase {
             accuracy: 0.0001
         )
     }
+
+    func testShortSnapBackUsesMinimumSmoothSettleDuration() {
+        XCTAssertEqual(
+            FullScreenSheetMotion.settleDuration(
+                from: 12,
+                to: 0,
+                travelDistance: 420
+            ),
+            FullScreenSheetMotion.minimumSettleDuration,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            FullScreenSheetMotion.settleDuration(
+                from: 0,
+                to: 0,
+                travelDistance: 420
+            ),
+            0,
+            accuracy: 0.0001
+        )
+    }
 }
