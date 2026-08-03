@@ -139,13 +139,30 @@ struct TickValuePicker: View {
     let onChange: (Int) -> Void
     var isCompact = false
     let valueText: (Int) -> String
+    @State private var liveValue: Int
+    @State private var isInteracting = false
+
+    init(
+        value: Int,
+        range: ClosedRange<Int>,
+        onChange: @escaping (Int) -> Void,
+        isCompact: Bool = false,
+        valueText: @escaping (Int) -> String
+    ) {
+        self.value = value
+        self.range = range
+        self.onChange = onChange
+        self.isCompact = isCompact
+        self.valueText = valueText
+        _liveValue = State(initialValue: Self.clamped(value, to: range))
+    }
 
     private var selectionBinding: Binding<Int> {
         Binding {
-            max(min(value, range.upperBound), range.lowerBound) - range.lowerBound
+            liveValue - range.lowerBound
         } set: { newSelection in
             let nextValue = range.lowerBound + newSelection
-            onChange(max(min(nextValue, range.upperBound), range.lowerBound))
+            liveValue = Self.clamped(nextValue, to: range)
         }
     }
 
@@ -163,7 +180,7 @@ struct TickValuePicker: View {
     }
 
     var body: some View {
-        let boundedValue = max(min(value, range.upperBound), range.lowerBound)
+        let boundedValue = Self.clamped(liveValue, to: range)
 
         VStack(spacing: isCompact ? UIConstants.Spacing.tiny : UIConstants.Spacing.small) {
             Text(valueText(boundedValue))
@@ -182,11 +199,29 @@ struct TickValuePicker: View {
                 count: range.upperBound - range.lowerBound,
                 config: pickerConfig,
                 selection: selectionBinding,
-                highlightedRange: nil
+                highlightedRange: nil,
+                onEditingChanged: handleEditingChanged
             )
         }
         .padding(.horizontal, UIConstants.Spacing.tiny)
         .padding(.top, UIConstants.Spacing.small)
+        .onChange(of: value) { _, newValue in
+            guard !isInteracting else { return }
+            liveValue = Self.clamped(newValue, to: range)
+        }
+    }
+
+    private func handleEditingChanged(_ isEditing: Bool) {
+        isInteracting = isEditing
+
+        guard !isEditing else { return }
+        let committedValue = Self.clamped(liveValue, to: range)
+        guard committedValue != value else { return }
+        onChange(committedValue)
+    }
+
+    private static func clamped(_ value: Int, to range: ClosedRange<Int>) -> Int {
+        max(min(value, range.upperBound), range.lowerBound)
     }
 }
 
@@ -359,6 +394,15 @@ private struct TickPickerScrollView: UIViewRepresentable {
             guard scrollView.bounds.width > 0 else { return }
 
             let safeSelection = clamped(parent.selection)
+
+            if didCompleteInitialLayout,
+               scrollView.isTracking
+                || scrollView.isDragging
+                || scrollView.isDecelerating
+                || isApplyingProgrammaticScroll {
+                return
+            }
+
             synchronizeTickCount()
             let layoutChanged = applyLayout(in: scrollView)
 
@@ -421,6 +465,15 @@ private struct TickPickerScrollView: UIViewRepresentable {
             if parent.selection != newIndex {
                 parent.selection = newIndex
             }
+        }
+
+        func scrollViewWillEndDragging(
+            _ scrollView: UIScrollView,
+            withVelocity velocity: CGPoint,
+            targetContentOffset: UnsafeMutablePointer<CGPoint>
+        ) {
+            let targetIndex = nearestIndex(for: targetContentOffset.pointee.x, in: scrollView)
+            targetContentOffset.pointee.x = contentOffset(for: targetIndex, in: scrollView)
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -562,7 +615,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
 
         private func scrollToIndex(_ index: Int, in scrollView: UIScrollView, animated: Bool) {
             let safeIndex = clamped(index)
-            let xOffset = (CGFloat(safeIndex) * currentTickStride(in: scrollView)) - scrollView.contentInset.left
+            let xOffset = contentOffset(for: safeIndex, in: scrollView)
 
             isApplyingProgrammaticScroll = true
             scrollView.setContentOffset(CGPoint(x: xOffset, y: 0), animated: animated)
@@ -577,8 +630,16 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         private func nearestIndex(in scrollView: UIScrollView) -> Int {
-            let rawIndex = (scrollView.contentOffset.x + scrollView.contentInset.left) / currentTickStride(in: scrollView)
+            nearestIndex(for: scrollView.contentOffset.x, in: scrollView)
+        }
+
+        private func nearestIndex(for contentOffset: CGFloat, in scrollView: UIScrollView) -> Int {
+            let rawIndex = (contentOffset + scrollView.contentInset.left) / currentTickStride(in: scrollView)
             return clamped(Int(rawIndex.rounded()))
+        }
+
+        private func contentOffset(for index: Int, in scrollView: UIScrollView) -> CGFloat {
+            (CGFloat(clamped(index)) * currentTickStride(in: scrollView)) - scrollView.contentInset.left
         }
 
         private func resolvedTickStride(in scrollView: UIScrollView) -> CGFloat {
