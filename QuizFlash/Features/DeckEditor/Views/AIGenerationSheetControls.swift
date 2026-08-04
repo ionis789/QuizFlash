@@ -473,6 +473,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            isApplyingProgrammaticScroll = false
 #if DEBUG
             beginTrace(in: scrollView)
 #endif
@@ -537,7 +538,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
             )
 #endif
             if !decelerate {
-                snapToNearestIndex(in: scrollView)
+                snapToNearestIndex(in: scrollView, animated: true)
                 parent.onEditingChanged(false)
 #if DEBUG
                 recordTrace("snap-without-deceleration", in: scrollView)
@@ -550,7 +551,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
 #if DEBUG
             recordTrace("did-end-decelerating", in: scrollView)
 #endif
-            snapToNearestIndex(in: scrollView)
+            snapToNearestIndex(in: scrollView, animated: false)
             parent.onEditingChanged(false)
 #if DEBUG
             recordTrace("snap-after-deceleration", in: scrollView)
@@ -559,6 +560,7 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            isApplyingProgrammaticScroll = false
 #if DEBUG
             recordTrace("did-end-scrolling-animation", in: scrollView)
 #endif
@@ -674,12 +676,12 @@ private struct TickPickerScrollView: UIViewRepresentable {
             )
         }
 
-        private func snapToNearestIndex(in scrollView: UIScrollView) {
+        private func snapToNearestIndex(in scrollView: UIScrollView, animated: Bool) {
             let index = nearestIndex(in: scrollView)
             scrollIndex = index
             animationRange = index ... index
             updateTickAppearance(in: scrollView, animated: true)
-            scrollToIndex(index, in: scrollView, animated: true)
+            scrollToIndex(index, in: scrollView, animated: animated)
 
             if parent.selection != index {
                 parent.selection = index
@@ -689,17 +691,10 @@ private struct TickPickerScrollView: UIViewRepresentable {
         private func scrollToIndex(_ index: Int, in scrollView: UIScrollView, animated: Bool) {
             let safeIndex = clamped(index)
             let xOffset = contentOffset(for: safeIndex, in: scrollView)
+            let shouldAnimate = animated && abs(scrollView.contentOffset.x - xOffset) > 0.5
 
-            isApplyingProgrammaticScroll = true
-            scrollView.setContentOffset(CGPoint(x: xOffset, y: 0), animated: animated)
-
-            if animated {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                    self?.isApplyingProgrammaticScroll = false
-                }
-            } else {
-                isApplyingProgrammaticScroll = false
-            }
+            isApplyingProgrammaticScroll = shouldAnimate
+            scrollView.setContentOffset(CGPoint(x: xOffset, y: 0), animated: shouldAnimate)
         }
 
         private func nearestIndex(in scrollView: UIScrollView) -> Int {
