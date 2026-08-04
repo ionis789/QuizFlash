@@ -5,6 +5,7 @@
 //  Copyable backend communication diagnostics.
 //
 
+#if DEBUG
 import SwiftUI
 import UIKit
 
@@ -252,3 +253,4 @@ private struct BackendTraceTextView: UIViewRepresentable {
         )
     }
 }
+#endif

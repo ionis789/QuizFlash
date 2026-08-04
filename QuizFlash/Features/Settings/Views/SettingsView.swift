@@ -14,9 +14,7 @@ import UIKit
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(OnboardingStateStore.self) private var onboardingStateStore
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
     @Environment(\.dismiss) private var dismiss
@@ -44,7 +42,6 @@ struct SettingsView: View {
     @State private var goalDraftValue = AppPreferences.defaultDailyCardsGoal
     @State private var isCardsGoalExpanded = false
     @State private var isTextSizeExpanded = false
-    @State private var backendTraceEventCount = 0
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -113,7 +110,6 @@ struct SettingsView: View {
             refreshCachedProfileImage()
             await subscriptionManager.configure(for: authManager.currentUser)
             await subscriptionManager.refreshCloudAIUsageQuota()
-            backendTraceEventCount = await BackendTraceStore.shared.eventCount()
         }
         .onDisappear {
             profileImageDecodeTask?.cancel()
@@ -490,53 +486,12 @@ struct SettingsView: View {
                 )
             }
 
-            if AppFeatures.current.showsVisualDebugOverlays {
-                settingsBlock {
-                    ColorPicker(
-                        selection: partialSheetBackgroundColorBinding,
-                        supportsOpacity: false
-                    ) {
-                        HStack(spacing: UIConstants.Spacing.medium) {
-                            SettingsRowIcon(
-                                icon: "rectangle.bottomhalf.filled",
-                                tint: themeManager.accentColor.color
-                            )
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(AppLocalization.string("Partial Sheet Background", locale: appPreferences.resolvedLocale))
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(themeManager.textPrimary)
-
-                                Text(developmentPreferences.partialSheetBackgroundHex)
-                                    .font(.caption.monospaced().weight(.semibold))
-                                    .foregroundStyle(themeManager.textSecondary)
-                            }
-                        }
-                    }
-                }
-            }
-
             settingsBlock {
                 cardsGoalSettings
             }
 
             settingsBlock {
                 textSizeSettings
-            }
-
-            settingsBlock {
-                NavigationLink {
-                    BorderDesignSettingsView()
-                } label: {
-                    SettingsNavigationRow(
-                        icon: "rectangle.dashed",
-                        tint: themeManager.accentColor.color,
-                        title: SettingsTextContent.verbatim(AppLocalization.string("Border", locale: appPreferences.resolvedLocale)),
-                        detail: SettingsTextContent.verbatim(AppLocalization.string("Global border style", locale: appPreferences.resolvedLocale)),
-                        value: appPreferences.borderDesign.preset.localizedTitle(locale: appPreferences.resolvedLocale)
-                    )
-                }
-                .noPressEffectButtonStyle()
             }
 
             settingsBlock {
@@ -580,35 +535,26 @@ struct SettingsView: View {
                 }
             }
 
+#if DEBUG
             settingsBlock {
                 NavigationLink {
-                    BackendTraceView()
+                    LabsView()
                 } label: {
                     SettingsNavigationRow(
-                        icon: "server.rack",
+                        icon: "wrench.and.screwdriver.fill",
                         tint: .orange,
-                        title: SettingsTextContent.verbatim(AppLocalization.string("Backend Trace", locale: appPreferences.resolvedLocale)),
-                        detail: nil,
-                        value: "\(backendTraceEventCount)"
-                    )
-                }
-                .noPressEffectButtonStyle()
-            }
-
-            settingsBlock {
-                Button {
-                    onboardingStateStore.presentPreview()
-                } label: {
-                    SettingsNavigationRow(
-                        icon: "sparkles.rectangle.stack",
-                        tint: themeManager.accentColor.color,
-                        title: SettingsTextContent.verbatim(AppLocalization.string("Preview Onboarding", locale: appPreferences.resolvedLocale)),
-                        detail: nil,
+                        title: SettingsTextContent.verbatim(
+                            AppLocalization.string("Labs", locale: appPreferences.resolvedLocale)
+                        ),
+                        detail: SettingsTextContent.verbatim(
+                            AppLocalization.string("Development tools", locale: appPreferences.resolvedLocale)
+                        ),
                         value: nil
                     )
                 }
                 .noPressEffectButtonStyle()
             }
+#endif
 
             settingsBlock {
                 Button {
@@ -1170,20 +1116,6 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.appLanguage },
             set: { appPreferences.appLanguage = $0 }
-        )
-    }
-
-    private var partialSheetBackgroundColorBinding: Binding<Color> {
-        Binding(
-            get: {
-                Color(hex: developmentPreferences.partialSheetBackgroundHex)
-                    ?? Color(hex: DevelopmentPreferences.defaultPartialSheetBackgroundHex)
-                    ?? .black
-            },
-            set: { color in
-                guard let hex = color.toHex() else { return }
-                developmentPreferences.setPartialSheetBackgroundHex(hex)
-            }
         )
     }
 

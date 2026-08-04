@@ -190,7 +190,7 @@ extension AIFlashcardService {
                 throw CancellationError()
             } catch let error as RetriableRequestError {
                 lastServiceError = error.serviceError
-                await debugTraceStore.record(
+                await trace(
                     stage: .retryScheduled,
                     message: "Retrying provider request after retriable error.",
                     scope: requestScope,
@@ -205,7 +205,7 @@ extension AIFlashcardService {
                 try await sleepBeforeRetry(attempt: attempt, retryAfter: error.retryAfter)
             } catch let error as AIServiceError {
                 lastServiceError = error
-                await debugTraceStore.record(
+                await trace(
                     stage: .retryScheduled,
                     message: "Provider request failed with AIServiceError.",
                     scope: requestScope,
@@ -221,7 +221,7 @@ extension AIFlashcardService {
             } catch let error as URLError {
                 let serviceError = mapURLSessionError(error)
                 lastServiceError = serviceError
-                await debugTraceStore.record(
+                await trace(
                     stage: .retryScheduled,
                     message: "Provider request failed with URLSession error.",
                     scope: requestScope,
@@ -237,7 +237,7 @@ extension AIFlashcardService {
                 try await sleepBeforeRetry(attempt: attempt, retryAfter: nil)
             } catch {
                 lastServiceError = .networkError
-                await debugTraceStore.record(
+                await trace(
                     stage: .retryScheduled,
                     message: "Provider request failed with unexpected error.",
                     scope: requestScope,

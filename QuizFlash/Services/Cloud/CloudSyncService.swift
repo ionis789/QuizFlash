@@ -46,12 +46,12 @@ final class CloudSyncService {
             .collection("users")
             .document(uid)
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "upsert-deck-start",
             layer: "cloud.service",
             details: [
-                "uid": BackendTraceStore.safeUID(uid),
-                "deck": BackendTraceStore.safeUID(deckID),
+                "uid": backendTraceSafeID(uid),
+                "deck": backendTraceSafeID(deckID),
                 "cards": String(cards.count),
                 "dailyStudy": String(dailyStudyAggregates.count),
                 "dailyDecks": String(dailyDeckAggregates.count),
@@ -139,11 +139,11 @@ final class CloudSyncService {
         }
 
         try await batch.commit()
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "upsert-deck-primary-commit-success",
             layer: "cloud.service",
             details: [
-                "deck": BackendTraceStore.safeUID(deckID),
+                "deck": backendTraceSafeID(deckID),
                 "skippedOversizedCard": String(skippedOversizedCard),
                 "optionalWrites": String(optionalWriter.totalWriteCount)
             ]
@@ -152,11 +152,11 @@ final class CloudSyncService {
 
         do {
             let optionalCommitCount = try await optionalWriter.commitAll()
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "upsert-deck-optional-commit-success",
                 layer: "cloud.service",
                 details: [
-                    "deck": BackendTraceStore.safeUID(deckID),
+                    "deck": backendTraceSafeID(deckID),
                     "batches": String(optionalCommitCount),
                     "writes": String(optionalWriter.totalWriteCount),
                     "dailyStudy": String(dailyStudyAggregates.count),
@@ -165,11 +165,11 @@ final class CloudSyncService {
                 ]
             )
         } catch where Self.isPermissionDenied(error) {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "upsert-deck-optional-permission-denied",
                 layer: "cloud.service",
                 details: [
-                    "deck": BackendTraceStore.safeUID(deckID),
+                    "deck": backendTraceSafeID(deckID),
                     "writes": String(optionalWriter.totalWriteCount),
                     "error": error.localizedDescription
                 ]
@@ -177,11 +177,11 @@ final class CloudSyncService {
             // New analytics/review-event collections are optional for older deployed rules.
             // Deck/card sync must keep working even before those rules are rolled out.
         } catch {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "upsert-deck-optional-error",
                 layer: "cloud.service",
                 details: [
-                    "deck": BackendTraceStore.safeUID(deckID),
+                    "deck": backendTraceSafeID(deckID),
                     "writes": String(optionalWriter.totalWriteCount),
                     "error": error.localizedDescription
                 ]
@@ -205,19 +205,19 @@ final class CloudSyncService {
         folder.syncRevision += 1
         folder.lastSyncedAt = now
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "upsert-folder-start",
             layer: "cloud.service",
             details: [
-                "uid": BackendTraceStore.safeUID(uid),
-                "folder": BackendTraceStore.safeUID(folderID)
+                "uid": backendTraceSafeID(uid),
+                "folder": backendTraceSafeID(folderID)
             ]
         )
         try await folderRef.setData(folderPayload(for: folder), merge: true)
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "upsert-folder-success",
             layer: "cloud.service",
-            details: ["folder": BackendTraceStore.safeUID(folderID)]
+            details: ["folder": backendTraceSafeID(folderID)]
         )
     }
 
@@ -232,12 +232,12 @@ final class CloudSyncService {
     func softDeleteDeck(deckID: String, uid: String) async throws {
         let now = Date()
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "soft-delete-deck-start",
             layer: "cloud.service",
             details: [
-                "uid": BackendTraceStore.safeUID(uid),
-                "deck": BackendTraceStore.safeUID(deckID)
+                "uid": backendTraceSafeID(uid),
+                "deck": backendTraceSafeID(deckID)
             ]
         )
         try await firestore
@@ -250,10 +250,10 @@ final class CloudSyncService {
                 "editedAt": Timestamp(date: now),
                 "updatedAt": FieldValue.serverTimestamp()
             ], merge: true)
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "soft-delete-deck-success",
             layer: "cloud.service",
-            details: ["deck": BackendTraceStore.safeUID(deckID)]
+            details: ["deck": backendTraceSafeID(deckID)]
         )
     }
 
@@ -261,12 +261,12 @@ final class CloudSyncService {
     func softDeleteFolder(folderID: String, uid: String) async throws {
         let now = Date()
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "soft-delete-folder-start",
             layer: "cloud.service",
             details: [
-                "uid": BackendTraceStore.safeUID(uid),
-                "folder": BackendTraceStore.safeUID(folderID)
+                "uid": backendTraceSafeID(uid),
+                "folder": backendTraceSafeID(folderID)
             ]
         )
         try await firestore
@@ -279,10 +279,10 @@ final class CloudSyncService {
                 "editedAt": Timestamp(date: now),
                 "updatedAt": FieldValue.serverTimestamp()
             ], merge: true)
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "soft-delete-folder-success",
             layer: "cloud.service",
-            details: ["folder": BackendTraceStore.safeUID(folderID)]
+            details: ["folder": backendTraceSafeID(folderID)]
         )
     }
 

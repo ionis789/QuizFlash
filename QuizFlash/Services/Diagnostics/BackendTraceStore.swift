@@ -7,6 +7,32 @@
 
 import Foundation
 
+/// Compiles backend tracing out of Release while keeping call sites concise.
+@inline(__always)
+nonisolated func backendTrace(
+    _ event: @autoclosure () -> String,
+    layer: @autoclosure () -> String,
+    details: @autoclosure () -> [String: String] = [:]
+) async {
+#if DEBUG
+    await BackendTraceStore.shared.record(
+        event(),
+        layer: layer(),
+        details: details()
+    )
+#endif
+}
+
+@inline(__always)
+nonisolated func backendTraceSafeID(_ value: String?) -> String {
+#if DEBUG
+    BackendTraceStore.safeID(value)
+#else
+    ""
+#endif
+}
+
+#if DEBUG
 // MARK: - Backend Trace Store
 
 actor BackendTraceStore {
@@ -148,9 +174,9 @@ actor BackendTraceStore {
         return lines.joined(separator: "\n")
     }
 
-    nonisolated static func safeUID(_ uid: String?) -> String {
-        guard let uid, !uid.isEmpty else { return "<none>" }
-        return "...\(uid.suffix(6))"
+    nonisolated static func safeID(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "<none>" }
+        return "...\(value.suffix(6))"
     }
 
     private func loadSessions() -> [BackendTraceSession] {
@@ -260,3 +286,4 @@ private struct BackendTraceEvent: Codable {
     let event: String
     let detail: String
 }
+#endif

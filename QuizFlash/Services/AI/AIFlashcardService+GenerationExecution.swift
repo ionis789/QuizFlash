@@ -179,7 +179,7 @@ extension AIFlashcardService {
                     activeTaskCount += 1
 
                     group.addTask { [self] in
-                        await debugTraceStore.record(
+                        await trace(
                             stage: .batchStarted,
                             message: "Starting generation batch.",
                             scope: scope,
@@ -192,7 +192,7 @@ extension AIFlashcardService {
                                 return (plan, .success(result))
                             }
                         } catch {
-                            await debugTraceStore.record(
+                            await trace(
                                 stage: .batchCompleted,
                                 message: "Generation batch failed.",
                                 scope: scope,
@@ -232,7 +232,7 @@ extension AIFlashcardService {
                         )
                         coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
                     }
-                    await debugTraceStore.record(
+                    await trace(
                         stage: .batchCompleted,
                         message: "Completed generation batch.",
                         scope: scope,
@@ -254,7 +254,7 @@ extension AIFlashcardService {
 
                     if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
                         pendingPlans.append(contentsOf: splitPlans)
-                        await debugTraceStore.record(
+                        await trace(
                             stage: .batchRecovered,
                             message: "Split failed generation batch for recovery.",
                             scope: scope,

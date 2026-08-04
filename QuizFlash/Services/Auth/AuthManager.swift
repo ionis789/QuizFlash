@@ -66,20 +66,22 @@ enum AuthFlowDebugTrace {
     }
 
     static func record(
-        _ event: String,
-        layer: String,
-        details: [String: String] = [:]
+        _ event: @autoclosure () -> String,
+        layer: @autoclosure () -> String,
+        details: @autoclosure () -> [String: String] = [:]
     ) {
 #if DEBUG
+        let resolvedEvent = event()
+        let resolvedLayer = layer()
         sequence += 1
-        let detail = details
+        let detail = details()
             .map { key, value in "\(sanitize(key))=\(sanitize(value))" }
             .sorted()
             .joined(separator: " ")
         let suffix = detail.isEmpty ? "" : " \(detail)"
         let line = "QF_AUTH_TRACE attempt=\(attemptID) seq=\(sequence) "
             + "time=\(String(format: "%.3f", Date().timeIntervalSince1970)) "
-            + "main=\(Thread.isMainThread) layer=\(sanitize(layer)) event=\(sanitize(event))\(suffix)"
+            + "main=\(Thread.isMainThread) layer=\(sanitize(resolvedLayer)) event=\(sanitize(resolvedEvent))\(suffix)"
         bufferedEvents.append(line)
         if bufferedEvents.count > maximumBufferedEvents {
             bufferedEvents.removeFirst(bufferedEvents.count - maximumBufferedEvents)
@@ -373,14 +375,14 @@ final class AuthManager {
             AuthFlowDebugTrace.record(
                 "listener.delivered",
                 layer: "auth-manager",
-                details: ["user": BackendTraceStore.safeUID(user?.uid)]
+                details: ["user": backendTraceSafeID(user?.uid)]
             )
             self?.apply(user)
         }
         AuthFlowDebugTrace.record(
             "listener.installed",
             layer: "auth-manager",
-            details: ["currentUser": BackendTraceStore.safeUID(provider.currentUser?.uid)]
+            details: ["currentUser": backendTraceSafeID(provider.currentUser?.uid)]
         )
         apply(provider.currentUser)
     }
@@ -434,7 +436,7 @@ final class AuthManager {
                 layer: "auth-manager",
                 details: [
                     "operation": traceID,
-                    "user": BackendTraceStore.safeUID(user.uid)
+                    "user": backendTraceSafeID(user.uid)
                 ]
             )
             apply(user)
@@ -648,7 +650,7 @@ final class AuthManager {
                     "from": previousState.debugName,
                     "to": sessionState.debugName,
                     "reason": "email-verification-required",
-                    "user": BackendTraceStore.safeUID(user.uid)
+                    "user": backendTraceSafeID(user.uid)
                 ]
             )
             return
@@ -676,7 +678,7 @@ final class AuthManager {
                 "from": previousState.debugName,
                 "to": sessionState.debugName,
                 "reason": wasWaitingForSameEmailUser ? "verified-email" : "authenticated-user",
-                "user": BackendTraceStore.safeUID(user.uid)
+                "user": backendTraceSafeID(user.uid)
             ]
         )
     }
@@ -717,7 +719,7 @@ final class AuthManager {
                 "from": previousState.debugName,
                 "to": sessionState.debugName,
                 "reason": "provider-returned",
-                "user": BackendTraceStore.safeUID(user.uid)
+                "user": backendTraceSafeID(user.uid)
             ]
         )
 #if DEBUG
@@ -764,7 +766,7 @@ private final class FirebaseAuthClient: AuthProviding {
         AuthFlowDebugTrace.record(
             "listener.register",
             layer: "firebase-auth",
-            details: ["currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)]
+            details: ["currentUser": backendTraceSafeID(Auth.auth().currentUser?.uid)]
         )
         let handle = Auth.auth().addStateDidChangeListener { _, user in
 #if DEBUG
@@ -775,7 +777,7 @@ private final class FirebaseAuthClient: AuthProviding {
                     "listener.callback",
                     layer: "firebase-auth",
                     details: [
-                        "user": BackendTraceStore.safeUID(user?.uid),
+                        "user": backendTraceSafeID(user?.uid),
                         "providerCount": String(user?.providerData.count ?? 0)
                     ]
                 )
@@ -822,14 +824,14 @@ private final class FirebaseAuthClient: AuthProviding {
         AuthFlowDebugTrace.record(
             "create-user.request.success",
             layer: "firebase-email",
-            details: ["user": BackendTraceStore.safeUID(result.user.uid)]
+            details: ["user": backendTraceSafeID(result.user.uid)]
         )
         AuthFlowDebugTrace.record(
             "verification-email.request.start",
             layer: "firebase-email",
             details: [
                 "phase": "initial",
-                "user": BackendTraceStore.safeUID(result.user.uid)
+                "user": backendTraceSafeID(result.user.uid)
             ]
         )
 
@@ -842,7 +844,7 @@ private final class FirebaseAuthClient: AuthProviding {
                 layer: "firebase-email",
                 details: [
                     "phase": "initial",
-                    "user": BackendTraceStore.safeUID(result.user.uid),
+                    "user": backendTraceSafeID(result.user.uid),
                     "errorType": String(describing: type(of: error)),
                     "errorDomain": nsError.domain,
                     "errorCode": String(nsError.code)
@@ -856,7 +858,7 @@ private final class FirebaseAuthClient: AuthProviding {
             layer: "firebase-email",
             details: [
                 "phase": "initial",
-                "user": BackendTraceStore.safeUID(result.user.uid)
+                "user": backendTraceSafeID(result.user.uid)
             ]
         )
         return result.user.authSnapshot
@@ -896,7 +898,7 @@ private final class FirebaseAuthClient: AuthProviding {
             layer: "firebase-email",
             details: [
                 "phase": "resend",
-                "user": BackendTraceStore.safeUID(user.uid)
+                "user": backendTraceSafeID(user.uid)
             ]
         )
 
@@ -909,7 +911,7 @@ private final class FirebaseAuthClient: AuthProviding {
                 layer: "firebase-email",
                 details: [
                     "phase": "resend",
-                    "user": BackendTraceStore.safeUID(user.uid),
+                    "user": backendTraceSafeID(user.uid),
                     "errorType": String(describing: type(of: error)),
                     "errorDomain": nsError.domain,
                     "errorCode": String(nsError.code)
@@ -923,7 +925,7 @@ private final class FirebaseAuthClient: AuthProviding {
             layer: "firebase-email",
             details: [
                 "phase": "resend",
-                "user": BackendTraceStore.safeUID(user.uid)
+                "user": backendTraceSafeID(user.uid)
             ]
         )
     }
@@ -982,7 +984,7 @@ private final class FirebaseAuthClient: AuthProviding {
         AuthFlowDebugTrace.record(
             "credential.begin",
             layer: "google-provider",
-            details: ["firebaseCurrentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)]
+            details: ["firebaseCurrentUser": backendTraceSafeID(Auth.auth().currentUser?.uid)]
         )
         guard let clientID = FirebaseApp.app()?.options.clientID else {
             AuthFlowDebugTrace.record(
@@ -1075,7 +1077,7 @@ private final class FirebaseCredentialSignInCoordinator {
             layer: "firebase-credential",
             details: [
                 "provider": credential.provider,
-                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid),
+                "currentUser": backendTraceSafeID(Auth.auth().currentUser?.uid),
                 "cancelled": String(Task.isCancelled)
             ]
         )
@@ -1101,7 +1103,7 @@ private final class FirebaseCredentialSignInCoordinator {
                         AuthFlowDebugTrace.record(
                             "request.timeout.recovered",
                             layer: "firebase-credential",
-                            details: ["currentUser": BackendTraceStore.safeUID(user.uid)]
+                            details: ["currentUser": backendTraceSafeID(user.uid)]
                         )
 #if DEBUG
                         authSessionFlowDebugLog("Firebase request timed out but currentUser is available")
@@ -1128,7 +1130,7 @@ private final class FirebaseCredentialSignInCoordinator {
                             details: [
                                 "hasResult": String(result != nil),
                                 "error": error.map { String(describing: type(of: $0)) } ?? "none",
-                                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)
+                                "currentUser": backendTraceSafeID(Auth.auth().currentUser?.uid)
                             ]
                         )
 #if DEBUG
@@ -1233,7 +1235,7 @@ private final class GoogleSignInCoordinator {
                             details: [
                                 "hasResult": String(result != nil),
                                 "error": error.map { String(describing: type(of: $0)) } ?? "none",
-                                "currentUser": BackendTraceStore.safeUID(Auth.auth().currentUser?.uid)
+                                "currentUser": backendTraceSafeID(Auth.auth().currentUser?.uid)
                             ]
                         )
 #if DEBUG

@@ -56,8 +56,10 @@ struct LibraryLayout: View {
     @State var isCompactChromeSearchRecoveryAnimating = false
     @State var compactChromeRecoverySectionHeaderID: String?
     @State var visualPassedCompactTitleSectionID: String?
+#if DEBUG
     @State var pinnedStartDebugSectionID: String?
     @State var passedCompactTitleDebugSectionID: String?
+#endif
     @State var searchDismissRequestID = 0
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State var safeTop: CGFloat = 0

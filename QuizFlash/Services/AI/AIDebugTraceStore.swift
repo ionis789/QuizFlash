@@ -798,6 +798,7 @@ extension AIFlashcardService {
         metadata: [String: String] = [:],
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
+#if DEBUG
         let descriptor = AIDebugTraceRunDescriptor(
             kind: kind,
             targetType: targetType,
@@ -823,20 +824,45 @@ extension AIFlashcardService {
             await debugTraceStore.finishRun(scope: scope, succeeded: false, error: error)
             throw error
         }
+#else
+        return try await operation()
+#endif
     }
 
     func trace(
         _ stage: AIDebugTraceStage,
-        _ message: String,
-        metadata: [String: String] = [:],
-        payload: String? = nil
+        _ message: @autoclosure () -> String,
+        scope: AIDebugTraceScope? = AIDebugTraceContext.currentScope,
+        metadata: @autoclosure () -> [String: String] = [:],
+        payload: @autoclosure () -> String? = nil
     ) async {
+#if DEBUG
         await debugTraceStore.record(
             stage: stage,
-            message: message,
-            metadata: metadata,
-            payload: payload
+            message: message(),
+            scope: scope,
+            metadata: metadata(),
+            payload: payload()
         )
+#endif
+    }
+
+    func trace(
+        stage: AIDebugTraceStage,
+        message: @autoclosure () -> String,
+        scope: AIDebugTraceScope? = AIDebugTraceContext.currentScope,
+        metadata: @autoclosure () -> [String: String] = [:],
+        payload: @autoclosure () -> String? = nil
+    ) async {
+#if DEBUG
+        await trace(
+            stage,
+            message(),
+            scope: scope,
+            metadata: metadata(),
+            payload: payload()
+        )
+#endif
     }
 
     func withTraceScope<T: Sendable>(

@@ -179,7 +179,7 @@ final class CloudAIProxyClient {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
               let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "entitlements-preflight-failed",
                 layer: "cloud.ai-proxy"
             )
@@ -190,24 +190,24 @@ final class CloudAIProxyClient {
         request.httpMethod = "GET"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "entitlements-request-start",
             layer: "cloud.ai-proxy",
             details: [
-                "uid": BackendTraceStore.safeUID(user.uid),
+                "uid": backendTraceSafeID(user.uid),
                 "host": request.url?.host ?? "<none>",
                 "path": request.url?.path ?? "<none>"
             ]
         )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "entitlements-invalid-response",
                 layer: "cloud.ai-proxy"
             )
             throw CloudAIProxyError.invalidResponse
         }
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "entitlements-response",
             layer: "cloud.ai-proxy",
             details: [
@@ -216,7 +216,7 @@ final class CloudAIProxyClient {
             ]
         )
         guard (200...299).contains(httpResponse.statusCode) else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "entitlements-error-response",
                 layer: "cloud.ai-proxy",
                 details: [
@@ -229,14 +229,14 @@ final class CloudAIProxyClient {
 
         do {
             let quota = try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "entitlements-decode-success",
                 layer: "cloud.ai-proxy",
                 details: Self.quotaDetails(quota)
             )
             return quota
         } catch {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "entitlements-decode-error",
                 layer: "cloud.ai-proxy",
                 details: ["error": error.localizedDescription]
@@ -249,7 +249,7 @@ final class CloudAIProxyClient {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
               let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "usage-generations-preflight-failed",
                 layer: "cloud.ai-proxy"
             )
@@ -260,24 +260,24 @@ final class CloudAIProxyClient {
         request.httpMethod = "GET"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "usage-generations-request-start",
             layer: "cloud.ai-proxy",
             details: [
-                "uid": BackendTraceStore.safeUID(user.uid),
+                "uid": backendTraceSafeID(user.uid),
                 "host": request.url?.host ?? "<none>",
                 "path": request.url?.path ?? "<none>"
             ]
         )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "usage-generations-invalid-response",
                 layer: "cloud.ai-proxy"
             )
             throw CloudAIProxyError.invalidResponse
         }
-        await BackendTraceStore.shared.record(
+        await backendTrace(
             "usage-generations-response",
             layer: "cloud.ai-proxy",
             details: [
@@ -286,7 +286,7 @@ final class CloudAIProxyClient {
             ]
         )
         guard (200...299).contains(httpResponse.statusCode) else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "usage-generations-error-response",
                 layer: "cloud.ai-proxy",
                 details: [
@@ -299,14 +299,14 @@ final class CloudAIProxyClient {
 
         do {
             let generations = try JSONDecoder().decode(UsageGenerationsResponse.self, from: data).generations
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "usage-generations-decode-success",
                 layer: "cloud.ai-proxy",
                 details: Self.generationHistoryDetails(generations)
             )
             return generations
         } catch {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "usage-generations-decode-error",
                 layer: "cloud.ai-proxy",
                 details: ["error": error.localizedDescription]

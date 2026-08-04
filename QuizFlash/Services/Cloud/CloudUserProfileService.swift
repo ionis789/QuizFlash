@@ -44,7 +44,7 @@ final class CloudUserProfileService {
     /// Creates or refreshes the user profile document.
     func upsertUserProfile(for user: AuthUserSnapshot?) async {
         guard let user else {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-signed-out",
                 layer: "cloud.profile"
             )
@@ -54,31 +54,31 @@ final class CloudUserProfileService {
         }
 
         do {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-direct-upsert-start",
                 layer: "cloud.profile",
                 details: [
-                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "uid": backendTraceSafeID(user.uid),
                     "providerCount": String(user.providers.count),
                     "hasDisplayName": String(user.displayName?.isEmpty == false),
                     "hasPhotoURL": String(user.photoURLString?.isEmpty == false)
                 ]
             )
             try await upsertUserProfileDirectly(for: user)
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-direct-upsert-success",
                 layer: "cloud.profile",
-                details: ["uid": BackendTraceStore.safeUID(user.uid)]
+                details: ["uid": backendTraceSafeID(user.uid)]
             )
             await upsertUserProfileThroughFunctionIfAvailable(for: user)
             lastUpsertedUID = user.uid
             lastErrorMessage = nil
         } catch {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-upsert-error",
                 layer: "cloud.profile",
                 details: [
-                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "uid": backendTraceSafeID(user.uid),
                     "error": error.localizedDescription
                 ]
             )
@@ -119,17 +119,17 @@ final class CloudUserProfileService {
 
         do {
             _ = try await functions.httpsCallable("upsertUserProfile").call(payload)
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-function-upsert-success",
                 layer: "cloud.profile",
-                details: ["uid": BackendTraceStore.safeUID(user.uid)]
+                details: ["uid": backendTraceSafeID(user.uid)]
             )
         } catch {
-            await BackendTraceStore.shared.record(
+            await backendTrace(
                 "profile-function-upsert-ignored-error",
                 layer: "cloud.profile",
                 details: [
-                    "uid": BackendTraceStore.safeUID(user.uid),
+                    "uid": backendTraceSafeID(user.uid),
                     "error": error.localizedDescription
                 ]
             )

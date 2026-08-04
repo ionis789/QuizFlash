@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+#if DEBUG
 import OSLog
+#endif
 import UIKit
 
 extension LibraryLayout {
+#if DEBUG
     private static let stickyDebugLogger = QuizFlashLog.make("LibraryStickyLayout")
+#endif
 
     var mainScrollArea: some View {
         ScrollView {
@@ -420,6 +424,7 @@ extension LibraryLayout {
             hiddenSectionHeaderIDs = targetHiddenSectionHeaderIDs
         }
 
+#if DEBUG
         let previousPinnedSectionID = pinnedStartDebugSectionID
         if isScrollingUp,
            let previousPinnedSectionID,
@@ -512,6 +517,7 @@ extension LibraryLayout {
         Self.stickyDebugLogger.debug(
             "[LibraryStickyDebug] event=passedCompactTitle id=\"\(passedCompactTitleCandidate.id)\" title=\"\(passedCompactTitleCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
         )
+#endif
     }
 }
 

@@ -8,6 +8,7 @@
 import Foundation
 
 nonisolated enum PDFImportDebugStore {
+#if DEBUG
     private static let storageKey = "diagnostics.pdfImport.events"
     private static let maxEvents = 140
 
@@ -17,11 +18,17 @@ nonisolated enum PDFImportDebugStore {
         let stage: String
         let detail: String
     }
+#endif
 
-    static func record(_ stage: String, details: [String: String] = [:]) {
+    @inline(__always)
+    static func record(
+        _ stage: @autoclosure () -> String,
+        details: @autoclosure () -> [String: String] = [:]
+    ) {
+#if DEBUG
         var events = loadEvents()
         let nextSequence = (events.last?.sequence ?? 0) + 1
-        let detail = details
+        let detail = details()
             .sorted { $0.key < $1.key }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: " ")
@@ -30,7 +37,7 @@ nonisolated enum PDFImportDebugStore {
             Event(
                 sequence: nextSequence,
                 date: Date(),
-                stage: stage,
+                stage: stage(),
                 detail: detail
             )
         )
@@ -41,13 +48,17 @@ nonisolated enum PDFImportDebugStore {
 
         guard let data = try? JSONEncoder().encode(events) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
+#endif
     }
 
     static func clear() {
+#if DEBUG
         UserDefaults.standard.removeObject(forKey: storageKey)
+#endif
     }
 
     static func report() -> String {
+#if DEBUG
         let events = loadEvents()
         var lines = [
             "QuizFlash PDF Import Debug",
@@ -72,12 +83,20 @@ nonisolated enum PDFImportDebugStore {
         }
 
         return lines.joined(separator: "\n")
+#else
+        return ""
+#endif
     }
 
     static func eventCount() -> Int {
+#if DEBUG
         loadEvents().count
+#else
+        0
+#endif
     }
 
+#if DEBUG
     private static func loadEvents() -> [Event] {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let events = try? JSONDecoder().decode([Event].self, from: data) else {
@@ -91,4 +110,5 @@ nonisolated enum PDFImportDebugStore {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
     }
+#endif
 }

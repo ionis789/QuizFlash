@@ -118,6 +118,7 @@ final class DevelopmentPreferences {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+#if DEBUG
         self.partialSheetBackgroundHex = userDefaults.string(
             forKey: Keys.partialSheetBackgroundHex
         ) ?? Self.defaultPartialSheetBackgroundHex
@@ -144,6 +145,17 @@ final class DevelopmentPreferences {
         ) as? Bool ?? false
         Self.migrateEdgeShadowDebugDefaultsIfNeeded(in: userDefaults)
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
+#else
+        self.partialSheetBackgroundHex = Self.defaultPartialSheetBackgroundHex
+        self.deckWorkspaceMockAIEnabled = false
+        self.deckGridTextLayoutDebugEnabled = false
+        self.zoneContentLayoutDebugEnabled = false
+        self.zoneEditorDebugHUDEnabled = false
+        self.quizEditorDebugEnabled = false
+        self.playModeDeveloperModeEnabled = false
+        self.edgeShadowTuningEnabled = false
+        self.edgeShadowDebugSettingsByScreen = [:]
+#endif
     }
 
     func setPartialSheetBackgroundHex(_ hex: String) {

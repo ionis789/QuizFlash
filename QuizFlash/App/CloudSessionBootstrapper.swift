@@ -33,22 +33,22 @@ struct CloudSessionBootstrapper: View {
                     layer: "bootstrap",
                     details: [
                         "state": authManager.sessionState.debugName,
-                        "user": BackendTraceStore.safeUID(user?.uid),
+                        "user": backendTraceSafeID(user?.uid),
                         "cancelled": String(Task.isCancelled)
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "session-state",
                     layer: "bootstrap",
                     details: [
                         "state": sessionStateName(authManager.sessionState),
-                        "uid": BackendTraceStore.safeUID(user?.uid)
+                        "uid": backendTraceSafeID(user?.uid)
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "profile-upsert-start",
                     layer: "bootstrap",
-                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                    details: ["uid": backendTraceSafeID(user?.uid)]
                 )
                 await cloudUserProfileService.upsertUserProfile(for: user)
                 AuthFlowDebugTrace.record(
@@ -60,18 +60,18 @@ struct CloudSessionBootstrapper: View {
                         "error": cloudUserProfileService.lastErrorMessage == nil ? "none" : "present"
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "profile-upsert-finished",
                     layer: "bootstrap",
                     details: [
-                        "uid": BackendTraceStore.safeUID(cloudUserProfileService.lastUpsertedUID),
+                        "uid": backendTraceSafeID(cloudUserProfileService.lastUpsertedUID),
                         "error": cloudUserProfileService.lastErrorMessage ?? "<none>"
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "subscription-configure-start",
                     layer: "bootstrap",
-                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                    details: ["uid": backendTraceSafeID(user?.uid)]
                 )
                 await subscriptionManager.configure(for: user)
                 AuthFlowDebugTrace.record(
@@ -83,7 +83,7 @@ struct CloudSessionBootstrapper: View {
                         "error": subscriptionManager.lastErrorMessage == nil ? "none" : "present"
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "subscription-configure-finished",
                     layer: "bootstrap",
                     details: [
@@ -103,10 +103,10 @@ struct CloudSessionBootstrapper: View {
                         "cancelled": String(Task.isCancelled)
                     ]
                 )
-                await BackendTraceStore.shared.record(
+                await backendTrace(
                     "cloud-sync-configure-called",
                     layer: "bootstrap",
-                    details: ["uid": BackendTraceStore.safeUID(user?.uid)]
+                    details: ["uid": backendTraceSafeID(user?.uid)]
                 )
             }
     }
