@@ -386,6 +386,20 @@ private struct TickPickerScrollView: UIViewRepresentable {
         private var lastTickStride: CGFloat = 0
         private let feedbackGenerator = UISelectionFeedbackGenerator()
 
+#if DEBUG
+        private var traceSessionID = ""
+        private var traceStartTime: TimeInterval = 0
+        private var traceLastScrollTime: TimeInterval = 0
+        private var traceEvents: [String] = []
+        private var traceSequence = 0
+        private var traceScrollCallbackCount = 0
+        private var traceSelectionChangeCount = 0
+        private var traceConfigureCount = 0
+        private var traceSkippedConfigureCount = 0
+        private var traceProgrammaticConfigureCount = 0
+        private var traceMaximumScrollGapMilliseconds: Double = 0
+#endif
+
         init(parent: TickPickerScrollView) {
             self.parent = parent
         }
@@ -395,11 +409,25 @@ private struct TickPickerScrollView: UIViewRepresentable {
 
             let safeSelection = clamped(parent.selection)
 
+#if DEBUG
+            if !traceSessionID.isEmpty {
+                traceConfigureCount += 1
+            }
+#endif
+
             if didCompleteInitialLayout,
                scrollView.isTracking
                 || scrollView.isDragging
                 || scrollView.isDecelerating
                 || isApplyingProgrammaticScroll {
+#if DEBUG
+                if !traceSessionID.isEmpty {
+                    traceSkippedConfigureCount += 1
+                    if isApplyingProgrammaticScroll {
+                        traceProgrammaticConfigureCount += 1
+                    }
+                }
+#endif
                 return
             }
 
@@ -445,6 +473,9 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+#if DEBUG
+            beginTrace(in: scrollView)
+#endif
             animationRange = scrollIndex ... scrollIndex
             updateTickAppearance(in: scrollView, animated: false)
             feedbackGenerator.prepare()
@@ -452,10 +483,21 @@ private struct TickPickerScrollView: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+#if DEBUG
+            recordScrollSampleIfNeeded(in: scrollView)
+#endif
             guard didCompleteInitialLayout, !isApplyingProgrammaticScroll else { return }
             let newIndex = nearestIndex(in: scrollView)
             guard newIndex != scrollIndex else { return }
 
+#if DEBUG
+            traceSelectionChangeCount += 1
+            recordTrace(
+                "selection-change",
+                in: scrollView,
+                details: "from=\(scrollIndex) to=\(newIndex) binding=\(parent.selection)"
+            )
+#endif
             scrollIndex = newIndex
             animationRange = newIndex ... newIndex
             updateTickAppearance(in: scrollView, animated: true)
@@ -472,23 +514,54 @@ private struct TickPickerScrollView: UIViewRepresentable {
             withVelocity velocity: CGPoint,
             targetContentOffset: UnsafeMutablePointer<CGPoint>
         ) {
+#if DEBUG
+            let proposedOffset = targetContentOffset.pointee.x
+#endif
             let targetIndex = nearestIndex(for: targetContentOffset.pointee.x, in: scrollView)
             targetContentOffset.pointee.x = contentOffset(for: targetIndex, in: scrollView)
+#if DEBUG
+            recordTrace(
+                "will-end-dragging",
+                in: scrollView,
+                details: "velocityX=\(formatted(velocity.x)) proposedX=\(formatted(proposedOffset)) targetIndex=\(targetIndex) appliedX=\(formatted(targetContentOffset.pointee.x))"
+            )
+#endif
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+#if DEBUG
+            recordTrace(
+                "did-end-dragging",
+                in: scrollView,
+                details: "willDecelerate=\(decelerate ? 1 : 0)"
+            )
+#endif
             if !decelerate {
                 snapToNearestIndex(in: scrollView)
                 parent.onEditingChanged(false)
+#if DEBUG
+                recordTrace("snap-without-deceleration", in: scrollView)
+                finishTrace(in: scrollView, reason: "drag-ended-without-deceleration")
+#endif
             }
         }
 
         func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+#if DEBUG
+            recordTrace("did-end-decelerating", in: scrollView)
+#endif
             snapToNearestIndex(in: scrollView)
             parent.onEditingChanged(false)
+#if DEBUG
+            recordTrace("snap-after-deceleration", in: scrollView)
+            finishTrace(in: scrollView, reason: "deceleration-ended")
+#endif
         }
 
         func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+#if DEBUG
+            recordTrace("did-end-scrolling-animation", in: scrollView)
+#endif
             let newIndex = nearestIndex(in: scrollView)
             scrollIndex = newIndex
             animationRange = newIndex ... newIndex
@@ -669,6 +742,112 @@ private struct TickPickerScrollView: UIViewRepresentable {
             let upperBound = clamped(scrollIndex)
             return min(lowerBound, upperBound) ... max(lowerBound, upperBound)
         }
+
+#if DEBUG
+        private func beginTrace(in scrollView: UIScrollView) {
+            traceSessionID = String(UUID().uuidString.prefix(8))
+            traceStartTime = ProcessInfo.processInfo.systemUptime
+            traceLastScrollTime = traceStartTime
+            traceEvents.removeAll(keepingCapacity: true)
+            traceSequence = 0
+            traceScrollCallbackCount = 0
+            traceSelectionChangeCount = 0
+            traceConfigureCount = 0
+            traceSkippedConfigureCount = 0
+            traceProgrammaticConfigureCount = 0
+            traceMaximumScrollGapMilliseconds = 0
+            recordTrace(
+                "will-begin-dragging",
+                in: scrollView,
+                details: "decelerationRate=\(formatted(scrollView.decelerationRate.rawValue)) stride=\(formatted(currentTickStride(in: scrollView))) count=\(parent.count)"
+            )
+        }
+
+        private func recordScrollSampleIfNeeded(in scrollView: UIScrollView) {
+            guard !traceSessionID.isEmpty else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            let gapMilliseconds = (now - traceLastScrollTime) * 1_000
+            traceMaximumScrollGapMilliseconds = max(
+                traceMaximumScrollGapMilliseconds,
+                gapMilliseconds
+            )
+            traceLastScrollTime = now
+            traceScrollCallbackCount += 1
+
+            let nextIndex = nearestIndex(in: scrollView)
+            let indexChanged = nextIndex != scrollIndex
+            let shouldSample = indexChanged || gapMilliseconds >= 45
+            guard shouldSample else { return }
+
+            recordTrace(
+                "did-scroll",
+                in: scrollView,
+                details: "callback=\(traceScrollCallbackCount) gapMs=\(formatted(gapMilliseconds)) nearest=\(nextIndex)"
+            )
+        }
+
+        private func recordTrace(
+            _ event: String,
+            in scrollView: UIScrollView,
+            details: String = ""
+        ) {
+            guard !traceSessionID.isEmpty else { return }
+            let elapsedMilliseconds = (
+                ProcessInfo.processInfo.systemUptime - traceStartTime
+            ) * 1_000
+            traceSequence += 1
+            let line = [
+                "seq=\(traceSequence)",
+                "elapsedMs=\(formatted(elapsedMilliseconds))",
+                "event=\(event)",
+                "x=\(formatted(scrollView.contentOffset.x))",
+                "index=\(scrollIndex)",
+                "binding=\(parent.selection)",
+                "tracking=\(scrollView.isTracking ? 1 : 0)",
+                "dragging=\(scrollView.isDragging ? 1 : 0)",
+                "decelerating=\(scrollView.isDecelerating ? 1 : 0)",
+                "programmatic=\(isApplyingProgrammaticScroll ? 1 : 0)",
+                details
+            ]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+            if traceEvents.count >= 30 {
+                traceEvents.remove(at: min(1, traceEvents.count - 1))
+            }
+            traceEvents.append(line)
+        }
+
+        private func finishTrace(in scrollView: UIScrollView, reason: String) {
+            guard !traceSessionID.isEmpty else { return }
+            recordTrace(
+                "trace-finished",
+                in: scrollView,
+                details: "reason=\(reason) callbacks=\(traceScrollCallbackCount) selectionChanges=\(traceSelectionChangeCount) configure=\(traceConfigureCount) configureSkipped=\(traceSkippedConfigureCount) programmaticConfigure=\(traceProgrammaticConfigureCount) maxScrollGapMs=\(formatted(traceMaximumScrollGapMilliseconds))"
+            )
+
+            let report = ([
+                "QF_TICK_TRACE_REPORT_BEGIN session=\(traceSessionID)"
+            ] + traceEvents.map {
+                "QF_TICK_TRACE session=\(traceSessionID) \($0)"
+            } + [
+                "QF_TICK_TRACE_REPORT_END session=\(traceSessionID)"
+            ])
+            .joined(separator: "\n")
+            print(report)
+
+            traceSessionID = ""
+            traceEvents.removeAll(keepingCapacity: true)
+        }
+
+        private func formatted(_ value: CGFloat) -> String {
+            String(format: "%.2f", Double(value))
+        }
+
+        private func formatted(_ value: Double) -> String {
+            String(format: "%.2f", value)
+        }
+#endif
     }
 }
 
