@@ -1347,14 +1347,10 @@ private struct ZoneContentLeafPreview: View {
 
     private var layoutZone: ZoneModel {
         var layoutZone = zone
-
-        if layoutZone.blockAlignment == .auto {
-            layoutZone.blockAlignment = path == "root" ? .center : .leading
-        }
-
-        guard alignLeafBlocksToGroupLeading else { return layoutZone }
-
-        layoutZone.blockAlignment = .leading
+        layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: layoutZone.blockAlignment,
+            alignToGroupLeading: alignLeafBlocksToGroupLeading
+        )
         return layoutZone
     }
 

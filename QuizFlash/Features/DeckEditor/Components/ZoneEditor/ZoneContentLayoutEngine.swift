@@ -100,6 +100,17 @@ enum ZoneContentLayoutEngine {
         }
     }
 
+    static func resolvedLeafBlockAlignment(
+        for alignment: ZoneBlockAlignment,
+        alignToGroupLeading: Bool
+    ) -> ZoneBlockAlignment {
+        if alignToGroupLeading {
+            return .leading
+        }
+
+        return alignment == .auto ? .center : alignment
+    }
+
     static func leafLayout(
         for zone: ZoneModel,
         spec: ZoneContentLayoutSpec,

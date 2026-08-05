@@ -9,6 +9,31 @@ import XCTest
 @testable import QuizFlash
 
 final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
+    func testAutomaticNestedLeafAlignmentKeepsSideGapsSymmetric() {
+        let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: .auto,
+            alignToGroupLeading: false
+        )
+        let leadingInset = ZoneContentLayoutEngine.blockLeadingInset(
+            for: alignment,
+            blockWidth: 348,
+            availableWidth: 366
+        )
+
+        XCTAssertEqual(alignment, .center)
+        XCTAssertEqual(leadingInset, 9)
+        XCTAssertEqual(366 - leadingInset - 348, leadingInset)
+    }
+
+    func testGroupLeadingOverrideStillAlignsLeafToLeadingEdge() {
+        let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: .auto,
+            alignToGroupLeading: true
+        )
+
+        XCTAssertEqual(alignment, .leading)
+    }
+
     func testSimpleEditorTextGroupAlwaysUsesAvailableWidth() {
         let availableWidth: CGFloat = 369
         let fontScale = CGFloat(FlashcardTextSize(step: 0).playModeScale)
