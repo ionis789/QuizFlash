@@ -34,6 +34,48 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         XCTAssertEqual(alignment, .leading)
     }
 
+    func testNearFullWidthSnapsToAvailableWidth() {
+        XCTAssertEqual(
+            ZoneContentLayoutEngine.snapNearFullWidth(
+                365,
+                availableWidth: 366
+            ),
+            366
+        )
+    }
+
+    func testNearFullAutoLeafUsesAvailableWidth() {
+        let layout = ZoneContentLayoutEngine.leafLayout(
+            for: ZoneModel.text("Near-full line"),
+            spec: ZoneContentLayoutSpec(availableWidth: 366, fontScale: 1),
+            measuredContentSize: CGSize(width: 365, height: 43)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 366)
+        XCTAssertEqual(layout.leadingInset, 0)
+    }
+
+    func testNearFullVerticalGroupUsesAvailableWidth() {
+        let resolved = ZoneContentWidthStabilityPolicy.resolvedVerticalGroupWidth(
+            estimatedWidth: 365,
+            measuredWidth: nil,
+            children: [ZoneModel.text("Near-full line")],
+            availableWidth: 366
+        )
+
+        XCTAssertEqual(resolved, 366)
+    }
+
+    func testMeaningfullyNarrowWidthRemainsIntrinsic() {
+        XCTAssertEqual(
+            ZoneContentLayoutEngine.snapNearFullWidth(
+                320,
+                availableWidth: 365
+            ),
+            320
+        )
+    }
+
     func testSimpleEditorTextGroupAlwaysUsesAvailableWidth() {
         let availableWidth: CGFloat = 369
         let fontScale = CGFloat(FlashcardTextSize(step: 0).playModeScale)

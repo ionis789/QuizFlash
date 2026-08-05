@@ -542,7 +542,10 @@ enum ZoneContentWidthStabilityPolicy {
             resolvedWidth = estimatedWidth
         }
 
-        return min(max(ceil(resolvedWidth), 1), max(availableWidth, 1))
+        return ZoneContentLayoutEngine.snapNearFullWidth(
+            resolvedWidth,
+            availableWidth: availableWidth
+        )
     }
 
     /// Keeps line wrapping independent from the narrower, post-render block width.
