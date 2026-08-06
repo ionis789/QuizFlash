@@ -280,7 +280,7 @@ struct FlipCard: View {
     private let tapAnimationStyle: FlashcardTapAnimationStyle
     private let staticSwapTextMotion: FlashcardStaticSwapTextMotion
     private let contentAlignment: FlashcardContentAlignment
-    private let automaticBlockAlignment: ZoneBlockAlignment
+    private let zoneAlignmentDefaults: ZoneAlignmentDefaults
     private let textSize: FlashcardTextSize
     private let onTap: (() -> Void)?
     private let onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)?
@@ -348,7 +348,7 @@ struct FlipCard: View {
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
-        automaticBlockAlignment: ZoneBlockAlignment = .leading,
+        zoneAlignmentDefaults: ZoneAlignmentDefaults = .standard,
         textSize: FlashcardTextSize = .large,
         onTap: (() -> Void)? = nil,
         onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)? = nil
@@ -361,7 +361,7 @@ struct FlipCard: View {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
-        self.automaticBlockAlignment = automaticBlockAlignment.resolved(fallback: .leading)
+        self.zoneAlignmentDefaults = zoneAlignmentDefaults
         self.textSize = textSize
         self.onTap = onTap
         self.onLayoutDebugSnapshot = onLayoutDebugSnapshot
@@ -376,7 +376,7 @@ struct FlipCard: View {
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
-        automaticBlockAlignment: ZoneBlockAlignment = .leading,
+        zoneAlignmentDefaults: ZoneAlignmentDefaults = .standard,
         textSize: FlashcardTextSize = .large,
         onTap: (() -> Void)? = nil,
         onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)? = nil
@@ -389,7 +389,7 @@ struct FlipCard: View {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
-        self.automaticBlockAlignment = automaticBlockAlignment.resolved(fallback: .leading)
+        self.zoneAlignmentDefaults = zoneAlignmentDefaults
         self.textSize = textSize
         self.onTap = onTap
         self.onLayoutDebugSnapshot = onLayoutDebugSnapshot
@@ -549,7 +549,7 @@ struct FlipCard: View {
             )
             let renderConfiguration = ZoneContentSurfaceRenderConfiguration(
                 centersLeafBlocks: faceVerticalAlignment == .center,
-                automaticBlockAlignment: automaticBlockAlignment,
+                alignmentDefaults: zoneAlignmentDefaults,
                 animatesLayoutChanges: false,
                 showsDebugGuides: showsZoneContentGuides,
                 showsViewportDebugGuide: showsZoneContentGuides,

@@ -143,16 +143,30 @@ private struct CompactFlashcardSettingsCard: View {
             }
 
             CompactSettingsMenuRow(
-                title: "Zone Alignment",
-                icon: "text.alignleft",
+                title: "Zone Group Alignment",
+                icon: "rectangle.3.group",
                 tint: accentTint,
-                selection: $flashcardSettings.zoneAlignment,
+                selection: $flashcardSettings.zoneGroupAlignment,
                 options: ZoneBlockAlignment.inheritableCases,
                 isDense: true
             ) { option, locale in
                 option.localizedDeckSettingTitle(
                     locale: locale,
-                    appDefault: appPreferences.defaultZoneAlignment
+                    appDefault: appPreferences.defaultZoneGroupAlignment
+                )
+            }
+
+            CompactSettingsMenuRow(
+                title: "Inner Zone Alignment",
+                icon: "text.alignleft",
+                tint: accentTint,
+                selection: $flashcardSettings.innerZoneAlignment,
+                options: ZoneBlockAlignment.inheritableCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedDeckSettingTitle(
+                    locale: locale,
+                    appDefault: appPreferences.defaultInnerZoneAlignment
                 )
             }
 
@@ -288,16 +302,30 @@ private struct CompactQuizSettingsCard: View {
             )
 
             CompactSettingsMenuRow(
-                title: "Zone Alignment",
-                icon: "text.alignleft",
+                title: "Zone Group Alignment",
+                icon: "rectangle.3.group",
                 tint: accentTint,
-                selection: $quizSettings.zoneAlignment,
+                selection: $quizSettings.zoneGroupAlignment,
                 options: ZoneBlockAlignment.inheritableCases,
                 isDense: true
             ) { option, locale in
                 option.localizedDeckSettingTitle(
                     locale: locale,
-                    appDefault: appPreferences.defaultZoneAlignment
+                    appDefault: appPreferences.defaultZoneGroupAlignment
+                )
+            }
+
+            CompactSettingsMenuRow(
+                title: "Inner Zone Alignment",
+                icon: "text.alignleft",
+                tint: accentTint,
+                selection: $quizSettings.innerZoneAlignment,
+                options: ZoneBlockAlignment.inheritableCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedDeckSettingTitle(
+                    locale: locale,
+                    appDefault: appPreferences.defaultInnerZoneAlignment
                 )
             }
 

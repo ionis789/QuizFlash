@@ -40,7 +40,8 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
 
         XCTAssertEqual(decoded.contentAlignment, .center)
-        XCTAssertEqual(decoded.zoneAlignment, .auto)
+        XCTAssertEqual(decoded.zoneGroupAlignment, .auto)
+        XCTAssertEqual(decoded.innerZoneAlignment, .auto)
         XCTAssertEqual(decoded.textSize, .large)
         XCTAssertTrue(decoded.usesAppTextSize)
     }
@@ -112,7 +113,10 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
     func testNewModeSettingsResolveTheCurrentAppDefaults() {
         let globalSize = FlashcardTextSize(step: 1)
-        let globalAlignment = ZoneBlockAlignment.center
+        let globalAlignments = ZoneAlignmentDefaults(
+            group: .trailing,
+            innerZone: .leading
+        )
 
         XCTAssertEqual(
             FlashcardModeSettings().resolvedTextSize(default: globalSize),
@@ -123,32 +127,45 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
             globalSize
         )
         XCTAssertEqual(
-            FlashcardModeSettings().resolvedZoneAlignment(default: globalAlignment),
-            globalAlignment
+            FlashcardModeSettings().resolvedZoneAlignments(default: globalAlignments),
+            globalAlignments
         )
         XCTAssertEqual(
-            QuizModeSettings().resolvedZoneAlignment(default: globalAlignment),
-            globalAlignment
+            QuizModeSettings().resolvedZoneAlignments(default: globalAlignments),
+            globalAlignments
         )
     }
 
     func testModeZoneAlignmentOverridesTheAppDefault() {
-        let flashcardSettings = FlashcardModeSettings(zoneAlignment: .trailing)
-        let quizSettings = QuizModeSettings(zoneAlignment: .center)
+        let flashcardSettings = FlashcardModeSettings(
+            zoneGroupAlignment: .leading,
+            innerZoneAlignment: .trailing
+        )
+        let quizSettings = QuizModeSettings(
+            zoneGroupAlignment: .trailing,
+            innerZoneAlignment: .center
+        )
+        let appDefaults = ZoneAlignmentDefaults.standard
 
         XCTAssertEqual(
-            flashcardSettings.resolvedZoneAlignment(default: .leading),
-            .trailing
+            flashcardSettings.resolvedZoneAlignments(default: appDefaults),
+            ZoneAlignmentDefaults(group: .leading, innerZone: .trailing)
         )
         XCTAssertEqual(
-            quizSettings.resolvedZoneAlignment(default: .leading),
-            .center
+            quizSettings.resolvedZoneAlignments(default: appDefaults),
+            ZoneAlignmentDefaults(group: .trailing, innerZone: .center)
         )
     }
 
     func testModeZoneAlignmentRoundTripsForBothGameTypes() throws {
-        let flashcardSettings = FlashcardModeSettings(zoneAlignment: .trailing)
-        let quizSettings = QuizModeSettings(zoneAlignment: .center)
+        let flashcardSettings = FlashcardModeSettings(
+            zoneGroupAlignment: .leading,
+            innerZoneAlignment: .trailing
+        )
+        let quizSettings = QuizModeSettings(
+            zoneGroupAlignment: .trailing,
+            innerZoneAlignment: .center
+        )
 
         let decodedFlashcardSettings = try JSONDecoder().decode(
             FlashcardModeSettings.self,
@@ -159,8 +176,10 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
             from: JSONEncoder().encode(quizSettings)
         )
 
-        XCTAssertEqual(decodedFlashcardSettings.zoneAlignment, .trailing)
-        XCTAssertEqual(decodedQuizSettings.zoneAlignment, .center)
+        XCTAssertEqual(decodedFlashcardSettings.zoneGroupAlignment, .leading)
+        XCTAssertEqual(decodedFlashcardSettings.innerZoneAlignment, .trailing)
+        XCTAssertEqual(decodedQuizSettings.zoneGroupAlignment, .trailing)
+        XCTAssertEqual(decodedQuizSettings.innerZoneAlignment, .center)
     }
 
     func testQuizSettingsDecodeLegacyPayloadInheritsZoneAlignment() throws {
@@ -173,7 +192,22 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         let decoded = try JSONDecoder().decode(QuizModeSettings.self, from: legacyPayload)
 
-        XCTAssertEqual(decoded.zoneAlignment, .auto)
+        XCTAssertEqual(decoded.zoneGroupAlignment, .auto)
+        XCTAssertEqual(decoded.innerZoneAlignment, .auto)
+    }
+
+    func testPreviousZoneAlignmentPayloadMigratesToInnerZones() throws {
+        let previousPayload = """
+        {
+          "schemaVersion": 7,
+          "zoneAlignment": "trailing"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: previousPayload)
+
+        XCTAssertEqual(decoded.zoneGroupAlignment, .auto)
+        XCTAssertEqual(decoded.innerZoneAlignment, .trailing)
     }
 
     func testFlashcardLayoutSettingsPersistThroughDeckSettingsBucket() throws {
@@ -185,7 +219,8 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let settings = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         var flashcardSettings = settings.flashcardSettings
         flashcardSettings.contentAlignment = .center
-        flashcardSettings.zoneAlignment = .trailing
+        flashcardSettings.zoneGroupAlignment = .center
+        flashcardSettings.innerZoneAlignment = .trailing
         flashcardSettings.textSize = .normal
         flashcardSettings.usesAppTextSize = false
         settings.flashcardSettings = flashcardSettings
@@ -193,7 +228,8 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         let resolvedAgain = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         XCTAssertEqual(resolvedAgain.flashcardSettings.contentAlignment, .center)
-        XCTAssertEqual(resolvedAgain.flashcardSettings.zoneAlignment, .trailing)
+        XCTAssertEqual(resolvedAgain.flashcardSettings.zoneGroupAlignment, .center)
+        XCTAssertEqual(resolvedAgain.flashcardSettings.innerZoneAlignment, .trailing)
         XCTAssertEqual(resolvedAgain.flashcardSettings.textSize, .normal)
         XCTAssertFalse(resolvedAgain.flashcardSettings.usesAppTextSize)
     }

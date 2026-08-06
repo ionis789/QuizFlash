@@ -118,7 +118,7 @@ struct ZoneAlignmentFeedback: Equatable {
 /// - Container zones lay out children vertically and inject ghost block overlays
 ///   based on `previewDirection`.
 struct ZoneEditorView: View {
-    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+    @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
 
     @Bindable var content: ZoneCardContent
     let path: ZonePath
@@ -208,7 +208,7 @@ struct ZoneEditorView: View {
         let childPaths = indexedChildren.map { path.appending($0.offset).id }
         let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
         let resolvedGroupAlignment = zone.blockAlignment.resolved(
-            fallback: inheritedZoneBlockAlignment
+            fallback: inheritedZoneAlignmentDefaults.group
         )
         let groupLeadingInset = rendersRichText
             ? ZoneContentLayoutEngine.blockLeadingInset(
@@ -576,7 +576,7 @@ struct ZoneContentView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+    @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
@@ -859,7 +859,7 @@ struct ZoneContentView: View {
             layoutZone.sizeMode = rendersRichText ? .auto : .fillWidth
             layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
                 for: layoutZone.blockAlignment,
-                defaultAlignment: inheritedZoneBlockAlignment
+                defaultAlignment: inheritedZoneAlignmentDefaults.innerZone
             )
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
@@ -1198,7 +1198,7 @@ struct ZoneContentView: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: false,
-                automaticBlockAlignment: inheritedZoneBlockAlignment,
+                alignmentDefaults: inheritedZoneAlignmentDefaults,
                 showsDebugGuides: false,
                 showsZoneSurfaces: true,
                 showsCodeBlockZoneSurfaces: true,

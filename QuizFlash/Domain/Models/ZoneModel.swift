@@ -106,6 +106,25 @@ nonisolated enum ZoneBlockAlignment: String, Codable, Equatable, Hashable, Senda
     }
 }
 
+/// Separates placement of a zone group from placement of its individual zones.
+nonisolated struct ZoneAlignmentDefaults: Equatable, Hashable, Sendable {
+    static let standard = ZoneAlignmentDefaults(
+        group: .center,
+        innerZone: .leading
+    )
+
+    let group: ZoneBlockAlignment
+    let innerZone: ZoneBlockAlignment
+
+    init(
+        group: ZoneBlockAlignment,
+        innerZone: ZoneBlockAlignment
+    ) {
+        self.group = group.resolved(fallback: .center)
+        self.innerZone = innerZone.resolved(fallback: .leading)
+    }
+}
+
 // MARK: - Zone Vertical Alignment
 
 /// Describes how a whole card face positions its zone tree on the vertical axis.

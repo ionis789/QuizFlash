@@ -9,6 +9,11 @@ import XCTest
 @testable import QuizFlash
 
 final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
+    func testStandardDefaultsCenterTheGroupAndLeadInnerZones() {
+        XCTAssertEqual(ZoneAlignmentDefaults.standard.group, .center)
+        XCTAssertEqual(ZoneAlignmentDefaults.standard.innerZone, .leading)
+    }
+
     func testAutomaticNestedLeafAlignmentKeepsSideGapsSymmetric() {
         let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: .auto,

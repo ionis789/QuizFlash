@@ -162,7 +162,7 @@ extension DeckContentView {
                 destination: destination,
                 searchQuery: viewModel.searchQuery,
                 textSizeOverride: resolvedEditorTextSize(for: destination.kind),
-                zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination.kind)
+                zoneAlignmentDefaultsOverride: resolvedEditorZoneAlignments(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
@@ -208,9 +208,11 @@ extension DeckContentView {
     private var resolvedFlashcardSettings: FlashcardModeSettings {
         var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
         settings.textSize = settings.resolvedTextSize(default: appPreferences.defaultTextSize)
-        settings.zoneAlignment = settings.resolvedZoneAlignment(
-            default: appPreferences.defaultZoneAlignment
+        let zoneAlignments = settings.resolvedZoneAlignments(
+            default: appPreferences.defaultZoneAlignments
         )
+        settings.zoneGroupAlignment = zoneAlignments.group
+        settings.innerZoneAlignment = zoneAlignments.innerZone
         return settings
     }
 
@@ -226,14 +228,14 @@ extension DeckContentView {
         }
     }
 
-    private func resolvedEditorZoneAlignment(for kind: CardKind) -> ZoneBlockAlignment {
+    private func resolvedEditorZoneAlignments(for kind: CardKind) -> ZoneAlignmentDefaults {
         switch kind {
         case .flashcard:
-            return resolvedFlashcardSettings.zoneAlignment
+            return resolvedFlashcardSettings.resolvedZoneAlignments(default: .standard)
         case .quiz:
-            return deck.playModeSettings?.quizSettings.resolvedZoneAlignment(
-                default: appPreferences.defaultZoneAlignment
-            ) ?? appPreferences.defaultZoneAlignment
+            return deck.playModeSettings?.quizSettings.resolvedZoneAlignments(
+                default: appPreferences.defaultZoneAlignments
+            ) ?? appPreferences.defaultZoneAlignments
         }
     }
 

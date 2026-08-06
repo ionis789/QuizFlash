@@ -10,14 +10,14 @@ import Foundation
 import SwiftUI
 import UIKit
 
-private struct InheritedZoneBlockAlignmentEnvironmentKey: EnvironmentKey {
-    static let defaultValue: ZoneBlockAlignment = .leading
+private struct InheritedZoneAlignmentDefaultsEnvironmentKey: EnvironmentKey {
+    static let defaultValue = ZoneAlignmentDefaults.standard
 }
 
 extension EnvironmentValues {
-    var inheritedZoneBlockAlignment: ZoneBlockAlignment {
-        get { self[InheritedZoneBlockAlignmentEnvironmentKey.self] }
-        set { self[InheritedZoneBlockAlignmentEnvironmentKey.self] = newValue.resolved(fallback: .leading) }
+    var inheritedZoneAlignmentDefaults: ZoneAlignmentDefaults {
+        get { self[InheritedZoneAlignmentDefaultsEnvironmentKey.self] }
+        set { self[InheritedZoneAlignmentDefaultsEnvironmentKey.self] = newValue }
     }
 }
 
@@ -447,7 +447,7 @@ struct ZoneContentRenderView: View {
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
-    var automaticBlockAlignment: ZoneBlockAlignment = .leading
+    var alignmentDefaults: ZoneAlignmentDefaults = .standard
     var alignLeafBlocksToGroupLeading: Bool = false
     var animatesLayoutChanges: Bool = true
     let showsDebugGuides: Bool
@@ -475,7 +475,7 @@ struct ZoneContentRenderView: View {
             fontScale: fontScale,
             availableWidth: max(availableWidth, 1),
             centersLeafBlocks: centersLeafBlocks,
-            automaticBlockAlignment: automaticBlockAlignment,
+            alignmentDefaults: alignmentDefaults,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
             animatesLayoutChanges: animatesLayoutChanges,
             showsDebugGuides: showsDebugGuides,
@@ -605,7 +605,7 @@ private struct ZoneContentTreePreview: View {
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
-    let automaticBlockAlignment: ZoneBlockAlignment
+    let alignmentDefaults: ZoneAlignmentDefaults
     let alignLeafBlocksToGroupLeading: Bool
     let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
@@ -634,7 +634,7 @@ private struct ZoneContentTreePreview: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: centersLeafBlocks,
-                automaticBlockAlignment: automaticBlockAlignment,
+                alignmentDefaults: alignmentDefaults,
                 alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                 animatesLayoutChanges: animatesLayoutChanges,
                 showsDebugGuides: showsDebugGuides,
@@ -677,7 +677,7 @@ private struct ZoneContentTreePreview: View {
                         fontScale: fontScale,
                         availableWidth: childWidth,
                         centersLeafBlocks: centersLeafBlocks,
-                        automaticBlockAlignment: automaticBlockAlignment,
+                        alignmentDefaults: alignmentDefaults,
                         alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                         animatesLayoutChanges: animatesLayoutChanges,
                         showsDebugGuides: showsDebugGuides,
@@ -713,7 +713,7 @@ private struct ZoneContentTreePreview: View {
             let groupTarget = zonePath.map { ZoneAlignmentTargetRef(path: $0, kind: .group) }
             let groupWiggleOffset = groupTarget.map { alignmentFeedback.offset(for: $0) } ?? 0
             let resolvedGroupAlignment = zone.blockAlignment.resolved(
-                fallback: automaticBlockAlignment
+                fallback: alignmentDefaults.group
             )
             let groupLeadingInset = ZoneContentLayoutEngine.blockLeadingInset(
                 for: resolvedGroupAlignment,
@@ -740,7 +740,7 @@ private struct ZoneContentTreePreview: View {
                             fontScale: fontScale,
                             availableWidth: groupWidth,
                             centersLeafBlocks: centersLeafBlocks,
-                            automaticBlockAlignment: automaticBlockAlignment,
+                            alignmentDefaults: alignmentDefaults,
                             alignLeafBlocksToGroupLeading: false,
                             animatesLayoutChanges: animatesLayoutChanges,
                             showsDebugGuides: showsDebugGuides,
@@ -1080,7 +1080,7 @@ private struct ZoneContentLeafPreview: View {
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
-    let automaticBlockAlignment: ZoneBlockAlignment
+    let alignmentDefaults: ZoneAlignmentDefaults
     let alignLeafBlocksToGroupLeading: Bool
     let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
@@ -1379,7 +1379,7 @@ private struct ZoneContentLeafPreview: View {
         layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: layoutZone.blockAlignment,
             alignToGroupLeading: alignLeafBlocksToGroupLeading,
-            automaticAlignment: automaticBlockAlignment
+            automaticAlignment: alignmentDefaults.innerZone
         )
         return layoutZone
     }

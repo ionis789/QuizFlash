@@ -101,7 +101,7 @@ struct ZoneEditorCanvas: View {
     let onScrollRestorationApplied: () -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+    @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
@@ -856,7 +856,7 @@ struct ZoneEditorCanvas: View {
                 fontScale: fontScale,
                 availableWidth: layout.availableContentWidth,
                 centersLeafBlocks: faceVerticalAlignment == .center,
-                automaticBlockAlignment: inheritedZoneBlockAlignment,
+                alignmentDefaults: inheritedZoneAlignmentDefaults,
                 showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
                 alignmentFeedback: alignmentFeedback,
@@ -1573,12 +1573,12 @@ struct ZoneEditorCanvas: View {
         switch kind {
         case .group:
             return zone.blockAlignment.resolved(
-                fallback: inheritedZoneBlockAlignment
+                fallback: inheritedZoneAlignmentDefaults.group
             )
         case .leaf:
             return ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
                 for: zone.blockAlignment,
-                defaultAlignment: inheritedZoneBlockAlignment
+                defaultAlignment: inheritedZoneAlignmentDefaults.innerZone
             )
         }
     }

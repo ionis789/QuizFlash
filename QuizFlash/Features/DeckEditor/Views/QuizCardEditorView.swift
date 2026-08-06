@@ -16,7 +16,7 @@ struct QuizCardEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+    @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
@@ -1607,7 +1607,11 @@ struct QuizCardEditorView: View {
     }
 
     private func resolvedRenderedAlignment(for zone: ZoneModel) -> ZoneBlockAlignment {
-        zone.blockAlignment.resolved(fallback: inheritedZoneBlockAlignment)
+        zone.blockAlignment.resolved(
+            fallback: zone.isLeaf
+                ? inheritedZoneAlignmentDefaults.innerZone
+                : inheritedZoneAlignmentDefaults.group
+        )
     }
 
     private func clearAllSelectedPaths() {
@@ -3204,7 +3208,7 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
 }
 
 private struct QuizRenderedZoneCard: View {
-    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+    @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
 
     let content: ZoneCardContent
     let alignmentMenuState: QuizRenderedAlignmentMenuState?
@@ -3228,7 +3232,7 @@ private struct QuizRenderedZoneCard: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
-                automaticBlockAlignment: inheritedZoneBlockAlignment,
+                alignmentDefaults: inheritedZoneAlignmentDefaults,
                 showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
                 textVerticalPadding: textVerticalPadding,

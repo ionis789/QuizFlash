@@ -47,7 +47,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
                     CardEditorView(
                         destination: destination,
                         searchQuery: viewModel.searchText,
-                        zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination)
+                        zoneAlignmentDefaultsOverride: resolvedEditorZoneAlignments(for: destination)
                     ) { content in
                         guard case .edit(let draftCard) = destination,
                               let cardID = draftCard.originalCardID,
@@ -146,23 +146,23 @@ struct LibraryModalsAndDialogs: ViewModifier {
             }
     }
 
-    private func resolvedEditorZoneAlignment(
+    private func resolvedEditorZoneAlignments(
         for destination: CardEditorDestination
-    ) -> ZoneBlockAlignment {
+    ) -> ZoneAlignmentDefaults {
         guard let cardID = destination.draftCard?.originalCardID,
               let card = context.model(for: cardID) as? CardModel,
               let settings = card.deck?.playModeSettings else {
-            return appPreferences.defaultZoneAlignment
+            return appPreferences.defaultZoneAlignments
         }
 
         switch destination.kind {
         case .flashcard:
-            return settings.flashcardSettings.resolvedZoneAlignment(
-                default: appPreferences.defaultZoneAlignment
+            return settings.flashcardSettings.resolvedZoneAlignments(
+                default: appPreferences.defaultZoneAlignments
             )
         case .quiz:
-            return settings.quizSettings.resolvedZoneAlignment(
-                default: appPreferences.defaultZoneAlignment
+            return settings.quizSettings.resolvedZoneAlignments(
+                default: appPreferences.defaultZoneAlignments
             )
         }
     }

@@ -867,5 +867,7 @@
 "App Default (%@)" = "По умолчанию приложения (%@)";
 "Leading" = "Слева";
 "Trailing" = "Справа";
-"Zone Alignment" = "Выравнивание зон";
-"Zone alignment: %@." = "Выравнивание зон: %@.";
+"Zone Group Alignment" = "Выравнивание группы зон";
+"Inner Zone Alignment" = "Выравнивание внутренних зон";
+"Zone group alignment: %@." = "Выравнивание группы зон: %@.";
+"Inner zone alignment: %@." = "Выравнивание внутренних зон: %@.";

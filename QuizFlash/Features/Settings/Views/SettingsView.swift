@@ -496,10 +496,23 @@ struct SettingsView: View {
 
             settingsBlock {
                 SettingsMenuPickerRow(
+                    icon: "rectangle.3.group",
+                    tint: themeManager.accentColor.color,
+                    title: "Zone Group Alignment",
+                    selection: defaultZoneGroupAlignmentBinding,
+                    options: ZoneBlockAlignment.explicitCases,
+                    titleForOption: { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
+                )
+            }
+
+            settingsBlock {
+                SettingsMenuPickerRow(
                     icon: "text.alignleft",
                     tint: themeManager.accentColor.color,
-                    title: "Zone Alignment",
-                    selection: defaultZoneAlignmentBinding,
+                    title: "Inner Zone Alignment",
+                    selection: defaultInnerZoneAlignmentBinding,
                     options: ZoneBlockAlignment.explicitCases,
                     titleForOption: { option, locale in
                         option.localizedTitle(locale: locale)
@@ -1196,10 +1209,17 @@ struct SettingsView: View {
         )
     }
 
-    private var defaultZoneAlignmentBinding: Binding<ZoneBlockAlignment> {
+    private var defaultZoneGroupAlignmentBinding: Binding<ZoneBlockAlignment> {
         Binding(
-            get: { appPreferences.defaultZoneAlignment },
-            set: { appPreferences.defaultZoneAlignment = $0 }
+            get: { appPreferences.defaultZoneGroupAlignment },
+            set: { appPreferences.defaultZoneGroupAlignment = $0 }
+        )
+    }
+
+    private var defaultInnerZoneAlignmentBinding: Binding<ZoneBlockAlignment> {
+        Binding(
+            get: { appPreferences.defaultInnerZoneAlignment },
+            set: { appPreferences.defaultInnerZoneAlignment = $0 }
         )
     }
 

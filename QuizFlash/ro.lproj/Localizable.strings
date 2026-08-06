@@ -867,5 +867,7 @@
 "App Default (%@)" = "Implicit aplicație (%@)";
 "Leading" = "Stânga";
 "Trailing" = "Dreapta";
-"Zone Alignment" = "Aliniere zone";
-"Zone alignment: %@." = "Aliniere zone: %@.";
+"Zone Group Alignment" = "Aliniere grup de zone";
+"Inner Zone Alignment" = "Aliniere zone interioare";
+"Zone group alignment: %@." = "Aliniere grup de zone: %@.";
+"Inner zone alignment: %@." = "Aliniere zone interioare: %@.";

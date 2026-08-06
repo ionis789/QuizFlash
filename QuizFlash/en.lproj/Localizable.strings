@@ -867,5 +867,7 @@
 "App Default (%@)" = "App Default (%@)";
 "Leading" = "Leading";
 "Trailing" = "Trailing";
-"Zone Alignment" = "Zone Alignment";
-"Zone alignment: %@." = "Zone alignment: %@.";
+"Zone Group Alignment" = "Zone Group Alignment";
+"Inner Zone Alignment" = "Inner Zone Alignment";
+"Zone group alignment: %@." = "Zone group alignment: %@.";
+"Inner zone alignment: %@." = "Inner zone alignment: %@.";

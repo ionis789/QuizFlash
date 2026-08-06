@@ -172,19 +172,19 @@ struct DeckWorkspaceView: View {
         }
     }
 
-    private func resolvedEditorZoneAlignment(for kind: CardKind) -> ZoneBlockAlignment {
+    private func resolvedEditorZoneAlignments(for kind: CardKind) -> ZoneAlignmentDefaults {
         guard let settings = viewModel.deckToEdit?.playModeSettings else {
-            return appPreferences.defaultZoneAlignment
+            return appPreferences.defaultZoneAlignments
         }
 
         switch kind {
         case .flashcard:
-            return settings.flashcardSettings.resolvedZoneAlignment(
-                default: appPreferences.defaultZoneAlignment
+            return settings.flashcardSettings.resolvedZoneAlignments(
+                default: appPreferences.defaultZoneAlignments
             )
         case .quiz:
-            return settings.quizSettings.resolvedZoneAlignment(
-                default: appPreferences.defaultZoneAlignment
+            return settings.quizSettings.resolvedZoneAlignments(
+                default: appPreferences.defaultZoneAlignments
             )
         }
     }
@@ -780,7 +780,7 @@ struct DeckWorkspaceView: View {
             CardEditorView(
                 destination: destination,
                 textSizeOverride: resolvedEditorTextSize(for: destination.kind),
-                zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination.kind)
+                zoneAlignmentDefaultsOverride: resolvedEditorZoneAlignments(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }

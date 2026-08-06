@@ -300,7 +300,9 @@ final class AppPreferences {
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
         static let defaultTextSize = "preferences.editor.defaultTextSize"
         static let defaultTextSizeScaleVersion = "preferences.editor.defaultTextSizeScaleVersion"
-        static let defaultZoneAlignment = "preferences.editor.defaultZoneAlignment"
+        static let defaultZoneGroupAlignment = "preferences.editor.defaultZoneGroupAlignment"
+        static let defaultInnerZoneAlignment = "preferences.editor.defaultInnerZoneAlignment"
+        static let legacyDefaultZoneAlignment = "preferences.editor.defaultZoneAlignment"
         static let zoneSurfaceStyle = "preferences.editor.zoneSurfaceStyle"
         static let borderDesign = "preferences.design.borderDesign"
     }
@@ -385,15 +387,39 @@ final class AppPreferences {
         }
     }
 
-    /// Default horizontal placement inherited by zones without a card override.
-    var defaultZoneAlignment: ZoneBlockAlignment {
+    /// Default horizontal placement inherited by container groups.
+    var defaultZoneGroupAlignment: ZoneBlockAlignment {
         didSet {
-            if defaultZoneAlignment == .auto {
-                defaultZoneAlignment = .leading
+            if defaultZoneGroupAlignment == .auto {
+                defaultZoneGroupAlignment = .center
             } else {
-                userDefaults.set(defaultZoneAlignment.rawValue, forKey: Keys.defaultZoneAlignment)
+                userDefaults.set(
+                    defaultZoneGroupAlignment.rawValue,
+                    forKey: Keys.defaultZoneGroupAlignment
+                )
             }
         }
+    }
+
+    /// Default horizontal placement inherited by individual zones inside a group.
+    var defaultInnerZoneAlignment: ZoneBlockAlignment {
+        didSet {
+            if defaultInnerZoneAlignment == .auto {
+                defaultInnerZoneAlignment = .leading
+            } else {
+                userDefaults.set(
+                    defaultInnerZoneAlignment.rawValue,
+                    forKey: Keys.defaultInnerZoneAlignment
+                )
+            }
+        }
+    }
+
+    var defaultZoneAlignments: ZoneAlignmentDefaults {
+        ZoneAlignmentDefaults(
+            group: defaultZoneGroupAlignment,
+            innerZone: defaultInnerZoneAlignment
+        )
     }
 
     /// Visual style used by all zone renderers across editors, previews, and play modes.
@@ -430,8 +456,13 @@ final class AppPreferences {
             rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
         ) ?? .center
         self.defaultTextSize = Self.resolvedDefaultTextSize(from: userDefaults)
-        self.defaultZoneAlignment = ZoneBlockAlignment(
-            rawValue: userDefaults.string(forKey: Keys.defaultZoneAlignment) ?? ""
+        self.defaultZoneGroupAlignment = ZoneBlockAlignment(
+            rawValue: userDefaults.string(forKey: Keys.defaultZoneGroupAlignment) ?? ""
+        )?.resolved(fallback: .center) ?? .center
+        self.defaultInnerZoneAlignment = ZoneBlockAlignment(
+            rawValue: userDefaults.string(forKey: Keys.defaultInnerZoneAlignment)
+                ?? userDefaults.string(forKey: Keys.legacyDefaultZoneAlignment)
+                ?? ""
         )?.resolved(fallback: .leading) ?? .leading
         self.zoneSurfaceStyle = AppZoneSurfaceStyle(
             rawValue: userDefaults.string(forKey: Keys.zoneSurfaceStyle) ?? ""
@@ -439,7 +470,14 @@ final class AppPreferences {
         self.borderDesign = Self.resolvedBorderDesign(from: userDefaults)
         userDefaults.set(defaultTextSize.rawValue, forKey: Keys.defaultTextSize)
         userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
-        userDefaults.set(defaultZoneAlignment.rawValue, forKey: Keys.defaultZoneAlignment)
+        userDefaults.set(
+            defaultZoneGroupAlignment.rawValue,
+            forKey: Keys.defaultZoneGroupAlignment
+        )
+        userDefaults.set(
+            defaultInnerZoneAlignment.rawValue,
+            forKey: Keys.defaultInnerZoneAlignment
+        )
         AppLocalization.applyLanguageOverride(appLanguage)
     }
 

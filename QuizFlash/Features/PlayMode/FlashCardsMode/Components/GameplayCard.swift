@@ -53,7 +53,7 @@ struct GameplayCard: View {
     let contentAlignment: FlashcardContentAlignment
 
     /// Resolves zones whose card-level alignment remains automatic.
-    let automaticBlockAlignment: ZoneBlockAlignment
+    let zoneAlignmentDefaults: ZoneAlignmentDefaults
 
     /// Controls the text scale used by the flashcard face renderer.
     let textSize: FlashcardTextSize
@@ -82,7 +82,7 @@ struct GameplayCard: View {
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion,
         contentAlignment: FlashcardContentAlignment,
-        automaticBlockAlignment: ZoneBlockAlignment,
+        zoneAlignmentDefaults: ZoneAlignmentDefaults,
         textSize: FlashcardTextSize,
         onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?,
         swipeGestureTuning: SwipeGestureTuning,
@@ -96,7 +96,7 @@ struct GameplayCard: View {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
-        self.automaticBlockAlignment = automaticBlockAlignment
+        self.zoneAlignmentDefaults = zoneAlignmentDefaults
         self.textSize = textSize
         self.onSwipeProgress = onSwipeProgress
         self.swipeGestureTuning = swipeGestureTuning
@@ -125,7 +125,7 @@ struct GameplayCard: View {
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
                 contentAlignment: contentAlignment,
-                automaticBlockAlignment: automaticBlockAlignment,
+                zoneAlignmentDefaults: zoneAlignmentDefaults,
                 textSize: textSize,
                 onTap: tapHandler,
                 onLayoutDebugSnapshot: onLayoutDebugSnapshot
