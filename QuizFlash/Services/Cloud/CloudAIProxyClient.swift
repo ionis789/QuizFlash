@@ -161,14 +161,77 @@ nonisolated struct CloudAIGenerationUsageRecord: Decodable, Identifiable, Sendab
     }
 }
 
+/// Serializes cloud-session finalization with the next generation start.
+@MainActor
+final class CloudAIGenerationFinalizationCoordinator {
+    typealias Operation = @MainActor @Sendable () async throws -> Void
+
+    private struct PendingFinalization {
+        let generationID: String
+        let operation: Operation
+    }
+
+    private var pendingFinalization: PendingFinalization?
+    private var activeTask: Task<Result<Void, Error>, Never>?
+
+    /// Registers the server finalization synchronously, then starts it asynchronously.
+    func register(
+        generationID: String,
+        operation: @escaping Operation
+    ) -> Task<Result<Void, Error>, Never> {
+        let pending = PendingFinalization(
+            generationID: generationID,
+            operation: operation
+        )
+        pendingFinalization = pending
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return .success(()) }
+            return await self.attempt(pending)
+        }
+        activeTask = task
+        return task
+    }
+
+    /// Waits for an in-flight finalization and retries a retained failure once.
+    func resolveBeforeStartingGeneration() async throws {
+        if let activeTask {
+            _ = await activeTask.value
+        }
+        guard let pendingFinalization else { return }
+        try await attempt(pendingFinalization).get()
+    }
+
+    private func attempt(
+        _ pending: PendingFinalization
+    ) async -> Result<Void, Error> {
+        do {
+            try await pending.operation()
+            if pendingFinalization?.generationID == pending.generationID {
+                pendingFinalization = nil
+            }
+            activeTask = nil
+            return .success(())
+        } catch {
+            activeTask = nil
+            return .failure(error)
+        }
+    }
+}
+
 @MainActor
 final class CloudAIProxyClient {
     static let shared = CloudAIProxyClient()
 
     private let session: URLSession
+    private let generationFinalizationCoordinator: CloudAIGenerationFinalizationCoordinator
 
-    init(session: URLSession = .shared) {
+    init(
+        session: URLSession = .shared,
+        generationFinalizationCoordinator: CloudAIGenerationFinalizationCoordinator = .init()
+    ) {
         self.session = session
+        self.generationFinalizationCoordinator = generationFinalizationCoordinator
     }
 
     func prefetchPromptBundle() async {
@@ -353,6 +416,7 @@ final class CloudAIProxyClient {
     }
 
     func startGeneration(targetCards: Int, idempotencyKey: UUID = UUID()) async throws -> CloudAIGenerationSession {
+        try await generationFinalizationCoordinator.resolveBeforeStartingGeneration()
         guard let user = Auth.auth().currentUser else {
             throw CloudAIProxyError.signInRequired
         }
@@ -383,7 +447,7 @@ final class CloudAIProxyClient {
                 promptCacheStatus = "hit"
             }
         } catch {
-            await failGeneration(
+            _ = try? await releaseGeneration(
                 baseURL: baseURL,
                 uid: user.uid,
                 generationID: response.generationID,
@@ -416,7 +480,7 @@ final class CloudAIProxyClient {
     }
 
     func failGeneration(_ generation: CloudAIGenerationSession) async {
-        await failGeneration(
+        _ = try? await releaseGeneration(
             baseURL: generation.baseURL,
             uid: generation.uid,
             generationID: generation.generationID,
@@ -424,22 +488,148 @@ final class CloudAIProxyClient {
         )
     }
 
-    private func failGeneration(
+    /// Finalizes a successful or partial generation without allowing the next start to overtake it.
+    func finalizeGeneration(
+        _ generation: CloudAIGenerationSession,
+        validatedCards: Int
+    ) async {
+        let task = registerGenerationFinalization(
+            generation,
+            validatedCards: validatedCards
+        )
+        _ = await task.value
+    }
+
+    /// Retains a completion request even when its caller must continue synchronously.
+    func scheduleGenerationFinalization(
+        _ generation: CloudAIGenerationSession,
+        validatedCards: Int
+    ) {
+        _ = registerGenerationFinalization(
+            generation,
+            validatedCards: validatedCards
+        )
+    }
+
+    /// Retains a failed-session release so a later start must wait for it.
+    func scheduleGenerationFailure(_ generation: CloudAIGenerationSession) {
+        let scope = AIDebugTraceContext.currentScope
+        _ = generationFinalizationCoordinator.register(
+            generationID: generation.generationID
+        ) { [self] in
+            await traceCloudFinalization(
+                stage: .cloudFinalizationStarted,
+                message: "Releasing failed cloud generation session.",
+                generation: generation,
+                scope: scope
+            )
+            do {
+                _ = try await releaseGeneration(
+                    baseURL: generation.baseURL,
+                    uid: generation.uid,
+                    generationID: generation.generationID,
+                    sessionToken: generation.sessionToken
+                )
+                await traceCloudFinalization(
+                    stage: .cloudFinalizationCompleted,
+                    message: "Released failed cloud generation session.",
+                    generation: generation,
+                    scope: scope
+                )
+            } catch {
+                await traceCloudFinalization(
+                    stage: .cloudFinalizationFailed,
+                    message: "Cloud generation release failed.",
+                    generation: generation,
+                    scope: scope,
+                    metadata: ["error": error.localizedDescription]
+                )
+                throw error
+            }
+        }
+    }
+
+    private func registerGenerationFinalization(
+        _ generation: CloudAIGenerationSession,
+        validatedCards: Int
+    ) -> Task<Result<Void, Error>, Never> {
+        let scope = AIDebugTraceContext.currentScope
+        return generationFinalizationCoordinator.register(
+            generationID: generation.generationID
+        ) { [self] in
+            await traceCloudFinalization(
+                stage: .cloudFinalizationStarted,
+                message: "Finalizing cloud generation session.",
+                generation: generation,
+                scope: scope,
+                metadata: ["validated_cards": String(validatedCards)]
+            )
+            do {
+                _ = try await finishGeneration(
+                    generation,
+                    validatedCards: validatedCards
+                )
+                await traceCloudFinalization(
+                    stage: .cloudFinalizationCompleted,
+                    message: "Finalized cloud generation session.",
+                    generation: generation,
+                    scope: scope,
+                    metadata: ["validated_cards": String(validatedCards)]
+                )
+            } catch {
+                await traceCloudFinalization(
+                    stage: .cloudFinalizationFailed,
+                    message: "Cloud generation finalization failed.",
+                    generation: generation,
+                    scope: scope,
+                    metadata: [
+                        "validated_cards": String(validatedCards),
+                        "error": error.localizedDescription
+                    ]
+                )
+                throw error
+            }
+        }
+    }
+
+    private func traceCloudFinalization(
+        stage: AIDebugTraceStage,
+        message: String,
+        generation: CloudAIGenerationSession,
+        scope: AIDebugTraceScope?,
+        metadata: [String: String] = [:]
+    ) async {
+        let traceMetadata = metadata.merging([
+            "generation_id": backendTraceSafeID(generation.generationID)
+        ]) { _, new in new }
+        await backendTrace(
+            stage.rawValue,
+            layer: "cloud.ai-proxy",
+            details: traceMetadata
+        )
+        await AIDebugTraceStore.shared.record(
+            stage: stage,
+            message: message,
+            scope: scope,
+            metadata: traceMetadata
+        )
+    }
+
+    private func releaseGeneration(
         baseURL: URL,
         uid: String,
         generationID: String,
         sessionToken: String
-    ) async {
-        let response: QuotaResponseEnvelope? = try? await sendJSON(
+    ) async throws -> CloudAIQuotaState {
+        let response: QuotaResponseEnvelope = try await sendJSON(
             endpoint: baseURL.appending(path: "v1/generations/fail"),
             method: "POST",
             headers: ["X-QuizFlash-UID": uid],
             body: FailRequest(generationID: generationID, sessionToken: sessionToken)
         )
-        if let response {
-            SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
-            await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
-        }
+        SubscriptionManager.shared.applyCloudAIQuotaState(response.usageQuota)
+        await SubscriptionManager.shared.refreshCloudAIGenerationHistory()
+        return response.usageQuota
     }
 
     nonisolated static func prepareProviderRequest(

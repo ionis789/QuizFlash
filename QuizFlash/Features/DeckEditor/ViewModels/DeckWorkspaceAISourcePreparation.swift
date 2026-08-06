@@ -181,7 +181,7 @@ extension DeckWorkspaceViewModel {
                 try await aiRevealTask?.value
                 try await Task.sleep(nanoseconds: 220_000_000)
                 guard !Task.isCancelled else { return }
-                completeAIGeneration()
+                await completeAIGeneration()
             } catch {
                 aiCardBatchStreamIsActive = false
                 guard !(error is CancellationError) else { return }

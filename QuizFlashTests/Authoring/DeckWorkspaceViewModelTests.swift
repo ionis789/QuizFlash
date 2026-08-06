@@ -314,7 +314,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.draftCards.count, 2)
     }
 
-    func testCompleteAIGenerationMovesGeneratedCardsIntoBaseline() {
+    func testCompleteAIGenerationMovesGeneratedCardsIntoBaseline() async {
         let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let existingDraft = DraftCard(
             cardNumber: 1,
@@ -340,7 +340,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         viewModel.aiTargetCardCount = 1
         viewModel.aiState = .generatingCards(progress: 1, foundCount: 1)
 
-        viewModel.completeAIGeneration()
+        await viewModel.completeAIGeneration()
 
         XCTAssertEqual(viewModel.baseDraftCards.count, 2)
         XCTAssertEqual(viewModel.sessionDraftCards.count, 0)

@@ -74,7 +74,7 @@ extension DeckWorkspaceViewModel {
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
             try Task.checkCancellation()
-            completeAIGeneration()
+            await completeAIGeneration()
         } catch {
             aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
@@ -122,7 +122,7 @@ extension DeckWorkspaceViewModel {
                     "Generated \(aiGeneratedCardCount) card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") could not be completed from the available candidates."
                 )
             }
-            completeAIGeneration()
+            await completeAIGeneration()
         } catch {
             aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
@@ -285,19 +285,17 @@ extension DeckWorkspaceViewModel {
         }
     }
 
-    func completeAIGeneration() {
+    func completeAIGeneration() async {
         let generatedCardCount = aiGeneratedCardCount
         let deckTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let sessionID = aiGenerationSessionID
         let cloudSession = cloudAIGenerationSession
 
         if let cloudSession {
-            Task {
-                _ = try? await CloudAIProxyClient.shared.finishGeneration(
-                    cloudSession,
-                    validatedCards: generatedCardCount
-                )
-            }
+            await CloudAIProxyClient.shared.finalizeGeneration(
+                cloudSession,
+                validatedCards: generatedCardCount
+            )
         }
 
         if let sessionID {
@@ -353,15 +351,13 @@ extension DeckWorkspaceViewModel {
         let cloudSession = cloudAIGenerationSession
         let generatedCardCount = aiGeneratedCardCount
         if let cloudSession {
-            Task {
-                if generatedCardCount > 0 {
-                    _ = try? await CloudAIProxyClient.shared.finishGeneration(
-                        cloudSession,
-                        validatedCards: generatedCardCount
-                    )
-                } else {
-                    await CloudAIProxyClient.shared.failGeneration(cloudSession)
-                }
+            if generatedCardCount > 0 {
+                CloudAIProxyClient.shared.scheduleGenerationFinalization(
+                    cloudSession,
+                    validatedCards: generatedCardCount
+                )
+            } else {
+                CloudAIProxyClient.shared.scheduleGenerationFailure(cloudSession)
             }
         }
 
@@ -413,15 +409,13 @@ extension DeckWorkspaceViewModel {
         let cloudSession = cloudAIGenerationSession
         let generatedCardCount = aiGeneratedCardCount
         if let cloudSession {
-            Task {
-                if keepingGeneratedCards && generatedCardCount > 0 {
-                    _ = try? await CloudAIProxyClient.shared.finishGeneration(
-                        cloudSession,
-                        validatedCards: generatedCardCount
-                    )
-                } else {
-                    await CloudAIProxyClient.shared.failGeneration(cloudSession)
-                }
+            if keepingGeneratedCards && generatedCardCount > 0 {
+                CloudAIProxyClient.shared.scheduleGenerationFinalization(
+                    cloudSession,
+                    validatedCards: generatedCardCount
+                )
+            } else {
+                CloudAIProxyClient.shared.scheduleGenerationFailure(cloudSession)
             }
         }
 
@@ -665,7 +659,7 @@ extension DeckWorkspaceViewModel {
         return true
     }
 
-    func resumePausedAIGeneration() {
+    func resumePausedAIGeneration() async {
         isAIGenerationPaused = false
         isAIGenerationPausedForBackground = false
         isManualPauseInProgress = false
@@ -677,7 +671,7 @@ extension DeckWorkspaceViewModel {
         let remainingTargetCardCount = targetCardCount(for: remainingAllocations)
 
         guard remainingTargetCardCount > 0 else {
-            completeAIGeneration()
+            await completeAIGeneration()
             return
         }
 

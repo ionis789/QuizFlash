@@ -38,6 +38,9 @@ nonisolated enum AIDebugTraceStage: String, Codable, Sendable {
     case decodeFailed
     case qualityEvaluated
     case retryScheduled
+    case cloudFinalizationStarted
+    case cloudFinalizationCompleted
+    case cloudFinalizationFailed
     case runCompleted
     case runFailed
 }

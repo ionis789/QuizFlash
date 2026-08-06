@@ -439,7 +439,9 @@ extension DeckWorkspaceView {
         HStack(spacing: UIConstants.Spacing.small) {
             Button {
                 if viewModel.hasPausedAIGeneration {
-                    viewModel.resumePausedAIGeneration()
+                    Task {
+                        await viewModel.resumePausedAIGeneration()
+                    }
                 } else {
                     viewModel.pauseAIGeneration()
                 }
