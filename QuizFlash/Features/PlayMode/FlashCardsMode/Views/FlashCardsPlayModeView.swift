@@ -1545,6 +1545,11 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         let remainingTextWidth = max(textWidthLimit - maxEstimatedLine, 0)
         let lineWidths = leaf.estimatedLineWidths.map(metric).joined(separator: ", ")
         let renderedLineWidths = leaf.renderedLineWidths.map(metric).joined(separator: ", ")
+        let swiftUIIntrinsicLineWidths = leaf.swiftUIIntrinsicLineWidths.map(metric).joined(separator: ", ")
+        let swiftUILineWidthDeltas = leaf.renderedLineWidths.enumerated().map { index, expectedWidth in
+            guard index < leaf.swiftUIIntrinsicLineWidths.count else { return "pending" }
+            return metric(expectedWidth - leaf.swiftUIIntrinsicLineWidths[index])
+        }.joined(separator: ", ")
         let renderedLines = leaf.renderedLineTexts.enumerated()
             .map { index, lineText in
                 let lineWidth = index < leaf.renderedLineWidths.count ? leaf.renderedLineWidths[index] : 0
@@ -1559,6 +1564,9 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         let measurementEvents = leaf.measurementEvents.isEmpty
             ? "    <none>"
             : leaf.measurementEvents.map { "    \($0)" }.joined(separator: "\n")
+        let swiftUILineMeasurementEvents = leaf.swiftUILineMeasurementEvents.isEmpty
+            ? "    <none>"
+            : leaf.swiftUILineMeasurementEvents.map { "    \($0)" }.joined(separator: "\n")
 
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
@@ -1575,6 +1583,9 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) highlight=\(leaf.highlightColor.rawValue)",
             "  chars=\(leaf.textCharacterCount) explicitLines=\(leaf.textLineCount) estimatedLineWidths=[\(lineWidths)]",
             "  renderedLineWidths=[\(renderedLineWidths)]",
+            "  swiftUIIntrinsicLineWidths=[\(swiftUIIntrinsicLineWidths)] expectedMinusSwiftUI=[\(swiftUILineWidthDeltas)] updates=\(leaf.swiftUILineMeasurementUpdateCount)",
+            "  swiftUILineMeasurementFlow:",
+            swiftUILineMeasurementEvents,
             "  renderedLines:",
             renderedLines.isEmpty ? "    <none>" : renderedLines,
             "  renderedTokenLines:",

@@ -68,6 +68,9 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let estimatedLineWidths: [CGFloat]
     let renderedLineTexts: [String]
     let renderedLineWidths: [CGFloat]
+    let swiftUIIntrinsicLineWidths: [CGFloat]
+    let swiftUILineMeasurementUpdateCount: Int
+    let swiftUILineMeasurementEvents: [String]
     let renderedTokenLines: [MixedMathRenderedLineDebug]
     let renderedScrollableMath: [MixedMathScrollableDebug]
     let mathGestureDebug: MixedMathGestureDebugSnapshot?
@@ -1086,6 +1089,9 @@ private struct ZoneContentLeafPreview: View {
     @State private var lastMeasurementSource = "none"
     @State private var lastMeasurementDecision = "none"
     @State private var measurementEvents: [String] = []
+    @State private var swiftUIIntrinsicLineWidths: [CGFloat] = []
+    @State private var swiftUILineMeasurementUpdateCount = 0
+    @State private var swiftUILineMeasurementEvents: [String] = []
 
     var body: some View {
         let resolvedLayoutZone = layoutZone
@@ -1561,6 +1567,15 @@ private struct ZoneContentLeafPreview: View {
                             source: "plain-intrinsic"
                         )
                     },
+                    onIntrinsicLineWidthsChange: collectsDebugMetrics
+                        ? { widths in
+                            updateSwiftUIIntrinsicLineWidths(
+                                widths,
+                                text: previewText,
+                                wrappingWidth: plainTextWrappingWidthLimit
+                            )
+                        }
+                        : nil,
                     onTap: plainTextTapHandler
                 )
                     .padding(.vertical, textVerticalPadding / 2)
@@ -1625,6 +1640,41 @@ private struct ZoneContentLeafPreview: View {
         mathGestureDebug = nil
         renderStatusDebug = nil
         nativeRenderDebug = nil
+        swiftUIIntrinsicLineWidths = []
+        appendSwiftUILineMeasurementEvent("reset reason=\(reason)")
+    }
+
+    private func updateSwiftUIIntrinsicLineWidths(
+        _ widths: [CGFloat],
+        text: String,
+        wrappingWidth: CGFloat
+    ) {
+        let roundedWidths = widths.map(ceil)
+        guard !roundedWidths.isEmpty,
+              roundedWidths.allSatisfy({ $0 > 0 }),
+              roundedWidths != swiftUIIntrinsicLineWidths else {
+            return
+        }
+
+        let expectedWidths = ZoneContentPlainTextLayoutMeasurer.layout(
+            text: text,
+            zone: zone,
+            fontScale: fontScale,
+            availableWidth: wrappingWidth
+        ).lines.map { ceil($0.width) }
+        let previousWidths = swiftUIIntrinsicLineWidths
+        swiftUIIntrinsicLineWidths = roundedWidths
+        swiftUILineMeasurementUpdateCount += 1
+
+        let event = "swiftui-lines old=\(debugWidths(previousWidths)) new=\(debugWidths(roundedWidths)) expected=\(debugWidths(expectedWidths))"
+        appendSwiftUILineMeasurementEvent(event)
+    }
+
+    private func appendSwiftUILineMeasurementEvent(_ event: String) {
+        swiftUILineMeasurementEvents.append(event)
+        if swiftUILineMeasurementEvents.count > 12 {
+            swiftUILineMeasurementEvents.removeFirst(swiftUILineMeasurementEvents.count - 12)
+        }
     }
 
     private func recordMeasurementDecision(_ decision: String, size: CGSize, source: String) {
@@ -1641,6 +1691,10 @@ private struct ZoneContentLeafPreview: View {
 
     private func debugSize(_ size: CGSize) -> String {
         "\(Int(size.width.rounded()))x\(Int(size.height.rounded()))"
+    }
+
+    private func debugWidths(_ widths: [CGFloat]) -> String {
+        "[\(widths.map { String(Int($0.rounded())) }.joined(separator: ","))]"
     }
 
     private func handleTap() {
@@ -1816,6 +1870,9 @@ private struct ZoneContentLeafPreview: View {
             estimatedLineWidths: estimatedLineWidths.map(ceil),
             renderedLineTexts: renderedLineLayout.lines.map(\.plainText),
             renderedLineWidths: renderedLineLayout.lines.map { ceil($0.width) },
+            swiftUIIntrinsicLineWidths: swiftUIIntrinsicLineWidths,
+            swiftUILineMeasurementUpdateCount: swiftUILineMeasurementUpdateCount,
+            swiftUILineMeasurementEvents: swiftUILineMeasurementEvents,
             renderedTokenLines: containsMath || containsInlineCode ? renderedTokenLines : [],
             renderedScrollableMath: containsMath || containsInlineCode ? renderedScrollableMath : [],
             mathGestureDebug: containsMath || containsInlineCode ? mathGestureDebug : nil,
@@ -1991,6 +2048,17 @@ enum ZoneTextPerformancePolicy {
 
 // MARK: - Plain Text Zone Layout
 
+private struct ZoneContentPlainTextIntrinsicWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] { [:] }
+
+    static func reduce(
+        value: inout [Int: CGFloat],
+        nextValue: () -> [Int: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
 private struct ZoneContentPlainTextBlockView: View {
     let text: String
     let zone: ZoneModel
@@ -1998,6 +2066,7 @@ private struct ZoneContentPlainTextBlockView: View {
     let availableWidth: CGFloat
     let textAlignment: TextBlockAlignment
     var onIntrinsicContentSizeChange: ((CGSize) -> Void)?
+    var onIntrinsicLineWidthsChange: (([CGFloat]) -> Void)?
     var onTap: (() -> Void)?
 
     private var layout: ZoneContentPlainTextLineLayout {
@@ -2015,14 +2084,39 @@ private struct ZoneContentPlainTextBlockView: View {
             oversizedTextBody
         } else {
             VStack(alignment: textAlignment.horizontalAlignment, spacing: layout.lineSpacing) {
-                ForEach(Array(layout.lines.enumerated()), id: \.offset) { _, line in
-                    line.textView(defaultColor: zone.textColor.color)
+                ForEach(Array(layout.lines.enumerated()), id: \.offset) { index, line in
+                    let textLine = line.textView(defaultColor: zone.textColor.color)
                         .fixedSize(horizontal: true, vertical: false)
-                        .frame(width: line.width, alignment: .leading)
+
+                    if onIntrinsicLineWidthsChange != nil {
+                        textLine
+                            .background {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: ZoneContentPlainTextIntrinsicWidthPreferenceKey.self,
+                                        value: [index: ceil(proxy.size.width)]
+                                    )
+                                }
+                            }
+                            .frame(width: line.width, alignment: .leading)
+                    } else {
+                        textLine
+                            .frame(width: line.width, alignment: .leading)
+                    }
                 }
             }
                 .frame(width: layout.size.width, alignment: frameAlignment)
                 .zoneContentPlainTextTap(onTap)
+                .onPreferenceChange(ZoneContentPlainTextIntrinsicWidthPreferenceKey.self) { widths in
+                    guard let onIntrinsicLineWidthsChange,
+                          widths.count == layout.lines.count else {
+                        return
+                    }
+
+                    let orderedWidths = layout.lines.indices.compactMap { widths[$0] }
+                    guard orderedWidths.count == layout.lines.count else { return }
+                    onIntrinsicLineWidthsChange(orderedWidths)
+                }
                 .onAppear {
                     onIntrinsicContentSizeChange?(layout.size)
                 }
