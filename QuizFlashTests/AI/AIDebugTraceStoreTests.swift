@@ -2,6 +2,40 @@ import XCTest
 @testable import QuizFlash
 
 final class AIDebugTraceStoreTests: XCTestCase {
+    func testLegacyDisabledPreferenceCannotSuppressDevelopmentTrace() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quizflash-ai-trace-tests-\(UUID().uuidString)", isDirectory: true)
+        let suiteName = "quizflash-ai-trace-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Could not create isolated user defaults")
+            return
+        }
+        defaults.set(false, forKey: AIDebugTracePreferenceKeys.debugTracingEnabled)
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = AIDebugTraceStore(
+            rootDirectoryURL: rootURL,
+            userDefaults: defaults
+        )
+        let descriptor = AIDebugTraceRunDescriptor(
+            kind: .generation,
+            targetType: "flashcards",
+            sourceKind: "pdf",
+            targetCount: 30,
+            sourceCount: 12,
+            providerName: "provider",
+            modelName: "model"
+        )
+
+        let scope = await store.startRun(descriptor)
+
+        XCTAssertNotNil(scope)
+        XCTAssertNil(defaults.object(forKey: AIDebugTracePreferenceKeys.debugTracingEnabled))
+    }
+
     func testFailedBlueprintRunIsPersistedAsCopyableJSON() async throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("quizflash-ai-trace-tests-\(UUID().uuidString)", isDirectory: true)

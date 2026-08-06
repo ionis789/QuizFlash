@@ -300,9 +300,13 @@ actor AIDebugTraceStore {
             return false
         }
 
-        return userDefaults.object(
+        // Trace collection is part of the Development build contract. Older
+        // builds exposed an opt-out preference that can otherwise survive an
+        // upgrade and leave the Labs report permanently empty.
+        userDefaults.removeObject(
             forKey: AIDebugTracePreferenceKeys.debugTracingEnabled
-        ) as? Bool ?? true
+        )
+        return true
     }
 
     func startRun(_ descriptor: AIDebugTraceRunDescriptor) async -> AIDebugTraceScope? {
