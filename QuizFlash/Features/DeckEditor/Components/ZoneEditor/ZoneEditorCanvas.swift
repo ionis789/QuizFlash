@@ -1572,7 +1572,11 @@ struct ZoneEditorCanvas: View {
         case .group:
             return .center
         case .leaf:
-            return content.rootZone.leafCount == 1 ? .center : .leading
+            return ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+                for: zone.blockAlignment,
+                rendersRichText: rendersRichText,
+                rootLeafCount: content.rootZone.leafCount
+            )
         }
     }
 

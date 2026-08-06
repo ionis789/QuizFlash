@@ -34,6 +34,36 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         XCTAssertEqual(alignment, .leading)
     }
 
+    func testRenderAlignmentMenuMatchesCenteredAutomaticLeaf() {
+        let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+            for: .auto,
+            rendersRichText: true,
+            rootLeafCount: 3
+        )
+
+        XCTAssertEqual(alignment, .center)
+    }
+
+    func testRawAlignmentMenuKeepsMultiLeafAutomaticLeadingFallback() {
+        let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+            for: .auto,
+            rendersRichText: false,
+            rootLeafCount: 3
+        )
+
+        XCTAssertEqual(alignment, .leading)
+    }
+
+    func testEditorAlignmentMenuPreservesExplicitAlignment() {
+        let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+            for: .trailing,
+            rendersRichText: true,
+            rootLeafCount: 3
+        )
+
+        XCTAssertEqual(alignment, .trailing)
+    }
+
     func testSwiftUIIntrinsicWidthProducesSymmetricSideGaps() {
         let layout = ZoneContentLayoutEngine.leafLayout(
             for: ZoneModel.text("Direct access to database features (meta-data)."),

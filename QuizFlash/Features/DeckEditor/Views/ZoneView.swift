@@ -852,9 +852,11 @@ struct ZoneContentView: View {
         if isTextResizableZone(zone) {
             var layoutZone = zone
             layoutZone.sizeMode = rendersRichText ? .auto : .fillWidth
-            if layoutZone.blockAlignment == .auto {
-                layoutZone.blockAlignment = content.rootZone.leafCount == 1 ? .center : .leading
-            }
+            layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+                for: layoutZone.blockAlignment,
+                rendersRichText: rendersRichText,
+                rootLeafCount: content.rootZone.leafCount
+            )
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
             return layoutZone
