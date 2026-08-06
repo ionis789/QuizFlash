@@ -1393,7 +1393,7 @@ struct ZoneEditorCanvas: View {
                     contentWidth: contentWidth,
                     frames: frames
                 ),
-                currentAlignment: resolvedAlignment(for: tappedZone, kind: .group)
+                currentAlignment: resolvedAlignment(for: tappedZone, at: tappedPath, kind: .group)
             )
         }
 
@@ -1426,7 +1426,7 @@ struct ZoneEditorCanvas: View {
                     targetRef: ZoneAlignmentTargetRef(path: parentPath, kind: .group),
                     frame: groupFrame,
                     movementWidth: movementWidth,
-                    currentAlignment: resolvedAlignment(for: parentZone, kind: .group)
+                    currentAlignment: resolvedAlignment(for: parentZone, at: parentPath, kind: .group)
                 )
             }
 
@@ -1437,7 +1437,11 @@ struct ZoneEditorCanvas: View {
                 targetRef: ZoneAlignmentTargetRef(path: childPath, kind: childTargetKind),
                 frame: childFrame,
                 movementWidth: movementWidth,
-                currentAlignment: resolvedAlignment(for: childTargetZone ?? tappedZone, kind: childTargetKind)
+                currentAlignment: resolvedAlignment(
+                    for: childTargetZone ?? tappedZone,
+                    at: childPath,
+                    kind: childTargetKind
+                )
             )
         }
 
@@ -1454,16 +1458,21 @@ struct ZoneEditorCanvas: View {
                 targetRef: ZoneAlignmentTargetRef(path: childPath, kind: childTargetKind),
                 frame: childFrame,
                 movementWidth: movementWidth,
-                currentAlignment: resolvedAlignment(for: childTargetZone ?? tappedZone, kind: childTargetKind)
+                currentAlignment: resolvedAlignment(
+                    for: childTargetZone ?? tappedZone,
+                    at: childPath,
+                    kind: childTargetKind
+                )
             )
         }
 
         let movementWidth = availableAlignmentWidth(for: tappedPath, contentWidth: contentWidth, frames: frames)
+        let targetKind: ZoneAlignmentTargetKind = tappedPath == .root ? .group : .leaf
         return (
-            targetRef: ZoneAlignmentTargetRef(path: tappedPath, kind: .leaf),
+            targetRef: ZoneAlignmentTargetRef(path: tappedPath, kind: targetKind),
             frame: leafFrame,
             movementWidth: movementWidth,
-            currentAlignment: resolvedAlignment(for: tappedZone, kind: .leaf)
+            currentAlignment: resolvedAlignment(for: tappedZone, at: tappedPath, kind: targetKind)
         )
     }
 
@@ -1490,7 +1499,7 @@ struct ZoneEditorCanvas: View {
             targetRef: ZoneAlignmentTargetRef(path: .root, kind: .group),
             frame: rootFrame,
             movementWidth: contentWidth,
-            currentAlignment: resolvedAlignment(for: rootZone, kind: .group)
+            currentAlignment: resolvedAlignment(for: rootZone, at: .root, kind: .group)
         )
     }
 
@@ -1565,7 +1574,11 @@ struct ZoneEditorCanvas: View {
         return contexts
     }
 
-    private func resolvedAlignment(for zone: ZoneModel, kind: ZoneAlignmentTargetKind) -> ZoneBlockAlignment {
+    private func resolvedAlignment(
+        for zone: ZoneModel,
+        at path: ZonePath,
+        kind: ZoneAlignmentTargetKind
+    ) -> ZoneBlockAlignment {
         if zone.blockAlignment != .auto {
             return zone.blockAlignment
         }
@@ -1578,7 +1591,9 @@ struct ZoneEditorCanvas: View {
         case .leaf:
             return ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
                 for: zone.blockAlignment,
-                defaultAlignment: inheritedZoneAlignmentDefaults.innerZone
+                defaultAlignment: path == .root
+                    ? inheritedZoneAlignmentDefaults.group
+                    : inheritedZoneAlignmentDefaults.innerZone
             )
         }
     }

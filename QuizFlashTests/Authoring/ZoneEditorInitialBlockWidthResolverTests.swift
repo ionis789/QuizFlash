@@ -31,6 +31,39 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         XCTAssertEqual(366 - leadingInset - 348, leadingInset)
     }
 
+    func testAutomaticRootLeafUsesGroupAlignmentDefault() {
+        let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: .auto,
+            alignToGroupLeading: false,
+            usesGroupAlignmentDefault: true,
+            alignmentDefaults: .standard
+        )
+
+        XCTAssertEqual(alignment, .center)
+    }
+
+    func testAutomaticChildLeafUsesInnerZoneAlignmentDefault() {
+        let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: .auto,
+            alignToGroupLeading: false,
+            usesGroupAlignmentDefault: false,
+            alignmentDefaults: .standard
+        )
+
+        XCTAssertEqual(alignment, .leading)
+    }
+
+    func testExplicitRootLeafAlignmentOverridesGroupDefault() {
+        let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: .trailing,
+            alignToGroupLeading: false,
+            usesGroupAlignmentDefault: true,
+            alignmentDefaults: .standard
+        )
+
+        XCTAssertEqual(alignment, .trailing)
+    }
+
     func testGroupLeadingOverrideStillAlignsLeafToLeadingEdge() {
         let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: .auto,

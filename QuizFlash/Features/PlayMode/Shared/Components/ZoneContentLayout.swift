@@ -448,6 +448,7 @@ struct ZoneContentRenderView: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     var alignmentDefaults: ZoneAlignmentDefaults = .standard
+    var rootLeafUsesGroupAlignment: Bool = true
     var alignLeafBlocksToGroupLeading: Bool = false
     var animatesLayoutChanges: Bool = true
     let showsDebugGuides: Bool
@@ -476,6 +477,7 @@ struct ZoneContentRenderView: View {
             availableWidth: max(availableWidth, 1),
             centersLeafBlocks: centersLeafBlocks,
             alignmentDefaults: alignmentDefaults,
+            rootLeafUsesGroupAlignment: rootLeafUsesGroupAlignment,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
             animatesLayoutChanges: animatesLayoutChanges,
             showsDebugGuides: showsDebugGuides,
@@ -606,6 +608,7 @@ private struct ZoneContentTreePreview: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     let alignmentDefaults: ZoneAlignmentDefaults
+    let rootLeafUsesGroupAlignment: Bool
     let alignLeafBlocksToGroupLeading: Bool
     let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
@@ -635,6 +638,7 @@ private struct ZoneContentTreePreview: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: centersLeafBlocks,
                 alignmentDefaults: alignmentDefaults,
+                usesGroupAlignmentDefault: rootLeafUsesGroupAlignment,
                 alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                 animatesLayoutChanges: animatesLayoutChanges,
                 showsDebugGuides: showsDebugGuides,
@@ -678,6 +682,7 @@ private struct ZoneContentTreePreview: View {
                         availableWidth: childWidth,
                         centersLeafBlocks: centersLeafBlocks,
                         alignmentDefaults: alignmentDefaults,
+                        rootLeafUsesGroupAlignment: false,
                         alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                         animatesLayoutChanges: animatesLayoutChanges,
                         showsDebugGuides: showsDebugGuides,
@@ -741,6 +746,7 @@ private struct ZoneContentTreePreview: View {
                             availableWidth: groupWidth,
                             centersLeafBlocks: centersLeafBlocks,
                             alignmentDefaults: alignmentDefaults,
+                            rootLeafUsesGroupAlignment: false,
                             alignLeafBlocksToGroupLeading: false,
                             animatesLayoutChanges: animatesLayoutChanges,
                             showsDebugGuides: showsDebugGuides,
@@ -1081,6 +1087,7 @@ private struct ZoneContentLeafPreview: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     let alignmentDefaults: ZoneAlignmentDefaults
+    let usesGroupAlignmentDefault: Bool
     let alignLeafBlocksToGroupLeading: Bool
     let animatesLayoutChanges: Bool
     let showsDebugGuides: Bool
@@ -1379,7 +1386,8 @@ private struct ZoneContentLeafPreview: View {
         layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: layoutZone.blockAlignment,
             alignToGroupLeading: alignLeafBlocksToGroupLeading,
-            automaticAlignment: alignmentDefaults.innerZone
+            usesGroupAlignmentDefault: usesGroupAlignmentDefault,
+            alignmentDefaults: alignmentDefaults
         )
         return layoutZone
     }

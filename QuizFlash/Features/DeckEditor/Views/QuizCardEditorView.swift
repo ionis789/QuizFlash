@@ -1608,9 +1608,7 @@ struct QuizCardEditorView: View {
 
     private func resolvedRenderedAlignment(for zone: ZoneModel) -> ZoneBlockAlignment {
         zone.blockAlignment.resolved(
-            fallback: zone.isLeaf
-                ? inheritedZoneAlignmentDefaults.innerZone
-                : inheritedZoneAlignmentDefaults.group
+            fallback: inheritedZoneAlignmentDefaults.group
         )
     }
 

@@ -854,21 +854,23 @@ struct ZoneContentView: View {
     }
 
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
+        var layoutZone = zone
+        layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
+            for: layoutZone.blockAlignment,
+            alignToGroupLeading: false,
+            usesGroupAlignmentDefault: path == .root,
+            alignmentDefaults: inheritedZoneAlignmentDefaults
+        )
+
         if isTextResizableZone(zone) {
-            var layoutZone = zone
             layoutZone.sizeMode = rendersRichText ? .auto : .fillWidth
-            layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
-                for: layoutZone.blockAlignment,
-                defaultAlignment: inheritedZoneAlignmentDefaults.innerZone
-            )
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
             return layoutZone
         }
 
-        guard zone.sizeMode == .fixed else { return zone }
+        guard zone.sizeMode == .fixed else { return layoutZone }
 
-        var layoutZone = zone
         if let fixedWidth = layoutZone.fixedWidth {
             layoutZone.fixedWidth = min(max(fixedWidth, minimumResizableWidth), availableWidth)
         }
@@ -1199,6 +1201,7 @@ struct ZoneContentView: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: false,
                 alignmentDefaults: inheritedZoneAlignmentDefaults,
+                rootLeafUsesGroupAlignment: path == .root,
                 showsDebugGuides: false,
                 showsZoneSurfaces: true,
                 showsCodeBlockZoneSurfaces: true,

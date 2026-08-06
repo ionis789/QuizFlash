@@ -112,6 +112,23 @@ enum ZoneContentLayoutEngine {
         return alignment.resolved(fallback: automaticAlignment)
     }
 
+    /// Resolves a leaf against the group default when it is the root node and
+    /// against the inner-zone default when it belongs to a container.
+    static func resolvedLeafBlockAlignment(
+        for alignment: ZoneBlockAlignment,
+        alignToGroupLeading: Bool,
+        usesGroupAlignmentDefault: Bool,
+        alignmentDefaults: ZoneAlignmentDefaults
+    ) -> ZoneBlockAlignment {
+        resolvedLeafBlockAlignment(
+            for: alignment,
+            alignToGroupLeading: alignToGroupLeading,
+            automaticAlignment: usesGroupAlignmentDefault
+                ? alignmentDefaults.group
+                : alignmentDefaults.innerZone
+        )
+    }
+
     static func resolvedEditorLeafBlockAlignment(
         for alignment: ZoneBlockAlignment,
         defaultAlignment: ZoneBlockAlignment
