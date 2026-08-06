@@ -144,6 +144,7 @@
 "All folders" = "Toate foldere";
 "Almost ready" = "Aproape gata";
 "An AI provider API key is not configured." = "Cheia API pentru furnizorul AI nu este configurată.";
+"AI Generation Trace" = "Trace generare AI";
 "Already have an account?" = "Ai deja cont?";
 "Also visible in %@" = "Vizibil și în %@";
 "An account with this email already exists." = "Există deja un cont cu acest email.";

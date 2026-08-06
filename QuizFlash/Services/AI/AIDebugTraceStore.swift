@@ -806,6 +806,10 @@ extension AIFlashcardService {
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
 #if DEBUG
+        if AIDebugTraceContext.currentScope != nil {
+            return try await operation()
+        }
+
         let descriptor = AIDebugTraceRunDescriptor(
             kind: kind,
             targetType: targetType,

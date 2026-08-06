@@ -212,25 +212,12 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
-                let generationContext = try await resolvedBlueprintGenerationContext(
-                    for: source,
-                    targetCardCount: targetCardCount,
+                try await executeTracedSourceGeneration(
+                    source: source,
                     allocations: allocations,
-                    base: options,
+                    targetCardCount: targetCardCount,
+                    options: options,
                     aiService: aiService
-                )
-
-                try await consumeGeneratedBatchChunks(
-                    from: aiService.generateFlashcardBatchStream(
-                        fromSegments: source.textSegments,
-                        targetCards: targetCardCount,
-                        allocations: allocations,
-                        needsOCRCorrection: source.needsOCRCorrection,
-                        options: generationContext.options,
-                        blueprint: generationContext.blueprint,
-                        remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
-                        initialCoveredPrompts: existingAISessionPromptPreviews()
-                    )
                 )
             } catch {
                 guard !(error is CancellationError) else { return }
@@ -287,25 +274,12 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
-                let generationContext = try await resolvedBlueprintGenerationContext(
-                    for: source,
-                    targetCardCount: targetCardCount,
+                try await executeTracedSourceGeneration(
+                    source: source,
                     allocations: allocations,
-                    base: options,
+                    targetCardCount: targetCardCount,
+                    options: options,
                     aiService: aiService
-                )
-
-                try await consumeGeneratedBatchChunks(
-                    from: aiService.generateFlashcardBatchStream(
-                        fromSegments: source.textSegments,
-                        targetCards: targetCardCount,
-                        allocations: allocations,
-                        needsOCRCorrection: source.needsOCRCorrection,
-                        options: generationContext.options,
-                        blueprint: generationContext.blueprint,
-                        remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
-                        initialCoveredPrompts: existingAISessionPromptPreviews()
-                    )
                 )
             } catch {
                 guard !(error is CancellationError) else { return }
@@ -388,6 +362,51 @@ extension DeckWorkspaceViewModel {
             resolvedOptions.sourceLanguageHint = options.manualOutputLanguage
         }
         return (blueprint, resolvedOptions)
+    }
+
+    /// Runs blueprint planning and card generation inside one persistent trace.
+    func executeTracedSourceGeneration(
+        source: AIPreparedGenerationSource,
+        allocations: [AISourceRangeAllocation],
+        targetCardCount: Int,
+        options: AIGenerationOptions,
+        aiService: AIFlashcardService
+    ) async throws {
+        let sourceKind = source.isPDF ? "pdf" : "photos_ocr"
+        try await aiService.withDebugRun(
+            kind: .generation,
+            targetType: options.cardType.rawValue,
+            sourceKind: sourceKind,
+            targetCount: targetCardCount,
+            sourceCount: source.textSegments.count,
+            metadata: [
+                "allocation_count": String(allocations.count),
+                "distribution_mode": options.sourceDistributionMode.rawValue,
+                "needs_ocr_correction": String(source.needsOCRCorrection),
+                "segment_count": String(source.textSegments.count)
+            ]
+        ) { [self] in
+            let generationContext = try await resolvedBlueprintGenerationContext(
+                for: source,
+                targetCardCount: targetCardCount,
+                allocations: allocations,
+                base: options,
+                aiService: aiService
+            )
+
+            try await consumeGeneratedBatchChunks(
+                from: aiService.generateFlashcardBatchStream(
+                    fromSegments: source.textSegments,
+                    targetCards: targetCardCount,
+                    allocations: allocations,
+                    needsOCRCorrection: source.needsOCRCorrection,
+                    options: generationContext.options,
+                    blueprint: generationContext.blueprint,
+                    remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
+                    initialCoveredPrompts: existingAISessionPromptPreviews()
+                )
+            )
+        }
     }
 
     func existingAISessionPromptPreviews() -> [String] {

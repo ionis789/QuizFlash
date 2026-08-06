@@ -57,8 +57,8 @@ key	en	ro	ru
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -132,6 +132,7 @@ Add source text before saving.	Add source text before saving.	Adaugă textul sur
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
 Adjust only study content, keeping app chrome and controls stable.	Adjust only study content, keeping app chrome and controls stable.	Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.	Настраивает только учебный контент, оставляя интерфейс приложения стабильным.
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
+AI Generation Trace	AI Generation Trace	Trace generare AI	Трассировка генерации ИИ
 AI usage	AI usage	Utilizare AI	Использование AI
 Align Bottom	Align Bottom	Aliniază jos	Выровнять по низу
 Align Center	Align Center	Aliniază la centru	По центру
@@ -148,8 +149,8 @@ Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно �
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 An AI provider API key is not configured.	An AI provider API key is not configured.	Cheia API pentru furnizorul AI nu este configurată.	Ключ API поставщика ИИ не настроен.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -382,8 +383,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -618,8 +619,8 @@ PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины

@@ -144,6 +144,7 @@
 "All folders" = "All folders";
 "Almost ready" = "Almost ready";
 "An AI provider API key is not configured." = "An AI provider API key is not configured.";
+"AI Generation Trace" = "AI Generation Trace";
 "Already have an account?" = "Already have an account?";
 "Also visible in %@" = "Also visible in %@";
 "An account with this email already exists." = "An account with this email already exists.";

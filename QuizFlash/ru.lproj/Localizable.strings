@@ -144,6 +144,7 @@
 "All folders" = "Все папки";
 "Almost ready" = "Почти готово";
 "An AI provider API key is not configured." = "Ключ API поставщика ИИ не настроен.";
+"AI Generation Trace" = "Трассировка генерации ИИ";
 "Already have an account?" = "Уже есть аккаунт?";
 "Also visible in %@" = "Также видно в %@";
 "An account with this email already exists." = "Аккаунт с этим email уже существует.";

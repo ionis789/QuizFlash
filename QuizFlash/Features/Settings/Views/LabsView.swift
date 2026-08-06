@@ -10,6 +10,7 @@ struct LabsView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     @State private var backendTraceEventCount = 0
+    @State private var aiGenerationTraceCount = 0
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -33,6 +34,9 @@ struct LabsView: View {
         .swipeBack { dismiss() }
         .task {
             backendTraceEventCount = await BackendTraceStore.shared.eventCount()
+            aiGenerationTraceCount = await AIDebugTraceStore.shared.listRuns()
+                .filter { $0.kind == .generation }
+                .count
         }
     }
 
@@ -114,6 +118,20 @@ struct LabsView: View {
                         title: SettingsTextContent.verbatim(localized("Backend Trace")),
                         detail: nil,
                         value: "\(backendTraceEventCount)"
+                    )
+                }
+                .noPressEffectButtonStyle()
+
+                SettingsCardDivider()
+                NavigationLink {
+                    AIGenerationTraceView()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "wand.and.stars.inverse",
+                        tint: .purple,
+                        title: SettingsTextContent.verbatim(localized("AI Generation Trace")),
+                        detail: nil,
+                        value: "\(aiGenerationTraceCount)"
                     )
                 }
                 .noPressEffectButtonStyle()

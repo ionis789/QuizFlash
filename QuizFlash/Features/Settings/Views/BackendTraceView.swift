@@ -109,7 +109,7 @@ struct BackendTraceView: View {
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(themeManager.textPrimary)
 
-            BackendTraceTextView(text: report)
+            DiagnosticTraceTextView(text: report)
                 .frame(minHeight: 520)
                 .background(
                     RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
@@ -220,7 +220,7 @@ struct BackendTraceView: View {
     }
 }
 
-private struct BackendTraceTextView: UIViewRepresentable {
+struct DiagnosticTraceTextView: UIViewRepresentable {
     let text: String
 
     func makeUIView(context: Context) -> UITextView {
