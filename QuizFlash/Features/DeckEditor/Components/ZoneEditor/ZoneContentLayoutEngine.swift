@@ -184,7 +184,7 @@ enum ZoneContentLayoutEngine {
             estimatedContentSize: roundedSize(estimatedSize),
             measuredContentSize: roundedSize(measuredContentSize),
             blockSize: roundedSize(blockSize),
-            leadingInset: ceil(leadingInset),
+            leadingInset: leadingInset,
             contentLayoutWidth: ceil(contentLayoutWidth),
             textWidthLimit: textWidthLimit.map(ceil),
             textHorizontalInsets: ceil(textHorizontalInsets),

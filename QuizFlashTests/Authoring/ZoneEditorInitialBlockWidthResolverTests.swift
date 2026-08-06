@@ -46,6 +46,18 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         XCTAssertEqual(365 - layout.leadingInset - layout.blockSize.width, 6)
     }
 
+    func testCenteredLeafKeepsOddRemainderSymmetric() {
+        let layout = ZoneContentLayoutEngine.leafLayout(
+            for: ZoneModel.text("Fine-grained control over SQL and high performance."),
+            spec: ZoneContentLayoutSpec(availableWidth: 365, fontScale: 1),
+            measuredContentSize: CGSize(width: 314, height: 68)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 314)
+        XCTAssertEqual(layout.leadingInset, 25.5)
+        XCTAssertEqual(365 - layout.leadingInset - layout.blockSize.width, layout.leadingInset)
+    }
+
     func testSimpleEditorTextGroupAlwaysUsesAvailableWidth() {
         let availableWidth: CGFloat = 369
         let fontScale = CGFloat(FlashcardTextSize(step: 0).playModeScale)
