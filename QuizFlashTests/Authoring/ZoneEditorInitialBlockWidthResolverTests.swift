@@ -34,46 +34,16 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         XCTAssertEqual(alignment, .leading)
     }
 
-    func testNearFullWidthSnapsToAvailableWidth() {
-        XCTAssertEqual(
-            ZoneContentLayoutEngine.snapNearFullWidth(
-                365,
-                availableWidth: 366
-            ),
-            366
-        )
-    }
-
-    func testNearFullAutoLeafUsesAvailableWidth() {
+    func testSwiftUIIntrinsicWidthProducesSymmetricSideGaps() {
         let layout = ZoneContentLayoutEngine.leafLayout(
-            for: ZoneModel.text("Near-full line"),
-            spec: ZoneContentLayoutSpec(availableWidth: 366, fontScale: 1),
-            measuredContentSize: CGSize(width: 365, height: 43)
+            for: ZoneModel.text("Direct access to database features (meta-data)."),
+            spec: ZoneContentLayoutSpec(availableWidth: 365, fontScale: 1),
+            measuredContentSize: CGSize(width: 353, height: 43)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 366)
-        XCTAssertEqual(layout.leadingInset, 0)
-    }
-
-    func testNearFullVerticalGroupUsesAvailableWidth() {
-        let resolved = ZoneContentWidthStabilityPolicy.resolvedVerticalGroupWidth(
-            estimatedWidth: 365,
-            measuredWidth: nil,
-            children: [ZoneModel.text("Near-full line")],
-            availableWidth: 366
-        )
-
-        XCTAssertEqual(resolved, 366)
-    }
-
-    func testMeaningfullyNarrowWidthRemainsIntrinsic() {
-        XCTAssertEqual(
-            ZoneContentLayoutEngine.snapNearFullWidth(
-                320,
-                availableWidth: 365
-            ),
-            320
-        )
+        XCTAssertEqual(layout.blockSize.width, 353)
+        XCTAssertEqual(layout.leadingInset, 6)
+        XCTAssertEqual(365 - layout.leadingInset - layout.blockSize.width, 6)
     }
 
     func testSimpleEditorTextGroupAlwaysUsesAvailableWidth() {
@@ -195,7 +165,8 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
         let cases: [(estimated: CGFloat, renderedLine: CGFloat, expectedBlock: CGFloat)] = [
             (355, 317, 341),
             (363, 331, 355),
-            (348, 321, 345)
+            (348, 321, 345),
+            (365, 329, 353)
         ]
 
         for item in cases {

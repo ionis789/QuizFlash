@@ -545,9 +545,9 @@ enum ZoneContentWidthStabilityPolicy {
             resolvedWidth = estimatedWidth
         }
 
-        return ZoneContentLayoutEngine.snapNearFullWidth(
-            resolvedWidth,
-            availableWidth: availableWidth
+        return min(
+            max(ceil(resolvedWidth), 1),
+            max(availableWidth, 1)
         )
     }
 
@@ -2069,6 +2069,8 @@ private struct ZoneContentPlainTextBlockView: View {
     var onIntrinsicLineWidthsChange: (([CGFloat]) -> Void)?
     var onTap: (() -> Void)?
 
+    @State private var swiftUIIntrinsicWidths: [Int: CGFloat] = [:]
+
     private var layout: ZoneContentPlainTextLineLayout {
         ZoneContentPlainTextLayoutMeasurer.layout(
             text: text,
@@ -2088,42 +2090,66 @@ private struct ZoneContentPlainTextBlockView: View {
                     let textLine = line.textView(defaultColor: zone.textColor.color)
                         .fixedSize(horizontal: true, vertical: false)
 
-                    if onIntrinsicLineWidthsChange != nil {
-                        textLine
-                            .background {
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: ZoneContentPlainTextIntrinsicWidthPreferenceKey.self,
-                                        value: [index: ceil(proxy.size.width)]
-                                    )
-                                }
+                    textLine
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: ZoneContentPlainTextIntrinsicWidthPreferenceKey.self,
+                                    value: [index: ceil(proxy.size.width)]
+                                )
                             }
-                            .frame(width: line.width, alignment: .leading)
-                    } else {
-                        textLine
-                            .frame(width: line.width, alignment: .leading)
-                    }
+                        }
+                        .frame(
+                            width: swiftUIIntrinsicWidths[index] ?? line.width,
+                            alignment: .leading
+                        )
                 }
             }
-                .frame(width: layout.size.width, alignment: frameAlignment)
+                .frame(width: resolvedIntrinsicWidth, alignment: frameAlignment)
                 .zoneContentPlainTextTap(onTap)
                 .onPreferenceChange(ZoneContentPlainTextIntrinsicWidthPreferenceKey.self) { widths in
-                    guard let onIntrinsicLineWidthsChange,
-                          widths.count == layout.lines.count else {
+                    guard widths.count == layout.lines.count else {
                         return
                     }
 
-                    let orderedWidths = layout.lines.indices.compactMap { widths[$0] }
+                    let orderedWidths = layout.lines.indices.compactMap { index in
+                        widths[index].map { ceil($0) }
+                    }
                     guard orderedWidths.count == layout.lines.count else { return }
-                    onIntrinsicLineWidthsChange(orderedWidths)
+
+                    if widths != swiftUIIntrinsicWidths {
+                        swiftUIIntrinsicWidths = widths.mapValues { ceil($0) }
+                    }
+
+                    onIntrinsicContentSizeChange?(
+                        CGSize(
+                            width: max(orderedWidths.max() ?? 1, 1),
+                            height: layout.size.height
+                        )
+                    )
+                    onIntrinsicLineWidthsChange?(orderedWidths)
                 }
                 .onAppear {
-                    onIntrinsicContentSizeChange?(layout.size)
+                    onIntrinsicContentSizeChange?(resolvedIntrinsicSize)
                 }
                 .onChange(of: layout.size) { _, newSize in
-                    onIntrinsicContentSizeChange?(newSize)
+                    onIntrinsicContentSizeChange?(
+                        CGSize(width: resolvedIntrinsicWidth, height: newSize.height)
+                    )
                 }
         }
+    }
+
+    private var resolvedIntrinsicWidth: CGFloat {
+        guard swiftUIIntrinsicWidths.count == layout.lines.count else {
+            return layout.size.width
+        }
+
+        return max(swiftUIIntrinsicWidths.values.max() ?? 1, 1)
+    }
+
+    private var resolvedIntrinsicSize: CGSize {
+        CGSize(width: resolvedIntrinsicWidth, height: layout.size.height)
     }
 
     private var oversizedTextBody: some View {

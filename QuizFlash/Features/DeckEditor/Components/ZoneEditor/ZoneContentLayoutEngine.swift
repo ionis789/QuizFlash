@@ -111,18 +111,6 @@ enum ZoneContentLayoutEngine {
         return alignment == .auto ? .center : alignment
     }
 
-    /// Removes a sub-point/one-point remainder caused by text measurement rounding.
-    static func snapNearFullWidth(
-        _ width: CGFloat,
-        availableWidth: CGFloat
-    ) -> CGFloat {
-        let clampedAvailableWidth = max(availableWidth, 1)
-        let clampedWidth = min(max(ceil(width), 1), clampedAvailableWidth)
-        return clampedAvailableWidth - clampedWidth <= 1
-            ? clampedAvailableWidth
-            : clampedWidth
-    }
-
     static func leafLayout(
         for zone: ZoneModel,
         spec: ZoneContentLayoutSpec,
@@ -217,10 +205,7 @@ enum ZoneContentLayoutEngine {
 
         switch zone.sizeMode {
         case .auto:
-            return snapNearFullWidth(
-                naturalWidth,
-                availableWidth: availableWidth
-            )
+            return min(max(ceil(naturalWidth), 1), availableWidth)
         case .fillWidth:
             return availableWidth
         case .fixed:
