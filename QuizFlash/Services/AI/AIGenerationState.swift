@@ -676,19 +676,22 @@ public struct AIFlashcardBatchChunk: Sendable {
     public let plannedCardCount: Int
     public let shortfallCount: Int
     public let sourceLabel: String
+    public let objectiveIDs: [UUID]
 
     init(
         cards: [AIFlashcard],
         allocationID: UUID?,
         plannedCardCount: Int,
         shortfallCount: Int = 0,
-        sourceLabel: String
+        sourceLabel: String,
+        objectiveIDs: [UUID] = []
     ) {
         self.cards = cards
         self.allocationID = allocationID
         self.plannedCardCount = plannedCardCount
         self.shortfallCount = shortfallCount
         self.sourceLabel = sourceLabel
+        self.objectiveIDs = objectiveIDs
     }
 }
 

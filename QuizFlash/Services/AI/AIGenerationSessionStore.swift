@@ -24,6 +24,10 @@ nonisolated struct AIPausedSession: Codable, Equatable {
     // User Settings
     let options: AIGenerationOptions
     let remainingAllocations: [AISourceRangeAllocation]
+    let blueprint: AISourceBlueprint?
+    let remainingBlueprintObjectiveIDs: [UUID]?
+    let sourceFingerprint: String?
+    let promptVersion: String?
     
     enum SourceMode: Codable, Equatable {
         case pdf(bookmarkData: Data, analysis: PDFAnalysisInfo?)
@@ -52,6 +56,10 @@ nonisolated struct AIPausedSession: Codable, Equatable {
         sourceMode: SourceMode,
         draftCards: [DraftCard],
         providerProfileID: UUID?,
+        blueprint: AISourceBlueprint? = nil,
+        remainingBlueprintObjectiveIDs: [UUID] = [],
+        sourceFingerprint: String? = nil,
+        promptVersion: String? = nil,
         timestamp: Date = Date()
     ) {
         self.sessionID = sessionID
@@ -63,6 +71,10 @@ nonisolated struct AIPausedSession: Codable, Equatable {
         self.baseCardCount = baseCardCount
         self.options = options
         self.remainingAllocations = remainingAllocations
+        self.blueprint = blueprint
+        self.remainingBlueprintObjectiveIDs = remainingBlueprintObjectiveIDs
+        self.sourceFingerprint = sourceFingerprint
+        self.promptVersion = promptVersion
         self.sourceMode = sourceMode
         self.draftCards = draftCards
         self.providerProfileID = providerProfileID

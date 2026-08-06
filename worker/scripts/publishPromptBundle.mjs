@@ -7,6 +7,13 @@ import {join} from "node:path";
 import {spawnSync} from "node:child_process";
 
 const requiredTemplateKeys = [
+  "blueprint.batchContext",
+  "blueprint.direct",
+  "blueprint.map",
+  "blueprint.reduce",
+  "blueprint.repair",
+  "blueprint.schema",
+  "blueprint.system",
   "schema.flashcard",
   "schema.quiz",
   "sourceProfile.system",
@@ -17,13 +24,16 @@ const requiredTemplateKeys = [
 const args = process.argv.slice(2);
 const bundlePath = args.find((arg) => !arg.startsWith("--"));
 const activate = args.includes("--activate");
+const useDefault = args.includes("--default");
 
-if (!bundlePath) {
-  console.error("Usage: node scripts/publishPromptBundle.mjs <bundle.json> [--activate]");
+if (!bundlePath && !useDefault) {
+  console.error("Usage: node scripts/publishPromptBundle.mjs <bundle.json>|--default [--activate]");
   process.exit(1);
 }
 
-const bundle = JSON.parse(await readFile(bundlePath, "utf8"));
+const bundle = useDefault
+  ? (await import("../src/promptBundle.ts")).defaultPromptBundle
+  : JSON.parse(await readFile(bundlePath, "utf8"));
 validateBundle(bundle);
 const hash = sha256(stableJSONString(bundle.templates));
 const now = Date.now();

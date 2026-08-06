@@ -8,7 +8,7 @@
     "test": "vitest run",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "prompt:publish": "node scripts/publishPromptBundle.mjs",
+    "prompt:publish": "node --experimental-strip-types scripts/publishPromptBundle.mjs",
     "plan-limit:set": "node scripts/setPlanLimit.mjs"
   },
   "devDependencies": {

@@ -20,6 +20,13 @@ nonisolated enum AIDebugRunKind: String, Codable, Sendable {
 nonisolated enum AIDebugTraceStage: String, Codable, Sendable {
     case runStarted
     case planPrepared
+    case blueprintDirect
+    case blueprintMap
+    case blueprintReduce
+    case blueprintValidated
+    case blueprintValidationFailed
+    case blueprintRepair
+    case blueprintPlanPrepared
     case batchStarted
     case batchCompleted
     case batchRecovered

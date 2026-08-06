@@ -302,6 +302,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
   private async finishLocked(generationId: string, sessionToken: string, validatedCards: number): Promise<QuotaResponse> {
     const active = await this.authorize(generationId, sessionToken);
+    validatedCardCountForTarget(validatedCards, active.targetCards);
     const now = Date.now();
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
     const generation = await this.generationAccountingRow(generationId);
@@ -790,7 +791,7 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
     const usageQuota = await stub.fail(generationId, sessionToken);
     return {status: "failed", usageQuota, quota: usageQuota};
   }
-  const usageQuota = await stub.finish(generationId, sessionToken, Math.max(0, Number(payload.validatedCards) || 0));
+  const usageQuota = await stub.finish(generationId, sessionToken, validatedCardCount(payload.validatedCards));
   return {usageQuota, quota: usageQuota};
 }
 
@@ -845,7 +846,7 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
   const generationId = nonEmptyString(request.headers.get("X-QuizFlash-Generation-ID"), "X-QuizFlash-Generation-ID", 128);
   const sessionToken = nonEmptyString(request.headers.get("X-QuizFlash-Session"), "X-QuizFlash-Session", 256);
   const providerCallId = nonEmptyString(request.headers.get("X-QuizFlash-Provider-Call-ID"), "X-QuizFlash-Provider-Call-ID", 128);
-  const operation = request.headers.get("X-QuizFlash-Operation") === "title" ? "title" : "cards";
+  const operation = providerOperation(request.headers.get("X-QuizFlash-Operation"));
   const uid = nonEmptyString(request.headers.get("X-QuizFlash-UID"), "X-QuizFlash-UID", 128);
   const stub = env.USER_GENERATION.getByName(uid);
   await stub.authorize(generationId, sessionToken);
@@ -1097,6 +1098,31 @@ function nonEmptyString(value: unknown, name: string, maxLength: number): string
 function optionalString(value: unknown, name: string, maxLength: number): string | undefined {
   if (value === undefined || value === null) return undefined;
   return nonEmptyString(value, name, maxLength);
+}
+
+const providerOperations = new Set(["blueprint_map", "blueprint_reduce", "blueprint_repair", "title", "cards"]);
+
+export function providerOperation(value: unknown): string {
+  const operation = nonEmptyString(value, "X-QuizFlash-Operation", 64);
+  if (!providerOperations.has(operation)) {
+    throw new WorkerError(400, "invalid-argument", "The provider operation is not supported.");
+  }
+  return operation;
+}
+
+export function validatedCardCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new WorkerError(400, "invalid-argument", "validatedCards must be a nonnegative integer.");
+  }
+  return value;
+}
+
+export function validatedCardCountForTarget(value: unknown, targetCards: number): number {
+  const count = validatedCardCount(value);
+  if (count > targetCards) {
+    throw new WorkerError(400, "invalid-argument", "validatedCards cannot exceed the authorized target.");
+  }
+  return count;
 }
 
 function requiredSessionSecret(secret: string | undefined): string {

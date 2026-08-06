@@ -212,8 +212,10 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
-                let resolvedOptions = try await resolvedAIGenerationOptions(
+                let generationContext = try await resolvedBlueprintGenerationContext(
                     for: source,
+                    targetCardCount: targetCardCount,
+                    allocations: allocations,
                     base: options,
                     aiService: aiService
                 )
@@ -224,7 +226,10 @@ extension DeckWorkspaceViewModel {
                         targetCards: targetCardCount,
                         allocations: allocations,
                         needsOCRCorrection: source.needsOCRCorrection,
-                        options: resolvedOptions
+                        options: generationContext.options,
+                        blueprint: generationContext.blueprint,
+                        remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
+                        initialCoveredPrompts: existingAISessionPromptPreviews()
                     )
                 )
             } catch {
@@ -282,8 +287,10 @@ extension DeckWorkspaceViewModel {
                     aiState = .error(localizedTextExtractionFailureMessage)
                     return
                 }
-                let resolvedOptions = try await resolvedAIGenerationOptions(
+                let generationContext = try await resolvedBlueprintGenerationContext(
                     for: source,
+                    targetCardCount: targetCardCount,
+                    allocations: allocations,
                     base: options,
                     aiService: aiService
                 )
@@ -294,7 +301,10 @@ extension DeckWorkspaceViewModel {
                         targetCards: targetCardCount,
                         allocations: allocations,
                         needsOCRCorrection: source.needsOCRCorrection,
-                        options: resolvedOptions
+                        options: generationContext.options,
+                        blueprint: generationContext.blueprint,
+                        remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
+                        initialCoveredPrompts: existingAISessionPromptPreviews()
                     )
                 )
             } catch {
@@ -325,6 +335,68 @@ extension DeckWorkspaceViewModel {
             resolvedOptions.sourceLanguageHint = languageHint
         }
         return resolvedOptions
+    }
+
+    func resolvedBlueprintGenerationContext(
+        for source: AIPreparedGenerationSource,
+        targetCardCount: Int,
+        allocations: [AISourceRangeAllocation],
+        base options: AIGenerationOptions,
+        aiService: AIFlashcardService
+    ) async throws -> (blueprint: AISourceBlueprint, options: AIGenerationOptions) {
+        let manualConstraints = options.sourceDistributionMode == .manual ? allocations : []
+        let fingerprintSegments: [AITextSourceSegment]
+        if manualConstraints.isEmpty {
+            fingerprintSegments = source.textSegments
+        } else {
+            let selectedIndexes = Set(manualConstraints.flatMap { Array($0.startIndex...$0.endIndex) })
+            fingerprintSegments = source.textSegments.filter { selectedIndexes.contains($0.index) }
+        }
+        let fingerprint = AIBlueprintValidator.sourceFingerprint(for: fingerprintSegments)
+        let reusableBlueprint = activeAISourceBlueprint.flatMap { blueprint -> AISourceBlueprint? in
+            guard blueprint.sourceFingerprint == fingerprint,
+                  remainingAIBlueprintObjectiveIDs.count == targetCardCount else { return nil }
+            return blueprint
+        }
+
+        let blueprint: AISourceBlueprint
+        if let reusableBlueprint {
+            blueprint = reusableBlueprint
+        } else {
+            blueprint = try await aiService.buildSourceBlueprint(
+                segments: source.textSegments,
+                targetCards: targetCardCount,
+                options: options,
+                manualAllocations: manualConstraints
+            )
+            activeAISourceBlueprint = blueprint
+            remainingAIBlueprintObjectiveIDs = Set(blueprint.objectives.map(\.id))
+        }
+
+        if deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !blueprint.suggestedTitle.isEmpty {
+            deckTitle = blueprint.suggestedTitle
+        }
+
+        var resolvedOptions = options
+        switch options.outputLanguageMode {
+        case .auto:
+            if let languageHint = blueprint.dominantLanguage {
+                resolvedOptions.sourceLanguageHint = languageHint
+            }
+        case .manual:
+            resolvedOptions.sourceLanguageHint = options.manualOutputLanguage
+        }
+        return (blueprint, resolvedOptions)
+    }
+
+    func existingAISessionPromptPreviews() -> [String] {
+        draftCards.compactMap { draft in
+            guard aiSessionDraftCardIDs.contains(draft.id) else { return nil }
+            let prompt = draft.content.previewCache.front
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return prompt.isEmpty ? nil : prompt
+        }
     }
 
     // MARK: - Source Preparation

@@ -7,6 +7,13 @@ import CryptoKit
 import Foundation
 
 nonisolated enum AIPromptTemplateKey {
+    static let blueprintBatchContext = "blueprint.batchContext"
+    static let blueprintDirect = "blueprint.direct"
+    static let blueprintMap = "blueprint.map"
+    static let blueprintReduce = "blueprint.reduce"
+    static let blueprintRepair = "blueprint.repair"
+    static let blueprintSchema = "blueprint.schema"
+    static let blueprintSystem = "blueprint.system"
     static let cardTypeFlashcard = "cardType.flashcard"
     static let cardTypeQuiz = "cardType.quiz"
     static let depthPro = "depth.pro"
@@ -41,6 +48,13 @@ nonisolated enum AIPromptTemplateKey {
     static let userVisionRepeat = "user.vision.repeat"
 
     static let required: Set<String> = [
+        blueprintBatchContext,
+        blueprintDirect,
+        blueprintMap,
+        blueprintReduce,
+        blueprintRepair,
+        blueprintSchema,
+        blueprintSystem,
         cardTypeFlashcard,
         cardTypeQuiz,
         depthPro,

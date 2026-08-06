@@ -1,10 +1,32 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, rollingBillingWindow} from "../src";
+import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, providerOperation, rollingBillingWindow, validatedCardCount, validatedCardCountForTarget} from "../src";
 import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
+  it("accepts every supported blueprint operation and rejects unknown operations", () => {
+    expect(providerOperation("blueprint_map")).toBe("blueprint_map");
+    expect(providerOperation("blueprint_reduce")).toBe("blueprint_reduce");
+    expect(providerOperation("blueprint_repair")).toBe("blueprint_repair");
+    expect(providerOperation("title")).toBe("title");
+    expect(providerOperation("cards")).toBe("cards");
+    expect(() => providerOperation("unsupported")).toThrow();
+  });
+
+  it("requires finish counts to be nonnegative integers", () => {
+    expect(validatedCardCount(0)).toBe(0);
+    expect(validatedCardCount(30)).toBe(30);
+    expect(() => validatedCardCount(-1)).toThrow();
+    expect(() => validatedCardCount(1.5)).toThrow();
+    expect(() => validatedCardCount("3")).toThrow();
+  });
+
+  it("rejects finish counts above the authorized target", () => {
+    expect(validatedCardCountForTarget(30, 30)).toBe(30);
+    expect(() => validatedCardCountForTarget(31, 30)).toThrow();
+  });
+
   it("returns a health response without touching provider credentials", async () => {
     const response = await SELF.fetch("https://example.test/health");
 

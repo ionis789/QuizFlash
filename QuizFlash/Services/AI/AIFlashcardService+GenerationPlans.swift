@@ -47,7 +47,9 @@ extension AIFlashcardService {
                 targetCards: batchSizes[index],
                 batchIndex: index + 1,
                 totalBatches: batchSizes.count,
-                passIndex: passIndex
+                passIndex: passIndex,
+                blueprintContext: nil,
+                serializationKey: nil
             )
         }
     }
@@ -149,9 +151,76 @@ extension AIFlashcardService {
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
-                        passIndex: passIndex(for: unitGroup, fallback: (index / groupedUnits.count) + 1)
+                        passIndex: passIndex(for: unitGroup, fallback: (index / groupedUnits.count) + 1),
+                        blueprintContext: nil,
+                        serializationKey: nil
                     )
                 )
+            }
+        }
+
+        return indexed(plans)
+    }
+
+    func buildBlueprintTextBatchPlans(
+        segments: [AITextSourceSegment],
+        blueprint: AISourceBlueprint,
+        remainingObjectiveIDs: Set<UUID>? = nil,
+        options: AIGenerationOptions
+    ) -> [TextBatchPlan] {
+        let selectedObjectives = remainingObjectiveIDs.map { ids in
+            blueprint.objectives.filter { ids.contains($0.id) }
+        } ?? blueprint.objectives
+        guard !selectedObjectives.isEmpty else { return [] }
+
+        let segmentByIndex = Dictionary(uniqueKeysWithValues: segments.map { ($0.index, $0) })
+        let objectiveByTheme = Dictionary(grouping: selectedObjectives, by: \.themeID)
+        let globalOutline = blueprint.themes.map { theme in
+            let compactSummary = String(theme.summary.prefix(180))
+            return "\(theme.title): \(compactSummary)"
+        }.joined(separator: "\n")
+        let deliveryBatchSize = options.resolvedCardsPerBatch(for: selectedObjectives.count)
+        var plans: [TextBatchPlan] = []
+
+        for theme in blueprint.themes {
+            guard let objectives = objectiveByTheme[theme.id], !objectives.isEmpty else { continue }
+            let groupedByAllocation = Dictionary(grouping: objectives) {
+                $0.sourceAllocationID?.uuidString ?? "automatic"
+            }
+                .values
+                .sorted { lhs, rhs in
+                    let leftIndex = lhs.first.flatMap { objectives.firstIndex(of: $0) } ?? 0
+                    let rightIndex = rhs.first.flatMap { objectives.firstIndex(of: $0) } ?? 0
+                    return leftIndex < rightIndex
+                }
+            for allocationObjectives in groupedByAllocation {
+                for start in stride(from: 0, to: allocationObjectives.count, by: deliveryBatchSize) {
+                    let batchObjectives = Array(allocationObjectives[start..<min(start + deliveryBatchSize, allocationObjectives.count)])
+                    let sourceIndexes = Array(Set(batchObjectives.flatMap(\.sourceSegmentIndexes))).sorted()
+                    let localSegments = sourceIndexes.compactMap { segmentByIndex[$0] }
+                    let sourceText = localSegments.map { segment in
+                        "[SOURCE_SEGMENT index=\(segment.index) label=\(segment.label)]\n\(segment.text)\n[/SOURCE_SEGMENT]"
+                    }.joined(separator: "\n\n")
+                    guard !sourceText.isEmpty else { continue }
+
+                    plans.append(
+                        TextBatchPlan(
+                            text: sourceText,
+                            sourceLabel: sourceLabel(for: localSegments.map(\.label)),
+                            allocationID: batchObjectives.first?.sourceAllocationID,
+                            targetCards: batchObjectives.count,
+                            batchIndex: 0,
+                            totalBatches: 0,
+                            passIndex: 1,
+                            blueprintContext: AIBlueprintBatchContext(
+                                globalOutline: globalOutline,
+                                theme: theme,
+                                objectives: batchObjectives
+                            ),
+                            serializationKey: theme.id.uuidString
+                        )
+                    )
+                }
             }
         }
 
@@ -512,7 +581,9 @@ extension AIFlashcardService {
                 targetCards: plan.targetCards,
                 batchIndex: index + 1,
                 totalBatches: total,
-                passIndex: plan.passIndex
+                passIndex: plan.passIndex,
+                blueprintContext: plan.blueprintContext,
+                serializationKey: plan.serializationKey
             )
         }
     }

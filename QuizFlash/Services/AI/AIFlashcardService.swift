@@ -98,6 +98,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     protocol RecoverableBatchPlan: Sendable {
         nonisolated var targetCards: Int { get }
         nonisolated var sourceLabel: String { get }
+        nonisolated var serializationKey: String? { get }
         nonisolated func splitForRecovery() -> [Self]?
     }
 
@@ -109,21 +110,35 @@ public final class AIFlashcardService: @unchecked Sendable {
         let batchIndex: Int
         let totalBatches: Int
         let passIndex: Int
+        let blueprintContext: AIBlueprintBatchContext?
+        let serializationKey: String?
 
         func splitForRecovery() -> [TextBatchPlan]? {
             guard targetCards > 1 else { return nil }
             let left = max(1, targetCards / 2)
             let right = targetCards - left
             let splitCounts = right > 0 ? [left, right] : [left]
+            var objectiveOffset = 0
             return splitCounts.map { count in
-                TextBatchPlan(
+                let splitContext = blueprintContext.map { context in
+                    let objectives = Array(context.objectives.dropFirst(objectiveOffset).prefix(count))
+                    objectiveOffset += objectives.count
+                    return AIBlueprintBatchContext(
+                        globalOutline: context.globalOutline,
+                        theme: context.theme,
+                        objectives: objectives
+                    )
+                }
+                return TextBatchPlan(
                     text: text,
                     sourceLabel: sourceLabel,
                     allocationID: allocationID,
                     targetCards: count,
                     batchIndex: batchIndex,
                     totalBatches: totalBatches,
-                    passIndex: passIndex
+                    passIndex: passIndex,
+                    blueprintContext: splitContext,
+                    serializationKey: serializationKey
                 )
             }
         }
@@ -137,6 +152,7 @@ public final class AIFlashcardService: @unchecked Sendable {
         let batchIndex: Int
         let totalBatches: Int
         let passIndex: Int
+        let serializationKey: String? = nil
 
         func splitForRecovery() -> [VisionBatchPlan]? {
             guard targetCards > 1 else { return nil }

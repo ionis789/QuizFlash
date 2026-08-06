@@ -37,12 +37,22 @@ extension AIFlashcardService {
         plans: [TextBatchPlan],
         needsOCRCorrection: Bool,
         options: AIGenerationOptions,
+        initialCoveredPrompts: [String] = [],
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
         try await performPlanQueue(
             plans: plans,
             maxConcurrent: maxConcurrentTextPlanRequests,
+            initialCoveredPrompts: initialCoveredPrompts,
             execute: { [self] plan, coveredPrompts in
+                if plan.blueprintContext != nil {
+                    return try await executeBlueprintTextPlan(
+                        plan,
+                        needsOCRCorrection: needsOCRCorrection,
+                        options: options,
+                        coveredPrompts: coveredPrompts
+                    )
+                }
                 let messages = try buildTextMessages(
                     text: plan.text,
                     targetCards: plan.targetCards,
@@ -52,20 +62,82 @@ extension AIFlashcardService {
                     batchIndex: plan.batchIndex,
                     totalBatches: plan.totalBatches,
                     passIndex: plan.passIndex,
-                    coveredPrompts: coveredPrompts
+                    coveredPrompts: coveredPrompts,
+                    blueprintContext: plan.blueprintContext
                 )
 
-                return GeneratedBatchExecutionResult(
-                    cards: try await sendRequest(
+                let cards = try await sendRequest(
                         messages: messages,
                         model: textModel,
                         options: options,
                         targetCards: plan.targetCards
-                    ),
+                    )
+                return GeneratedBatchExecutionResult(
+                    cards: Array(cards.prefix(plan.targetCards)),
                     shortfallCount: 0
                 )
             },
             onBatch: onBatch
+        )
+    }
+
+    func executeBlueprintTextPlan(
+        _ plan: TextBatchPlan,
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        coveredPrompts: [String]
+    ) async throws -> GeneratedBatchExecutionResult {
+        guard let context = plan.blueprintContext else {
+            return GeneratedBatchExecutionResult(cards: [], shortfallCount: plan.targetCards)
+        }
+
+        var accepted: [AIFlashcard] = []
+        var remainingObjectives = context.objectives
+        var completionAttempt = 0
+
+        while !remainingObjectives.isEmpty, completionAttempt <= 2 {
+            try Task.checkCancellation()
+            let requestContext = AIBlueprintBatchContext(
+                globalOutline: context.globalOutline,
+                theme: context.theme,
+                objectives: remainingObjectives
+            )
+            let promptSnapshot = updateCoveredPrompts(existing: coveredPrompts, with: accepted)
+            let messages = try buildTextMessages(
+                text: plan.text,
+                targetCards: remainingObjectives.count,
+                needsOCRCorrection: needsOCRCorrection,
+                options: options,
+                sourceLabel: plan.sourceLabel,
+                batchIndex: plan.batchIndex,
+                totalBatches: plan.totalBatches,
+                passIndex: plan.passIndex + completionAttempt,
+                coveredPrompts: promptSnapshot,
+                blueprintContext: requestContext
+            )
+            let returned = try await sendRequest(
+                messages: messages,
+                model: textModel,
+                options: options,
+                targetCards: remainingObjectives.count
+            )
+            let bounded = Array(returned.prefix(remainingObjectives.count))
+            if returned.count > bounded.count {
+                await trace(
+                    .qualityEvaluated,
+                    "Discarded cards beyond the blueprint batch target.",
+                    metadata: ["surplus_cards": String(returned.count - bounded.count)]
+                )
+            }
+            accepted.append(contentsOf: bounded)
+            remainingObjectives.removeFirst(min(bounded.count, remainingObjectives.count))
+            completionAttempt += 1
+            if bounded.isEmpty, completionAttempt > 2 { break }
+        }
+
+        return GeneratedBatchExecutionResult(
+            cards: Array(accepted.prefix(plan.targetCards)),
+            shortfallCount: remainingObjectives.count
         )
     }
 
@@ -143,6 +215,7 @@ extension AIFlashcardService {
     func performPlanQueue<Plan: RecoverableBatchPlan>(
         plans: [Plan],
         maxConcurrent: Int,
+        initialCoveredPrompts: [String] = [],
         execute: @escaping @Sendable (Plan, [String]) async throws -> GeneratedBatchExecutionResult,
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
@@ -160,8 +233,9 @@ extension AIFlashcardService {
         )
 
         var pendingPlans = plans
-        var coveredPrompts: [String] = []
+        var coveredPrompts = Array(initialCoveredPrompts.prefix(64))
         var activeTaskCount = 0
+        var activeSerializationKeys = Set<String>()
         let effectiveMaxConcurrent = effectiveMaxConcurrentRequestCount(
             for: plans,
             requestedMaxConcurrent: maxConcurrent
@@ -173,10 +247,17 @@ extension AIFlashcardService {
         try await withThrowingTaskGroup(of: (Plan, Result<GeneratedBatchExecutionResult, Error>).self) { group in
             func scheduleAvailableTasks() {
                 while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
-                    let plan = pendingPlans.removeFirst()
+                    guard let eligibleIndex = pendingPlans.firstIndex(where: { plan in
+                        guard let key = plan.serializationKey else { return true }
+                        return !activeSerializationKeys.contains(key)
+                    }) else { break }
+                    let plan = pendingPlans.remove(at: eligibleIndex)
                     let promptSnapshot = coveredPrompts
                     let scope = traceScope(for: plan, operation: "generation_batch")
                     activeTaskCount += 1
+                    if let key = plan.serializationKey {
+                        activeSerializationKeys.insert(key)
+                    }
 
                     group.addTask { [self] in
                         await trace(
@@ -214,6 +295,9 @@ extension AIFlashcardService {
                 }
 
                 activeTaskCount -= 1
+                if let key = plan.serializationKey {
+                    activeSerializationKeys.remove(key)
+                }
 
                 switch result {
                 case .success(let result):
@@ -227,7 +311,8 @@ extension AIFlashcardService {
                                 allocationID: allocationID(for: plan),
                                 plannedCardCount: plan.targetCards,
                                 shortfallCount: result.shortfallCount,
-                                sourceLabel: plan.sourceLabel
+                                sourceLabel: plan.sourceLabel,
+                                objectiveIDs: objectiveIDs(for: plan)
                             )
                         )
                         coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
@@ -290,6 +375,9 @@ extension AIFlashcardService {
         guard !plans.isEmpty else { return 0 }
         let boundedMaxConcurrent = min(max(requestedMaxConcurrent, 1), plans.count)
         guard boundedMaxConcurrent > 1 else { return boundedMaxConcurrent }
+        if plans.contains(where: { $0.serializationKey != nil }) {
+            return boundedMaxConcurrent
+        }
 
         var seenSourceIdentities = Set<String>()
         for plan in plans {
@@ -355,5 +443,9 @@ extension AIFlashcardService {
             return visionPlan.allocationID
         }
         return nil
+    }
+
+    func objectiveIDs(for plan: some RecoverableBatchPlan) -> [UUID] {
+        (plan as? TextBatchPlan)?.blueprintContext?.objectives.map(\.id) ?? []
     }
 }

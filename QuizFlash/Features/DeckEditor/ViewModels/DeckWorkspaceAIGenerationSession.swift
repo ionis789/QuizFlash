@@ -105,7 +105,11 @@ extension DeckWorkspaceViewModel {
                 registerGeneratedBatchChunk(chunk)
                 aiGeneratedShortfallCount += chunk.shortfallCount
                 guard !chunk.cards.isEmpty else { continue }
-                pendingAIGeneratedCards.append(contentsOf: chunk.cards)
+                let remainingCapacity = max(
+                    aiTargetCardCount - aiGeneratedCardCount - pendingAIGeneratedCards.count,
+                    0
+                )
+                pendingAIGeneratedCards.append(contentsOf: chunk.cards.prefix(remainingCapacity))
                 await Task.yield()
             }
 
@@ -226,6 +230,7 @@ extension DeckWorkspaceViewModel {
     }
 
     func appendGeneratedCard(_ generatedCard: AIFlashcard) throws {
+        guard aiGeneratedCardCount < aiTargetCardCount else { return }
         let draftContent = try makeDraftContent(from: generatedCard)
         let draft = DraftCard(
             cardNumber: allocateNextDraftCardNumber(),
@@ -252,6 +257,7 @@ extension DeckWorkspaceViewModel {
     }
 
     func registerGeneratedBatchChunk(_ chunk: AIFlashcardBatchChunk) {
+        remainingAIBlueprintObjectiveIDs.subtract(chunk.objectiveIDs)
         let decrement = max(chunk.cards.count + chunk.shortfallCount, 0)
         guard decrement > 0 else { return }
 
@@ -325,6 +331,8 @@ extension DeckWorkspaceViewModel {
         aiGenerationSessionID = nil
         cloudAIGenerationSession = nil
         remainingAIAllocations = []
+        activeAISourceBlueprint = nil
+        remainingAIBlueprintObjectiveIDs = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
@@ -374,6 +382,8 @@ extension DeckWorkspaceViewModel {
         aiGenerationSessionID = nil
         cloudAIGenerationSession = nil
         remainingAIAllocations = []
+        activeAISourceBlueprint = nil
+        remainingAIBlueprintObjectiveIDs = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
@@ -435,6 +445,8 @@ extension DeckWorkspaceViewModel {
         aiGenerationSessionID = nil
         cloudAIGenerationSession = nil
         remainingAIAllocations = []
+        activeAISourceBlueprint = nil
+        remainingAIBlueprintObjectiveIDs = []
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
@@ -523,7 +535,11 @@ extension DeckWorkspaceViewModel {
             remainingAllocations: remainingAllocations,
             sourceMode: sourceMode,
             draftCards: draftCards,
-            providerProfileID: aiProviderStore.activeProfile?.id
+            providerProfileID: aiProviderStore.activeProfile?.id,
+            blueprint: activeAISourceBlueprint,
+            remainingBlueprintObjectiveIDs: Array(remainingAIBlueprintObjectiveIDs),
+            sourceFingerprint: activeAISourceBlueprint?.sourceFingerprint,
+            promptVersion: activeAISourceBlueprint?.promptVersion
         )
         
         try? await AIGenerationSessionStore.shared.saveSession(session)
@@ -542,6 +558,8 @@ extension DeckWorkspaceViewModel {
         self.aiAccumulatedGenerationDuration = 0
         self.aiGenerationOptions = session.options
         self.remainingAIAllocations = session.remainingAllocations
+        self.activeAISourceBlueprint = session.blueprint
+        self.remainingAIBlueprintObjectiveIDs = Set(session.remainingBlueprintObjectiveIDs ?? [])
         self.draftCards = session.draftCards
         self.deckTitle = session.deckTitle
         let baseDraftIDs = Set(session.draftCards.prefix(session.baseCardCount).map(\.id))
@@ -654,7 +672,6 @@ extension DeckWorkspaceViewModel {
         aiGenerationStartedAt = Date()
         
         guard let source = preparedAISource else { return }
-        guard let aiService = makeAIService() else { return }
 
         let remainingAllocations = resumeAllocations(for: source)
         let remainingTargetCardCount = targetCardCount(for: remainingAllocations)
@@ -664,12 +681,37 @@ extension DeckWorkspaceViewModel {
             return
         }
 
-        startAIGeneration(
-            from: source,
-            allocations: remainingAllocations,
-            aiService: aiService,
-            shouldResetProgress: false
-        )
+        if let aiService = makeAIServiceIfAvailable() {
+            startAIGeneration(
+                from: source,
+                allocations: remainingAllocations,
+                aiService: aiService,
+                shouldResetProgress: false
+            )
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let cloudSession = try await CloudAIProxyClient.shared.startGeneration(
+                    targetCards: remainingTargetCardCount
+                )
+                self.cloudAIGenerationSession = cloudSession
+                let aiService = AIFlashcardService(
+                    provider: .preset(.deepSeek),
+                    transport: .cloudProxy(cloudSession)
+                )
+                self.startAIGeneration(
+                    from: source,
+                    allocations: remainingAllocations,
+                    aiService: aiService,
+                    shouldResetProgress: false
+                )
+            } catch {
+                self.handleAIGenerationFailure(error)
+            }
+        }
     }
 
     func keepAIGenerationPaused() {
@@ -743,6 +785,14 @@ extension DeckWorkspaceViewModel {
             aiState = .error("AI generation session is unavailable.")
             return nil
         }
+        return AIFlashcardService(
+            provider: .preset(.deepSeek),
+            transport: .cloudProxy(cloudAIGenerationSession)
+        )
+    }
+
+    func makeAIServiceIfAvailable() -> AIFlashcardService? {
+        guard let cloudAIGenerationSession else { return nil }
         return AIFlashcardService(
             provider: .preset(.deepSeek),
             transport: .cloudProxy(cloudAIGenerationSession)
@@ -905,6 +955,8 @@ extension DeckWorkspaceViewModel {
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         remainingAIAllocations = []
+        activeAISourceBlueprint = nil
+        remainingAIBlueprintObjectiveIDs = []
         aiGeneratedShortfallCount = 0
         clearAIGenerationPauseState()
         preparedAISource = nil

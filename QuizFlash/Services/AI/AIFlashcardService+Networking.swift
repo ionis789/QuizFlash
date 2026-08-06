@@ -19,7 +19,8 @@ extension AIFlashcardService {
         try await performRetriableJSONRequest(
             messages: messages,
             model: model,
-            maxCompletionTokens: options.maxCompletionTokens(for: targetCards)
+            maxCompletionTokens: options.maxCompletionTokens(for: targetCards),
+            cloudOperation: "cards"
         ) { [self] data in
             let content = try await self.parseResponseContent(from: data)
             return try await self.decodeGeneratedCards(
@@ -48,6 +49,40 @@ extension AIFlashcardService {
                 let content = try await self.parseResponseContent(from: data)
                 let decoded = try JSONDecoder().decode(SourceProfileResponseDTO.self, from: Data(content.utf8))
                 return Self.sourceGenerationProfile(from: decoded)
+            }
+        }
+    }
+
+    func sendBlueprintRequest<T: Decodable & Sendable>(
+        messages: [[String: Any]],
+        maxCompletionTokens: Int,
+        operation: String,
+        as type: T.Type
+    ) async throws -> T {
+        let scope = AIDebugTraceContext.currentScope?.with(
+            modelName: textModel,
+            operation: operation,
+            requestID: UUID()
+        )
+        return try await withTraceScope(scope) { [self] in
+            try await self.performRetriableJSONRequest(
+                messages: messages,
+                model: self.textModel,
+                maxCompletionTokens: maxCompletionTokens,
+                cloudOperation: operation
+            ) { [self] data in
+                let content = try await self.parseResponseContent(from: data)
+                do {
+                    return try JSONDecoder().decode(type, from: Data(content.utf8))
+                } catch {
+                    await self.trace(
+                        .decodeFailed,
+                        "Blueprint response did not match the requested contract.",
+                        metadata: ["operation": operation, "error": String(describing: error)],
+                        payload: content
+                    )
+                    throw AIServiceError.parsingFailed
+                }
             }
         }
     }
@@ -90,6 +125,7 @@ extension AIFlashcardService {
         messages: [[String: Any]],
         model: String,
         maxCompletionTokens: Int?,
+        cloudOperation: String? = nil,
         parser: @escaping @Sendable (Data) async throws -> T
     ) async throws -> T {
         guard let url = apiEndpoint else { throw AIServiceError.networkError }
@@ -122,9 +158,11 @@ extension AIFlashcardService {
                         guard let apiKey else { throw AIServiceError.invalidAPIKey }
                         self.applyStandardHeaders(to: &request, apiKey: apiKey)
                     case .cloudProxy(let generation):
-                        let operation = requestScope?.operation?.lowercased().contains("title") == true
-                            ? "title"
-                            : "cards"
+                        let operation = cloudOperation ?? (
+                            requestScope?.operation?.lowercased().contains("title") == true
+                                ? "title"
+                                : "cards"
+                        )
                         CloudAIProxyClient.prepareProviderRequest(
                             &request,
                             generation: generation,

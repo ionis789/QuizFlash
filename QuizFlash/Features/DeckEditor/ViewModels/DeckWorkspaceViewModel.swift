@@ -350,6 +350,8 @@ final class DeckWorkspaceViewModel {
     @ObservationIgnored var aiGenerationSessionID: UUID?
     @ObservationIgnored var cloudAIGenerationSession: CloudAIGenerationSession?
     @ObservationIgnored var debugAIPromptBundle: AIPromptBundle?
+    var activeAISourceBlueprint: AISourceBlueprint?
+    var remainingAIBlueprintObjectiveIDs: Set<UUID> = []
     var remainingAIAllocations: [AISourceRangeAllocation] = []
     var isAIGenerationPausedForBackground = false
     var isAIGenerationPaused = false

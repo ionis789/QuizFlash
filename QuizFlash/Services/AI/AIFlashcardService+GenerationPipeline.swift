@@ -280,7 +280,10 @@ extension AIFlashcardService {
         targetCards: Int,
         allocations: [AISourceRangeAllocation],
         needsOCRCorrection: Bool = false,
-        options: AIGenerationOptions
+        options: AIGenerationOptions,
+        blueprint: AISourceBlueprint? = nil,
+        remainingObjectiveIDs: Set<UUID>? = nil,
+        initialCoveredPrompts: [String] = []
     ) -> AsyncThrowingStream<AIFlashcardBatchChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -299,11 +302,15 @@ extension AIFlashcardService {
                             "allocation_count": String(allocations.count)
                         ]
                     ) { [self] in
-                        let resolvedOptions = try await self.resolvedGenerationOptions(
-                            for: combinedText,
-                            needsOCRCorrection: needsOCRCorrection,
-                            base: options
-                        )
+                        let resolvedOptions = if blueprint != nil {
+                            options
+                        } else {
+                            try await self.resolvedGenerationOptions(
+                                for: combinedText,
+                                needsOCRCorrection: needsOCRCorrection,
+                                base: options
+                            )
+                        }
 
                         await self.trace(
                             .planPrepared,
@@ -316,14 +323,34 @@ extension AIFlashcardService {
                             ]
                         )
 
-                        try await self.performTextRequests(
-                            plans: self.buildTextBatchPlans(
+                        let plans = if let blueprint {
+                            self.buildBlueprintTextBatchPlans(
+                                segments: segments,
+                                blueprint: blueprint,
+                                remainingObjectiveIDs: remainingObjectiveIDs,
+                                options: resolvedOptions
+                            )
+                        } else {
+                            self.buildTextBatchPlans(
                                 segments: segments,
                                 allocations: allocations,
                                 options: resolvedOptions
-                            ),
+                            )
+                        }
+                        await self.trace(
+                            .blueprintPlanPrepared,
+                            "Prepared objective-backed card batches.",
+                            metadata: [
+                                "uses_blueprint": String(blueprint != nil),
+                                "plan_count": String(plans.count),
+                                "target_cards": String(targetCards)
+                            ]
+                        )
+                        try await self.performTextRequests(
+                            plans: plans,
                             needsOCRCorrection: needsOCRCorrection,
-                            options: resolvedOptions
+                            options: resolvedOptions,
+                            initialCoveredPrompts: initialCoveredPrompts
                         ) { chunk in
                             continuation.yield(chunk)
                             await Task.yield()

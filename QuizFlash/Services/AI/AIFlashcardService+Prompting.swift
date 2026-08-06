@@ -11,14 +11,20 @@ extension AIFlashcardService {
         batchIndex: Int,
         totalBatches: Int,
         passIndex: Int,
-        coveredPrompts: [String]
+        coveredPrompts: [String],
+        blueprintContext: AIBlueprintBatchContext? = nil
     ) throws -> [[String: Any]] {
-        let preparedText = try preparedSourceTextForPrompt(
-            text,
-            cardType: options.cardType,
-            needsOCRCorrection: needsOCRCorrection,
-            targetCards: targetCards
-        )
+        let preparedText: String
+        if blueprintContext != nil {
+            preparedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            preparedText = try preparedSourceTextForPrompt(
+                text,
+                cardType: options.cardType,
+                needsOCRCorrection: needsOCRCorrection,
+                targetCards: targetCards
+            )
+        }
         return [
             ["role": "system", "content": try systemPrompt(targetCards: targetCards, isOCR: needsOCRCorrection, options: options)],
             ["role": "user", "content": try buildTextUserMessage(
@@ -30,7 +36,8 @@ extension AIFlashcardService {
                 batchIndex: batchIndex,
                 totalBatches: totalBatches,
                 passIndex: passIndex,
-                coveredPrompts: coveredPrompts
+                coveredPrompts: coveredPrompts,
+                blueprintContext: blueprintContext
             )],
         ]
     }
@@ -43,7 +50,8 @@ extension AIFlashcardService {
         batchIndex: Int,
         totalBatches: Int,
         passIndex: Int,
-        coveredPrompts: [String]
+        coveredPrompts: [String],
+        blueprintContext: AIBlueprintBatchContext? = nil
     ) throws -> [[String: Any]] {
         var userContent: [[String: Any]] = []
         for image in images {
@@ -97,7 +105,8 @@ extension AIFlashcardService {
         batchIndex: Int,
         totalBatches: Int,
         passIndex: Int,
-        coveredPrompts: [String]
+        coveredPrompts: [String],
+        blueprintContext: AIBlueprintBatchContext? = nil
     ) throws -> String {
         var message = try renderPromptTemplate(
             AIPromptTemplateKey.userTextSource,
@@ -116,6 +125,10 @@ extension AIFlashcardService {
 
         if let languageHint = options.sourceLanguageHint {
             message += try renderLanguageTemplate(AIPromptTemplateKey.userTextLanguage, languageHint: languageHint)
+        }
+
+        if let blueprintContext {
+            message += try renderBlueprintBatchContext(blueprintContext, coveredPrompts: coveredPrompts)
         }
 
         if passIndex > 1 {
@@ -305,7 +318,7 @@ extension AIFlashcardService {
         )
     }
 
-    nonisolated private func renderPromptTemplate(
+    nonisolated func renderPromptTemplate(
         _ key: String,
         values: [String: String] = [:]
     ) throws -> String {
