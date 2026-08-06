@@ -186,7 +186,7 @@ final class CloudAIGenerationFinalizationCoordinator {
         pendingFinalization = pending
 
         let task = Task { @MainActor [weak self] in
-            guard let self else { return .success(()) }
+            guard let self else { return Result<Void, Error>.success(()) }
             return await self.attempt(pending)
         }
         activeTask = task
@@ -228,10 +228,11 @@ final class CloudAIProxyClient {
 
     init(
         session: URLSession = .shared,
-        generationFinalizationCoordinator: CloudAIGenerationFinalizationCoordinator = .init()
+        generationFinalizationCoordinator: CloudAIGenerationFinalizationCoordinator? = nil
     ) {
         self.session = session
         self.generationFinalizationCoordinator = generationFinalizationCoordinator
+            ?? CloudAIGenerationFinalizationCoordinator()
     }
 
     func prefetchPromptBundle() async {
