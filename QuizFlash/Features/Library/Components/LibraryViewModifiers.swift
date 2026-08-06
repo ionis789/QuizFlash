@@ -46,7 +46,8 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 ZStack {
                     CardEditorView(
                         destination: destination,
-                        searchQuery: viewModel.searchText
+                        searchQuery: viewModel.searchText,
+                        zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination)
                     ) { content in
                         guard case .edit(let draftCard) = destination,
                               let cardID = draftCard.originalCardID,
@@ -143,6 +144,27 @@ struct LibraryModalsAndDialogs: ViewModifier {
             } message: {
                 Text(moveDialogMessage)
             }
+    }
+
+    private func resolvedEditorZoneAlignment(
+        for destination: CardEditorDestination
+    ) -> ZoneBlockAlignment {
+        guard let cardID = destination.draftCard?.originalCardID,
+              let card = context.model(for: cardID) as? CardModel,
+              let settings = card.deck?.playModeSettings else {
+            return appPreferences.defaultZoneAlignment
+        }
+
+        switch destination.kind {
+        case .flashcard:
+            return settings.flashcardSettings.resolvedZoneAlignment(
+                default: appPreferences.defaultZoneAlignment
+            )
+        case .quiz:
+            return settings.quizSettings.resolvedZoneAlignment(
+                default: appPreferences.defaultZoneAlignment
+            )
+        }
     }
 
     private var moveDialogTitle: String {

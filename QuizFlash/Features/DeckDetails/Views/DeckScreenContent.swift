@@ -161,7 +161,8 @@ extension DeckContentView {
             CardEditorView(
                 destination: destination,
                 searchQuery: viewModel.searchQuery,
-                textSizeOverride: resolvedEditorTextSize(for: destination.kind)
+                textSizeOverride: resolvedEditorTextSize(for: destination.kind),
+                zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
@@ -207,6 +208,9 @@ extension DeckContentView {
     private var resolvedFlashcardSettings: FlashcardModeSettings {
         var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
         settings.textSize = settings.resolvedTextSize(default: appPreferences.defaultTextSize)
+        settings.zoneAlignment = settings.resolvedZoneAlignment(
+            default: appPreferences.defaultZoneAlignment
+        )
         return settings
     }
 
@@ -219,6 +223,17 @@ extension DeckContentView {
                 return settings.resolvedTextSize(default: appPreferences.defaultTextSize)
             }
             return appPreferences.defaultTextSize
+        }
+    }
+
+    private func resolvedEditorZoneAlignment(for kind: CardKind) -> ZoneBlockAlignment {
+        switch kind {
+        case .flashcard:
+            return resolvedFlashcardSettings.zoneAlignment
+        case .quiz:
+            return deck.playModeSettings?.quizSettings.resolvedZoneAlignment(
+                default: appPreferences.defaultZoneAlignment
+            ) ?? appPreferences.defaultZoneAlignment
         }
     }
 

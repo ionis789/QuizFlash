@@ -48,6 +48,9 @@ struct QuizModeView: View {
     private var resolvedSettings: QuizModeSettings {
         var settings = deck.playModeSettings?.quizSettings ?? QuizModeSettings()
         settings.textSize = settings.resolvedTextSize(default: appPreferences.defaultTextSize)
+        settings.zoneAlignment = settings.resolvedZoneAlignment(
+            default: appPreferences.defaultZoneAlignment
+        )
         return settings
     }
 }
@@ -176,7 +179,8 @@ private struct QuizModeSessionView: View {
             NavigationStack {
                 CardEditorView(
                     destination: .edit(DraftCard.from(card)),
-                    textSizeOverride: viewModel.settings.textSize
+                    textSizeOverride: viewModel.settings.textSize,
+                    zoneAlignmentOverride: viewModel.settings.zoneAlignment
                 ) { content in
                     saveEditedQuiz(card, content: content)
                     editingCard = nil
@@ -384,6 +388,7 @@ private struct QuizModeSessionView: View {
                             fontScale: playModeTextScale,
                             availableWidth: contentWidth,
                             centersLeafBlocks: true,
+                            automaticBlockAlignment: viewModel.settings.zoneAlignment,
                             alignLeafBlocksToGroupLeading: false,
                             showsZoneSurfaces: false,
                             textVerticalPadding: 0,
@@ -414,6 +419,7 @@ private struct QuizModeSessionView: View {
                     fontScale: playModeTextScale,
                     groupWidth: answerGroupWidth,
                     layoutWidth: contentWidth,
+                    automaticBlockAlignment: viewModel.settings.zoneAlignment,
                     topContentInset: UIConstants.Spacing.large,
                     bottomOverlayInset: answerBottomOverlayInset,
                     showsLayoutDebug: showsQuizLayoutDebug,
@@ -473,6 +479,7 @@ private struct QuizModeSessionView: View {
                             fontScale: playModeTextScale,
                             availableWidth: contentWidth,
                             centersLeafBlocks: false,
+                            automaticBlockAlignment: viewModel.settings.zoneAlignment,
                             alignLeafBlocksToGroupLeading: false,
                             showsLayoutDebug: showsQuizLayoutDebug,
                             onBlockBoundsChange: updateExplanationBlockDebugBounds
@@ -1434,6 +1441,7 @@ struct QuizAnswerList: View {
     let fontScale: CGFloat
     let groupWidth: CGFloat
     let layoutWidth: CGFloat
+    let automaticBlockAlignment: ZoneBlockAlignment
     let topContentInset: CGFloat
     let bottomOverlayInset: CGFloat
     let showsLayoutDebug: Bool
@@ -1470,6 +1478,7 @@ struct QuizAnswerList: View {
                             fontScale: fontScale,
                             groupWidth: groupWidth,
                             layoutWidth: layoutWidth,
+                            automaticBlockAlignment: automaticBlockAlignment,
                             showsLayoutDebug: showsLayoutDebug,
                             action: { selectChoice(choice.id) },
                             onMeasuredWidthChange: { width in
@@ -1544,6 +1553,7 @@ struct QuizChoiceRow: View {
     let fontScale: CGFloat
     let groupWidth: CGFloat
     let layoutWidth: CGFloat
+    let automaticBlockAlignment: ZoneBlockAlignment
     let showsLayoutDebug: Bool
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
@@ -1564,6 +1574,7 @@ struct QuizChoiceRow: View {
                 fontScale: fontScale,
                 availableWidth: choiceContentWidth,
                 centersLeafBlocks: false,
+                automaticBlockAlignment: automaticBlockAlignment,
                 alignLeafBlocksToGroupLeading: false,
                 zoneHighlightStrokeStyle: missedCorrectFeedback
                     ? StrokeStyle(lineWidth: 2.5, dash: [8, 5], dashPhase: 0)
@@ -1840,6 +1851,7 @@ struct QuizPlaybackZoneContent: View {
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
+    var automaticBlockAlignment: ZoneBlockAlignment = .leading
     var alignLeafBlocksToGroupLeading: Bool = false
     var showsZoneSurfaces: Bool = true
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
@@ -1855,6 +1867,7 @@ struct QuizPlaybackZoneContent: View {
         let width = max(availableWidth, 1)
         let renderConfiguration = ZoneContentSurfaceRenderConfiguration(
             centersLeafBlocks: centersLeafBlocks,
+            automaticBlockAlignment: automaticBlockAlignment,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
             animatesLayoutChanges: false,
             showsDebugGuides: showsLayoutDebug,

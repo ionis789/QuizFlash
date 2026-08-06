@@ -13,6 +13,7 @@ struct CardEditorView: View {
     let destination: CardEditorDestination
     var searchQuery: String? = nil
     var textSizeOverride: FlashcardTextSize? = nil
+    var zoneAlignmentOverride: ZoneBlockAlignment? = nil
     var onSave: (DraftCardContent) -> Void
     @State private var flashcardDraftContent: FlashcardCardContent
 
@@ -20,11 +21,13 @@ struct CardEditorView: View {
         destination: CardEditorDestination,
         searchQuery: String? = nil,
         textSizeOverride: FlashcardTextSize? = nil,
+        zoneAlignmentOverride: ZoneBlockAlignment? = nil,
         onSave: @escaping (DraftCardContent) -> Void
     ) {
         self.destination = destination
         self.searchQuery = searchQuery
         self.textSizeOverride = textSizeOverride
+        self.zoneAlignmentOverride = zoneAlignmentOverride
         self.onSave = onSave
         _flashcardDraftContent = State(initialValue: Self.resolvedFlashcardContent(for: destination))
     }
@@ -34,6 +37,11 @@ struct CardEditorView: View {
             override: textSizeOverride,
             defaultTextSize: appPreferences.defaultTextSize
         )
+    }
+
+    private var resolvedZoneAlignment: ZoneBlockAlignment {
+        zoneAlignmentOverride?.resolved(fallback: appPreferences.defaultZoneAlignment)
+            ?? appPreferences.defaultZoneAlignment
     }
 
     var body: some View {
@@ -46,6 +54,7 @@ struct CardEditorView: View {
                 quizEditor
             }
         }
+        .environment(\.inheritedZoneBlockAlignment, resolvedZoneAlignment)
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(

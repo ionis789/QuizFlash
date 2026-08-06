@@ -102,30 +102,25 @@ enum ZoneContentLayoutEngine {
 
     static func resolvedLeafBlockAlignment(
         for alignment: ZoneBlockAlignment,
-        alignToGroupLeading: Bool
+        alignToGroupLeading: Bool,
+        automaticAlignment: ZoneBlockAlignment
     ) -> ZoneBlockAlignment {
         if alignToGroupLeading {
             return .leading
         }
 
-        return alignment == .auto ? .center : alignment
+        return alignment.resolved(fallback: automaticAlignment)
     }
 
     static func resolvedEditorLeafBlockAlignment(
         for alignment: ZoneBlockAlignment,
-        rendersRichText: Bool,
-        rootLeafCount: Int
+        defaultAlignment: ZoneBlockAlignment
     ) -> ZoneBlockAlignment {
-        guard alignment == .auto else { return alignment }
-
-        if rendersRichText {
-            return resolvedLeafBlockAlignment(
-                for: alignment,
-                alignToGroupLeading: false
-            )
-        }
-
-        return rootLeafCount == 1 ? .center : .leading
+        resolvedLeafBlockAlignment(
+            for: alignment,
+            alignToGroupLeading: false,
+            automaticAlignment: defaultAlignment
+        )
     }
 
     static func leafLayout(

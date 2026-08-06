@@ -40,6 +40,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
 
         XCTAssertEqual(decoded.contentAlignment, .center)
+        XCTAssertEqual(decoded.zoneAlignment, .auto)
         XCTAssertEqual(decoded.textSize, .large)
         XCTAssertTrue(decoded.usesAppTextSize)
     }
@@ -109,8 +110,9 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         XCTAssertEqual(FlashcardTextSize(step: 0).playModeScale, 0.72)
     }
 
-    func testNewModeSettingsResolveTheCurrentAppTextSize() {
+    func testNewModeSettingsResolveTheCurrentAppDefaults() {
         let globalSize = FlashcardTextSize(step: 1)
+        let globalAlignment = ZoneBlockAlignment.center
 
         XCTAssertEqual(
             FlashcardModeSettings().resolvedTextSize(default: globalSize),
@@ -120,6 +122,58 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
             QuizModeSettings().resolvedTextSize(default: globalSize),
             globalSize
         )
+        XCTAssertEqual(
+            FlashcardModeSettings().resolvedZoneAlignment(default: globalAlignment),
+            globalAlignment
+        )
+        XCTAssertEqual(
+            QuizModeSettings().resolvedZoneAlignment(default: globalAlignment),
+            globalAlignment
+        )
+    }
+
+    func testModeZoneAlignmentOverridesTheAppDefault() {
+        let flashcardSettings = FlashcardModeSettings(zoneAlignment: .trailing)
+        let quizSettings = QuizModeSettings(zoneAlignment: .center)
+
+        XCTAssertEqual(
+            flashcardSettings.resolvedZoneAlignment(default: .leading),
+            .trailing
+        )
+        XCTAssertEqual(
+            quizSettings.resolvedZoneAlignment(default: .leading),
+            .center
+        )
+    }
+
+    func testModeZoneAlignmentRoundTripsForBothGameTypes() throws {
+        let flashcardSettings = FlashcardModeSettings(zoneAlignment: .trailing)
+        let quizSettings = QuizModeSettings(zoneAlignment: .center)
+
+        let decodedFlashcardSettings = try JSONDecoder().decode(
+            FlashcardModeSettings.self,
+            from: JSONEncoder().encode(flashcardSettings)
+        )
+        let decodedQuizSettings = try JSONDecoder().decode(
+            QuizModeSettings.self,
+            from: JSONEncoder().encode(quizSettings)
+        )
+
+        XCTAssertEqual(decodedFlashcardSettings.zoneAlignment, .trailing)
+        XCTAssertEqual(decodedQuizSettings.zoneAlignment, .center)
+    }
+
+    func testQuizSettingsDecodeLegacyPayloadInheritsZoneAlignment() throws {
+        let legacyPayload = """
+        {
+          "schemaVersion": 2,
+          "shuffleChoices": true
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(QuizModeSettings.self, from: legacyPayload)
+
+        XCTAssertEqual(decoded.zoneAlignment, .auto)
     }
 
     func testFlashcardLayoutSettingsPersistThroughDeckSettingsBucket() throws {
@@ -131,6 +185,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let settings = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         var flashcardSettings = settings.flashcardSettings
         flashcardSettings.contentAlignment = .center
+        flashcardSettings.zoneAlignment = .trailing
         flashcardSettings.textSize = .normal
         flashcardSettings.usesAppTextSize = false
         settings.flashcardSettings = flashcardSettings
@@ -138,6 +193,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         let resolvedAgain = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         XCTAssertEqual(resolvedAgain.flashcardSettings.contentAlignment, .center)
+        XCTAssertEqual(resolvedAgain.flashcardSettings.zoneAlignment, .trailing)
         XCTAssertEqual(resolvedAgain.flashcardSettings.textSize, .normal)
         XCTAssertFalse(resolvedAgain.flashcardSettings.usesAppTextSize)
     }

@@ -172,6 +172,23 @@ struct DeckWorkspaceView: View {
         }
     }
 
+    private func resolvedEditorZoneAlignment(for kind: CardKind) -> ZoneBlockAlignment {
+        guard let settings = viewModel.deckToEdit?.playModeSettings else {
+            return appPreferences.defaultZoneAlignment
+        }
+
+        switch kind {
+        case .flashcard:
+            return settings.flashcardSettings.resolvedZoneAlignment(
+                default: appPreferences.defaultZoneAlignment
+            )
+        case .quiz:
+            return settings.quizSettings.resolvedZoneAlignment(
+                default: appPreferences.defaultZoneAlignment
+            )
+        }
+    }
+
     var draftDeckContentSummary: DraftDeckContentSummary {
         derivedDeckState.contentSummary
     }
@@ -762,7 +779,8 @@ struct DeckWorkspaceView: View {
         .fullScreenCover(item: $viewModel.cardEditorDestination) { destination in
             CardEditorView(
                 destination: destination,
-                textSizeOverride: resolvedEditorTextSize(for: destination.kind)
+                textSizeOverride: resolvedEditorTextSize(for: destination.kind),
+                zoneAlignmentOverride: resolvedEditorZoneAlignment(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }

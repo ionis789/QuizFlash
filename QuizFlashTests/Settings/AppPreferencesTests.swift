@@ -21,9 +21,11 @@ final class AppPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
 
         let preferences = AppPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences.defaultZoneAlignment, .leading)
         preferences.weekStartDay = .monday
         preferences.createDeckSortOrder = .oldest
         preferences.defaultTextSize = FlashcardTextSize(step: 5)
+        preferences.defaultZoneAlignment = .trailing
         preferences.zoneSurfaceStyle = .rounded
         preferences.borderDesign = AppBorderDesignPreferences(
             preset: .bold,
@@ -36,6 +38,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloadedPreferences.weekStartDay, .monday)
         XCTAssertEqual(reloadedPreferences.createDeckSortOrder, .oldest)
         XCTAssertEqual(reloadedPreferences.defaultTextSize, FlashcardTextSize(step: 5))
+        XCTAssertEqual(reloadedPreferences.defaultZoneAlignment, .trailing)
         XCTAssertEqual(reloadedPreferences.zoneSurfaceStyle, .rounded)
         XCTAssertEqual(
             reloadedPreferences.borderDesign,
@@ -45,6 +48,21 @@ final class AppPreferencesTests: XCTestCase {
                 depth: 0.8,
                 hue: 0.2
             )
+        )
+    }
+
+    func testGlobalZoneAlignmentNeverPersistsInheritanceToken() {
+        let suiteName = "AppPreferencesZoneAlignmentTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set("auto", forKey: "preferences.editor.defaultZoneAlignment")
+
+        let preferences = AppPreferences(userDefaults: defaults)
+
+        XCTAssertEqual(preferences.defaultZoneAlignment, .leading)
+        XCTAssertEqual(
+            defaults.string(forKey: "preferences.editor.defaultZoneAlignment"),
+            ZoneBlockAlignment.leading.rawValue
         )
     }
 

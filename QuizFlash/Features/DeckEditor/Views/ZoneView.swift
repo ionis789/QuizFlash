@@ -118,6 +118,8 @@ struct ZoneAlignmentFeedback: Equatable {
 /// - Container zones lay out children vertically and inject ghost block overlays
 ///   based on `previewDirection`.
 struct ZoneEditorView: View {
+    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+
     @Bindable var content: ZoneCardContent
     let path: ZonePath
     @Binding var selectedPath: ZonePath?
@@ -205,7 +207,9 @@ struct ZoneEditorView: View {
         let indexedChildren = Array(children.enumerated())
         let childPaths = indexedChildren.map { path.appending($0.offset).id }
         let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
-        let resolvedGroupAlignment: ZoneBlockAlignment = zone.blockAlignment == .auto ? .center : zone.blockAlignment
+        let resolvedGroupAlignment = zone.blockAlignment.resolved(
+            fallback: inheritedZoneBlockAlignment
+        )
         let groupLeadingInset = rendersRichText
             ? ZoneContentLayoutEngine.blockLeadingInset(
                 for: resolvedGroupAlignment,
@@ -572,6 +576,7 @@ struct ZoneContentView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
@@ -854,8 +859,7 @@ struct ZoneContentView: View {
             layoutZone.sizeMode = rendersRichText ? .auto : .fillWidth
             layoutZone.blockAlignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
                 for: layoutZone.blockAlignment,
-                rendersRichText: rendersRichText,
-                rootLeafCount: content.rootZone.leafCount
+                defaultAlignment: inheritedZoneBlockAlignment
             )
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
@@ -1194,6 +1198,7 @@ struct ZoneContentView: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: false,
+                automaticBlockAlignment: inheritedZoneBlockAlignment,
                 showsDebugGuides: false,
                 showsZoneSurfaces: true,
                 showsCodeBlockZoneSurfaces: true,

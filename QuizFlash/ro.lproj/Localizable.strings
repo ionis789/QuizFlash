@@ -863,3 +863,9 @@
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";
+"App Default" = "Implicit aplicație";
+"App Default (%@)" = "Implicit aplicație (%@)";
+"Leading" = "Stânga";
+"Trailing" = "Dreapta";
+"Zone Alignment" = "Aliniere zone";
+"Zone alignment: %@." = "Aliniere zone: %@.";

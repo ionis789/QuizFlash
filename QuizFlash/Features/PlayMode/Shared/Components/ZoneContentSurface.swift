@@ -85,6 +85,7 @@ struct ZoneContentSurfaceLayoutContext: Equatable, Sendable {
 
 struct ZoneContentSurfaceRenderConfiguration {
     var centersLeafBlocks: Bool
+    var automaticBlockAlignment: ZoneBlockAlignment = .leading
     var alignLeafBlocksToGroupLeading = false
     var animatesLayoutChanges = false
     var showsDebugGuides = false
@@ -300,6 +301,7 @@ struct ZoneContentSurface: View {
             fontScale: fontScale,
             availableWidth: resolvedLayout.availableContentWidth,
             centersLeafBlocks: renderConfiguration.centersLeafBlocks,
+            automaticBlockAlignment: renderConfiguration.automaticBlockAlignment,
             alignLeafBlocksToGroupLeading: renderConfiguration.alignLeafBlocksToGroupLeading,
             animatesLayoutChanges: renderConfiguration.animatesLayoutChanges,
             showsDebugGuides: renderConfiguration.showsDebugGuides,

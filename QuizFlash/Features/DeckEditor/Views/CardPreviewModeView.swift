@@ -11,6 +11,7 @@ import UIKit
 /// Immersive preview surface for supported persisted card kinds.
 struct CardPreviewModeView: View {
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
     let content: DraftCardContent
     let safeAreaInsets: UIEdgeInsets
     let showsLeadingAccessory: Bool
@@ -199,6 +200,7 @@ struct CardPreviewModeView: View {
                             fontScale: quizPreviewTextScale,
                             availableWidth: contentWidth,
                             centersLeafBlocks: true,
+                            automaticBlockAlignment: inheritedZoneBlockAlignment,
                             alignLeafBlocksToGroupLeading: false,
                             showsZoneSurfaces: false,
                             textVerticalPadding: 0,
@@ -222,6 +224,7 @@ struct CardPreviewModeView: View {
                     fontScale: quizPreviewTextScale,
                     groupWidth: answerGroupWidth,
                     layoutWidth: contentWidth,
+                    automaticBlockAlignment: inheritedZoneBlockAlignment,
                     topContentInset: UIConstants.Spacing.large,
                     bottomOverlayInset: 0,
                     showsLayoutDebug: false,
@@ -329,6 +332,7 @@ struct CardPreviewModeView: View {
             isFlipped: $isFlipped,
             tapAnimationStyle: .flip3D,
             contentAlignment: contentAlignment,
+            automaticBlockAlignment: inheritedZoneBlockAlignment,
             textSize: textSize,
             onTap: togglePreviewFlip
         )

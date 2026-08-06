@@ -12,7 +12,8 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
     func testAutomaticNestedLeafAlignmentKeepsSideGapsSymmetric() {
         let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: .auto,
-            alignToGroupLeading: false
+            alignToGroupLeading: false,
+            automaticAlignment: .center
         )
         let leadingInset = ZoneContentLayoutEngine.blockLeadingInset(
             for: alignment,
@@ -28,40 +29,52 @@ final class ZoneEditorInitialBlockWidthResolverTests: XCTestCase {
     func testGroupLeadingOverrideStillAlignsLeafToLeadingEdge() {
         let alignment = ZoneContentLayoutEngine.resolvedLeafBlockAlignment(
             for: .auto,
-            alignToGroupLeading: true
+            alignToGroupLeading: true,
+            automaticAlignment: .trailing
         )
 
         XCTAssertEqual(alignment, .leading)
     }
 
-    func testRenderAlignmentMenuMatchesCenteredAutomaticLeaf() {
+    func testEditorAutomaticAlignmentUsesConfiguredDefault() {
         let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
             for: .auto,
-            rendersRichText: true,
-            rootLeafCount: 3
-        )
-
-        XCTAssertEqual(alignment, .center)
-    }
-
-    func testRawAlignmentMenuKeepsMultiLeafAutomaticLeadingFallback() {
-        let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
-            for: .auto,
-            rendersRichText: false,
-            rootLeafCount: 3
+            defaultAlignment: .leading
         )
 
         XCTAssertEqual(alignment, .leading)
+    }
+
+    func testEditorAutomaticAlignmentSupportsTrailingDefault() {
+        let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
+            for: .auto,
+            defaultAlignment: .trailing
+        )
+
+        XCTAssertEqual(alignment, .trailing)
     }
 
     func testEditorAlignmentMenuPreservesExplicitAlignment() {
         let alignment = ZoneContentLayoutEngine.resolvedEditorLeafBlockAlignment(
             for: .trailing,
-            rendersRichText: true,
-            rootLeafCount: 3
+            defaultAlignment: .leading
         )
 
         XCTAssertEqual(alignment, .trailing)
+    }
+
+    func testAutomaticAlignmentFallsBackToLeadingWhenBothLevelsInherit() {
+        XCTAssertEqual(
+            ZoneBlockAlignment.auto.resolved(fallback: .auto),
+            .leading
+        )
+    }
+
+    func testExplicitCardAlignmentOverridesDeckDefault() {
+        XCTAssertEqual(
+            ZoneBlockAlignment.center.resolved(fallback: .trailing),
+            .center
+        )
     }
 
     func testSwiftUIIntrinsicWidthProducesSymmetricSideGaps() {

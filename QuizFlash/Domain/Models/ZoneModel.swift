@@ -52,11 +52,58 @@ nonisolated enum ZoneSizeMode: String, Codable, Equatable, Sendable, CaseIterabl
 // MARK: - Zone Block Alignment
 
 /// Describes where a zone rectangle sits inside the card content area.
-nonisolated enum ZoneBlockAlignment: String, Codable, Equatable, Sendable, CaseIterable {
+nonisolated enum ZoneBlockAlignment: String, Codable, Equatable, Hashable, Sendable, CaseIterable, Identifiable {
     case leading
     case center
     case trailing
     case auto
+
+    var id: String { rawValue }
+
+    static let explicitCases: [ZoneBlockAlignment] = [
+        .leading,
+        .center,
+        .trailing
+    ]
+
+    static let inheritableCases: [ZoneBlockAlignment] = [
+        .auto,
+        .leading,
+        .center,
+        .trailing
+    ]
+
+    func resolved(fallback: ZoneBlockAlignment) -> ZoneBlockAlignment {
+        guard self == .auto else { return self }
+        return fallback == .auto ? .leading : fallback
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .leading:
+            return AppLocalization.string("Leading", locale: locale)
+        case .center:
+            return AppLocalization.string("Center", locale: locale)
+        case .trailing:
+            return AppLocalization.string("Trailing", locale: locale)
+        case .auto:
+            return AppLocalization.string("App Default", locale: locale)
+        }
+    }
+
+    func localizedDeckSettingTitle(
+        locale: Locale,
+        appDefault: ZoneBlockAlignment
+    ) -> String {
+        guard self == .auto else { return localizedTitle(locale: locale) }
+
+        let format = AppLocalization.string("App Default (%@)", locale: locale)
+        return String(
+            format: format,
+            locale: locale,
+            appDefault.resolved(fallback: .leading).localizedTitle(locale: locale)
+        )
+    }
 }
 
 // MARK: - Zone Vertical Alignment

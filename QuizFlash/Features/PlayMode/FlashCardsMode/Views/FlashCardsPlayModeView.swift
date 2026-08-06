@@ -262,6 +262,7 @@ struct FlashCardsPlayModeView: View {
                         }
                     }
                 }
+                .environment(\.inheritedZoneBlockAlignment, viewModel.settings.zoneAlignment)
             }
         }
         .navigationBarHidden(true)
@@ -302,6 +303,7 @@ struct FlashCardsPlayModeView: View {
                             tapAnimationStyle: viewModel.settings.tapAnimationStyle,
                             staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
                             contentAlignment: viewModel.settings.contentAlignment,
+                            automaticBlockAlignment: viewModel.settings.zoneAlignment,
                             textSize: viewModel.settings.textSize,
                             onSwipeProgress: resolvedSwipeProgressHandler(isCurrentCard: isCurrentCard),
                             swipeGestureTuning: resolvedSwipeGestureTuning,
@@ -1446,7 +1448,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         lines.append("visibleFace: \(snapshot.face)")
         lines.append("isFlipped: \(isFlipped)")
         lines.append(
-            "settings: tapAnimation=\(settings.tapAnimationStyle.rawValue), staticSwapMotion=\(settings.staticSwapTextMotion.rawValue), contentAlignment=\(settings.contentAlignment.rawValue), textSize=\(settings.textSize.rawValue)"
+            "settings: tapAnimation=\(settings.tapAnimationStyle.rawValue), staticSwapMotion=\(settings.staticSwapTextMotion.rawValue), contentAlignment=\(settings.contentAlignment.rawValue), zoneAlignment=\(settings.zoneAlignment.rawValue), textSize=\(settings.textSize.rawValue)"
         )
         lines.append("frontPreview: \(card.frontZone.previewText(maxLength: 220))")
         lines.append("backPreview: \(card.backZone.previewText(maxLength: 220))")
@@ -2547,6 +2549,9 @@ struct DefaultModePlay: View {
                         var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
                         settings.textSize = settings.resolvedTextSize(
                             default: appPreferences.defaultTextSize
+                        )
+                        settings.zoneAlignment = settings.resolvedZoneAlignment(
+                            default: appPreferences.defaultZoneAlignment
                         )
                         viewModel = FlashCardsPlayModeViewModel(
                             deck: deck,

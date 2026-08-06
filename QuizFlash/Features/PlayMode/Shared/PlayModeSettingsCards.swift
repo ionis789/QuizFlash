@@ -98,6 +98,8 @@ struct PlayModeSettingsModeCard: View {
 }
 
 private struct CompactFlashcardSettingsCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let tintColor: Color
     @Binding var flashcardSettings: FlashcardModeSettings
     private var accentTint: Color { ThemeManager.shared.accentColor.color }
@@ -138,6 +140,20 @@ private struct CompactFlashcardSettingsCard: View {
                 isDense: true
             ) { option, locale in
                 option.localizedTitle(locale: locale)
+            }
+
+            CompactSettingsMenuRow(
+                title: "Zone Alignment",
+                icon: "text.alignleft",
+                tint: accentTint,
+                selection: $flashcardSettings.zoneAlignment,
+                options: ZoneBlockAlignment.inheritableCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedDeckSettingTitle(
+                    locale: locale,
+                    appDefault: appPreferences.defaultZoneAlignment
+                )
             }
 
             CompactTextSizeSliderRow(
@@ -236,6 +252,8 @@ private struct CompactTapAnimationRow: View {
 }
 
 private struct CompactQuizSettingsCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let tintColor: Color
     @Binding var quizSettings: QuizModeSettings
     private var accentTint: Color { ThemeManager.shared.accentColor.color }
@@ -268,6 +286,20 @@ private struct CompactQuizSettingsCard: View {
                 tint: accentTint,
                 isDense: true
             )
+
+            CompactSettingsMenuRow(
+                title: "Zone Alignment",
+                icon: "text.alignleft",
+                tint: accentTint,
+                selection: $quizSettings.zoneAlignment,
+                options: ZoneBlockAlignment.inheritableCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedDeckSettingTitle(
+                    locale: locale,
+                    appDefault: appPreferences.defaultZoneAlignment
+                )
+            }
 
             CompactTextSizeSliderRow(
                 title: "Text Size",

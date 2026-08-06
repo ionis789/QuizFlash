@@ -496,6 +496,19 @@ struct SettingsView: View {
 
             settingsBlock {
                 SettingsMenuPickerRow(
+                    icon: "text.alignleft",
+                    tint: themeManager.accentColor.color,
+                    title: "Zone Alignment",
+                    selection: defaultZoneAlignmentBinding,
+                    options: ZoneBlockAlignment.explicitCases,
+                    titleForOption: { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
+                )
+            }
+
+            settingsBlock {
+                SettingsMenuPickerRow(
                     icon: "square.dashed",
                     tint: themeManager.accentColor.color,
                     title: "Zone Style",
@@ -1180,6 +1193,13 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.zoneSurfaceStyle },
             set: { appPreferences.zoneSurfaceStyle = $0 }
+        )
+    }
+
+    private var defaultZoneAlignmentBinding: Binding<ZoneBlockAlignment> {
+        Binding(
+            get: { appPreferences.defaultZoneAlignment },
+            set: { appPreferences.defaultZoneAlignment = $0 }
         )
     }
 

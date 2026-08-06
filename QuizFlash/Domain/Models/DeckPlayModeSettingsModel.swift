@@ -201,7 +201,7 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
 
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 6
+    private static let currentSchemaVersion = 7
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
@@ -209,6 +209,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .center
+    var zoneAlignment: ZoneBlockAlignment = .auto
     var textSize: FlashcardTextSize = .large
     var usesAppTextSize: Bool = true
 
@@ -218,6 +219,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
+        zoneAlignment: ZoneBlockAlignment = .auto,
         textSize: FlashcardTextSize = .large,
         usesAppTextSize: Bool = true
     ) {
@@ -227,6 +229,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
+        self.zoneAlignment = zoneAlignment
         self.textSize = textSize
         self.usesAppTextSize = usesAppTextSize
     }
@@ -238,6 +241,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         case tapAnimationStyle
         case staticSwapTextMotion
         case contentAlignment
+        case zoneAlignment
         case textSize
         case usesAppTextSize
     }
@@ -253,6 +257,10 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.contentAlignment = decodedSchemaVersion < 2 && decodedContentAlignment == .top
             ? .center
             : decodedContentAlignment
+        self.zoneAlignment = try container.decodeIfPresent(
+            ZoneBlockAlignment.self,
+            forKey: .zoneAlignment
+        ) ?? .auto
         let legacyTextSizeStep: Int? = decodedSchemaVersion < Self.currentSchemaVersion
             ? try? container.decode(Int.self, forKey: .textSize)
             : nil
@@ -274,12 +282,17 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         try container.encode(tapAnimationStyle, forKey: .tapAnimationStyle)
         try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
         try container.encode(contentAlignment, forKey: .contentAlignment)
+        try container.encode(zoneAlignment, forKey: .zoneAlignment)
         try container.encode(textSize, forKey: .textSize)
         try container.encode(usesAppTextSize, forKey: .usesAppTextSize)
     }
 
     func resolvedTextSize(default defaultTextSize: FlashcardTextSize) -> FlashcardTextSize {
         usesAppTextSize ? defaultTextSize : textSize
+    }
+
+    func resolvedZoneAlignment(default defaultAlignment: ZoneBlockAlignment) -> ZoneBlockAlignment {
+        zoneAlignment.resolved(fallback: defaultAlignment)
     }
 }
 
@@ -333,13 +346,14 @@ nonisolated enum QuizAnswerValidationMode: String, Codable, CaseIterable, Identi
 
 /// Quiz runtime preferences persisted per deck.
 nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 2
+    private static let currentSchemaVersion = 3
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var shuffleChoices: Bool = false
     var explanationTiming: QuizExplanationTiming = .afterCheck
     var answerValidation: QuizAnswerValidationMode = .instantCheck
     var retryIncorrectQuestions: Bool = true
+    var zoneAlignment: ZoneBlockAlignment = .auto
     var textSize: FlashcardTextSize = .large
     var usesAppTextSize: Bool = true
 
@@ -349,6 +363,7 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
         case explanationTiming
         case answerValidation
         case retryIncorrectQuestions
+        case zoneAlignment
         case textSize
         case usesAppTextSize
     }
@@ -358,6 +373,7 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
         explanationTiming: QuizExplanationTiming = .afterCheck,
         answerValidation: QuizAnswerValidationMode = .instantCheck,
         retryIncorrectQuestions: Bool = true,
+        zoneAlignment: ZoneBlockAlignment = .auto,
         textSize: FlashcardTextSize = .large,
         usesAppTextSize: Bool = true
     ) {
@@ -366,6 +382,7 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
         self.explanationTiming = explanationTiming
         self.answerValidation = answerValidation
         self.retryIncorrectQuestions = retryIncorrectQuestions
+        self.zoneAlignment = zoneAlignment
         self.textSize = textSize
         self.usesAppTextSize = usesAppTextSize
     }
@@ -377,6 +394,10 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
         self.explanationTiming = try container.decodeIfPresent(QuizExplanationTiming.self, forKey: .explanationTiming) ?? .afterCheck
         self.answerValidation = try container.decodeIfPresent(QuizAnswerValidationMode.self, forKey: .answerValidation) ?? .instantCheck
         self.retryIncorrectQuestions = try container.decodeIfPresent(Bool.self, forKey: .retryIncorrectQuestions) ?? true
+        self.zoneAlignment = try container.decodeIfPresent(
+            ZoneBlockAlignment.self,
+            forKey: .zoneAlignment
+        ) ?? .auto
         let legacyTextSizeStep: Int? = decodedSchemaVersion < Self.currentSchemaVersion
             ? try? container.decode(Int.self, forKey: .textSize)
             : nil
@@ -397,12 +418,17 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
         try container.encode(explanationTiming, forKey: .explanationTiming)
         try container.encode(answerValidation, forKey: .answerValidation)
         try container.encode(retryIncorrectQuestions, forKey: .retryIncorrectQuestions)
+        try container.encode(zoneAlignment, forKey: .zoneAlignment)
         try container.encode(textSize, forKey: .textSize)
         try container.encode(usesAppTextSize, forKey: .usesAppTextSize)
     }
 
     func resolvedTextSize(default defaultTextSize: FlashcardTextSize) -> FlashcardTextSize {
         usesAppTextSize ? defaultTextSize : textSize
+    }
+
+    func resolvedZoneAlignment(default defaultAlignment: ZoneBlockAlignment) -> ZoneBlockAlignment {
+        zoneAlignment.resolved(fallback: defaultAlignment)
     }
 }
 

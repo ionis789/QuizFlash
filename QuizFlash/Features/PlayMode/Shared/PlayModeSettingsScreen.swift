@@ -101,6 +101,13 @@ struct PlayModeSettingsScreen: View {
                     ? AppLocalization.string("Static text motion: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.staticSwapTextMotion.localizedTitle(locale: locale))
                     : AppLocalization.string("Static text motion applies only when Static Swap is selected.", locale: locale),
                 AppLocalization.string("Content alignment: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.contentAlignment.localizedTitle(locale: locale)),
+                AppLocalization.string("Zone alignment: %@.", locale: locale).replacingOccurrences(
+                    of: "%@",
+                    with: flashcardSettings.zoneAlignment.localizedDeckSettingTitle(
+                        locale: locale,
+                        appDefault: appPreferences.defaultZoneAlignment
+                    )
+                ),
                 AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(
                     of: "%@",
                     with: flashcardSettings
@@ -114,6 +121,13 @@ struct PlayModeSettingsScreen: View {
                 AppLocalization.string("Validation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.answerValidation.localizedTitle(locale: locale)),
                 AppLocalization.string("Explanation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.explanationTiming.localizedTitle(locale: locale)),
                 quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale),
+                AppLocalization.string("Zone alignment: %@.", locale: locale).replacingOccurrences(
+                    of: "%@",
+                    with: quizSettings.zoneAlignment.localizedDeckSettingTitle(
+                        locale: locale,
+                        appDefault: appPreferences.defaultZoneAlignment
+                    )
+                ),
                 AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(
                     of: "%@",
                     with: quizSettings

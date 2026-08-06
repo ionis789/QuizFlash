@@ -863,3 +863,9 @@
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";
+"App Default" = "App Default";
+"App Default (%@)" = "App Default (%@)";
+"Leading" = "Leading";
+"Trailing" = "Trailing";
+"Zone Alignment" = "Zone Alignment";
+"Zone alignment: %@." = "Zone alignment: %@.";

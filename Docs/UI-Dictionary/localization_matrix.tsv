@@ -55,10 +55,10 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
+%d deck	%d deck	%d pachet	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -153,6 +153,8 @@ ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
+App Default	App Default	Implicit aplicație	По умолчанию приложения
+App Default (%@)	App Default (%@)	Implicit aplicație (%@)	По умолчанию приложения (%@)
 App Interface	App Interface	Interfața aplicației	Интерфейс приложения
 App Text	App Text	Text aplicație	Текст приложения
 Apple did not return an identity token.	Apple did not return an identity token.	Apple nu a returnat un token de identitate.	Apple не вернул токен идентификации.
@@ -199,8 +201,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -221,8 +223,8 @@ Choose a comfortable base size for QuizFlash interface text.	Choose a comfortabl
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
 Choose a pace that feels easy to keep.	Choose a pace that feels easy to keep.	Alege un ritm ușor de păstrat.	Выбери темп, которого легко придерживаться.
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -241,6 +243,7 @@ Code: %@	Code: %@	Cod: %@	Код: %@
 Collapse	Collapse	Restrânge	Свернуть
 Color	Color	Culoare	Цвет
 Comfortable reading	Comfortable reading	Citire confortabilă	Комфортное чтение
+Configuration	Configuration	Configurare	Конфигурация
 Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
 Confirm Password	Confirm Password	Confirmă parola	Подтвердите пароль
 Content Alignment	Content Alignment	Aliniere conținut	Выравнивание контента
@@ -282,6 +285,7 @@ Custom Color	Custom Color	Culoare personalizată	Свой цвет
 Cyan	Cyan	Cyan	Голубой
 Daily results	Daily results	Rezultate pe zile	Результаты по дням
 Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная нагрузка
+Deck grid guides	Deck grid guides	Ghidaje grid deck	Направляющие сетки колоды
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
@@ -303,6 +307,9 @@ Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete?	Delete?	Ștergi?	Удалить?
 Depth	Depth	Intensitate	Глубина
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
+Development tools	Development tools	Instrumente de development	Инструменты разработки
+Development-only appearance and preview tools.	Development-only appearance and preview tools.	Instrumente de aspect și previzualizare disponibile doar în Development.	Инструменты оформления и предпросмотра только для Development.
+Diagnostics	Diagnostics	Diagnosticare	Диагностика
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
 Display Name	Display Name	Nume afișat	Отображаемое имя
@@ -319,6 +326,7 @@ Earlier cards	Earlier cards	Carduri anterioare	Предыдущие карточ
 Ease	Ease	Ușurință	Лёгкость
 Easy	Easy	Ușor	Легко
 Edge	Edge	Margine	Край
+Edge shadow tuner	Edge shadow tuner	Reglaj umbre margini	Настройка теней краёв
 Edit	Edit	Edita	Редактировать
 Edit Text	Edit Text	Editează text	Редактировать текст
 Edit the source text, then select the part you want learners to fill in.	Edit the source text, then select the part you want learners to fill in.	Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.	Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.
@@ -356,6 +364,7 @@ Firebase claim	Firebase claim	Claim Firebase	Claim Firebase
 First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
 Flashcard	Flashcard	Flashcard	Флэшкарточка
 Flashcard Border Radius	Flashcard Border Radius	Raza chenarului cardului	Радиус границы карточки
+Flashcard editor HUD	Flashcard editor HUD	HUD editor flashcard	HUD редактора карточек
 Flashcards	Flashcards	Fișe	Карточки
 Flashcards Isn't Ready	Flashcards Isn't Ready	Fișele nu sunt pregătite	Карточки ещё не готовы
 FLICK	FLICK	SCUTURA	щелкнуть
@@ -433,6 +442,7 @@ Keep Editing	Keep Editing	Continuă editarea	Продолжить редакти
 Keep your focus	Keep your focus	Păstrează-ți focusul	Сохраняйте фокус
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
 Label Color	Label Color	Culoare etichetă	Цвет метки
+Labs	Labs	Labs	Labs
 Landed	Landed	Reușite	Уверенно
 Language	Language	Limbă	Язык
 Large	Large	Mare	Крупный
@@ -442,6 +452,7 @@ Last week	Last week	Săptămâna trecută	Прошлая неделя
 LaTeX support	LaTeX support	Suport LaTeX	Поддержка LaTeX
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
 Layout	Layout	Aranjare	Разметка
+Leading	Leading	Stânga	Слева
 Learn easy with QuizFlash	Learn easy with QuizFlash	Învață ușor cu QuizFlash	Учись легко с QuizFlash
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
 Learn faster. Stay productive.	Learn faster. Stay productive.	Învață mai eficient. Rămâi productiv.	Учитесь быстрее. Оставайтесь продуктивными.
@@ -473,6 +484,7 @@ Mastered	Mastered	Stăpânite	Освоенные
 Medium	Medium	Mediu	Средний
 Minimal	Minimal	Minimală	Минимальная
 Mock AI	Mock AI	Simulare AI	Мок ИИ
+Mock AI shortcut	Mock AI shortcut	Scurtătură AI simulat	Ярлык симуляции ИИ
 Mode	Mode	Modul	Режим
 Momentum	Momentum	Impuls	Импульс
 Monday	Monday	Luni	Понедельник
@@ -518,8 +530,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
+No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -579,6 +591,7 @@ Pink	Pink	Roz	Розовый
 Pinned	Pinned	Fixat	Закреплена
 Plan	Plan	Plan	План
 Play Debug	Play Debug	Joacă Debug	Играть в отладку
+Play mode controls	Play mode controls	Controale mod de joc	Управление режимом игры
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
 Please select .json files	Please select .json files	Selectați fișiere .json	Выберите файлы .json
 Please sign in again to continue.	Please sign in again to continue.	Conectează-te din nou pentru a continua.	Войдите снова, чтобы продолжить.
@@ -592,14 +605,14 @@ Preparing Quiz	Preparing Quiz	Se pregătește quizul	Подготовка кви
 Preparing request	Preparing request	Se pregătește cererea	Подготовка запроса
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
@@ -608,6 +621,7 @@ Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
+Quiz editor HUD	Quiz editor HUD	HUD editor quiz	HUD редактора квиза
 Quiz Isn't Ready	Quiz Isn't Ready	Quiz-ul nu este pregătit	Режим викторины ещё не готов
 QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
 QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
@@ -638,8 +652,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -649,6 +663,7 @@ Romanian	Romanian	Română	Румынский
 Rounded	Rounded	Rotunjit	Скруглённый
 Row %@	Row %@	Rândul %@	Строка %@
 Run mock AI generation	Run mock AI generation	Rulează generarea mock AI	Запустить mock AI генерацию
+Runtime tools available only in Development builds.	Runtime tools available only in Development builds.	Instrumente runtime disponibile doar în build-urile Development.	Инструменты выполнения доступны только в Development-сборках.
 Russian	Russian	Rusă	Русский
 Sans-Serif	Sans-Serif	Sans-serif	Без засечек
 Save	Save	Salvează	Сохранить
@@ -692,6 +707,13 @@ Shared Sheet Playground	Shared Sheet Playground	Loc de joacă comun cu foi	Об�
 Short, useful cards focused on the essential idea.	Short, useful cards focused on the essential idea.	Carduri scurte și utile, axate pe ideea esențială.	Короткие полезные карточки, сфокусированные на главной идее.
 Show	Show	Arată	Показать
 Showing all	Showing all	Se afișează toate	Показаны все
+Shows live authoring layout diagnostics.	Shows live authoring layout diagnostics.	Afișează diagnosticul live al layoutului de editare.	Показывает диагностику макета редактора в реальном времени.
+Shows per-screen edge-shadow controls.	Shows per-screen edge-shadow controls.	Afișează controalele umbrelor de margine pentru fiecare ecran.	Показывает настройку теней краёв для каждого экрана.
+Shows quiz scroll and caret diagnostics.	Shows quiz scroll and caret diagnostics.	Afișează diagnosticul de scroll și cursor pentru quiz.	Показывает диагностику прокрутки и курсора квиза.
+Shows temporary controls in study modes.	Shows temporary controls in study modes.	Afișează controale temporare în modurile de studiu.	Показывает временные элементы управления в режимах обучения.
+Shows text measurement guides in deck cards.	Shows text measurement guides in deck cards.	Afișează ghidajele de măsurare a textului în cardurile deckului.	Показывает направляющие измерения текста в карточках колоды.
+Shows text-block guides inside card zones.	Shows text-block guides inside card zones.	Afișează ghidajele blocurilor de text în zonele cardului.	Показывает направляющие текстовых блоков внутри зон карточки.
+Shows the mock generation shortcut in the deck workspace.	Shows the mock generation shortcut in the deck workspace.	Afișează scurtătura de generare simulată în workspace-ul deckului.	Показывает ярлык тестовой генерации в рабочей области колоды.
 Side	Side	Parte	Сторона
 Sign In	Sign In	Conectare	Войти
 Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
@@ -772,9 +794,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This week	This week	Săptămâna aceasta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
+This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -794,6 +816,7 @@ Total cards for auto distribution.	Total cards for auto distribution.	Total card
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
 Trace Log	Trace Log	Log trace	Лог трассировки
 Trace Sessions	Trace Sessions	Sesiuni trace	Trace-сессии
+Trailing	Trailing	Dreapta	Справа
 Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.	Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».
 Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка
@@ -839,6 +862,9 @@ You have unsaved changes in this deck.	You have unsaved changes in this deck.	Av
 You're all set.	You're all set.	Totul este pregătit.	Все готово.
 Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
 Your notes	Your notes	Notițele tale	Твои заметки
+Zone Alignment	Zone Alignment	Aliniere zone	Выравнивание зон
+Zone alignment: %@.	Zone alignment: %@.	Aliniere zone: %@.	Выравнивание зон: %@.
+Zone content guides	Zone content guides	Ghidaje conținut zone	Направляющие содержимого зон
 Zone Style	Zone Style	Stil zone	Стиль зон
 zones(%d)	zones(%d)	zone(%d)	зоны(%d)
 |	|	|	|

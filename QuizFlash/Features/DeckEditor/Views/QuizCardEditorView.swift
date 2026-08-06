@@ -16,6 +16,7 @@ struct QuizCardEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
@@ -1435,7 +1436,6 @@ struct QuizCardEditorView: View {
         scheduledRenderToggleTask = nil
 
         if isRendered {
-            ensureDefaultRenderAlignmentForAllTargets()
             prepareForRenderModeKeyboardDismiss()
             clearAllSelectedPaths()
             var transaction = Transaction()
@@ -1505,7 +1505,6 @@ struct QuizCardEditorView: View {
 
     private func presentRenderedAlignmentMenu(for target: QuizEditorTarget) {
         guard let content = content(for: target) else { return }
-        ensureDefaultRenderAlignment(for: target)
         let frame = renderedRootFrames[target] ?? CGRect(x: 0, y: 0, width: renderedContentWidths[target] ?? 1, height: 88)
         let menuState = QuizRenderedAlignmentMenuState(
             target: target,
@@ -1524,7 +1523,6 @@ struct QuizCardEditorView: View {
         guard let content = content(for: target),
               let menuState = renderedAlignmentMenuState,
               menuState.target == target else { return }
-        ensureDefaultRenderAlignment(for: target)
         let currentAlignment = resolvedRenderedAlignment(for: content.rootZone)
         guard let nextAlignment = nextRenderedAlignment(from: currentAlignment, direction: direction) else {
             triggerRenderedAlignmentWiggle(for: target)
@@ -1609,23 +1607,7 @@ struct QuizCardEditorView: View {
     }
 
     private func resolvedRenderedAlignment(for zone: ZoneModel) -> ZoneBlockAlignment {
-        zone.blockAlignment == .auto ? .center : zone.blockAlignment
-    }
-
-    private func ensureDefaultRenderAlignment(for target: QuizEditorTarget) {
-        guard let content = content(for: target),
-              content.rootZone.blockAlignment == .auto else { return }
-        content.updateZone(at: .root) { zone in
-            zone.blockAlignment = .center
-        }
-    }
-
-    private func ensureDefaultRenderAlignmentForAllTargets() {
-        ensureDefaultRenderAlignment(for: .question)
-        choices.forEach { ensureDefaultRenderAlignment(for: .choice($0.id)) }
-        if explanationContent != nil {
-            ensureDefaultRenderAlignment(for: .explanation)
-        }
+        zone.blockAlignment.resolved(fallback: inheritedZoneBlockAlignment)
     }
 
     private func clearAllSelectedPaths() {
@@ -2746,7 +2728,6 @@ struct QuizCardEditorView: View {
             setSelectedPath(.root, for: target, recordsSelection: false)
             renderedAlignmentMenuState = nil
         }
-        ensureDefaultRenderAlignment(for: target)
         updateFloatingFormatBarPresentation(isKeyboardVisible: false)
         recordQuizMediaImportDebug(
             source: source,
@@ -2782,7 +2763,6 @@ struct QuizCardEditorView: View {
             activeEditor = .choice(newChoice.id)
             renderedAlignmentMenuState = nil
         }
-        ensureDefaultRenderAlignment(for: .choice(newChoice.id))
         updateFloatingFormatBarPresentation(isKeyboardVisible: false)
         recordQuizMediaImportDebug(
             source: source,
@@ -3224,6 +3204,8 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
 }
 
 private struct QuizRenderedZoneCard: View {
+    @Environment(\.inheritedZoneBlockAlignment) private var inheritedZoneBlockAlignment
+
     let content: ZoneCardContent
     let alignmentMenuState: QuizRenderedAlignmentMenuState?
     let alignmentFeedback: ZoneAlignmentFeedback
@@ -3246,6 +3228,7 @@ private struct QuizRenderedZoneCard: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
+                automaticBlockAlignment: inheritedZoneBlockAlignment,
                 showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
                 textVerticalPadding: textVerticalPadding,
