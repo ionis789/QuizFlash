@@ -5,6 +5,14 @@ import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUs
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
+  it("publishes the exact blueprint schema placeholder on final-output templates", () => {
+    expect(defaultPromptBundle.version).toBe("v6");
+    expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("{{schemaVersion}}");
+    expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("{{schemaVersion}}");
+    expect(defaultPromptBundle.templates["blueprint.repair"]).toContain("{{schemaVersion}}");
+  });
+
   it("accepts every supported blueprint operation and rejects unknown operations", () => {
     expect(providerOperation("blueprint_map")).toBe("blueprint_map");
     expect(providerOperation("blueprint_reduce")).toBe("blueprint_reduce");

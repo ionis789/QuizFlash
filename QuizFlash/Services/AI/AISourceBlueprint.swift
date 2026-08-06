@@ -156,6 +156,44 @@ nonisolated enum AIBlueprintValidationIssue: Error, Hashable, Sendable, CustomSt
 
 nonisolated struct AIBlueprintValidationFailure: Error, Sendable {
     let issues: [AIBlueprintValidationIssue]
+    let repairDiagnostics: [AIBlueprintRepairDiagnostic]
+}
+
+nonisolated struct AIBlueprintRepairDiagnostic: Codable, Equatable, Hashable, Sendable {
+    let code: String
+    let path: String
+    let entity_id: Int?
+    let related_entity_id: Int?
+    let minimum_integer: Int?
+    let maximum_integer: Int?
+    let expected_integer: Int?
+    let actual_integer: Int?
+    let expected_indexes: [Int]?
+    let actual_indexes: [Int]?
+
+    init(
+        code: String,
+        path: String,
+        entityID: Int? = nil,
+        relatedEntityID: Int? = nil,
+        minimumInteger: Int? = nil,
+        maximumInteger: Int? = nil,
+        expectedInteger: Int? = nil,
+        actualInteger: Int? = nil,
+        expectedIndexes: [Int]? = nil,
+        actualIndexes: [Int]? = nil
+    ) {
+        self.code = code
+        self.path = path
+        entity_id = entityID
+        related_entity_id = relatedEntityID
+        minimum_integer = minimumInteger
+        maximum_integer = maximumInteger
+        expected_integer = expectedInteger
+        actual_integer = actualInteger
+        expected_indexes = expectedIndexes
+        actual_indexes = actualIndexes
+    }
 }
 
 nonisolated enum AIBlueprintValidator {
@@ -170,59 +208,156 @@ nonisolated enum AIBlueprintValidator {
         sourceFingerprint: String
     ) throws -> AISourceBlueprint {
         var issues: [AIBlueprintValidationIssue] = []
+        var repairDiagnostics: [AIBlueprintRepairDiagnostic] = []
         let validSegmentIndexes = Set(segments.map(\.index))
+        let sortedValidSegmentIndexes = validSegmentIndexes.sorted()
         let normalizedTitle = mechanicallyNormalized(dto.suggested_title)
         let languageHint = AIFlashcardService.normalizedLanguageHint(
             code: dto.language_code,
             displayName: dto.language_display_name
         )
 
-        if dto.schema_version != supportedSchemaVersion { issues.append(.unsupportedSchema) }
-        if normalizedTitle.isEmpty { issues.append(.emptyTitle) }
-        if normalizedTitle.count > 160 { issues.append(.titleTooLong) }
+        if dto.schema_version != supportedSchemaVersion {
+            issues.append(.unsupportedSchema)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.unsupportedSchema.description,
+                path: "schema_version",
+                expectedInteger: supportedSchemaVersion,
+                actualInteger: dto.schema_version
+            ))
+        }
+        if normalizedTitle.isEmpty {
+            issues.append(.emptyTitle)
+            repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyTitle.description, path: "suggested_title"))
+        }
+        if normalizedTitle.count > 160 {
+            issues.append(.titleTooLong)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.titleTooLong.description,
+                path: "suggested_title",
+                maximumInteger: 160,
+                actualInteger: normalizedTitle.count
+            ))
+        }
         let hasLanguageValue = [dto.language_code, dto.language_display_name]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .contains { !$0.isEmpty }
-        if hasLanguageValue, languageHint == nil { issues.append(.invalidLanguage) }
+        if hasLanguageValue, languageHint == nil {
+            issues.append(.invalidLanguage)
+            repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.invalidLanguage.description, path: "language_code,language_display_name"))
+        }
         if dto.themes.isEmpty || dto.themes.count > min(max(targetCards, 1), 64) {
             issues.append(.invalidThemeCount)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.invalidThemeCount.description,
+                path: "themes",
+                minimumInteger: 1,
+                maximumInteger: min(max(targetCards, 1), 64),
+                actualInteger: dto.themes.count
+            ))
         }
-        if Set(dto.themes.map(\.id)).count != dto.themes.count { issues.append(.duplicateThemeID) }
+        let duplicateThemeIDs = duplicateIntegers(in: dto.themes.map(\.id))
+        if !duplicateThemeIDs.isEmpty {
+            issues.append(.duplicateThemeID)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.duplicateThemeID.description,
+                path: "themes[].id",
+                actualIndexes: duplicateThemeIDs
+            ))
+        }
         if dto.objectives.count != targetCards {
-            issues.append(.wrongObjectiveCount(expected: targetCards, actual: dto.objectives.count))
+            let issue = AIBlueprintValidationIssue.wrongObjectiveCount(expected: targetCards, actual: dto.objectives.count)
+            issues.append(issue)
+            repairDiagnostics.append(.init(
+                code: issue.description,
+                path: "objectives",
+                expectedInteger: targetCards,
+                actualInteger: dto.objectives.count
+            ))
         }
-        if Set(dto.objectives.map(\.id)).count != dto.objectives.count { issues.append(.duplicateObjectiveID) }
+        let duplicateObjectiveIDs = duplicateIntegers(in: dto.objectives.map(\.id))
+        if !duplicateObjectiveIDs.isEmpty {
+            issues.append(.duplicateObjectiveID)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.duplicateObjectiveID.description,
+                path: "objectives[].id",
+                actualIndexes: duplicateObjectiveIDs
+            ))
+        }
 
         let allocationByIndex = Dictionary(uniqueKeysWithValues: allocations.enumerated().map { ($0.offset + 1, $0.element) })
         let themeDTOByID = dto.themes.reduce(into: [Int: AIBlueprintResponseDTO.Theme]()) {
             $0[$1.id] = $1
         }
 
-        var normalizedThemeTitles = Set<String>()
+        var normalizedThemeTitleOwner: [String: Int] = [:]
         for theme in dto.themes {
             let title = mechanicallyNormalized(theme.title)
             let summary = mechanicallyNormalized(theme.summary)
-            if title.isEmpty || summary.isEmpty { issues.append(.emptyTheme) }
-            if title.count > 160 || summary.count > 800 { issues.append(.themeTooLong) }
-            if !normalizedThemeTitles.insert(textIdentity(title)).inserted {
+            if title.isEmpty {
+                issues.append(.emptyTheme)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyTheme.description, path: "themes[id=\(theme.id)].title", entityID: theme.id))
+            }
+            if summary.isEmpty {
+                issues.append(.emptyTheme)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyTheme.description, path: "themes[id=\(theme.id)].summary", entityID: theme.id))
+            }
+            if title.count > 160 {
+                issues.append(.themeTooLong)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.themeTooLong.description, path: "themes[id=\(theme.id)].title", entityID: theme.id, maximumInteger: 160, actualInteger: title.count))
+            }
+            if summary.count > 800 {
+                issues.append(.themeTooLong)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.themeTooLong.description, path: "themes[id=\(theme.id)].summary", entityID: theme.id, maximumInteger: 800, actualInteger: summary.count))
+            }
+            let titleIdentity = textIdentity(title)
+            if let existingID = normalizedThemeTitleOwner[titleIdentity] {
                 issues.append(.duplicateTheme)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.duplicateTheme.description, path: "themes[id=\(theme.id)].title", entityID: theme.id, relatedEntityID: existingID))
+            } else {
+                normalizedThemeTitleOwner[titleIdentity] = theme.id
             }
             let indexes = normalizedIndexes(theme.source_segment_indexes)
             if indexes.isEmpty || !Set(indexes).isSubset(of: validSegmentIndexes) {
                 issues.append(.invalidThemeSegments)
+                repairDiagnostics.append(.init(
+                    code: AIBlueprintValidationIssue.invalidThemeSegments.description,
+                    path: "themes[id=\(theme.id)].source_segment_indexes",
+                    entityID: theme.id,
+                    expectedIndexes: sortedValidSegmentIndexes,
+                    actualIndexes: indexes
+                ))
             }
         }
 
-        var normalizedInstructions = Set<String>()
+        var normalizedInstructionOwner: [String: Int] = [:]
+        let validThemeIDs = Set(dto.themes.map(\.id)).sorted()
         for objective in dto.objectives {
             let instruction = mechanicallyNormalized(objective.instruction)
-            if instruction.isEmpty { issues.append(.emptyObjective) }
-            if instruction.count > 500 { issues.append(.objectiveTooLong) }
-            if !normalizedInstructions.insert(textIdentity(instruction)).inserted {
+            if instruction.isEmpty {
+                issues.append(.emptyObjective)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyObjective.description, path: "objectives[id=\(objective.id)].instruction", entityID: objective.id))
+            }
+            if instruction.count > 500 {
+                issues.append(.objectiveTooLong)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.objectiveTooLong.description, path: "objectives[id=\(objective.id)].instruction", entityID: objective.id, maximumInteger: 500, actualInteger: instruction.count))
+            }
+            let instructionIdentity = textIdentity(instruction)
+            if let existingID = normalizedInstructionOwner[instructionIdentity] {
                 issues.append(.duplicateObjective)
+                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.duplicateObjective.description, path: "objectives[id=\(objective.id)].instruction", entityID: objective.id, relatedEntityID: existingID))
+            } else {
+                normalizedInstructionOwner[instructionIdentity] = objective.id
             }
             guard let theme = themeDTOByID[objective.theme_id] else {
                 issues.append(.invalidObjectiveTheme)
+                repairDiagnostics.append(.init(
+                    code: AIBlueprintValidationIssue.invalidObjectiveTheme.description,
+                    path: "objectives[id=\(objective.id)].theme_id",
+                    entityID: objective.id,
+                    actualInteger: objective.theme_id,
+                    expectedIndexes: validThemeIDs
+                ))
                 continue
             }
             let objectiveIndexes = normalizedIndexes(objective.source_segment_indexes)
@@ -231,14 +366,40 @@ nonisolated enum AIBlueprintValidator {
                 !Set(objectiveIndexes).isSubset(of: validSegmentIndexes) ||
                 !Set(objectiveIndexes).isSubset(of: themeIndexes) {
                 issues.append(.invalidObjectiveSegments)
+                repairDiagnostics.append(.init(
+                    code: AIBlueprintValidationIssue.invalidObjectiveSegments.description,
+                    path: "objectives[id=\(objective.id)].source_segment_indexes",
+                    entityID: objective.id,
+                    relatedEntityID: objective.theme_id,
+                    expectedIndexes: themeIndexes.intersection(validSegmentIndexes).sorted(),
+                    actualIndexes: objectiveIndexes
+                ))
             }
 
             if !allocations.isEmpty {
                 guard let allocationIndex = objective.allocation_index,
-                      let allocation = allocationByIndex[allocationIndex],
-                      Set(objectiveIndexes).isSubset(of: Set(allocation.startIndex...allocation.endIndex)) else {
+                      let allocation = allocationByIndex[allocationIndex] else {
                     issues.append(.invalidManualDistribution)
+                    repairDiagnostics.append(.init(
+                        code: AIBlueprintValidationIssue.invalidManualDistribution.description,
+                        path: "objectives[id=\(objective.id)].allocation_index",
+                        entityID: objective.id,
+                        actualInteger: objective.allocation_index,
+                        expectedIndexes: allocationByIndex.keys.sorted()
+                    ))
                     continue
+                }
+                let allocationIndexes = Set(allocation.startIndex...allocation.endIndex)
+                if !Set(objectiveIndexes).isSubset(of: allocationIndexes) {
+                    issues.append(.invalidManualDistribution)
+                    repairDiagnostics.append(.init(
+                        code: AIBlueprintValidationIssue.invalidManualDistribution.description,
+                        path: "objectives[id=\(objective.id)].source_segment_indexes",
+                        entityID: objective.id,
+                        relatedEntityID: allocationIndex,
+                        expectedIndexes: allocationIndexes.sorted(),
+                        actualIndexes: objectiveIndexes
+                    ))
                 }
             }
         }
@@ -246,12 +407,26 @@ nonisolated enum AIBlueprintValidator {
         if !allocations.isEmpty {
             for (allocationIndex, allocation) in allocationByIndex {
                 let actual = dto.objectives.filter { $0.allocation_index == allocationIndex }.count
-                if actual != allocation.cardCount { issues.append(.invalidManualDistribution) }
+                if actual != allocation.cardCount {
+                    issues.append(.invalidManualDistribution)
+                    repairDiagnostics.append(.init(
+                        code: AIBlueprintValidationIssue.invalidManualDistribution.description,
+                        path: "objectives[].allocation_index",
+                        entityID: allocationIndex,
+                        expectedInteger: allocation.cardCount,
+                        actualInteger: actual
+                    ))
+                }
             }
         }
 
         guard issues.isEmpty else {
-            throw AIBlueprintValidationFailure(issues: Array(Set(issues)))
+            throw AIBlueprintValidationFailure(
+                issues: Array(Set(issues)).sorted { $0.description < $1.description },
+                repairDiagnostics: Array(Set(repairDiagnostics)).sorted {
+                    ($0.path, $0.code, $0.entity_id ?? Int.min) < ($1.path, $1.code, $1.entity_id ?? Int.min)
+                }
+            )
         }
 
         let themeIDMap = Dictionary(uniqueKeysWithValues: dto.themes.map { ($0.id, UUID()) })
@@ -294,6 +469,15 @@ nonisolated enum AIBlueprintValidator {
 
     static func normalizedIndexes(_ values: [Int]) -> [Int] {
         Array(Set(values)).sorted()
+    }
+
+    private static func duplicateIntegers(in values: [Int]) -> [Int] {
+        var seen = Set<Int>()
+        var duplicates = Set<Int>()
+        for value in values where !seen.insert(value).inserted {
+            duplicates.insert(value)
+        }
+        return duplicates.sorted()
     }
 
     static func textIdentity(_ value: String) -> String {

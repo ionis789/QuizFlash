@@ -19,10 +19,10 @@ enum AIPromptBundleFixture {
 
     static let templates: [String: String] = [
         "blueprint.batchContext": "<GLOBAL_OUTLINE>{{globalOutline}}</GLOBAL_OUTLINE><CURRENT_THEME>{{themeJSON}}</CURRENT_THEME><ORDERED_OBJECTIVES>{{objectivesJSON}}</ORDERED_OBJECTIVES><ALREADY_COVERED>{{coveredJSON}}</ALREADY_COVERED>",
-        "blueprint.direct": "target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} allocations={{allocationJSON}} source={{sourceJSON}}",
+        "blueprint.direct": "schema={{schemaVersion}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} allocations={{allocationJSON}} source={{sourceJSON}}",
         "blueprint.map": "map={{mapIndex}}/{{mapCount}} type={{cardType}} depth={{cardLevel}} source={{sourceJSON}}",
-        "blueprint.reduce": "level={{reduceLevel}} final={{isFinal}} group={{groupIndex}}/{{groupCount}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} allocations={{allocationJSON}} digests={{digestJSON}}",
-        "blueprint.repair": "target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} issues={{issuesJSON}} invalid={{invalidBlueprintJSON}} allocations={{allocationJSON}} source={{sourceJSON}}",
+        "blueprint.reduce": "schema={{schemaVersion}} level={{reduceLevel}} final={{isFinal}} group={{groupIndex}}/{{groupCount}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} allocations={{allocationJSON}} digests={{digestJSON}}",
+        "blueprint.repair": "schema={{schemaVersion}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} issues={{issuesJSON}} invalid={{invalidBlueprintJSON}} allocations={{allocationJSON}} source={{sourceJSON}}",
         "blueprint.schema": "formal blueprint schema",
         "blueprint.system": "authoritative blueprint rules",
         "cardType.flashcard": """

@@ -240,6 +240,7 @@ actor AIBlueprintPlanner {
         allocationJSON: String
     ) async throws -> AISourceBlueprint {
         var dto = initialDTO
+        var previousInvalidDTO: AIBlueprintResponseDTO?
         for repairAttempt in 0...2 {
             do {
                 let blueprint = try AIBlueprintValidator.validate(
@@ -261,22 +262,31 @@ actor AIBlueprintPlanner {
                 )
                 return blueprint
             } catch let failure as AIBlueprintValidationFailure {
+                var repairDiagnostics = failure.repairDiagnostics
+                if let previousInvalidDTO, previousInvalidDTO == dto {
+                    repairDiagnostics.append(.init(
+                        code: "unchanged_candidate",
+                        path: "$"
+                    ))
+                }
                 await service.trace(
                     .blueprintValidationFailed,
                     "Blueprint validation requires semantic repair.",
                     metadata: [
                         "repair_attempt": String(repairAttempt),
                         "issue_count": String(failure.issues.count),
-                        "issues": failure.issues.map(\.description).joined(separator: ",")
+                        "issues": failure.issues.map(\.description).joined(separator: ","),
+                        "diagnostic_count": String(repairDiagnostics.count)
                     ]
                 )
                 guard repairAttempt < 2 else {
                     throw AIServiceError.unknown("The source blueprint remained invalid after semantic repair.")
                 }
+                let invalidDTO = dto
                 dto = try await request(
                     messages: try service.buildBlueprintRepairMessages(
                         invalidBlueprintJSON: json(dto),
-                        issuesJSON: json(failure.issues.map(\.description)),
+                        issuesJSON: json(repairDiagnostics),
                         sourceJSON: sourceJSON,
                         allocationJSON: allocationJSON,
                         targetCards: targetCards,
@@ -293,6 +303,7 @@ actor AIBlueprintPlanner {
                     "Received a repaired blueprint candidate.",
                     metadata: ["repair_attempt": String(repairAttempt + 1)]
                 )
+                previousInvalidDTO = invalidDTO
             }
         }
         throw AIServiceError.invalidResponse

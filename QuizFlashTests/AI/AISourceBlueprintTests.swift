@@ -88,6 +88,10 @@ final class AISourceBlueprintTests: XCTestCase {
         XCTAssertEqual(repaired.objectives.count, 2)
         let successfulRepairCount = await successfulRecorder.operationCount("blueprint_repair")
         XCTAssertEqual(successfulRepairCount, 1)
+        let repairPayload = await successfulRecorder.payload(for: "blueprint_repair")
+        XCTAssertTrue(repairPayload.contains("schema=1"))
+        XCTAssertTrue(repairPayload.contains("expected_integer\":2"))
+        XCTAssertTrue(repairPayload.contains("actual_integer\":1"))
 
         let failingRecorder = BlueprintRequestRecorder(
             targetCards: 2,
@@ -111,6 +115,8 @@ final class AISourceBlueprintTests: XCTestCase {
         } catch {
             let failingRepairCount = await failingRecorder.operationCount("blueprint_repair")
             XCTAssertEqual(failingRepairCount, 2)
+            let failingRepairPayload = await failingRecorder.payload(for: "blueprint_repair")
+            XCTAssertTrue(failingRepairPayload.contains("unchanged_candidate"))
         }
     }
 
@@ -163,6 +169,41 @@ final class AISourceBlueprintTests: XCTestCase {
         let dto = makeDTO(targetCards: 1, segmentIndexes: [9])
         assertValidationIssue(.invalidThemeSegments) {
             try validate(dto, targetCards: 1)
+        }
+    }
+
+    func testValidationFailureIdentifiesExactSchemaAndObjectiveSegmentRepairs() {
+        let dto = AIBlueprintResponseDTO(
+            schema_version: 5,
+            suggested_title: "Source title",
+            language_code: "aa",
+            language_display_name: "Detected language",
+            themes: [
+                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1], relative_priority: 1)
+            ],
+            objectives: [
+                .init(id: 8, theme_id: 1, instruction: "Objective", source_segment_indexes: [2], relative_priority: 1, allocation_index: nil)
+            ]
+        )
+
+        XCTAssertThrowsError(try validate(dto, targetCards: 1)) { error in
+            guard let failure = error as? AIBlueprintValidationFailure else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(failure.repairDiagnostics.contains(.init(
+                code: "unsupported_schema",
+                path: "schema_version",
+                expectedInteger: 1,
+                actualInteger: 5
+            )))
+            XCTAssertTrue(failure.repairDiagnostics.contains(.init(
+                code: "invalid_objective_segments",
+                path: "objectives[id=8].source_segment_indexes",
+                entityID: 8,
+                relatedEntityID: 1,
+                expectedIndexes: [1],
+                actualIndexes: [2]
+            )))
         }
     }
 
@@ -289,6 +330,7 @@ final class AISourceBlueprintTests: XCTestCase {
         let rendered = messages.compactMap { $0["content"] as? String }.joined()
         XCTAssertFalse(rendered.contains("{{"))
         XCTAssertTrue(rendered.contains("target=4"))
+        XCTAssertTrue(rendered.contains("schema=1"))
         await Task.yield()
     }
 
@@ -447,6 +489,14 @@ private actor BlueprintRequestRecorder {
     func mapPayload() -> String {
         recordedRequests
             .filter { $0.operation == "blueprint_map" }
+            .flatMap(\.messages)
+            .compactMap { $0["content"] as? String }
+            .joined(separator: "\n")
+    }
+
+    func payload(for operation: String) -> String {
+        recordedRequests
+            .filter { $0.operation == operation }
             .flatMap(\.messages)
             .compactMap { $0["content"] as? String }
             .joined(separator: "\n")

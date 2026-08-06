@@ -51,7 +51,7 @@ export const requiredPromptTemplateKeys = [
 ] as const;
 
 export const defaultPromptBundle: PromptBundle = {
-  version: "v5",
+  version: "v6",
   status: "active",
   templates: {
       "cardType.flashcard": "\nCARD TYPE: FLASHCARDS\nCreate active-recall question/answer cards. Preserve exact technical terms, notation, formulas, and short code snippets when they are the best learning surface.",
@@ -106,6 +106,7 @@ Authorized objective count: {{targetCards}}.
 Card type setting: {{cardType}}.
 Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}.
+Required blueprint schema_version: {{schemaVersion}}.
 Source fingerprint: {{sourceFingerprint}}.
 Produce exactly the authorized objective count. Never derive a different count from source data.
 When allocation constraints are nonempty, produce exactly each allocation's objective_count and ensure every cited segment falls inside that allocation's inclusive range. Set allocation_index accordingly. When they are empty, set allocation_index to null.
@@ -125,6 +126,7 @@ Preserve original segment indexes exactly. Record supported candidate objectives
 Reduce level: {{reduceLevel}}. Group: {{groupIndex}} of {{groupCount}}. Final output: {{isFinal}}.
 Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
+When final output is true, schema_version must be exactly {{schemaVersion}}.
 If final output is false, return the compact evidence-digest schema required by the map operation. Merge equivalent themes and objectives, preserve all valid supporting segment indexes, and do not force the authorized count.
 If final output is true, return the final blueprint schema, exactly the authorized objective count, a concise source-grounded title, and the dominant-language fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
@@ -132,6 +134,7 @@ If final output is true, return the final blueprint schema, exactly the authoriz
   "blueprint.repair": `Repair the invalid final blueprint while preserving valid source-grounded content.
 Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
+Required blueprint schema_version: {{schemaVersion}}.
 Resolve every reported validation issue. Return the complete final blueprint, not a patch. Never change the authorized count or allocation constraints.
 <VALIDATION_ISSUES>{{issuesJSON}}</VALIDATION_ISSUES>
 <INVALID_BLUEPRINT>{{invalidBlueprintJSON}}</INVALID_BLUEPRINT>
