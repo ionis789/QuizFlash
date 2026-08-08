@@ -67,6 +67,7 @@ struct DeckWorkspaceView: View {
     @State var completionStatusGeneratedCount = 0
     @State var completionStatusTargetCount = 0
     @State var generationCompletionDoneTask: Task<Void, Never>?
+    @State var aiWorkspaceOwnerID = UUID()
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -298,10 +299,6 @@ struct DeckWorkspaceView: View {
         viewModel.aiGenerationDisplayPhase == nil
             && generationCompletionDisplayState == .none
             && !blocksGenerateMoreReveal
-    }
-
-    var tracksWorkspaceGenerationStatus: Bool {
-        router.activeTab == .create
     }
 
     var displayedDraftCards: [DraftCard] {

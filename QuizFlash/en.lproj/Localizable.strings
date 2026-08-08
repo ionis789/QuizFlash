@@ -377,6 +377,7 @@
 "Generate cards with AI" = "Generate cards with AI";
 "Generate more" = "Generate more";
 "Generate with AI" = "Generate with AI";
+"Generation stopped" = "Generation stopped";
 "Generating" = "Generating";
 "Generating AI..." = "Generating AI...";
 "Generating cards" = "Generating cards";
@@ -543,6 +544,7 @@
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.";
 "Open a play mode to generate live activity in this deck." = "Open a play mode to generate live activity in this deck.";
 "Open activity history" = "Open activity history";
+"Open AI workspace" = "Open AI workspace";
 "Open Create" = "Open Create";
 "Open Deck" = "Open Deck";
 "Open Focus Deck" = "Open Focus Deck";

@@ -377,6 +377,7 @@
 "Generate cards with AI" = "Сгенерировать карточки с AI";
 "Generate more" = "Сгенерировать ещё";
 "Generate with AI" = "Сгенерировать с AI";
+"Generation stopped" = "Генерация остановлена";
 "Generating" = "Генерация";
 "Generating AI..." = "Генерация AI...";
 "Generating cards" = "Генерация карточек";
@@ -543,6 +544,7 @@
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.";
 "Open a play mode to generate live activity in this deck." = "Откройте режим игры, чтобы в этой колоде появилась активность.";
 "Open activity history" = "Открыть историю активности";
+"Open AI workspace" = "Открыть AI-генерацию";
 "Open Create" = "Открыть создание";
 "Open Deck" = "Открыть колоду";
 "Open Focus Deck" = "Открыть главную колоду";

@@ -377,6 +377,7 @@
 "Generate cards with AI" = "Generează carduri cu AI";
 "Generate more" = "Generează mai multe";
 "Generate with AI" = "Generează cu AI";
+"Generation stopped" = "Generarea s-a oprit";
 "Generating" = "Generare";
 "Generating AI..." = "Se generează cu AI...";
 "Generating cards" = "Se generează cardurile";
@@ -543,6 +544,7 @@
 "Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues." = "Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.";
 "Open a play mode to generate live activity in this deck." = "Deschide un mod de joc pentru a genera activitate în acest deck.";
 "Open activity history" = "Deschide istoricul activității";
+"Open AI workspace" = "Deschide generarea AI";
 "Open Create" = "Deschide Creare";
 "Open Deck" = "Deschide deckul";
 "Open Focus Deck" = "Deschide deckul principal";

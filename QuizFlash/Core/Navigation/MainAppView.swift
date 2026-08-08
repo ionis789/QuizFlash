@@ -280,9 +280,7 @@ struct MainAppView: View {
                             : proxy.safeAreaInsets.bottom + UIConstants.Spacing.large,
                         onOpenWorkspace: {
                             aiWorkspaceCoordinator.openWorkspace(router: router)
-                        },
-                        onPauseResume: nil,
-                        onCancel: nil
+                        }
                     )
                     .zIndex(2)
                 }

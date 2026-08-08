@@ -60,6 +60,7 @@ final class AIWorkspaceCoordinator {
 
     @ObservationIgnored let jobSessionStore: AIJobSessionStore
     @ObservationIgnored var hasRestoredPersistedJob = false
+    @ObservationIgnored private var generationOwnerID: UUID?
 
     var generationStatus: AIWorkspaceGenerationStatus?
 
@@ -136,13 +137,14 @@ final class AIWorkspaceCoordinator {
                     1.0,
                     Double(pausedSession.generatedCardCount) / Double(max(pausedSession.targetCardCount, 1))
                 ),
-                message: pausedSession.deckTitle.isEmpty ? "Resume in Create" : pausedSession.deckTitle,
+                message: pausedSession.deckTitle,
                 errorMessage: nil
             )
         }
     }
 
     func syncGenerationState(
+        ownerID: UUID,
         aiState: AIGenerationState,
         hasPausedGeneration: Bool,
         generatedCardCount: Int,
@@ -150,13 +152,14 @@ final class AIWorkspaceCoordinator {
         deckTitle: String
     ) {
         if hasPausedGeneration {
+            generationOwnerID = ownerID
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .paused,
                 title: "AI generation paused",
                 foundCount: generatedCardCount,
                 targetCount: max(targetCardCount, 1),
                 progress: min(1.0, Double(generatedCardCount) / Double(max(targetCardCount, 1))),
-                message: deckTitle.isEmpty ? "Resume in Create" : deckTitle,
+                message: deckTitle,
                 errorMessage: nil
             )
             return
@@ -164,38 +167,44 @@ final class AIWorkspaceCoordinator {
 
         switch aiState {
         case .idle:
+            guard generationOwnerID == ownerID else { return }
+            generationOwnerID = nil
             generationStatus = nil
         case .analyzingDocument:
+            generationOwnerID = ownerID
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .preparing,
                 title: "Preparing AI source",
                 foundCount: generatedCardCount,
                 targetCount: max(targetCardCount, 1),
                 progress: 0,
-                message: deckTitle.isEmpty ? "Analyzing document" : deckTitle,
+                message: deckTitle,
                 errorMessage: nil
             )
         case .extractingText:
+            generationOwnerID = ownerID
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .preparing,
                 title: "Preparing AI source",
                 foundCount: generatedCardCount,
                 targetCount: max(targetCardCount, 1),
                 progress: 0,
-                message: deckTitle.isEmpty ? "Reading source" : deckTitle,
+                message: deckTitle,
                 errorMessage: nil
             )
         case .generatingCards(let progress, let foundCount):
+            generationOwnerID = ownerID
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .running,
                 title: "Generating cards",
                 foundCount: foundCount,
                 targetCount: max(targetCardCount, 1),
                 progress: progress,
-                message: deckTitle.isEmpty ? "Create" : deckTitle,
+                message: deckTitle,
                 errorMessage: nil
             )
         case .error(let message):
+            generationOwnerID = ownerID
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .failed,
                 title: "Generation stopped",

@@ -564,8 +564,8 @@ extension DeckWorkspaceView {
     }
 
     func syncAIWorkspaceGenerationState() {
-        guard tracksWorkspaceGenerationStatus else { return }
         aiWorkspaceCoordinator.syncGenerationState(
+            ownerID: aiWorkspaceOwnerID,
             aiState: viewModel.aiState,
             hasPausedGeneration: viewModel.hasPausedAIGeneration,
             generatedCardCount: viewModel.aiGeneratedCardCount,

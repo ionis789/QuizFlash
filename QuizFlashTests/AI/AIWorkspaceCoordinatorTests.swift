@@ -53,6 +53,53 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         XCTAssertEqual(router.createPath.count, 0)
     }
 
+    func testGenerationOwnerKeepsReceivingProgressOutsideCreateTab() {
+        let coordinator = AIWorkspaceCoordinator()
+        let activeOwnerID = UUID()
+        let unrelatedOwnerID = UUID()
+
+        coordinator.syncGenerationState(
+            ownerID: activeOwnerID,
+            aiState: .extractingText,
+            hasPausedGeneration: false,
+            generatedCardCount: 0,
+            targetCardCount: 30,
+            deckTitle: ""
+        )
+        coordinator.syncGenerationState(
+            ownerID: unrelatedOwnerID,
+            aiState: .idle,
+            hasPausedGeneration: false,
+            generatedCardCount: 0,
+            targetCardCount: 0,
+            deckTitle: ""
+        )
+        coordinator.syncGenerationState(
+            ownerID: activeOwnerID,
+            aiState: .generatingCards(progress: 0.4, foundCount: 12),
+            hasPausedGeneration: false,
+            generatedCardCount: 12,
+            targetCardCount: 30,
+            deckTitle: "Active Deck"
+        )
+
+        XCTAssertEqual(coordinator.generationStatus?.phase, .running)
+        XCTAssertEqual(coordinator.generationStatus?.foundCount, 12)
+        XCTAssertEqual(coordinator.floatingStatus?.progressLabel, "12/30")
+        XCTAssertEqual(coordinator.floatingStatus?.subtitle, "Active Deck")
+
+        coordinator.syncGenerationState(
+            ownerID: activeOwnerID,
+            aiState: .idle,
+            hasPausedGeneration: false,
+            generatedCardCount: 0,
+            targetCardCount: 0,
+            deckTitle: ""
+        )
+
+        XCTAssertNil(coordinator.generationStatus)
+    }
+
     private func makeGenerationSession() -> AIPausedSession {
         AIPausedSession(
             sessionID: UUID(),

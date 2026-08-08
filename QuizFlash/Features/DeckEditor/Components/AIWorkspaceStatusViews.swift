@@ -13,9 +13,8 @@ import SwiftUI
 struct FloatingAIWorkspaceStatusMenu: View {
     let status: AIWorkspaceFloatingStatus
     var bottomPadding: CGFloat
-    var onOpenWorkspace: (() -> Void)? = nil
-    var onPauseResume: (() -> Void)? = nil
-    var onCancel: (() -> Void)? = nil
+    let onOpenWorkspace: () -> Void
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     private var accent: Color {
@@ -44,120 +43,156 @@ struct FloatingAIWorkspaceStatusMenu: View {
     }
 
     private var workspaceButton: some View {
-        FloatingAIWorkspaceCapsuleContainer {
-            HStack(spacing: UIConstants.Spacing.small) {
-                if let onOpenWorkspace {
-                    Button(action: onOpenWorkspace) {
-                        compactContent
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open AI workspace")
-                } else {
-                    compactContent
+        Button(action: onOpenWorkspace) {
+            statusContent
+                .padding(.horizontal, UIConstants.Spacing.medium)
+                .frame(
+                    width: UIConstants.Size.floatingAIStatusWidth,
+                    height: UIConstants.Size.floatingAIStatusHeight
+                )
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Capsule(style: .continuous)
+                                .fill(themeManager.roleColor(.buttonSurfaceFill).opacity(0.82))
+                        }
                 }
-
-                if let onPauseResume {
-                    Button(action: onPauseResume) {
-                        Image(systemName: pauseResumeSymbol)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(tint)
-                            .frame(width: 24, height: 24)
-                            .background(Color(uiColor: .tertiarySystemFill), in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(status.phase == .paused ? "Resume AI workspace job" : "Pause AI workspace job")
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.09), lineWidth: 0.75)
                 }
-
-                if let onCancel {
-                    Button(action: onCancel) {
-                        ChromeSoftCircleSymbol(
-                            systemName: "xmark",
-                            size: 22,
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Cancel AI workspace job")
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
+                .contentShape(Capsule(style: .continuous))
         }
+        .buttonStyle(FloatingAIWorkspaceButtonStyle())
+        .accessibilityLabel(localized("Open AI workspace"))
+        .accessibilityValue(accessibilityValue)
     }
 
-    private var compactContent: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
+    private var statusContent: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
             FloatingAIWorkspaceStatusIndicator(
-                countText: compactCountText,
+                progress: status.progressFraction,
                 tint: tint,
-                fallbackSystemImage: status.systemImage
+                systemImage: status.systemImage
             )
 
-            if compactCountText == nil {
-                Text(compactTitle)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(phaseTitle)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    if let progressLabel = status.progressLabel,
+                       status.phase == .preparing || status.phase == .running || status.phase == .paused {
+                        Text(progressLabel)
+                            .font(.system(size: 13, weight: .bold).monospacedDigit())
+                            .foregroundStyle(tint)
+                            .statusTextMotion(trigger: progressLabel)
+                    }
+                }
+
+                if let subtitle = displaySubtitle {
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.tertiary)
         }
     }
 
-    private var compactTitle: String {
+    private var phaseTitle: String {
         switch status.phase {
+        case .preparing:
+            return localized("Preparing request")
+        case .running:
+            return localized("Generating cards")
+        case .paused:
+            return localized("Paused")
         case .completed:
-            return "Done"
+            return localized("Done")
         case .failed:
-            return "Error"
-        case .preparing, .running, .paused:
-            return "Generate"
+            return localized("Generation stopped")
         }
     }
 
-    private var compactCountText: String? {
-        if status.phase == .preparing || status.phase == .running || status.phase == .paused,
-           let progressLabel = status.progressLabel {
-            return progressLabel
+    private var displaySubtitle: String? {
+        let subtitle = status.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !subtitle.isEmpty {
+            return subtitle
+        }
+        if status.phase == .preparing {
+            return localized("Preparing source")
         }
         return nil
     }
 
-    private var pauseResumeSymbol: String {
-        status.phase == .paused ? "play.fill" : "pause.fill"
+    private var accessibilityValue: String {
+        [phaseTitle, status.progressLabel, displaySubtitle]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
 }
 
-private struct FloatingAIWorkspaceCapsuleContainer<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        content()
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .frame(minWidth: UIConstants.Size.capsuleHeight)
-            .frame(height: UIConstants.Size.capsuleHeight)
+private struct FloatingAIWorkspaceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .scaleEffect(configuration.isPressed ? 0.975 : 1)
+            .animation(
+                .easeInOut(duration: UIConstants.Animation.instant),
+                value: configuration.isPressed
+            )
     }
 }
 
 private struct FloatingAIWorkspaceStatusIndicator: View {
-    let countText: String?
+    let progress: Double?
     let tint: Color
-    let fallbackSystemImage: String
+    let systemImage: String
 
     var body: some View {
-        if let countText {
-            VStack(spacing: 2) {
-                Text(countText)
-                    .font(.system(size: 12, weight: .bold).monospacedDigit())
-                    .foregroundStyle(.primary)
-                    .statusTextMotion(trigger: countText)
-
-                ProgressActivityDots(color: tint)
-                    .frame(minWidth: 22)
+        if let progress {
+            AnimatedProgressRing(
+                progress: progress,
+                trackColor: tint.opacity(0.18),
+                progressColor: tint,
+                size: UIConstants.Size.iconLarge,
+                strokeWidth: 3
+            ) { _ in
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(tint)
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .animation(.spring(response: 0.35, dampingFraction: 0.82), value: countText)
         } else {
-            Image(systemName: fallbackSystemImage)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: 20, height: 20)
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.14))
+
+                if systemImage == "doc.text.viewfinder" {
+                    ProgressActivityDots(color: tint)
+                        .scaleEffect(0.72)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+            }
+            .frame(width: UIConstants.Size.iconLarge, height: UIConstants.Size.iconLarge)
         }
     }
 }

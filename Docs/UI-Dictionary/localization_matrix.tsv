@@ -57,8 +57,8 @@ key	en	ro	ru
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -149,8 +149,8 @@ Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно �
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 An AI provider API key is not configured.	An AI provider API key is not configured.	Cheia API pentru furnizorul AI nu este configurată.	Ключ API поставщика ИИ не настроен.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -350,8 +350,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -390,6 +390,7 @@ Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
 Generating cards	Generating cards	Se generează cardurile	Генерация карточек
+Generation stopped	Generation stopped	Generarea s-a oprit	Генерация остановлена
 Get started	Get started	Începe	Начать
 Getting Started	Getting Started	Noțiuni de bază	Начиная
 Global border style	Global border style	Stil global bordură	Глобальный стиль границ
@@ -558,6 +559,7 @@ Oldest	Oldest	Cele mai vechi	Сначала старые
 Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.	Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.
 Open a play mode to generate live activity in this deck.	Open a play mode to generate live activity in this deck.	Deschide un mod de joc pentru a genera activitate în acest deck.	Откройте режим игры, чтобы в этой колоде появилась активность.
 Open activity history	Open activity history	Deschide istoricul activității	Открыть историю активности
+Open AI workspace	Open AI workspace	Deschide generarea AI	Открыть AI-генерацию
 Open Create	Open Create	Deschide Creare	Открыть создание
 Open Deck	Open Deck	Deschide deckul	Открыть колоду
 Open Focus Deck	Open Focus Deck	Deschide deckul principal	Открыть главную колоду
@@ -619,8 +621,8 @@ PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -655,8 +657,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -797,8 +799,8 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
