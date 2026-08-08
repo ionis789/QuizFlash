@@ -44,24 +44,14 @@ struct FloatingAIWorkspaceStatusMenu: View {
 
     private var workspaceButton: some View {
         Button(action: onOpenWorkspace) {
-            statusContent
-                .padding(.horizontal, UIConstants.Spacing.medium)
-                .frame(
-                    width: UIConstants.Size.floatingAIStatusWidth,
-                    height: UIConstants.Size.floatingAIStatusHeight
+            compactStatusContent
+                .padding(.horizontal, UIConstants.Spacing.standard)
+                .frame(minWidth: UIConstants.Size.capsuleHeight)
+                .frame(height: UIConstants.Size.capsuleHeight)
+                .background(
+                    themeManager.roleColor(.buttonSurfaceFill),
+                    in: Capsule(style: .continuous)
                 )
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            Capsule(style: .continuous)
-                                .fill(themeManager.roleColor(.buttonSurfaceFill).opacity(0.82))
-                        }
-                }
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.09), lineWidth: 0.75)
-                }
                 .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(FloatingAIWorkspaceButtonStyle())
@@ -69,46 +59,33 @@ struct FloatingAIWorkspaceStatusMenu: View {
         .accessibilityValue(accessibilityValue)
     }
 
-    private var statusContent: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            FloatingAIWorkspaceStatusIndicator(
-                progress: status.progressFraction,
-                tint: tint,
-                systemImage: status.systemImage
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Text(phaseTitle)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-
-                    if let progressLabel = status.progressLabel,
-                       status.phase == .preparing || status.phase == .running || status.phase == .paused {
-                        Text(progressLabel)
-                            .font(.system(size: 13, weight: .bold).monospacedDigit())
-                            .foregroundStyle(tint)
-                            .statusTextMotion(trigger: progressLabel)
-                    }
-                }
-
-                if let subtitle = displaySubtitle {
-                    Text(subtitle)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.tertiary)
+    @ViewBuilder
+    private var compactStatusContent: some View {
+        switch status.phase {
+        case .preparing:
+            ProgressActivityDots(color: tint)
+                .frame(width: UIConstants.Size.iconStandard)
+        case .running, .paused:
+            Text(progressCardsText)
+                .font(.system(size: 14, weight: .bold).monospacedDigit())
+                .foregroundStyle(tint)
+                .fixedSize(horizontal: true, vertical: false)
+                .statusTextMotion(trigger: progressCardsText)
+        case .completed:
+            Image(systemName: "checkmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(tint)
+        case .failed:
+            Image(systemName: "exclamationmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(tint)
         }
+    }
+
+    private var progressCardsText: String {
+        let progress = status.progressLabel ?? "0/0"
+        let format = AppLocalization.string("%@ cards", locale: appPreferences.resolvedLocale)
+        return String(format: format, locale: appPreferences.resolvedLocale, progress)
     }
 
     private var phaseTitle: String {
@@ -126,20 +103,10 @@ struct FloatingAIWorkspaceStatusMenu: View {
         }
     }
 
-    private var displaySubtitle: String? {
-        let subtitle = status.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !subtitle.isEmpty {
-            return subtitle
-        }
-        if status.phase == .preparing {
-            return localized("Preparing source")
-        }
-        return nil
-    }
-
     private var accessibilityValue: String {
-        [phaseTitle, status.progressLabel, displaySubtitle]
+        [phaseTitle, status.progressLabel, status.subtitle]
             .compactMap { $0 }
+            .filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
 
@@ -157,43 +124,6 @@ private struct FloatingAIWorkspaceButtonStyle: ButtonStyle {
                 .easeInOut(duration: UIConstants.Animation.instant),
                 value: configuration.isPressed
             )
-    }
-}
-
-private struct FloatingAIWorkspaceStatusIndicator: View {
-    let progress: Double?
-    let tint: Color
-    let systemImage: String
-
-    var body: some View {
-        if let progress {
-            AnimatedProgressRing(
-                progress: progress,
-                trackColor: tint.opacity(0.18),
-                progressColor: tint,
-                size: UIConstants.Size.iconLarge,
-                strokeWidth: 3
-            ) { _ in
-                Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(tint)
-            }
-        } else {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.14))
-
-                if systemImage == "doc.text.viewfinder" {
-                    ProgressActivityDots(color: tint)
-                        .scaleEffect(0.72)
-                } else {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(tint)
-                }
-            }
-            .frame(width: UIConstants.Size.iconLarge, height: UIConstants.Size.iconLarge)
-        }
     }
 }
 

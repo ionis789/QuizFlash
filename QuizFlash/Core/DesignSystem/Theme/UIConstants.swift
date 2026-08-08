@@ -126,10 +126,6 @@ enum UIConstants {
         static let deckGridCardHeight: CGFloat = 184
         /// 208 pt — compact width for the standardized anchored card context menu.
         static let floatingContextMenuWidth: CGFloat = 208
-        /// 224 pt — informative floating status control for an active AI generation.
-        static let floatingAIStatusWidth: CGFloat = 224
-        /// 60 pt — stable tap target for the floating AI generation status control.
-        static let floatingAIStatusHeight: CGFloat = 60
     }
 
     // MARK: - Layout
