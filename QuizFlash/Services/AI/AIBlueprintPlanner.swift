@@ -248,13 +248,17 @@ actor AIBlueprintPlanner {
                 manualAllocations: manualAllocations
             ) {
                 let surplusCount = dto.objectives.count - trimmedDTO.objectives.count
+                let declaredSegmentCount = Set(dto.themes.flatMap(\.source_segment_indexes)).count
+                let retainedSegmentCount = Set(trimmedDTO.themes.flatMap(\.source_segment_indexes)).count
                 dto = trimmedDTO
                 await service.trace(
                     .blueprintSurplusTrimmed,
-                    "Trimmed valid surplus blueprint objectives locally.",
+                    "Compacted valid surplus blueprint objectives locally.",
                     metadata: [
                         "surplus_count": String(surplusCount),
-                        "target_cards": String(targetCards)
+                        "target_cards": String(targetCards),
+                        "declared_segment_count": String(declaredSegmentCount),
+                        "retained_segment_count": String(retainedSegmentCount)
                     ]
                 )
             }
@@ -395,32 +399,84 @@ actor AIBlueprintPlanner {
                   quota <= candidates.count else {
                 return nil
             }
-            for candidate in evenlySpacedSelection(candidates, count: quota) {
+            for candidate in coverageMaximizingSelection(candidates, count: quota) {
                 selectedIndexes.insert(candidate.offset)
             }
         }
         guard selectedIndexes.count == targetCards else { return nil }
+
+        let selectedObjectives = indexedObjectives.compactMap { indexed in
+            selectedIndexes.contains(indexed.offset) ? indexed.element : nil
+        }
+        let selectedIndexesByTheme = Dictionary(grouping: selectedObjectives, by: \.theme_id)
+            .mapValues { objectives in
+                Set(objectives.flatMap(\.source_segment_indexes))
+            }
+        let normalizedThemes = dto.themes.compactMap { theme -> AIBlueprintResponseDTO.Theme? in
+            let retainedIndexes = selectedIndexesByTheme[theme.id, default: []]
+                .intersection(theme.source_segment_indexes)
+                .sorted()
+            guard !retainedIndexes.isEmpty else { return nil }
+            return .init(
+                id: theme.id,
+                title: theme.title,
+                summary: theme.summary,
+                source_segment_indexes: retainedIndexes,
+                relative_priority: theme.relative_priority
+            )
+        }
+        guard normalizedThemes.count == dto.themes.count else { return nil }
 
         return AIBlueprintResponseDTO(
             schema_version: dto.schema_version,
             suggested_title: dto.suggested_title,
             language_code: dto.language_code,
             language_display_name: dto.language_display_name,
-            themes: dto.themes,
-            objectives: indexedObjectives.compactMap { indexed in
-                selectedIndexes.contains(indexed.offset) ? indexed.element : nil
-            }
+            themes: normalizedThemes,
+            objectives: selectedObjectives
         )
     }
 
-    private func evenlySpacedSelection<Element>(_ values: [Element], count: Int) -> [Element] {
+    /// Selects provider objectives by maximum new segment coverage. Evenly
+    /// spaced source positions break coverage ties so no source prefix wins.
+    private func coverageMaximizingSelection(
+        _ values: [(offset: Int, element: AIBlueprintResponseDTO.Objective)],
+        count: Int
+    ) -> [(offset: Int, element: AIBlueprintResponseDTO.Objective)] {
         guard count > 0, count < values.count else { return count == values.count ? values : [] }
-        guard count > 1 else { return [values[values.count / 2]] }
-
-        return (0..<count).map { position in
-            let index = position * (values.count - 1) / (count - 1)
-            return values[index]
+        let anchors = (0..<count).map { position in
+            let localIndex = count == 1
+                ? values.count / 2
+                : position * (values.count - 1) / (count - 1)
+            return values[localIndex].offset
         }
+        var remaining = values
+        var selected: [(offset: Int, element: AIBlueprintResponseDTO.Objective)] = []
+        var coveredIndexes = Set<Int>()
+
+        for anchor in anchors {
+            var bestIndex = 0
+            for candidateIndex in remaining.indices.dropFirst() {
+                let candidate = remaining[candidateIndex]
+                let current = remaining[bestIndex]
+                let candidateGain = Set(candidate.element.source_segment_indexes)
+                    .subtracting(coveredIndexes).count
+                let currentGain = Set(current.element.source_segment_indexes)
+                    .subtracting(coveredIndexes).count
+                let candidateDistance = abs(candidate.offset - anchor)
+                let currentDistance = abs(current.offset - anchor)
+                if candidateGain > currentGain ||
+                    (candidateGain == currentGain && candidateDistance < currentDistance) ||
+                    (candidateGain == currentGain && candidateDistance == currentDistance && candidate.offset < current.offset) {
+                    bestIndex = candidateIndex
+                }
+            }
+            let chosen = remaining.remove(at: bestIndex)
+            selected.append(chosen)
+            coveredIndexes.formUnion(chosen.element.source_segment_indexes)
+        }
+
+        return selected.sorted { $0.offset < $1.offset }
     }
 
     private func selectedSourceSegments(

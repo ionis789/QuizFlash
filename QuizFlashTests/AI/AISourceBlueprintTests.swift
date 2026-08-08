@@ -147,6 +147,48 @@ final class AISourceBlueprintTests: XCTestCase {
         XCTAssertEqual(repairCount, 0)
     }
 
+    func testPlannerCompactsSurplusByDistinctSegmentCoverageWithoutRepairRequest() async throws {
+        let response = AIBlueprintResponseDTO(
+            schema_version: 1,
+            suggested_title: "Source title",
+            language_code: "aa",
+            language_display_name: "Detected language",
+            themes: [
+                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1, 2, 3, 4], relative_priority: 1)
+            ],
+            objectives: [
+                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil),
+                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1, 2], relative_priority: 2, allocation_index: nil),
+                .init(id: 3, theme_id: 1, instruction: "Objective 3", source_segment_indexes: [2], relative_priority: 3, allocation_index: nil),
+                .init(id: 4, theme_id: 1, instruction: "Objective 4", source_segment_indexes: [3], relative_priority: 4, allocation_index: nil),
+                .init(id: 5, theme_id: 1, instruction: "Objective 5", source_segment_indexes: [4], relative_priority: 5, allocation_index: nil)
+            ]
+        )
+        let recorder = BlueprintRequestRecorder(
+            targetCards: 3,
+            initialBlueprintOverride: response
+        )
+        let planner = AIBlueprintPlanner(
+            service: try makeService(),
+            providerRequestHandler: { request in
+                try await recorder.response(for: request)
+            }
+        )
+
+        let blueprint = try await planner.build(
+            segments: makeSegments(4),
+            targetCards: 3,
+            options: AIGenerationOptions(),
+            manualAllocations: []
+        )
+
+        XCTAssertEqual(blueprint.objectives.count, 3)
+        XCTAssertEqual(Set(blueprint.objectives.flatMap(\.sourceSegmentIndexes)), [1, 2, 3, 4])
+        XCTAssertEqual(blueprint.themes.first?.sourceSegmentIndexes, [1, 2, 3, 4])
+        let repairCount = await recorder.operationCount("blueprint_repair")
+        XCTAssertEqual(repairCount, 0)
+    }
+
     func testPlannerRepairsAnExactCountBlueprintWithAnUncoveredTheme() async throws {
         let recorder = BlueprintRequestRecorder(
             targetCards: 3,
@@ -537,6 +579,7 @@ private actor BlueprintRequestRecorder {
     private let initialObjectiveSurplus: Int
     private let themeCount: Int
     private let initialResponseLeavesThemeUncovered: Bool
+    private let initialBlueprintOverride: AIBlueprintResponseDTO?
     private var recordedRequests: [AIBlueprintProviderRequest] = []
 
     init(
@@ -545,7 +588,8 @@ private actor BlueprintRequestRecorder {
         keepRepairsInvalid: Bool = false,
         initialObjectiveSurplus: Int = 0,
         themeCount: Int = 1,
-        initialResponseLeavesThemeUncovered: Bool = false
+        initialResponseLeavesThemeUncovered: Bool = false,
+        initialBlueprintOverride: AIBlueprintResponseDTO? = nil
     ) {
         self.targetCards = targetCards
         self.invalidInitialResponse = invalidInitialResponse
@@ -553,6 +597,7 @@ private actor BlueprintRequestRecorder {
         self.initialObjectiveSurplus = max(initialObjectiveSurplus, 0)
         self.themeCount = max(themeCount, 1)
         self.initialResponseLeavesThemeUncovered = initialResponseLeavesThemeUncovered
+        self.initialBlueprintOverride = initialBlueprintOverride
     }
 
     func response(for request: AIBlueprintProviderRequest) throws -> String {
@@ -583,6 +628,9 @@ private actor BlueprintRequestRecorder {
         }
         let isInitialReduce = request.operation == "blueprint_reduce" &&
             recordedRequests.filter { $0.operation == "blueprint_reduce" }.count == 1
+        if isInitialReduce, let initialBlueprintOverride {
+            return String(decoding: try encoder.encode(initialBlueprintOverride), as: UTF8.self)
+        }
         let objectiveCount = shouldReturnInvalid
             ? max(targetCards - 1, 0)
             : targetCards + (isInitialReduce ? initialObjectiveSurplus : 0)
