@@ -68,6 +68,8 @@ struct DeckWorkspaceView: View {
     @State var completionStatusTargetCount = 0
     @State var generationCompletionDoneTask: Task<Void, Never>?
     @State var aiWorkspaceOwnerID = UUID()
+    @State var preservesCompletedAIHeroPresentation = false
+    @State var completedAIGenerationDraftOrder: [UUID] = []
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -305,6 +307,9 @@ struct DeckWorkspaceView: View {
         if hasUnifiedAISession {
             return sortAISessionDraftCards(viewModel.sessionDraftCards)
         }
+        if !completedAIGenerationDraftOrder.isEmpty {
+            return sortDraftCardsPreservingCompletedAIGenerationOrder(viewModel.draftCards)
+        }
         return sortDraftCards(viewModel.draftCards)
     }
 
@@ -387,8 +392,12 @@ struct DeckWorkspaceView: View {
             .onChange(of: viewModel.deckTitle) { _, _ in
                 syncAIWorkspaceGenerationState()
             }
-            .onChange(of: viewModel.draftCards) { _, _ in
+            .onChange(of: viewModel.draftCards) { _, newCards in
                 refreshSessionPresentationState()
+                if newCards.isEmpty {
+                    preservesCompletedAIHeroPresentation = false
+                    completedAIGenerationDraftOrder = []
+                }
             }
             .onChange(of: viewModel.aiState) { _, _ in
                 refreshSessionPresentationState()
@@ -401,6 +410,9 @@ struct DeckWorkspaceView: View {
             }
             .onChange(of: viewModel.aiGenerationDisplayPhase) { _, _ in
                 refreshSessionPresentationState()
+            }
+            .onChange(of: appPreferences.createDeckSortOrder) { _, _ in
+                completedAIGenerationDraftOrder = []
             }
     }
 
@@ -464,6 +476,8 @@ struct DeckWorkspaceView: View {
         to newValue: AIGenerationDisplayPhase?
     ) {
         if oldValue == nil, newValue != nil {
+            preservesCompletedAIHeroPresentation = false
+            completedAIGenerationDraftOrder = []
             didReachAIGenerationAlmostReady = false
             almostReadyBecameVisibleAt = nil
             dismissGenerationCompletionSequence(animated: true)
@@ -476,6 +490,8 @@ struct DeckWorkspaceView: View {
         }
 
         if newValue == .almostReady {
+            preservesCompletedAIHeroPresentation = true
+            captureCompletedAIGenerationDraftOrder()
             didReachAIGenerationAlmostReady = true
             almostReadyBecameVisibleAt = Date()
             captureCompletionStatusCounts()
@@ -504,6 +520,13 @@ struct DeckWorkspaceView: View {
             completionStatusTargetCount = viewModel.draftCards.count
         }
         completionStatusGeneratedCount = max(completionStatusGeneratedCount, min(viewModel.draftCards.count, completionStatusTargetCount))
+    }
+
+    func captureCompletedAIGenerationDraftOrder() {
+        let orderedIDs = sortAISessionDraftCards(viewModel.aiSessionDraftCards).map(\.id)
+        if !orderedIDs.isEmpty {
+            completedAIGenerationDraftOrder = orderedIDs
+        }
     }
 
     func presentGenerationCompletionSequence() {

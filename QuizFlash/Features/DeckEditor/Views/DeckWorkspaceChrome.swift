@@ -26,7 +26,7 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     private var heroTitleControl: some View {
-        if hasActiveGenerationRuntime && !isTitleFocused {
+        if (hasUnifiedAISession || preservesCompletedAIHeroPresentation) && !isTitleFocused {
             generationHeroTitle
         } else {
             editableHeroTitleField
@@ -232,7 +232,7 @@ extension DeckWorkspaceView {
     }
 
     var heroTitleReservedHeight: CGFloat {
-        guard hasActiveGenerationRuntime else { return 0 }
+        guard hasUnifiedAISession || preservesCompletedAIHeroPresentation else { return 0 }
         return ceil(UIFont.systemFont(ofSize: 42, weight: .heavy).lineHeight * 2)
     }
 
@@ -356,46 +356,43 @@ extension DeckWorkspaceView {
                 generationHeaderStatusControl
                 Spacer(minLength: 0)
             }
-            .opacity(shouldShowGenerationHeaderStatus ? 1 : 0)
-            .scaleEffect(shouldShowGenerationHeaderStatus ? 1 : 0.985, anchor: .leading)
+            .opacity(shouldShowGenerationProgressStatus ? 1 : 0)
+            .scaleEffect(shouldShowGenerationProgressStatus ? 1 : 0.985, anchor: .leading)
             .allowsHitTesting(false)
+            .animation(.easeOut(duration: UIConstants.Animation.standard), value: shouldShowGenerationProgressStatus)
 
-            HStack(spacing: UIConstants.Spacing.medium) {
-                Spacer(minLength: 0)
+            if !viewModel.draftCards.isEmpty {
+                HStack(spacing: UIConstants.Spacing.medium) {
+                    if generationCompletionDisplayState != .done {
+                        Spacer(minLength: 0)
 
-                if shouldShowMockAIHeaderAction {
-                    mockAIActionControl
+                        if shouldShowMockAIHeaderAction {
+                            mockAIActionControl
+                        }
+                    }
+
+                    CompletionGenerateMoreControl(
+                        showsGenerateMore: generationCompletionDisplayState != .done,
+                        isVisible: generationCompletionDisplayState == .done || shouldShowPrimaryGenerateAction,
+                        isEnabled: canStartLocalGeneration,
+                        doneLabel: localized("Done"),
+                        generateMoreLabel: localized("Generate more"),
+                        accessibilityLabel: localized("Generate cards with AI"),
+                        action: {
+                            presentAIGenerationSourcePicker()
+                        }
+                    )
+
+                    if generationCompletionDisplayState == .done {
+                        Spacer(minLength: 0)
+                    }
                 }
-
-                if !viewModel.draftCards.isEmpty {
-                    headerGenerateActionControl
-                }
+                .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
+                .animation(generationPhaseAnimation, value: shouldShowPrimaryGenerateAction)
             }
-            .opacity(shouldRevealAIGenerateActions ? 1 : 0)
-            .scaleEffect(shouldRevealAIGenerateActions ? 1 : 0.82, anchor: .trailing)
-            .allowsHitTesting(shouldRevealAIGenerateActions)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipped()
-    }
-
-    @ViewBuilder
-    var headerGenerateActionControl: some View {
-        primaryGenerateActionControl
-    }
-
-    @ViewBuilder
-    var primaryGenerateActionControl: some View {
-        if shouldShowPrimaryGenerateAction {
-            GenerateMoreAIButton(
-                action: {
-                    presentAIGenerationSourcePicker()
-                },
-                isEnabled: canStartLocalGeneration,
-                label: localized("Generate more"),
-                accessibilityLabel: localized("Generate cards with AI")
-            )
-        }
     }
 
     @ViewBuilder
@@ -482,12 +479,8 @@ extension DeckWorkspaceView {
     }
 
     var generationHeaderStatusControl: some View {
-        let showsDoneStatus = generationCompletionDisplayState == .done
         let holdsAlmostReadyStatus = generationCompletionDisplayState == .holdingAlmostReady
         let statusTitle: String = {
-            if showsDoneStatus {
-                return localized("Done")
-            }
             if holdsAlmostReadyStatus {
                 return localized("Almost ready")
             }
@@ -495,25 +488,23 @@ extension DeckWorkspaceView {
         }()
         let generatedCount = holdsAlmostReadyStatus ? completionStatusGeneratedCount : viewModel.aiGeneratedCardCount
         let targetCount = holdsAlmostReadyStatus ? completionStatusTargetCount : viewModel.aiTargetCardCount
-        let tint = (showsDoneStatus || holdsAlmostReadyStatus) ? themeManager.successPrimary : aiToolbarTint
+        let tint = holdsAlmostReadyStatus ? themeManager.successPrimary : aiToolbarTint
 
         return HStack(spacing: UIConstants.Spacing.small) {
             AnimatedGenerationStatusTitle(
                 title: statusTitle,
                 animation: generationPhaseAnimation,
-                tint: showsDoneStatus ? tint : nil
+                tint: nil
             )
             .font(.system(size: 20, weight: .heavy))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
 
-            if !showsDoneStatus {
-                ProgressActivityDots(color: tint)
-                    .frame(minWidth: 28)
-                    .animation(generationPhaseAnimation, value: generationMotionKey)
-            }
+            ProgressActivityDots(color: tint)
+                .frame(minWidth: 28)
+                .animation(generationPhaseAnimation, value: generationMotionKey)
 
-            if !showsDoneStatus, targetCount > 0 {
+            if targetCount > 0 {
                 Text("\(generatedCount)/\(targetCount)")
                     .font(.system(size: 15, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -526,6 +517,11 @@ extension DeckWorkspaceView {
         .accessibilityLabel(aiToolbarStatusText ?? statusTitle)
         .animation(generationPhaseAnimation, value: generationMotionKey)
         .animation(generationPhaseAnimation, value: generationCompletionDisplayState)
+    }
+
+    var shouldShowGenerationProgressStatus: Bool {
+        viewModel.aiGenerationDisplayPhase != nil
+            || generationCompletionDisplayState == .holdingAlmostReady
     }
 
     var addCardButton: some View {
@@ -849,6 +845,81 @@ struct GenerateMoreAIButton: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.55)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accentColor: Color {
+        themeManager.roleColor(.buttonDangerForeground)
+    }
+}
+
+private struct CompletionGenerateMoreControl: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let showsGenerateMore: Bool
+    let isVisible: Bool
+    let isEnabled: Bool
+    let doneLabel: String
+    let generateMoreLabel: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            guard showsGenerateMore, isEnabled else { return }
+            action()
+        } label: {
+            HStack(spacing: showsGenerateMore ? 9 : 0) {
+                generateMoreSymbol
+                    .frame(width: showsGenerateMore ? 26 : 0, height: 26)
+                    .opacity(showsGenerateMore ? 1 : 0)
+                    .scaleEffect(showsGenerateMore ? 1 : 0.72)
+                    .clipped()
+
+                Text(showsGenerateMore ? generateMoreLabel : doneLabel)
+                    .font(.system(size: showsGenerateMore ? 15 : 20, weight: .heavy))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .foregroundStyle(showsGenerateMore ? accentColor : themeManager.successPrimary)
+                    .statusTextMotion(trigger: showsGenerateMore)
+            }
+            .padding(.leading, showsGenerateMore ? 10 : 0)
+            .padding(.trailing, showsGenerateMore ? 18 : 0)
+            .frame(height: UIConstants.Size.capsuleHeight)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(themeManager.roleColor(.buttonSurfaceFill))
+                    .opacity(showsGenerateMore ? 1 : 0)
+
+                Capsule(style: .continuous)
+                    .fill(accentColor.opacity(0.07))
+                    .opacity(showsGenerateMore ? 1 : 0)
+
+                Capsule(style: .continuous)
+                    .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
+                    .opacity(showsGenerateMore ? 1 : 0)
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(GenerateMoreAIButtonStyle())
+        .disabled(!showsGenerateMore || !isEnabled)
+        .opacity(isVisible ? (isEnabled || !showsGenerateMore ? 1 : 0.55) : 0)
+        .scaleEffect(isVisible ? 1 : 0.985, anchor: showsGenerateMore ? .trailing : .leading)
+        .allowsHitTesting(isVisible && showsGenerateMore && isEnabled)
+        .animation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0), value: showsGenerateMore)
+        .animation(.easeInOut(duration: UIConstants.Animation.standard), value: isVisible)
+        .accessibilityHidden(!isVisible)
+        .accessibilityLabel(showsGenerateMore ? accessibilityLabel : doneLabel)
+    }
+
+    private var generateMoreSymbol: some View {
+        ZStack {
+            Circle()
+                .fill(accentColor.opacity(0.18))
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(accentColor)
+        }
     }
 
     private var accentColor: Color {

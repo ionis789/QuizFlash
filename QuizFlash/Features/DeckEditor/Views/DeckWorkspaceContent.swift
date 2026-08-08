@@ -640,6 +640,28 @@ extension DeckWorkspaceView {
         }
     }
 
+    func sortDraftCardsPreservingCompletedAIGenerationOrder(_ cards: [DraftCard]) -> [DraftCard] {
+        let completedRanks = Dictionary(
+            uniqueKeysWithValues: completedAIGenerationDraftOrder.enumerated().map { ($0.element, $0.offset) }
+        )
+        let fallbackRanks = Dictionary(
+            uniqueKeysWithValues: sortDraftCards(cards).enumerated().map { ($0.element.id, $0.offset) }
+        )
+
+        return cards.sorted { lhs, rhs in
+            switch (completedRanks[lhs.id], completedRanks[rhs.id]) {
+            case let (lhsRank?, rhsRank?):
+                return lhsRank < rhsRank
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                return fallbackRanks[lhs.id, default: 0] < fallbackRanks[rhs.id, default: 0]
+            }
+        }
+    }
+
     func refreshSessionPresentationState() {
         if hasUnifiedAISession,
            !viewModel.baseDraftCards.isEmpty,
