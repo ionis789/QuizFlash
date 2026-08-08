@@ -266,109 +266,76 @@ extension AIFlashcardService {
     // MARK: - LaTeX JSON Escape Fixer  (runs on RAW JSON string, before JSONDecoder)
     // -------------------------------------------------------------------------
 
-    /// GPT sometimes writes LaTeX commands with a SINGLE backslash inside JSON
-    /// (e.g. `\lambda`), which is an invalid JSON escape sequence.  JSONDecoder
-    /// would either throw or silently drop the backslash, producing `lambda`.
+    /// Providers sometimes write a LaTeX backslash without JSON-escaping it.
     ///
     /// This function runs on the raw JSON TEXT (before decoding) and ensures
     /// every LaTeX command has exactly two backslashes (\\command), so that
     /// after JSONDecoder the Swift String contains the correct single \command.
     ///
-    /// Strategy:
-    ///   • Regex: find a single backslash (not preceded by another backslash)
-    ///     followed by a known LaTeX command name.
-    ///   • Replace with \\command.
-    ///
     /// Over-escaping (\\\\command → \\command) is handled POST-decode in
     /// AIZoneParser.fixOverescapedLatex(), which is simpler and safer there.
     func fixLatexEscaping(in jsonString: String) -> String {
-        // Comprehensive list — all common LaTeX math commands.
-        // Grouped for readability; order does not matter for the regex.
-        let commands = [
-            // Greek lowercase
-            "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon",
-            "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda",
-            "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma",
-            "varsigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega",
-            // Greek uppercase
-            "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma",
-            "Upsilon", "Phi", "Psi", "Omega",
-            // Arrows
-            "to", "rightarrow", "Rightarrow", "leftarrow", "Leftarrow",
-            "leftrightarrow", "Leftrightarrow", "mapsto", "hookrightarrow",
-            "nrightarrow", "nRightarrow", "uparrow", "downarrow",
-            "nearrow", "searrow", "swarrow", "nwarrow",
-            // Set / logic
-            "in", "notin", "ni", "subset", "subseteq", "supset", "supseteq",
-            "cup", "cap", "bigcup", "bigcap", "setminus", "emptyset",
-            "forall", "exists", "nexists", "neg", "lnot", "wedge", "vee",
-            "land", "lor", "Rightarrow", "Leftrightarrow", "equiv",
-            // Relations / comparison
-            "leq", "geq", "neq", "approx", "sim", "simeq", "cong",
-            "ll", "gg", "prec", "succ", "perp", "parallel", "mid", "nmid",
-            // Operators
-            "cdot", "times", "div", "oplus", "otimes", "circ", "bullet",
-            "pm", "mp", "star", "ast", "dagger", "ddagger",
-            // Big operators
-            "sum", "prod", "coprod", "int", "oint", "iint", "iiint",
-            "bigoplus", "bigotimes", "bigsqcup", "biguplus", "bigvee", "bigwedge",
-            // Fractions / roots
-            "frac", "dfrac", "tfrac", "cfrac", "sqrt", "over",
-            // Delimiters
-            "left", "right", "langle", "rangle", "lfloor", "rfloor",
-            "lceil", "rceil", "lbrace", "rbrace", "vert", "Vert",
-            // Dots
-            "ldots", "cdots", "vdots", "ddots", "dots",
-            // Functions (math mode)
-            "sin", "cos", "tan", "cot", "sec", "csc",
-            "arcsin", "arccos", "arctan",
-            "sinh", "cosh", "tanh",
-            "log", "ln", "exp", "lim", "limsup", "liminf",
-            "sup", "inf", "max", "min", "gcd", "lcm", "det",
-            "ker", "dim", "deg", "hom", "arg", "Pr", "mod",
-            // Accents / decorators
-            "hat", "bar", "tilde", "vec", "dot", "ddot", "widetilde",
-            "widehat", "overline", "underline", "overbrace", "underbrace",
-            "overset", "underset",
-            // Environments / structure
-            "begin", "end", "text", "mathrm", "mathbf", "mathbb", "mathcal",
-            "mathit", "mathsf", "mathtt", "boldsymbol", "operatorname",
-            "textbf", "textit", "texttt",
-            // Spacing
-            "quad", "qquad",
-            // Misc math
-            "infty", "partial", "nabla", "triangle", "angle", "measuredangle",
-            "prime", "backslash", "textbackslash",
-            "not", "iff", "implies", "therefore", "because",
-            "rank", "span", "trace", "tr", "sgn", "sign",
-            "colon", "coloneq", "eqcolon",
-            "flat", "natural", "sharp",
-            "Re", "Im", "top", "bot", "ell",
-            // Matrix environments
-            "pmatrix", "bmatrix", "vmatrix", "Vmatrix", "matrix",
-            "cases", "aligned", "align", "gather", "equation",
-            "array", "substack",
-            // Display layout
-            "displaystyle", "textstyle", "scriptstyle", "scriptscriptstyle",
-            "limits", "nolimits",
-            "label", "tag", "nonumber",
-        ].joined(separator: "|")
+        let characters = Array(jsonString)
+        var result = ""
+        result.reserveCapacity(jsonString.count)
+        var isInsideJSONString = false
+        var mathDelimiterLength = 0
+        var index = 0
 
-        // Match a SINGLE backslash (not preceded by another backslash)
-        // followed immediately by one of the command names, at a word boundary.
-        let pattern = #"(?<!\\)\\(?!\\)(\#(commands))\b"#
+        while index < characters.count {
+            let character = characters[index]
 
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return jsonString
+            if character == "\\", isInsideJSONString {
+                var runLength = 1
+                while index + runLength < characters.count,
+                      characters[index + runLength] == "\\" {
+                    runLength += 1
+                }
+                let nextIndex = index + runLength
+                let nextCharacter = nextIndex < characters.count ? characters[nextIndex] : nil
+                let needsJSONEscape = mathDelimiterLength > 0 &&
+                    !runLength.isMultiple(of: 2) &&
+                    nextCharacter != nil &&
+                    nextCharacter != "\""
+                result.append(String(repeating: "\\", count: runLength + (needsJSONEscape ? 1 : 0)))
+
+                if !runLength.isMultiple(of: 2), let nextCharacter {
+                    result.append(nextCharacter)
+                    index = nextIndex + 1
+                } else {
+                    index = nextIndex
+                }
+                continue
+            }
+
+            if character == "\"" {
+                isInsideJSONString.toggle()
+                if !isInsideJSONString { mathDelimiterLength = 0 }
+                result.append(character)
+                index += 1
+                continue
+            }
+
+            if character == "$", isInsideJSONString {
+                var runLength = 1
+                while index + runLength < characters.count,
+                      characters[index + runLength] == "$" {
+                    runLength += 1
+                }
+                result.append(String(repeating: "$", count: runLength))
+                if mathDelimiterLength == 0 {
+                    mathDelimiterLength = min(runLength, 2)
+                } else if runLength >= mathDelimiterLength {
+                    mathDelimiterLength = 0
+                }
+                index += runLength
+                continue
+            }
+
+            result.append(character)
+            index += 1
         }
 
-        let range = NSRange(jsonString.startIndex..., in: jsonString)
-        // Replace \command → \\command (valid JSON escape)
-        return regex.stringByReplacingMatches(
-            in: jsonString,
-            options: [],
-            range: range,
-            withTemplate: #"\\\\$1"#
-        )
+        return result
     }
 }

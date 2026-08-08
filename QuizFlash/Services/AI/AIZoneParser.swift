@@ -157,6 +157,7 @@ struct AIZoneParser {
     ///   3. Fix unbalanced $$ delimiters.
     nonisolated static func sanitizeForStorage(_ input: String) -> String {
         var t = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        t = repairJSONControlEscapesInMath(t)
         t = fixOverescapedLatex(t)   // ← NEW: handles GPT double-backslash hallucination
         t = fixLiteralNewlines(t)
         t = fixUnbalancedDoubleDollars(t)
@@ -209,6 +210,56 @@ struct AIZoneParser {
                 let r2 = NSRange(result.startIndex..., in: result)
                 result = regex2.stringByReplacingMatches(in: result, range: r2, withTemplate: #"\\$1"#)
             }
+        }
+
+        return result
+    }
+
+    /// Recovers JSON control escapes that were decoded before a malformed
+    /// LaTeX command could be normalized. Only control scalars that cannot be
+    /// intentional layout are repaired here; line breaks and tabs are kept.
+    private nonisolated static func repairJSONControlEscapesInMath(_ input: String) -> String {
+        let escapeByScalar: [UInt32: String] = [
+            0x08: #"\b"#,
+            0x0C: #"\f"#
+        ]
+        var result = ""
+        result.reserveCapacity(input.count)
+        var mathDelimiterLength = 0
+        let characters = Array(input)
+        var index = 0
+
+        while index < characters.count {
+            let character = characters[index]
+            if character == "$" {
+                var runLength = 1
+                while index + runLength < characters.count,
+                      characters[index + runLength] == "$" {
+                    runLength += 1
+                }
+                result.append(String(repeating: "$", count: runLength))
+                if mathDelimiterLength == 0 {
+                    mathDelimiterLength = min(runLength, 2)
+                } else if runLength >= mathDelimiterLength {
+                    mathDelimiterLength = 0
+                }
+                index += runLength
+                continue
+            }
+
+            let scalars = character.unicodeScalars
+            if scalars.count == 1, let scalar = scalars.first, scalar.value < 0x20 {
+                if mathDelimiterLength > 0, let repaired = escapeByScalar[scalar.value] {
+                    result.append(repaired)
+                } else if scalar.value == 0x09 || scalar.value == 0x0A || scalar.value == 0x0D {
+                    result.append(character)
+                }
+                index += 1
+                continue
+            }
+
+            result.append(character)
+            index += 1
         }
 
         return result

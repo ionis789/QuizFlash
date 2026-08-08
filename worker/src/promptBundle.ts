@@ -51,7 +51,7 @@ export const requiredPromptTemplateKeys = [
 ] as const;
 
 export const defaultPromptBundle: PromptBundle = {
-  version: "v8",
+  version: "v9",
   status: "active",
   templates: {
       "cardType.flashcard": "\nCARD TYPE: FLASHCARDS\nCreate active-recall question/answer cards. Preserve exact technical terms, notation, formulas, and short code snippets when they are the best learning surface.",
@@ -104,6 +104,7 @@ The schema_version value must match the authoritative value in the request.
 Theme and objective ids must be unique integers local to this response.
 Every returned theme must be referenced by at least one objective.
 Every objective must describe exactly one distinct card-worthy recall task and cite only source segments belonging to its theme.
+For each theme, the union of its objectives' source_segment_indexes must equal that theme's source_segment_indexes.
 Theme and objective relative_priority values must be stable source-order ordinals, not judgments of relevance or importance.`,
   "blueprint.direct": `Build the final blueprint directly.
 Authorized objective count: {{targetCards}}.
@@ -119,6 +120,8 @@ Inspect the complete source and construct its global conceptual map before assig
 Allocate the authorized objective count across the complete map to maximize distinct supported coverage. Do not favor earlier, longer, repeated, or more prominently formatted material.
 Create the smallest useful set of global themes that represents the source within the authorized count. Every returned theme must receive at least one objective.
 When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of dropping later themes or exhausting the count by over-splitting earlier material.
+Prefer new conceptual coverage over alternate or equivalent formulations of material already assigned to another objective.
+Before returning, verify within every theme that its objective segment references jointly cover every segment declared by that theme. Do not declare a segment in a theme and then leave it without an objective.
 Each objective must be distinct, supported, atomic, and ordered within its theme.
 Keep every title, summary, and objective instruction as concise as possible while preserving the semantic distinction and source support required for downstream generation. Do not restate source passages or repeat the same context across fields.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
@@ -137,7 +140,7 @@ Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. De
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
 When final output is true, schema_version must be exactly {{schemaVersion}}.
 If final output is false, return the compact evidence-digest schema required by the map operation. Merge equivalent themes and objectives, preserve all valid supporting segment indexes, retain the full supported concept map without inferred-importance ranking, and do not force the authorized count.
-If final output is true, first merge all evidence into a global conceptual map, then allocate exactly the authorized objective count across that complete map. Maximize distinct supported coverage without favoring source order, length, repetition, formatting prominence, or inferred importance. Every returned theme must receive at least one objective. When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of omitting later themes or over-splitting earlier material. Return a concise source-grounded title and the dominant-language fields. Keep every title, summary, and objective instruction as concise as possible while preserving semantic distinction and source support; do not restate evidence across fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
+If final output is true, first merge all evidence into a global conceptual map, then allocate exactly the authorized objective count across that complete map. Maximize distinct supported coverage without favoring source order, length, repetition, formatting prominence, or inferred importance. Prefer new conceptual coverage over alternate or equivalent formulations of already assigned material. Every returned theme must receive at least one objective, and within each theme the union of objective segment references must equal the theme's source segment references. When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of omitting later themes or over-splitting earlier material. Return a concise source-grounded title and the dominant-language fields. Keep every title, summary, and objective instruction as concise as possible while preserving semantic distinction and source support; do not restate evidence across fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
 <EVIDENCE_DIGESTS>{{digestJSON}}</EVIDENCE_DIGESTS>`,
   "blueprint.repair": `Repair the invalid final blueprint while preserving valid source-grounded content.
@@ -145,7 +148,7 @@ Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. De
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
 Required blueprint schema_version: {{schemaVersion}}.
 Resolve every reported validation issue. Return the complete final blueprint, not a patch. Never change the authorized count or allocation constraints.
-For count or coverage repairs, redistribute objectives across the complete conceptual map. Do not repair by truncating a prefix or suffix, and do not use inferred importance. Every returned theme must receive at least one objective.
+For count or coverage repairs, redistribute objectives across the complete conceptual map. Do not repair by truncating a prefix or suffix, and do not use inferred importance. Every returned theme must receive at least one objective. Within each theme, make the union of objective source segment references equal the theme's source segment references.
 <VALIDATION_ISSUES>{{issuesJSON}}</VALIDATION_ISSUES>
 <INVALID_BLUEPRINT>{{invalidBlueprintJSON}}</INVALID_BLUEPRINT>
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>

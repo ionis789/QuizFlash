@@ -179,7 +179,10 @@ extension AIFlashcardService {
             let compactSummary = String(theme.summary.prefix(180))
             return "\(theme.title): \(compactSummary)"
         }.joined(separator: "\n")
-        let deliveryBatchSize = options.resolvedCardsPerBatch(for: selectedObjectives.count)
+        let deliveryBatchSize = min(
+            options.resolvedCardsPerBatch(for: selectedObjectives.count),
+            maxCardsPerBlueprintBatch
+        )
         var plans: [TextBatchPlan] = []
 
         for theme in blueprint.themes {
@@ -217,7 +220,10 @@ extension AIFlashcardService {
                                 theme: theme,
                                 objectives: batchObjectives
                             ),
-                            serializationKey: theme.id.uuidString
+                            // Exact blueprint objectives are independent. A unique
+                            // key keeps recovery splits serialized while allowing
+                            // initial batches from the same theme to run in parallel.
+                            serializationKey: "\(theme.id.uuidString):\(plans.count)"
                         )
                     )
                 }

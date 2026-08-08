@@ -122,6 +122,7 @@ nonisolated enum AIBlueprintValidationIssue: Error, Hashable, Sendable, CustomSt
     case themeTooLong
     case invalidThemeSegments
     case themeWithoutObjective
+    case uncoveredThemeSegments
     case wrongObjectiveCount(expected: Int, actual: Int)
     case duplicateObjectiveID
     case emptyObjective
@@ -144,6 +145,7 @@ nonisolated enum AIBlueprintValidationIssue: Error, Hashable, Sendable, CustomSt
         case .themeTooLong: return "theme_too_long"
         case .invalidThemeSegments: return "invalid_theme_segments"
         case .themeWithoutObjective: return "theme_without_objective"
+        case .uncoveredThemeSegments: return "uncovered_theme_segments"
         case .wrongObjectiveCount(let expected, let actual): return "wrong_objective_count_expected_\(expected)_actual_\(actual)"
         case .duplicateObjectiveID: return "duplicate_objective_id"
         case .emptyObjective: return "empty_objective"
@@ -415,6 +417,25 @@ nonisolated enum AIBlueprintValidator {
                 entityID: theme.id,
                 minimumInteger: 1,
                 actualInteger: 0
+            ))
+        }
+
+        let coveredIndexesByTheme = Dictionary(grouping: dto.objectives, by: \.theme_id)
+            .mapValues { objectives in
+                Set(objectives.flatMap { normalizedIndexes($0.source_segment_indexes) })
+            }
+        for theme in dto.themes {
+            let expectedIndexes = Set(normalizedIndexes(theme.source_segment_indexes))
+            let actualIndexes = coveredIndexesByTheme[theme.id, default: []]
+                .intersection(expectedIndexes)
+            guard !expectedIndexes.subtracting(actualIndexes).isEmpty else { continue }
+            issues.append(.uncoveredThemeSegments)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.uncoveredThemeSegments.description,
+                path: "themes[id=\(theme.id)].source_segment_indexes",
+                entityID: theme.id,
+                expectedIndexes: expectedIndexes.sorted(),
+                actualIndexes: actualIndexes.sorted()
             ))
         }
 

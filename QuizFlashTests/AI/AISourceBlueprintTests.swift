@@ -232,6 +232,35 @@ final class AISourceBlueprintTests: XCTestCase {
         }
     }
 
+    func testUncoveredThemeSegmentsRequireSemanticRepair() {
+        let dto = AIBlueprintResponseDTO(
+            schema_version: 1,
+            suggested_title: "Source title",
+            language_code: "aa",
+            language_display_name: "Detected language",
+            themes: [
+                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1, 2], relative_priority: 1)
+            ],
+            objectives: [
+                .init(id: 1, theme_id: 1, instruction: "Objective", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil)
+            ]
+        )
+
+        XCTAssertThrowsError(try validate(dto, targetCards: 1)) { error in
+            guard let failure = error as? AIBlueprintValidationFailure else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(failure.issues.contains(.uncoveredThemeSegments))
+            XCTAssertTrue(failure.repairDiagnostics.contains(.init(
+                code: "uncovered_theme_segments",
+                path: "themes[id=1].source_segment_indexes",
+                entityID: 1,
+                expectedIndexes: [1, 2],
+                actualIndexes: [1]
+            )))
+        }
+    }
+
     func testDuplicateObjectiveTextRequiresSemanticRepairAfterUnicodeNormalization() {
         var dto = makeDTO(targetCards: 2)
         dto = AIBlueprintResponseDTO(
@@ -364,7 +393,7 @@ final class AISourceBlueprintTests: XCTestCase {
         )
     }
 
-    func testBlueprintPlansSerializeWithinThemeAndAllowDifferentThemes() async throws {
+    func testBlueprintPlansUseSmallIndependentBatchesAcrossThemes() async throws {
         let service = try makeService()
         let segments = makeSegments(2)
         let themeA = AIBlueprintTheme(id: UUID(), title: "Theme A", summary: "Summary A", sourceSegmentIndexes: [1], relativePriority: 2)
@@ -397,8 +426,9 @@ final class AISourceBlueprintTests: XCTestCase {
         )
 
         XCTAssertEqual(plans.reduce(0) { $0 + $1.targetCards }, 14)
-        XCTAssertEqual(Set(plans.compactMap(\.serializationKey)).count, 2)
-        XCTAssertEqual(plans.filter { $0.serializationKey == themeA.id.uuidString }.count, 2)
+        XCTAssertEqual(plans.map(\.targetCards).sorted(), [1, 1, 6, 6])
+        XCTAssertEqual(Set(plans.compactMap(\.serializationKey)).count, plans.count)
+        XCTAssertTrue(plans.allSatisfy { $0.targetCards <= service.maxCardsPerBlueprintBatch })
         XCTAssertEqual(service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 6), plans.count)
         await Task.yield()
     }
@@ -486,11 +516,12 @@ final class AISourceBlueprintTests: XCTestCase {
                 )
             ],
             objectives: (1...targetCards).map { index in
-                .init(
+                let segmentIndex = segmentIndexes[(index - 1) % segmentIndexes.count]
+                return .init(
                     id: index,
                     theme_id: 1,
                     instruction: "Objective \(index)",
-                    source_segment_indexes: [segmentIndexes[0]],
+                    source_segment_indexes: [segmentIndex],
                     relative_priority: targetCards - index + 1,
                     allocation_index: nil
                 )

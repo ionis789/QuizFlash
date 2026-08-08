@@ -232,6 +232,44 @@ final class AICardJSONDecodingTests: XCTestCase {
         }
     }
 
+    func testDecodeRepairsJSONControlEscapesInsideLatexCommands() async throws {
+        let service = makeService()
+        let json = #"""
+        {
+          "schemaVersion": 1,
+          "cards": [
+            {
+              "type": "flashcard",
+              "front": {
+                "zones": [
+                  { "type": "text", "text": "Cum se notează $\beta_k$?" }
+                ]
+              },
+              "back": {
+                "zones": [
+                  { "type": "text", "text": "$\beta_k = \frac{\theta}{2}$" }
+                ]
+              }
+            }
+          ]
+        }
+        """#
+
+        let cards = try await service.decodeGeneratedCards(from: json, contract: .flashcard)
+
+        guard case .flashcard(let content) = cards[0].content else {
+            return XCTFail("Expected flashcard payload")
+        }
+        XCTAssertEqual(content.questionZones, [#"Cum se notează $\beta_k$?"#])
+        XCTAssertEqual(content.answerZones, [#"$\beta_k = \frac{\theta}{2}$"#])
+        XCTAssertFalse((content.questionZones + content.answerZones).joined().unicodeScalars.contains { $0.value < 0x20 })
+    }
+
+    func testStorageSanitizerRecoversAlreadyDecodedMathControlEscape() {
+        let corrupted = "$\u{0008}eta_k$"
+        XCTAssertEqual(AIZoneParser.sanitizeLatex(corrupted), #"$\beta_k$"#)
+    }
+
     func testDecodePreservesRenderableFormalNotationAsText() async throws {
         let service = makeService()
         let json = #"""

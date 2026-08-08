@@ -6,7 +6,7 @@ import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
-    expect(defaultPromptBundle.version).toBe("v8");
+    expect(defaultPromptBundle.version).toBe("v9");
     expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("{{schemaVersion}}");
@@ -19,6 +19,8 @@ describe("QuizFlash AI proxy", () => {
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("construct its global conceptual map before assigning objective slots");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("Every returned theme must receive at least one objective");
     expect(defaultPromptBundle.templates["blueprint.repair"]).toContain("Do not repair by truncating a prefix or suffix");
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("the union of its objectives' source_segment_indexes");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("Prefer new conceptual coverage over alternate or equivalent formulations");
   });
 
   it("accepts every supported blueprint operation and rejects unknown operations", () => {
