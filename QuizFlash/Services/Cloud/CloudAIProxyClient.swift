@@ -193,13 +193,13 @@ final class CloudAIGenerationFinalizationCoordinator {
         return task
     }
 
-    /// Waits for an in-flight finalization and retries a retained failure once.
-    func resolveBeforeStartingGeneration() async throws {
+    /// Waits for an in-flight finalization and retries it without surfacing an old error as a new generation failure.
+    func resolveBeforeStartingGeneration() async {
         if let activeTask {
             _ = await activeTask.value
         }
         guard let pendingFinalization else { return }
-        try await attempt(pendingFinalization).get()
+        _ = await attempt(pendingFinalization)
     }
 
     private func attempt(
@@ -417,7 +417,7 @@ final class CloudAIProxyClient {
     }
 
     func startGeneration(targetCards: Int, idempotencyKey: UUID = UUID()) async throws -> CloudAIGenerationSession {
-        try await generationFinalizationCoordinator.resolveBeforeStartingGeneration()
+        await generationFinalizationCoordinator.resolveBeforeStartingGeneration()
         guard let user = Auth.auth().currentUser else {
             throw CloudAIProxyError.signInRequired
         }

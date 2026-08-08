@@ -242,6 +242,22 @@ actor AIBlueprintPlanner {
         var dto = initialDTO
         var previousInvalidDTO: AIBlueprintResponseDTO?
         for repairAttempt in 0...2 {
+            if let trimmedDTO = trimmingObjectiveSurplus(
+                dto,
+                targetCards: targetCards,
+                manualAllocations: manualAllocations
+            ) {
+                let surplusCount = dto.objectives.count - trimmedDTO.objectives.count
+                dto = trimmedDTO
+                await service.trace(
+                    .blueprintSurplusTrimmed,
+                    "Trimmed valid surplus blueprint objectives locally.",
+                    metadata: [
+                        "surplus_count": String(surplusCount),
+                        "target_cards": String(targetCards)
+                    ]
+                )
+            }
             do {
                 let blueprint = try AIBlueprintValidator.validate(
                     dto,
@@ -307,6 +323,76 @@ actor AIBlueprintPlanner {
             }
         }
         throw AIServiceError.invalidResponse
+    }
+
+    private func trimmingObjectiveSurplus(
+        _ dto: AIBlueprintResponseDTO,
+        targetCards: Int,
+        manualAllocations: [AISourceRangeAllocation]
+    ) -> AIBlueprintResponseDTO? {
+        guard manualAllocations.isEmpty,
+              targetCards > 0,
+              dto.objectives.count > targetCards,
+              !dto.themes.isEmpty,
+              dto.themes.count <= targetCards,
+              Set(dto.themes.map(\.id)).count == dto.themes.count,
+              Set(dto.objectives.map(\.id)).count == dto.objectives.count else {
+            return nil
+        }
+
+        let themeIDs = Set(dto.themes.map(\.id))
+        let indexedObjectives = Array(dto.objectives.enumerated())
+        guard indexedObjectives.allSatisfy({ themeIDs.contains($0.element.theme_id) }) else {
+            return nil
+        }
+
+        let themePriorityByID = Dictionary(uniqueKeysWithValues: dto.themes.map {
+            ($0.id, $0.relative_priority)
+        })
+        var selectedIndexes = Set<Int>()
+
+        for theme in dto.themes {
+            let candidates = indexedObjectives.filter { $0.element.theme_id == theme.id }
+            guard let best = candidates.max(by: { lhs, rhs in
+                if lhs.element.relative_priority != rhs.element.relative_priority {
+                    return lhs.element.relative_priority < rhs.element.relative_priority
+                }
+                return lhs.offset > rhs.offset
+            }) else {
+                return nil
+            }
+            selectedIndexes.insert(best.offset)
+        }
+
+        let remaining = indexedObjectives
+            .filter { !selectedIndexes.contains($0.offset) }
+            .sorted { lhs, rhs in
+                if lhs.element.relative_priority != rhs.element.relative_priority {
+                    return lhs.element.relative_priority > rhs.element.relative_priority
+                }
+                let leftThemePriority = themePriorityByID[lhs.element.theme_id] ?? 0
+                let rightThemePriority = themePriorityByID[rhs.element.theme_id] ?? 0
+                if leftThemePriority != rightThemePriority {
+                    return leftThemePriority > rightThemePriority
+                }
+                return lhs.offset < rhs.offset
+            }
+
+        for candidate in remaining where selectedIndexes.count < targetCards {
+            selectedIndexes.insert(candidate.offset)
+        }
+        guard selectedIndexes.count == targetCards else { return nil }
+
+        return AIBlueprintResponseDTO(
+            schema_version: dto.schema_version,
+            suggested_title: dto.suggested_title,
+            language_code: dto.language_code,
+            language_display_name: dto.language_display_name,
+            themes: dto.themes,
+            objectives: indexedObjectives.compactMap { indexed in
+                selectedIndexes.contains(indexed.offset) ? indexed.element : nil
+            }
+        )
     }
 
     private func selectedSourceSegments(

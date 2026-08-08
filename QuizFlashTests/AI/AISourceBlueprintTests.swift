@@ -120,6 +120,32 @@ final class AISourceBlueprintTests: XCTestCase {
         }
     }
 
+    func testPlannerTrimsValidObjectiveSurplusWithoutRepairRequest() async throws {
+        let recorder = BlueprintRequestRecorder(
+            targetCards: 3,
+            initialObjectiveSurplus: 2,
+            themeCount: 2
+        )
+        let planner = AIBlueprintPlanner(
+            service: try makeService(),
+            providerRequestHandler: { request in
+                try await recorder.response(for: request)
+            }
+        )
+
+        let blueprint = try await planner.build(
+            segments: makeSegments(1),
+            targetCards: 3,
+            options: AIGenerationOptions(),
+            manualAllocations: []
+        )
+
+        XCTAssertEqual(blueprint.objectives.count, 3)
+        XCTAssertEqual(Set(blueprint.objectives.map(\.themeID)), Set(blueprint.themes.map(\.id)))
+        let repairCount = await recorder.operationCount("blueprint_repair")
+        XCTAssertEqual(repairCount, 0)
+    }
+
     func testValidBlueprintProducesExactInternalObjectivesAndNormalizesFields() throws {
         let segments = makeSegments(2)
         let dto = makeDTO(targetCards: 3, segmentIndexes: [1, 2])
@@ -417,16 +443,22 @@ private actor BlueprintRequestRecorder {
     private let targetCards: Int
     private let invalidInitialResponse: Bool
     private let keepRepairsInvalid: Bool
+    private let initialObjectiveSurplus: Int
+    private let themeCount: Int
     private var recordedRequests: [AIBlueprintProviderRequest] = []
 
     init(
         targetCards: Int,
         invalidInitialResponse: Bool = false,
-        keepRepairsInvalid: Bool = false
+        keepRepairsInvalid: Bool = false,
+        initialObjectiveSurplus: Int = 0,
+        themeCount: Int = 1
     ) {
         self.targetCards = targetCards
         self.invalidInitialResponse = invalidInitialResponse
         self.keepRepairsInvalid = keepRepairsInvalid
+        self.initialObjectiveSurplus = max(initialObjectiveSurplus, 0)
+        self.themeCount = max(themeCount, 1)
     }
 
     func response(for request: AIBlueprintProviderRequest) throws -> String {
@@ -455,19 +487,34 @@ private actor BlueprintRequestRecorder {
         } else {
             shouldReturnInvalid = request.operation == "blueprint_repair" && keepRepairsInvalid
         }
-        let objectiveCount = shouldReturnInvalid ? max(targetCards - 1, 0) : targetCards
+        let isInitialReduce = request.operation == "blueprint_reduce" &&
+            recordedRequests.filter { $0.operation == "blueprint_reduce" }.count == 1
+        let objectiveCount = shouldReturnInvalid
+            ? max(targetCards - 1, 0)
+            : targetCards + (isInitialReduce ? initialObjectiveSurplus : 0)
         let dto = AIBlueprintResponseDTO(
             schema_version: 1,
             suggested_title: "Source title",
             language_code: "aa",
             language_display_name: "Detected language",
-            themes: [
-                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1], relative_priority: 1)
-            ],
-            objectives: (0..<objectiveCount).map { index in
+            themes: (1...min(themeCount, max(objectiveCount, 1))).map { themeIndex in
                 .init(
+                    id: themeIndex,
+                    title: "Theme \(themeIndex)",
+                    summary: "Summary \(themeIndex)",
+                    source_segment_indexes: [1],
+                    relative_priority: themeCount - themeIndex + 1
+                )
+            },
+            objectives: (0..<objectiveCount).map { index in
+                let reservedThemeCount = min(max(themeCount - 1, 0), objectiveCount)
+                let reservedThemeStart = objectiveCount - reservedThemeCount
+                let themeID = index >= reservedThemeStart
+                    ? index - reservedThemeStart + 2
+                    : 1
+                return .init(
                     id: index + 1,
-                    theme_id: 1,
+                    theme_id: themeID,
                     instruction: "Objective \(index + 1)",
                     source_segment_indexes: [1],
                     relative_priority: objectiveCount - index,

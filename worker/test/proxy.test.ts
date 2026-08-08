@@ -1,12 +1,12 @@
 import {SELF} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, providerOperation, rollingBillingWindow, validatedCardCount, validatedCardCountForTarget} from "../src";
+import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, providerOperation, rollingBillingWindow, usageWindowForAccount, validatedCardCount, validatedCardCountForTarget} from "../src";
 import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
-    expect(defaultPromptBundle.version).toBe("v6");
+    expect(defaultPromptBundle.version).toBe("v7");
     expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("{{schemaVersion}}");
@@ -148,6 +148,20 @@ describe("QuizFlash AI proxy", () => {
       basis: "rolling_30d"
     });
     expect(nextWindow.startMs).toBe(anchor + 30 * 24 * 60 * 60 * 1000);
+  });
+
+  it("uses the rolling period when finalizing a premium account", () => {
+    const anchor = Date.UTC(2026, 5, 24, 17, 44, 23, 585);
+    const now = Date.UTC(2026, 7, 8, 13, 56, 0);
+    const account = parseFirestoreAccountState("user", "202608", {
+      fields: {
+        premium: {booleanValue: true},
+        aiBillingAnchorMs: {integerValue: String(anchor)}
+      }
+    }, null);
+
+    expect(usageWindowForAccount(account, now).key).toBe(rollingBillingWindow(anchor, now).key);
+    expect(usageWindowForAccount(account, now).basis).toBe("rolling_30d");
   });
 
   it("lets the canonical premium boolean override the legacy plan string", () => {

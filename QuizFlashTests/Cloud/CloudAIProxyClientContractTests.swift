@@ -17,7 +17,7 @@ final class CloudAIProxyClientContractTests: XCTestCase {
             await gate.wait()
         }
         let startBarrier = Task { @MainActor in
-            try await coordinator.resolveBeforeStartingGeneration()
+            await coordinator.resolveBeforeStartingGeneration()
             state.didResolveStart = true
         }
 
@@ -26,12 +26,12 @@ final class CloudAIProxyClientContractTests: XCTestCase {
 
         await gate.open()
         _ = await finalization.value
-        try await startBarrier.value
+        await startBarrier.value
         XCTAssertTrue(state.didResolveStart)
     }
 
     @MainActor
-    func testFailedFinalizationIsRetriedBeforeNextStart() async throws {
+    func testFailedFinalizationIsRetriedBeforeNextStart() async {
         let coordinator = CloudAIGenerationFinalizationCoordinator()
         let state = CloudFinalizationTestState()
 
@@ -47,7 +47,23 @@ final class CloudAIProxyClientContractTests: XCTestCase {
             XCTFail("Expected the first finalization attempt to fail")
         }
 
-        try await coordinator.resolveBeforeStartingGeneration()
+        await coordinator.resolveBeforeStartingGeneration()
+        XCTAssertEqual(state.attemptCount, 2)
+    }
+
+    @MainActor
+    func testPersistentFinalizationFailureDoesNotFailNextStartBarrier() async {
+        let coordinator = CloudAIGenerationFinalizationCoordinator()
+        let state = CloudFinalizationTestState()
+
+        let firstAttempt = coordinator.register(generationID: "generation") {
+            state.attemptCount += 1
+            throw CloudFinalizationTestError.expectedFailure
+        }
+        _ = await firstAttempt.value
+
+        await coordinator.resolveBeforeStartingGeneration()
+
         XCTAssertEqual(state.attemptCount, 2)
     }
 

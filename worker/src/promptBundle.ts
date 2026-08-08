@@ -51,7 +51,7 @@ export const requiredPromptTemplateKeys = [
 ] as const;
 
 export const defaultPromptBundle: PromptBundle = {
-  version: "v6",
+  version: "v7",
   status: "active",
   templates: {
       "cardType.flashcard": "\nCARD TYPE: FLASHCARDS\nCreate active-recall question/answer cards. Preserve exact technical terms, notation, formulas, and short code snippets when they are the best learning surface.",
@@ -112,6 +112,7 @@ Produce exactly the authorized objective count. Never derive a different count f
 When allocation constraints are nonempty, produce exactly each allocation's objective_count and ensure every cited segment falls inside that allocation's inclusive range. Set allocation_index accordingly. When they are empty, set allocation_index to null.
 Detect the dominant natural language from the source and preserve it in the title and language fields. Keep language fields null only when the evidence is insufficient.
 Create the smallest useful set of global themes that covers all objectives. Each objective must be distinct, supported, atomic, and ordered within its theme.
+Keep every title, summary, and objective instruction as concise as possible while preserving the semantic distinction and source support required for downstream generation. Do not restate source passages or repeat the same context across fields.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
 <SOURCE_DATA>{{sourceJSON}}</SOURCE_DATA>`,
   "blueprint.map": `Analyze this contiguous source group as one part of a larger source.
@@ -128,7 +129,7 @@ Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. De
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
 When final output is true, schema_version must be exactly {{schemaVersion}}.
 If final output is false, return the compact evidence-digest schema required by the map operation. Merge equivalent themes and objectives, preserve all valid supporting segment indexes, and do not force the authorized count.
-If final output is true, return the final blueprint schema, exactly the authorized objective count, a concise source-grounded title, and the dominant-language fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
+If final output is true, return the final blueprint schema, exactly the authorized objective count, a concise source-grounded title, and the dominant-language fields. Keep every title, summary, and objective instruction as concise as possible while preserving semantic distinction and source support; do not restate evidence across fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
 <EVIDENCE_DIGESTS>{{digestJSON}}</EVIDENCE_DIGESTS>`,
   "blueprint.repair": `Repair the invalid final blueprint while preserving valid source-grounded content.

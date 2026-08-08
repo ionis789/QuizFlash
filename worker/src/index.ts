@@ -307,9 +307,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const finalStatus = validatedCards > 0 && validatedCards < active.targetCards ? "partial" : "succeeded";
     const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
+    const {window: finalizationWindow} = await this.accountAndUsageWindow(generation.uid, now);
     await finalizeFirestoreGenerationUsage(
       generation.uid,
-      monthKey(now),
+      finalizationWindow.key,
       generationUsageDelta(generationId, finalStatus, validatedCards, generation),
       this.env
     );
@@ -330,9 +331,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
     const now = Date.now();
     const generation = await this.generationAccountingRow(generationId);
     if (!generation) throw new WorkerError(404, "not-found", "AI generation was not found.");
+    const {window: finalizationWindow} = await this.accountAndUsageWindow(generation.uid, now);
     await finalizeFirestoreGenerationUsage(
       generation.uid,
-      monthKey(now),
+      finalizationWindow.key,
       generationUsageDelta(generationId, "failed", 0, generation),
       this.env
     );
@@ -419,9 +421,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
         const now = Date.now();
         const generation = await this.generationAccountingRow(active.generationId);
         if (generation) {
+          const {window: finalizationWindow} = await this.accountAndUsageWindow(generation.uid, now);
           await finalizeFirestoreGenerationUsage(
             generation.uid,
-            monthKey(now),
+            finalizationWindow.key,
             generationUsageDelta(active.generationId, "expired", 0, generation),
             this.env
           );
@@ -520,13 +523,9 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
   }
 
   private async quotaAccount(uid: string, now: number): Promise<{account: FirestoreAccountState; window: UsageWindow}> {
-    const calendarPeriod = monthKey(now);
-    let account = await readFirestoreAccountState(uid, calendarPeriod, this.env);
-    let window = calendarUsageWindow(calendarPeriod);
+    let {account, window} = await this.accountAndUsageWindow(uid, now);
 
     if (account.premium) {
-      account = await this.accountWithBillingAnchor(account, calendarPeriod, now);
-      window = rollingBillingWindow(account.aiBillingAnchorMs ?? now, now);
       const usage = await this.d1UsageInWindow(uid, window);
       account = usageSnapshotsEqual(account.monthlyUsage, usage)
         ? {...account, monthlyUsage: usage}
@@ -535,6 +534,18 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
     await this.syncD1UsageCache(account, now);
     return {account, window};
+  }
+
+  private async accountAndUsageWindow(
+    uid: string,
+    now: number
+  ): Promise<{account: FirestoreAccountState; window: UsageWindow}> {
+    const calendarPeriod = monthKey(now);
+    let account = await readFirestoreAccountState(uid, calendarPeriod, this.env);
+    if (account.premium) {
+      account = await this.accountWithBillingAnchor(account, calendarPeriod, now);
+    }
+    return {account, window: usageWindowForAccount(account, now)};
   }
 
   private async accountWithBillingAnchor(
@@ -1243,6 +1254,13 @@ export function rollingBillingWindow(anchorMs: number, now: number): UsageWindow
     endMs: startMs + rollingBillingWindowDurationMs,
     basis: "rolling_30d"
   };
+}
+
+export function usageWindowForAccount(account: FirestoreAccountState, now: number): UsageWindow {
+  if (account.premium && account.aiBillingAnchorMs !== null) {
+    return rollingBillingWindow(account.aiBillingAnchorMs, now);
+  }
+  return calendarUsageWindow(monthKey(now));
 }
 
 function nonNegativeInteger(value: unknown): number {

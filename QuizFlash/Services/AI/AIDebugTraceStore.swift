@@ -26,6 +26,7 @@ nonisolated enum AIDebugTraceStage: String, Codable, Sendable {
     case blueprintValidated
     case blueprintValidationFailed
     case blueprintRepair
+    case blueprintSurplusTrimmed
     case blueprintPlanPrepared
     case batchStarted
     case batchCompleted
