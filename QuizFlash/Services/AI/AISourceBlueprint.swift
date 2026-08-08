@@ -121,6 +121,7 @@ nonisolated enum AIBlueprintValidationIssue: Error, Hashable, Sendable, CustomSt
     case emptyTheme
     case themeTooLong
     case invalidThemeSegments
+    case themeWithoutObjective
     case wrongObjectiveCount(expected: Int, actual: Int)
     case duplicateObjectiveID
     case emptyObjective
@@ -142,6 +143,7 @@ nonisolated enum AIBlueprintValidationIssue: Error, Hashable, Sendable, CustomSt
         case .emptyTheme: return "empty_theme"
         case .themeTooLong: return "theme_too_long"
         case .invalidThemeSegments: return "invalid_theme_segments"
+        case .themeWithoutObjective: return "theme_without_objective"
         case .wrongObjectiveCount(let expected, let actual): return "wrong_objective_count_expected_\(expected)_actual_\(actual)"
         case .duplicateObjectiveID: return "duplicate_objective_id"
         case .emptyObjective: return "empty_objective"
@@ -402,6 +404,18 @@ nonisolated enum AIBlueprintValidator {
                     ))
                 }
             }
+        }
+
+        let representedThemeIDs = Set(dto.objectives.map(\.theme_id))
+        for theme in dto.themes where !representedThemeIDs.contains(theme.id) {
+            issues.append(.themeWithoutObjective)
+            repairDiagnostics.append(.init(
+                code: AIBlueprintValidationIssue.themeWithoutObjective.description,
+                path: "themes[id=\(theme.id)].objectives",
+                entityID: theme.id,
+                minimumInteger: 1,
+                actualInteger: 0
+            ))
         }
 
         if !allocations.isEmpty {

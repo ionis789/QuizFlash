@@ -346,40 +346,58 @@ actor AIBlueprintPlanner {
             return nil
         }
 
-        let themePriorityByID = Dictionary(uniqueKeysWithValues: dto.themes.map {
-            ($0.id, $0.relative_priority)
-        })
-        var selectedIndexes = Set<Int>()
-
-        for theme in dto.themes {
-            let candidates = indexedObjectives.filter { $0.element.theme_id == theme.id }
-            guard let best = candidates.max(by: { lhs, rhs in
-                if lhs.element.relative_priority != rhs.element.relative_priority {
-                    return lhs.element.relative_priority < rhs.element.relative_priority
-                }
-                return lhs.offset > rhs.offset
-            }) else {
-                return nil
-            }
-            selectedIndexes.insert(best.offset)
+        let candidatesByTheme = Dictionary(grouping: indexedObjectives) { $0.element.theme_id }
+        guard dto.themes.allSatisfy({ !(candidatesByTheme[$0.id] ?? []).isEmpty }) else {
+            return nil
         }
 
-        let remaining = indexedObjectives
-            .filter { !selectedIndexes.contains($0.offset) }
-            .sorted { lhs, rhs in
-                if lhs.element.relative_priority != rhs.element.relative_priority {
-                    return lhs.element.relative_priority > rhs.element.relative_priority
+        // Preserve one objective per discovered theme, then distribute the remaining
+        // capacity by candidate breadth. Source order is the only tie-breaker;
+        // provider priority values never decide what source material is retained.
+        let remainingSlots = targetCards - dto.themes.count
+        let extraCapacityByTheme = Dictionary(uniqueKeysWithValues: dto.themes.map { theme in
+            (theme.id, max((candidatesByTheme[theme.id]?.count ?? 0) - 1, 0))
+        })
+        let totalExtraCapacity = extraCapacityByTheme.values.reduce(0, +)
+        guard remainingSlots == 0 || totalExtraCapacity > 0 else { return nil }
+
+        var quotaByTheme = Dictionary(uniqueKeysWithValues: dto.themes.map { ($0.id, 1) })
+        var remainders: [(themeID: Int, sourceOrder: Int, value: Int)] = []
+        var allocatedExtra = 0
+
+        if remainingSlots > 0 {
+            for (sourceOrder, theme) in dto.themes.enumerated() {
+                let capacity = extraCapacityByTheme[theme.id] ?? 0
+                let scaledShare = remainingSlots * capacity
+                let baseShare = min(capacity, scaledShare / totalExtraCapacity)
+                quotaByTheme[theme.id, default: 1] += baseShare
+                allocatedExtra += baseShare
+                if baseShare < capacity {
+                    remainders.append((theme.id, sourceOrder, scaledShare % totalExtraCapacity))
                 }
-                let leftThemePriority = themePriorityByID[lhs.element.theme_id] ?? 0
-                let rightThemePriority = themePriorityByID[rhs.element.theme_id] ?? 0
-                if leftThemePriority != rightThemePriority {
-                    return leftThemePriority > rightThemePriority
-                }
-                return lhs.offset < rhs.offset
             }
 
-        for candidate in remaining where selectedIndexes.count < targetCards {
-            selectedIndexes.insert(candidate.offset)
+            var slotsToAllocate = remainingSlots - allocatedExtra
+            for remainder in remainders.sorted(by: {
+                $0.value == $1.value ? $0.sourceOrder < $1.sourceOrder : $0.value > $1.value
+            }) where slotsToAllocate > 0 {
+                quotaByTheme[remainder.themeID, default: 1] += 1
+                slotsToAllocate -= 1
+            }
+            guard slotsToAllocate == 0 else { return nil }
+        }
+
+        var selectedIndexes = Set<Int>()
+        for theme in dto.themes {
+            guard let candidates = candidatesByTheme[theme.id],
+                  let quota = quotaByTheme[theme.id],
+                  quota > 0,
+                  quota <= candidates.count else {
+                return nil
+            }
+            for candidate in evenlySpacedSelection(candidates, count: quota) {
+                selectedIndexes.insert(candidate.offset)
+            }
         }
         guard selectedIndexes.count == targetCards else { return nil }
 
@@ -393,6 +411,16 @@ actor AIBlueprintPlanner {
                 selectedIndexes.contains(indexed.offset) ? indexed.element : nil
             }
         )
+    }
+
+    private func evenlySpacedSelection<Element>(_ values: [Element], count: Int) -> [Element] {
+        guard count > 0, count < values.count else { return count == values.count ? values : [] }
+        guard count > 1 else { return [values[values.count / 2]] }
+
+        return (0..<count).map { position in
+            let index = position * (values.count - 1) / (count - 1)
+            return values[index]
+        }
     }
 
     private func selectedSourceSegments(

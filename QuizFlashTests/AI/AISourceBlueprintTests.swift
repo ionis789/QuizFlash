@@ -142,8 +142,37 @@ final class AISourceBlueprintTests: XCTestCase {
 
         XCTAssertEqual(blueprint.objectives.count, 3)
         XCTAssertEqual(Set(blueprint.objectives.map(\.themeID)), Set(blueprint.themes.map(\.id)))
+        XCTAssertEqual(Set(blueprint.objectives.map(\.instruction)), ["Objective 1", "Objective 4", "Objective 5"])
         let repairCount = await recorder.operationCount("blueprint_repair")
         XCTAssertEqual(repairCount, 0)
+    }
+
+    func testPlannerRepairsAnExactCountBlueprintWithAnUncoveredTheme() async throws {
+        let recorder = BlueprintRequestRecorder(
+            targetCards: 3,
+            themeCount: 2,
+            initialResponseLeavesThemeUncovered: true
+        )
+        let planner = AIBlueprintPlanner(
+            service: try makeService(),
+            providerRequestHandler: { request in
+                try await recorder.response(for: request)
+            }
+        )
+
+        let blueprint = try await planner.build(
+            segments: makeSegments(1),
+            targetCards: 3,
+            options: AIGenerationOptions(),
+            manualAllocations: []
+        )
+
+        XCTAssertEqual(Set(blueprint.objectives.map(\.themeID)), Set(blueprint.themes.map(\.id)))
+        let repairCount = await recorder.operationCount("blueprint_repair")
+        XCTAssertEqual(repairCount, 1)
+        let repairPayload = await recorder.payload(for: "blueprint_repair")
+        XCTAssertTrue(repairPayload.contains("theme_without_objective"))
+        XCTAssertTrue(repairPayload.contains("themes[id=2].objectives"))
     }
 
     func testValidBlueprintProducesExactInternalObjectivesAndNormalizesFields() throws {
@@ -169,6 +198,37 @@ final class AISourceBlueprintTests: XCTestCase {
     func testInvalidObjectiveCountRequiresSemanticRepair() {
         assertValidationIssue(.wrongObjectiveCount(expected: 3, actual: 2)) {
             try validate(makeDTO(targetCards: 2), targetCards: 3)
+        }
+    }
+
+    func testThemeWithoutObjectiveRequiresSemanticRepair() {
+        let dto = AIBlueprintResponseDTO(
+            schema_version: 1,
+            suggested_title: "Source title",
+            language_code: "aa",
+            language_display_name: "Detected language",
+            themes: [
+                .init(id: 1, title: "Theme 1", summary: "Summary 1", source_segment_indexes: [1], relative_priority: 1),
+                .init(id: 2, title: "Theme 2", summary: "Summary 2", source_segment_indexes: [1], relative_priority: 2)
+            ],
+            objectives: [
+                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil),
+                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1], relative_priority: 2, allocation_index: nil)
+            ]
+        )
+
+        XCTAssertThrowsError(try validate(dto, targetCards: 2)) { error in
+            guard let failure = error as? AIBlueprintValidationFailure else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(failure.issues.contains(.themeWithoutObjective))
+            XCTAssertTrue(failure.repairDiagnostics.contains(.init(
+                code: "theme_without_objective",
+                path: "themes[id=2].objectives",
+                entityID: 2,
+                minimumInteger: 1,
+                actualInteger: 0
+            )))
         }
     }
 
@@ -445,6 +505,7 @@ private actor BlueprintRequestRecorder {
     private let keepRepairsInvalid: Bool
     private let initialObjectiveSurplus: Int
     private let themeCount: Int
+    private let initialResponseLeavesThemeUncovered: Bool
     private var recordedRequests: [AIBlueprintProviderRequest] = []
 
     init(
@@ -452,13 +513,15 @@ private actor BlueprintRequestRecorder {
         invalidInitialResponse: Bool = false,
         keepRepairsInvalid: Bool = false,
         initialObjectiveSurplus: Int = 0,
-        themeCount: Int = 1
+        themeCount: Int = 1,
+        initialResponseLeavesThemeUncovered: Bool = false
     ) {
         self.targetCards = targetCards
         self.invalidInitialResponse = invalidInitialResponse
         self.keepRepairsInvalid = keepRepairsInvalid
         self.initialObjectiveSurplus = max(initialObjectiveSurplus, 0)
         self.themeCount = max(themeCount, 1)
+        self.initialResponseLeavesThemeUncovered = initialResponseLeavesThemeUncovered
     }
 
     func response(for request: AIBlueprintProviderRequest) throws -> String {
@@ -509,9 +572,14 @@ private actor BlueprintRequestRecorder {
             objectives: (0..<objectiveCount).map { index in
                 let reservedThemeCount = min(max(themeCount - 1, 0), objectiveCount)
                 let reservedThemeStart = objectiveCount - reservedThemeCount
-                let themeID = index >= reservedThemeStart
-                    ? index - reservedThemeStart + 2
-                    : 1
+                let themeID: Int
+                if isInitialReduce && initialResponseLeavesThemeUncovered {
+                    themeID = 1
+                } else {
+                    themeID = index >= reservedThemeStart
+                        ? index - reservedThemeStart + 2
+                        : 1
+                }
                 return .init(
                     id: index + 1,
                     theme_id: themeID,
