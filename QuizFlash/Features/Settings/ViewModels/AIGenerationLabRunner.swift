@@ -25,6 +25,13 @@ nonisolated struct AIGenerationLabCaseTimings: Codable, Sendable {
     let totalMilliseconds: Int
 }
 
+/// One generated card paired with the blueprint objective that requested it.
+nonisolated struct AIGenerationLabGeneratedCard: Codable, Sendable {
+    let index: Int
+    let objectiveID: UUID?
+    let card: AIFlashcard
+}
+
 /// Reproducible result for one independently generated corpus source.
 nonisolated struct AIGenerationLabCaseResult: Identifiable, Codable, Sendable {
     let id: UUID
@@ -48,12 +55,14 @@ nonisolated struct AIGenerationLabCaseResult: Identifiable, Codable, Sendable {
     let traceRunID: UUID?
     let timings: AIGenerationLabCaseTimings
     let errorMessage: String?
-    let cards: [AIFlashcard]
+    let sourceSegments: [AITextSourceSegment]
+    let blueprint: AISourceBlueprint?
+    let generatedCards: [AIGenerationLabGeneratedCard]
 }
 
 /// Complete report for one ordered pass over the corpus.
 nonisolated struct AIGenerationLabRunReport: Identifiable, Codable, Sendable {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     let schemaVersion: Int
     let id: UUID
@@ -145,7 +154,7 @@ final class AIGenerationLabRunner {
         var finalizationMilliseconds: Int?
         var preparedSource: AIPreparedGenerationSource?
         var cloudSession: CloudAIGenerationSession?
-        var cards: [AIFlashcard] = []
+        var generatedCards: [AIGenerationLabGeneratedCard] = []
         var shortfallCount = 0
         var batchCount = 0
         var coveredObjectiveIDs = Set<UUID>()
@@ -224,17 +233,29 @@ final class AIGenerationLabRunner {
                 case .batch(let chunk):
                     batchCount += 1
                     shortfallCount += chunk.shortfallCount
-                    let remainingCapacity = max(targetCardCount - cards.count, 0)
+                    let remainingCapacity = max(targetCardCount - generatedCards.count, 0)
                     let acceptedCards = Array(chunk.cards.prefix(remainingCapacity))
-                    cards.append(contentsOf: acceptedCards)
-                    coveredObjectiveIDs.formUnion(
-                        chunk.objectiveIDs.prefix(acceptedCards.count)
-                    )
+                    let acceptedObjectiveIDs = Array(chunk.objectiveIDs.prefix(acceptedCards.count))
+                    for (offset, card) in acceptedCards.enumerated() {
+                        let objectiveID = acceptedObjectiveIDs.indices.contains(offset)
+                            ? acceptedObjectiveIDs[offset]
+                            : nil
+                        generatedCards.append(
+                            AIGenerationLabGeneratedCard(
+                                index: generatedCards.count + 1,
+                                objectiveID: objectiveID,
+                                card: card
+                            )
+                        )
+                        if let objectiveID {
+                            coveredObjectiveIDs.insert(objectiveID)
+                        }
+                    }
                     if firstCardMilliseconds == nil, !chunk.cards.isEmpty, let pipelineStart {
                         firstCardMilliseconds = Self.milliseconds(from: pipelineStart, to: clock.now)
                     }
                     reportProgress(
-                        .generating(generated: cards.count, target: targetCardCount)
+                        .generating(generated: generatedCards.count, target: targetCardCount)
                     )
                 }
             }
@@ -249,11 +270,11 @@ final class AIGenerationLabRunner {
 
             reportProgress(.finalizing)
             let finalizationStart = clock.now
-            await cloudClient.finalizeGeneration(session, validatedCards: cards.count)
+            await cloudClient.finalizeGeneration(session, validatedCards: generatedCards.count)
             finalizationMilliseconds = Self.milliseconds(from: finalizationStart, to: clock.now)
             cloudSession = nil
 
-            let status: AIGenerationLabCaseStatus = cards.count == targetCardCount && shortfallCount == 0
+            let status: AIGenerationLabCaseStatus = generatedCards.count == targetCardCount && shortfallCount == 0
                 ? .succeeded
                 : .partial
             let errorMessage = status == .partial
@@ -263,8 +284,8 @@ final class AIGenerationLabRunner {
                 source: source,
                 status: status,
                 targetCardCount: targetCardCount,
-                cards: cards,
-                shortfallCount: max(shortfallCount, targetCardCount - cards.count),
+                generatedCards: generatedCards,
+                shortfallCount: max(shortfallCount, targetCardCount - generatedCards.count),
                 batchCount: batchCount,
                 coveredObjectiveIDs: coveredObjectiveIDs,
                 preparedSource: preparedSource,
@@ -288,12 +309,12 @@ final class AIGenerationLabRunner {
             throw CancellationError()
         } catch {
             if let cloudSession {
-                if cards.isEmpty {
+                if generatedCards.isEmpty {
                     cloudClient.scheduleGenerationFailure(cloudSession)
                 } else {
                     cloudClient.scheduleGenerationFinalization(
                         cloudSession,
-                        validatedCards: cards.count
+                        validatedCards: generatedCards.count
                     )
                 }
             }
@@ -301,8 +322,8 @@ final class AIGenerationLabRunner {
                 source: source,
                 status: .failed,
                 targetCardCount: targetCardCount,
-                cards: cards,
-                shortfallCount: max(shortfallCount, targetCardCount - cards.count),
+                generatedCards: generatedCards,
+                shortfallCount: max(shortfallCount, targetCardCount - generatedCards.count),
                 batchCount: batchCount,
                 coveredObjectiveIDs: coveredObjectiveIDs,
                 preparedSource: preparedSource,
@@ -352,7 +373,7 @@ final class AIGenerationLabRunner {
         source: AIGenerationLabSource,
         status: AIGenerationLabCaseStatus,
         targetCardCount: Int,
-        cards: [AIFlashcard],
+        generatedCards: [AIGenerationLabGeneratedCard],
         shortfallCount: Int,
         batchCount: Int,
         coveredObjectiveIDs: Set<UUID>,
@@ -362,8 +383,8 @@ final class AIGenerationLabRunner {
         timings: AIGenerationLabCaseTimings,
         errorMessage: String?
     ) async -> AIGenerationLabCaseResult {
-        let promptIdentities = cards.map { card in
-            AIBlueprintValidator.textIdentity(card.promptHint)
+        let promptIdentities = generatedCards.map { generatedCard in
+            AIBlueprintValidator.textIdentity(generatedCard.card.promptHint)
         }
         let uniquePromptCount = Set(promptIdentities).count
         let traceRunID = await traceStore.listRuns().first { summary in
@@ -378,12 +399,12 @@ final class AIGenerationLabRunner {
             sourceSHA256: source.sha256,
             status: status,
             targetCardCount: targetCardCount,
-            generatedCardCount: cards.count,
+            generatedCardCount: generatedCards.count,
             shortfallCount: shortfallCount,
             batchCount: batchCount,
             objectiveCoverageCount: coveredObjectiveIDs.count,
             uniquePromptCount: uniquePromptCount,
-            duplicatePromptCount: max(cards.count - uniquePromptCount, 0),
+            duplicatePromptCount: max(generatedCards.count - uniquePromptCount, 0),
             sourceSegmentCount: preparedSource?.textSegments.count ?? 0,
             sourceCharacterCount: preparedSource?.textSegments.reduce(0) { $0 + $1.text.count } ?? 0,
             suggestedTitle: blueprint?.suggestedTitle,
@@ -392,7 +413,9 @@ final class AIGenerationLabRunner {
             traceRunID: traceRunID,
             timings: timings,
             errorMessage: errorMessage,
-            cards: cards
+            sourceSegments: preparedSource?.textSegments ?? [],
+            blueprint: blueprint,
+            generatedCards: generatedCards
         )
     }
 

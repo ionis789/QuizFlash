@@ -181,7 +181,17 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
                 totalMilliseconds: 170
             ),
             errorMessage: nil,
-            cards: [AIFlashcard(question: "Question", answer: "Answer")]
+            sourceSegments: [
+                AITextSourceSegment(index: 0, label: "Segment 1", text: "Source text")
+            ],
+            blueprint: nil,
+            generatedCards: [
+                AIGenerationLabGeneratedCard(
+                    index: 1,
+                    objectiveID: nil,
+                    card: AIFlashcard(question: "Question", answer: "Answer")
+                )
+            ]
         )
         let report = AIGenerationLabRunReport(
             startedAtEpochMilliseconds: 1,
@@ -198,11 +208,14 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
         try await store.saveReport(report)
 
         let reloaded = try XCTUnwrap(try await store.loadLatestReport())
+        XCTAssertEqual(reloaded.schemaVersion, AIGenerationLabRunReport.currentSchemaVersion)
         XCTAssertEqual(reloaded.id, report.id)
         XCTAssertEqual(reloaded.cases.count, 1)
         XCTAssertEqual(reloaded.cases[0].sourceID, sourceID)
         XCTAssertEqual(reloaded.cases[0].timings.totalMilliseconds, 170)
-        XCTAssertEqual(reloaded.cases[0].cards.count, 1)
+        XCTAssertEqual(reloaded.cases[0].sourceSegments.map(\.text), ["Source text"])
+        XCTAssertEqual(reloaded.cases[0].generatedCards.count, 1)
+        XCTAssertEqual(reloaded.cases[0].generatedCards[0].card.question, "Question")
         XCTAssertEqual(
             try await store.encodedReport(reloaded),
             try await store.encodedReport(report)
