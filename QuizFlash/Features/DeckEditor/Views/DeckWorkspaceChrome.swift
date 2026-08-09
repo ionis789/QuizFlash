@@ -227,6 +227,16 @@ extension DeckWorkspaceView {
             && !shouldShowFloatingGenerate
     }
 
+    var completionControlShowsGenerateMore: Bool {
+        generationCompletionDisplayState == .none
+            && shouldShowPrimaryGenerateAction
+    }
+
+    var completionControlIsVisible: Bool {
+        generationCompletionDisplayState == .done
+            || completionControlShowsGenerateMore
+    }
+
     var shouldShowTopAIGenerationControls: Bool {
         viewModel.aiGenerationDisplayPhase != nil
     }
@@ -363,7 +373,7 @@ extension DeckWorkspaceView {
 
             if !viewModel.draftCards.isEmpty {
                 HStack(spacing: UIConstants.Spacing.medium) {
-                    if generationCompletionDisplayState != .done {
+                    if completionControlShowsGenerateMore {
                         Spacer(minLength: 0)
 
                         if shouldShowMockAIHeaderAction {
@@ -372,8 +382,8 @@ extension DeckWorkspaceView {
                     }
 
                     CompletionGenerateMoreControl(
-                        showsGenerateMore: generationCompletionDisplayState != .done,
-                        isVisible: generationCompletionDisplayState == .done || shouldShowPrimaryGenerateAction,
+                        showsGenerateMore: completionControlShowsGenerateMore,
+                        isVisible: completionControlIsVisible,
                         isEnabled: canStartLocalGeneration,
                         doneLabel: localized("Done"),
                         generateMoreLabel: localized("Generate more"),
@@ -383,7 +393,7 @@ extension DeckWorkspaceView {
                         }
                     )
 
-                    if generationCompletionDisplayState == .done {
+                    if !completionControlShowsGenerateMore {
                         Spacer(minLength: 0)
                     }
                 }
@@ -868,36 +878,22 @@ private struct CompletionGenerateMoreControl: View {
             guard showsGenerateMore, isEnabled else { return }
             action()
         } label: {
-            HStack(spacing: showsGenerateMore ? 9 : 0) {
-                generateMoreSymbol
-                    .frame(width: showsGenerateMore ? 26 : 0, height: 26)
+            ZStack(alignment: .leading) {
+                generateMoreSurface
                     .opacity(showsGenerateMore ? 1 : 0)
-                    .scaleEffect(showsGenerateMore ? 1 : 0.72)
-                    .clipped()
+                    .scaleEffect(showsGenerateMore ? 1 : 0.985, anchor: .leading)
+                    .animation(generateMoreRevealAnimation, value: showsGenerateMore)
 
-                Text(showsGenerateMore ? generateMoreLabel : doneLabel)
-                    .font(.system(size: showsGenerateMore ? 15 : 20, weight: .heavy))
+                Text(doneLabel)
+                    .font(.system(size: 20, weight: .heavy))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                    .foregroundStyle(showsGenerateMore ? accentColor : themeManager.successPrimary)
-                    .statusTextMotion(trigger: showsGenerateMore)
+                    .foregroundStyle(themeManager.successPrimary)
+                    .opacity(showsGenerateMore ? 0 : 1)
+                    .scaleEffect(showsGenerateMore ? 0.985 : 1, anchor: .leading)
+                    .animation(doneDismissAnimation, value: showsGenerateMore)
             }
-            .padding(.leading, showsGenerateMore ? 10 : 0)
-            .padding(.trailing, showsGenerateMore ? 18 : 0)
             .frame(height: UIConstants.Size.capsuleHeight)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(themeManager.roleColor(.buttonSurfaceFill))
-                    .opacity(showsGenerateMore ? 1 : 0)
-
-                Capsule(style: .continuous)
-                    .fill(accentColor.opacity(0.07))
-                    .opacity(showsGenerateMore ? 1 : 0)
-
-                Capsule(style: .continuous)
-                    .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
-                    .opacity(showsGenerateMore ? 1 : 0)
-            }
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(GenerateMoreAIButtonStyle())
@@ -905,10 +901,49 @@ private struct CompletionGenerateMoreControl: View {
         .opacity(isVisible ? (isEnabled || !showsGenerateMore ? 1 : 0.55) : 0)
         .scaleEffect(isVisible ? 1 : 0.985, anchor: showsGenerateMore ? .trailing : .leading)
         .allowsHitTesting(isVisible && showsGenerateMore && isEnabled)
-        .animation(.smooth(duration: UIConstants.Animation.slow, extraBounce: 0), value: showsGenerateMore)
         .animation(.easeInOut(duration: UIConstants.Animation.standard), value: isVisible)
         .accessibilityHidden(!isVisible)
         .accessibilityLabel(showsGenerateMore ? accessibilityLabel : doneLabel)
+    }
+
+    private var generateMoreSurface: some View {
+        HStack(spacing: 9) {
+            generateMoreSymbol
+                .frame(width: 26, height: 26)
+
+            Text(generateMoreLabel)
+                .font(.system(size: 15, weight: .heavy))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .foregroundStyle(accentColor)
+        }
+        .padding(.leading, 10)
+        .padding(.trailing, 18)
+        .frame(height: UIConstants.Size.capsuleHeight)
+        .background {
+            Capsule(style: .continuous)
+                .fill(themeManager.roleColor(.buttonSurfaceFill))
+
+            Capsule(style: .continuous)
+                .fill(accentColor.opacity(0.07))
+
+            Capsule(style: .continuous)
+                .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
+        }
+    }
+
+    private var generateMoreRevealAnimation: Animation {
+        if showsGenerateMore {
+            return .easeOut(duration: 0.24).delay(0.18)
+        }
+        return .easeOut(duration: UIConstants.Animation.instant)
+    }
+
+    private var doneDismissAnimation: Animation {
+        if showsGenerateMore {
+            return .easeOut(duration: 0.14)
+        }
+        return .easeOut(duration: UIConstants.Animation.standard)
     }
 
     private var generateMoreSymbol: some View {
