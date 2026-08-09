@@ -110,6 +110,21 @@ struct LabsView: View {
         ) {
             VStack(spacing: UIConstants.Spacing.standard) {
                 NavigationLink {
+                    AIGenerationLabView()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "bolt.horizontal.circle.fill",
+                        tint: themeManager.accentColor.color,
+                        title: SettingsTextContent.verbatim(localized("AI Generation Lab")),
+                        detail: SettingsTextContent.verbatim(localized("Corpus and reproducible test configuration")),
+                        value: nil
+                    )
+                }
+                .noPressEffectButtonStyle()
+
+                SettingsCardDivider()
+
+                NavigationLink {
                     BackendTraceView()
                 } label: {
                     SettingsNavigationRow(

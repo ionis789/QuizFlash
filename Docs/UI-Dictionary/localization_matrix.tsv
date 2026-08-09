@@ -69,6 +69,8 @@ key	en	ro	ru
 %d more match	%d more match	%d potrivire în plus	%d совпадение
 %d more matches	%d more matches	%d potriviri în plus	%d совпадений
 %d of %d reviewed	%d of %d reviewed	%d din %d revizuite	%d из %d пройдено
+%d page	%d page	%d pagină	%d страница
+%d pages	%d pages	%d pagini	%d страниц
 %d Pairs	%d Pairs	%d perechi	%d пар
 %d pass	%d pass	%d trecere	%d проход
 %d passes	%d passes	%d treceri	%d проходов
@@ -104,6 +106,7 @@ key	en	ro	ru
 28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
 8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
 A distributed-system model where replicas converge over time instead of synchronizing immediately.	A distributed-system model where replicas converge over time instead of synchronizing immediately.	Un model de sistem distribuit în care replicile converg în timp în loc să se sincronizeze imediat.	Модель распределенной системы, в которой реплики сходятся во времени, а не синхронизируются немедленно.
+A saved lab source is missing from storage.	A saved lab source is missing from storage.	O sursă salvată a laboratorului lipsește din stocare.	Сохранённый источник лаборатории отсутствует в хранилище.
 A sign-in window is already open.	A sign-in window is already open.	O fereastră de conectare este deja deschisă.	Окно входа уже открыто.
 Accent	Accent	Accent	Акцент
 Accuracy	Accuracy	Acuratețe	Точность
@@ -123,14 +126,17 @@ Add at least two answers.	Add at least two answers.	Adaugă cel puțin două ră
 Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
 Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
+Add Images	Add Images	Adaugă imagini	Добавить изображения
 Add Left	Add Left	Adaugă la stânga	Добавить слева
 Add manually	Add manually	Adaugă manual	Добавить вручную
 Add Media Answer	Add Media Answer	Adaugă răspuns media	Добавить ответ с медиа
+Add PDFs	Add PDFs	Adaugă PDF-uri	Добавить PDF
 Add Range	Add Range	Adaugă interval	Добавить диапазон
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
 Adjust only study content, keeping app chrome and controls stable.	Adjust only study content, keeping app chrome and controls stable.	Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.	Настраивает только учебный контент, оставляя интерфейс приложения стабильным.
+AI Generation Lab	AI Generation Lab	Laborator generare AI	Лаборатория AI-генерации
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
 AI Generation Trace	AI Generation Trace	Trace generare AI	Трассировка генерации ИИ
 AI usage	AI usage	Utilizare AI	Использование AI
@@ -262,6 +268,7 @@ Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned
 Copied!	Copied!	Copiat!	Скопировано!
 Copy	Copy	Copiază	Копировать
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
+Corpus and reproducible test configuration	Corpus and reproducible test configuration	Corpus și configurare de test reproductibilă	Корпус и воспроизводимая конфигурация теста
 Correct	Correct	Corect	Верно
 Correct rate	Accuracy	Acuratețe	Точность
 Correct reviewed formula	Landed / reviewed cards	Reușite / carduri revizuite	Успешные / повторённые карточки
@@ -390,6 +397,7 @@ Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
 Generating cards	Generating cards	Se generează cardurile	Генерация карточек
+Generation Configuration	Generation Configuration	Configurarea generării	Настройки генерации
 Generation stopped	Generation stopped	Generarea s-a oprit	Генерация остановлена
 Get started	Get started	Începe	Начать
 Getting Started	Getting Started	Noțiuni de bază	Начиная
@@ -547,6 +555,7 @@ No reviews this week	No reviews this week	Nicio revizuire săptămâna asta	На
 No reviews yet	No reviews yet	Fără revizuiri încă	Пока нет повторений
 No signed-in user was found.	No signed-in user was found.	Nu s-a găsit niciun utilizator conectat.	Пользователь не найден.
 No source selected.	No source selected.	Nicio sursă selectată.	Источник не выбран.
+No sources added	No sources added	Nicio sursă adăugată	Источники не добавлены
 No trace sessions	No trace sessions	Nu există sesiuni trace	Нет trace-сессий
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
@@ -558,6 +567,9 @@ Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ни
 OK	OK	OK	OK
 Oldest	Oldest	Cele mai vechi	Сначала старые
 Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.	Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.
+One of the selected files is not a readable image.	One of the selected files is not a readable image.	Unul dintre fișierele selectate nu este o imagine validă.	Один из выбранных файлов не является читаемым изображением.
+One of the selected files is not a readable PDF.	One of the selected files is not a readable PDF.	Unul dintre fișierele selectate nu este un PDF valid.	Один из выбранных файлов не является читаемым PDF.
+One of the selected photos could not be read.	One of the selected photos could not be read.	Una dintre pozele selectate nu a putut fi citită.	Одну из выбранных фотографий не удалось прочитать.
 Open a play mode to generate live activity in this deck.	Open a play mode to generate live activity in this deck.	Deschide un mod de joc pentru a genera activitate în acest deck.	Откройте режим игры, чтобы в этой колоде появилась активность.
 Open activity history	Open activity history	Deschide istoricul activității	Открыть историю активности
 Open AI workspace	Open AI workspace	Deschide generarea AI	Открыть AI-генерацию
@@ -582,6 +594,7 @@ Password reset link sent.	Password reset link sent.	Linkul de resetare a fost tr
 Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Пароли не совпадают.
 Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
 Paused	Paused	Pe pauză	На паузе
+PDF	PDF	PDF	PDF
 Performance	Performance	Performanță	Прогресс
 Photos or PDF	Photos or PDF	Poze sau PDF	Фото или PDF
 Pick a deck	Pick a deck	Alege un deck	Выберите колоду
@@ -738,6 +751,7 @@ Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточк�
 Source	Source	Sursă	Источник
 Source Coverage	Source Coverage	Acoperirea sursei	Покрытие источника
 Source Range	Source Range	Interval sursă	Исходный диапазон
+Sources are processed in this exact order.	Sources are processed in this exact order.	Sursele sunt procesate exact în această ordine.	Источники обрабатываются строго в этом порядке.
 Split Zone	Split Zone	Împarte zona	Разделить зону
 Stable this week	Stable this week	Stabil săptămâna asta	Стабильно на этой неделе
 Start	Start	Începe	Старт
@@ -773,6 +787,7 @@ Tap the label above to flip the card	Tap the label above to flip the card	Atinge
 Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
 Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
 Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Șabloanele completează numai punctele finale și șirurile de model. Puteți edita liber totul după aceea, păstrând în același timp cheia API actuală.	Шаблоны предварительно заполняют только строки конечной точки и модели. После этого вы сможете свободно все редактировать, сохраняя при этом текущий ключ API.
+Test Corpus	Test Corpus	Corpus de test	Тестовый корпус
 Text Color	Text Color	Culoare text	Цвет текста
 Text Lines	Text Lines	Linii text	Строки текста
 Text Size	Text Size	Dimensiune text	Размер текста
@@ -785,8 +800,10 @@ The Gaussian integral equals:	The Gaussian integral equals:	Integrala Gaussiană
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
+The saved lab manifest is not supported by this build.	The saved lab manifest is not supported by this build.	Manifestul salvat al laboratorului nu este acceptat de acest build.	Сохранённый манифест лаборатории не поддерживается этой сборкой.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
 The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
+These settings are saved with the corpus.	These settings are saved with the corpus.	Aceste setări sunt salvate împreună cu corpusul.	Эти настройки сохраняются вместе с корпусом.
 Thickness	Thickness	Grosime	Толщина
 This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
