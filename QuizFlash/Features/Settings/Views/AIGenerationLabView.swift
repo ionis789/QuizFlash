@@ -8,7 +8,7 @@ struct AIGenerationLabView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
-    @State private var viewModel = AIGenerationLabViewModel()
+    @State private var viewModel = AIGenerationLabViewModel.shared
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var isPDFImporterPresented = false
 

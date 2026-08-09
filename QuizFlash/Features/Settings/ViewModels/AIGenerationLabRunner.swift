@@ -437,22 +437,47 @@ final class AIGenerationLabRunner {
 @MainActor
 final class AIGenerationLabLaunchRunner {
     static let shared = AIGenerationLabLaunchRunner()
-    static let launchArgument = "-RunAIGenerationLabCorpus"
+    static let runLaunchArgument = "-RunAIGenerationLabCorpus"
+    static let seedImageMirrorsLaunchArgument = "-SeedAIGenerationLabImageMirrors"
 
     private var runTask: Task<Void, Never>?
 
     private init() {}
 
     func startIfRequested(arguments: [String] = ProcessInfo.processInfo.arguments) {
-        guard arguments.contains(Self.launchArgument), runTask == nil else { return }
+        let shouldRun = arguments.contains(Self.runLaunchArgument)
+        let shouldSeedImageMirrors = arguments.contains(Self.seedImageMirrorsLaunchArgument)
+        guard shouldRun || shouldSeedImageMirrors, runTask == nil else { return }
 
         runTask = Task { [weak self] in
             guard let self else { return }
             defer { runTask = nil }
 
-            let viewModel = AIGenerationLabViewModel()
-            print("AI_LAB_CODE_RUN started")
+            let viewModel = AIGenerationLabViewModel.shared
+            print("AI_LAB_CODE_RUN setup_started")
             await viewModel.load()
+
+            if shouldSeedImageMirrors {
+                await viewModel.importPDFImageMirrors()
+                guard viewModel.errorMessage.isEmpty else {
+                    print("AI_LAB_CODE_RUN failed reason=\(viewModel.errorMessage)")
+                    return
+                }
+                print("AI_LAB_CODE_RUN image_mirrors_ready sources=\(viewModel.sources.count)")
+            }
+
+            guard shouldRun else {
+                print("AI_LAB_CODE_RUN setup_completed")
+                return
+            }
+
+            AuthManager.shared.startListening()
+            guard await waitForAuthenticatedSession() else {
+                print("AI_LAB_CODE_RUN failed reason=Authentication is not ready.")
+                return
+            }
+
+            print("AI_LAB_CODE_RUN started")
 
             guard viewModel.canStartRun else {
                 let reason = viewModel.errorMessage.isEmpty
@@ -496,6 +521,17 @@ final class AIGenerationLabLaunchRunner {
                     + "cases=\(report.cases.count) duration_ms=\(duration)"
             )
         }
+    }
+
+    private func waitForAuthenticatedSession() async -> Bool {
+        for _ in 0..<120 {
+            if AuthManager.shared.isAuthenticated {
+                return true
+            }
+            guard !Task.isCancelled else { return false }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
     }
 }
 

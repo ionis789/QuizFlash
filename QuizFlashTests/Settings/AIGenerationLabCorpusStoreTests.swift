@@ -122,6 +122,34 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
         XCTAssertEqual(try storedURLs.map(Data.init(contentsOf:)), [firstData, secondData])
     }
 
+    func testPDFImageMirrorsUsePhotoSourcesAndRemainIdempotent() async throws {
+        let rootURL = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = AIGenerationLabCorpusStore(rootDirectoryURL: rootURL)
+        let pdfURL = rootURL.appendingPathComponent("reference.pdf")
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try makePDFData().write(to: pdfURL)
+
+        var manifest = try await store.importPDFs(
+            from: [pdfURL],
+            appendingTo: AIGenerationLabManifest()
+        )
+        manifest = try await store.importPDFImageMirrors(appendingTo: manifest)
+
+        XCTAssertEqual(manifest.sources.map(\.kind), [.pdf, .photos])
+        XCTAssertEqual(manifest.sources[1].displayName, "reference · OCR")
+        XCTAssertEqual(manifest.sources[1].imageCount, 1)
+        let mirrorID = manifest.sources[1].id
+        let mirrorURLs = await store.storedFileURLs(for: manifest.sources[1])
+        XCTAssertEqual(mirrorURLs.count, 1)
+        XCTAssertNotNil(UIImage(data: try Data(contentsOf: mirrorURLs[0])))
+
+        manifest = try await store.importPDFImageMirrors(appendingTo: manifest)
+        XCTAssertEqual(manifest.sources.count, 2)
+        XCTAssertEqual(manifest.sources[1].id, mirrorID)
+    }
+
     func testGenerationConfigurationRoundTripsExactly() async throws {
         let rootURL = makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: rootURL) }

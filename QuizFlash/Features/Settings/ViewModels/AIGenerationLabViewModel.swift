@@ -193,6 +193,69 @@ actor AIGenerationLabCorpusStore {
         }
     }
 
+    /// Builds deterministic image-source counterparts for every saved PDF.
+    /// The resulting sources still enter generation through the normal photo
+    /// preparation path, including production image decoding and Vision OCR.
+    func importPDFImageMirrors(
+        appendingTo manifest: AIGenerationLabManifest
+    ) async throws -> AIGenerationLabManifest {
+        try prepareDirectories()
+        var updatedManifest = manifest
+        var importedSources: [AIGenerationLabSource] = []
+
+        do {
+            for pdfSource in manifest.sources where pdfSource.kind == .pdf {
+                try Task.checkCancellation()
+                let mirrorName = Self.imageMirrorName(for: pdfSource)
+                let expectedImageCount = pdfSource.pageCount ?? 0
+                let alreadyExists = updatedManifest.sources.contains { source in
+                    source.kind == .photos
+                        && source.displayName == mirrorName
+                        && source.imageCount == expectedImageCount
+                }
+                guard !alreadyExists else { continue }
+                guard expectedImageCount > 0,
+                      let pdfURL = storedFileURLs(for: pdfSource).first else {
+                    throw AIGenerationLabStoreError.missingStoredSource
+                }
+
+                var imports: [AIGenerationLabImageImport] = []
+                imports.reserveCapacity(expectedImageCount)
+                for pageIndex in 0..<expectedImageCount {
+                    try Task.checkCancellation()
+                    guard let image = await DocumentTextExtractor.renderPDFPage(
+                        from: pdfURL,
+                        pageIndex: pageIndex,
+                        dpi: 90
+                    ), let data = image.jpegData(compressionQuality: 0.9) else {
+                        throw AIGenerationLabStoreError.invalidImage
+                    }
+                    imports.append(
+                        AIGenerationLabImageImport(
+                            data: data,
+                            displayName: "\(pdfSource.displayName)-\(pageIndex + 1)",
+                            filenameExtension: "jpg"
+                        )
+                    )
+                    await Task.yield()
+                }
+
+                let photoSet = try persistPhotoSet(
+                    imports,
+                    displayNameOverride: mirrorName
+                )
+                importedSources.append(photoSet)
+                updatedManifest.sources.append(photoSet)
+            }
+
+            try saveManifest(updatedManifest)
+            return updatedManifest
+        } catch {
+            removeStoredFiles(for: importedSources)
+            throw error
+        }
+    }
+
     func moveSource(
         id: UUID,
         by offset: Int,
@@ -291,7 +354,8 @@ actor AIGenerationLabCorpusStore {
     }
 
     private func persistPhotoSet(
-        _ imports: [AIGenerationLabImageImport]
+        _ imports: [AIGenerationLabImageImport],
+        displayNameOverride: String? = nil
     ) throws -> AIGenerationLabSource {
         guard !imports.isEmpty else { throw AIGenerationLabStoreError.invalidImage }
         guard imports.allSatisfy({ Self.imagePixelSize(from: $0.data) != nil }) else {
@@ -321,7 +385,9 @@ actor AIGenerationLabCorpusStore {
 
         let firstName = imports.first?.displayName ?? id.uuidString
         let displayName: String
-        if let lastName = imports.last?.displayName, imports.count > 1 {
+        if let displayNameOverride {
+            displayName = displayNameOverride
+        } else if let lastName = imports.last?.displayName, imports.count > 1 {
             displayName = "\(firstName) – \(lastName)"
         } else {
             displayName = firstName
@@ -395,6 +461,10 @@ actor AIGenerationLabCorpusStore {
         return normalized.isEmpty ? "img" : normalized
     }
 
+    private static func imageMirrorName(for source: AIGenerationLabSource) -> String {
+        "\(source.displayName) · OCR"
+    }
+
     private var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -409,6 +479,8 @@ actor AIGenerationLabCorpusStore {
 @Observable
 @MainActor
 final class AIGenerationLabViewModel {
+    static let shared = AIGenerationLabViewModel()
+
     private(set) var sources: [AIGenerationLabSource] = []
     private(set) var isWorking = false
     private(set) var isRunning = false
@@ -527,6 +599,15 @@ final class AIGenerationLabViewModel {
             return
         } catch {
             present(error)
+        }
+    }
+
+    func importPDFImageMirrors() async {
+        guard hasLoaded, !isWorking, !isRunning else { return }
+        errorMessage = ""
+        isShowingError = false
+        await performMutation {
+            try await store.importPDFImageMirrors(appendingTo: currentManifest)
         }
     }
 
