@@ -402,7 +402,6 @@ extension DeckWorkspaceView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .clipped()
     }
 
     @ViewBuilder
@@ -855,6 +854,8 @@ private struct GenerateMoreAIControlSurface: View {
             Capsule(style: .continuous)
                 .strokeBorder(borderColor, lineWidth: borderLineWidth)
         }
+        .shadow(color: .black.opacity(0.30), radius: 10, x: 0, y: 5)
+        .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 1)
         .contentShape(Capsule(style: .continuous))
     }
 
