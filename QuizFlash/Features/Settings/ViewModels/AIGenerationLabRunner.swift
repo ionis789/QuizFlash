@@ -430,6 +430,75 @@ final class AIGenerationLabRunner {
     }
 }
 
+/// Starts the existing Labs view model from a DEBUG launch argument so local
+/// benchmarks can run without automating the app UI. The view model remains
+/// the only corpus orchestrator and still invokes the unchanged production
+/// generation pipeline through `AIGenerationLabRunner`.
+@MainActor
+final class AIGenerationLabLaunchRunner {
+    static let shared = AIGenerationLabLaunchRunner()
+    static let launchArgument = "-RunAIGenerationLabCorpus"
+
+    private var runTask: Task<Void, Never>?
+
+    private init() {}
+
+    func startIfRequested(arguments: [String] = ProcessInfo.processInfo.arguments) {
+        guard arguments.contains(Self.launchArgument), runTask == nil else { return }
+
+        runTask = Task { [weak self] in
+            guard let self else { return }
+            defer { runTask = nil }
+
+            let viewModel = AIGenerationLabViewModel()
+            print("AI_LAB_CODE_RUN started")
+            await viewModel.load()
+
+            guard viewModel.canStartRun else {
+                let reason = viewModel.errorMessage.isEmpty
+                    ? "The saved corpus is empty or generation access is unavailable."
+                    : viewModel.errorMessage
+                print("AI_LAB_CODE_RUN failed reason=\(reason)")
+                return
+            }
+
+            viewModel.startRun()
+            for _ in 0..<40 where !viewModel.isRunning {
+                await Task.yield()
+            }
+
+            guard viewModel.isRunning else {
+                let reason = viewModel.errorMessage.isEmpty
+                    ? "The corpus runner did not start."
+                    : viewModel.errorMessage
+                print("AI_LAB_CODE_RUN failed reason=\(reason)")
+                return
+            }
+
+            while viewModel.isRunning {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+
+            guard let report = viewModel.latestReport else {
+                let reason = viewModel.errorMessage.isEmpty
+                    ? "The corpus runner finished without a report."
+                    : viewModel.errorMessage
+                print("AI_LAB_CODE_RUN failed reason=\(reason)")
+                return
+            }
+
+            let duration = max(
+                report.finishedAtEpochMilliseconds - report.startedAtEpochMilliseconds,
+                0
+            )
+            print(
+                "AI_LAB_CODE_RUN completed report=\(report.id.uuidString) "
+                    + "cases=\(report.cases.count) duration_ms=\(duration)"
+            )
+        }
+    }
+}
+
 /// Deterministic laboratory setup failures that happen before provider output.
 nonisolated enum AIGenerationLabRunnerError: LocalizedError {
     case sourcePreparationFailed

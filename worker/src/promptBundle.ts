@@ -53,7 +53,7 @@ export const requiredPromptTemplateKeys = [
 ] as const;
 
 export const defaultPromptBundle: PromptBundle = {
-  version: "v11",
+  version: "v16",
   status: "active",
   templates: {
       "cardType.flashcard": "\nCARD TYPE: FLASHCARDS\nCreate active-recall question/answer cards. Preserve exact technical terms, notation, formulas, and short code snippets when they are the best learning surface.",
@@ -109,22 +109,27 @@ Planning is coverage-neutral unless the supplied user instruction explicitly req
 Treat relative_priority only as a stable source-order ordinal. It is never a relevance score and must not control coverage.
 Return one strict JSON object and no surrounding text.`,
   "blueprint.schema": `FINAL BLUEPRINT JSON SCHEMA
-{"type":"object","additionalProperties":false,"required":["schema_version","suggested_title","language_code","language_display_name","themes","objectives"],"properties":{"schema_version":{"type":"integer"},"suggested_title":{"type":"string","maxLength":160},"language_code":{"type":["string","null"]},"language_display_name":{"type":["string","null"]},"themes":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","title","summary","source_segment_indexes","relative_priority"],"properties":{"id":{"type":"integer"},"title":{"type":"string","maxLength":160},"summary":{"type":"string","maxLength":800},"source_segment_indexes":{"type":"array","items":{"type":"integer"},"minItems":1},"relative_priority":{"type":"integer"}}}},"objectives":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","theme_id","instruction","source_segment_indexes","relative_priority","allocation_index"],"properties":{"id":{"type":"integer"},"theme_id":{"type":"integer"},"instruction":{"type":"string","maxLength":500},"source_segment_indexes":{"type":"array","items":{"type":"integer"},"minItems":1},"relative_priority":{"type":"integer"},"allocation_index":{"type":["integer","null"]}}}}}}
-The schema_version value must match the authoritative value in the request.
+{"type":"object","additionalProperties":false,"required":["v","t","lc","ln","th","ob"],"properties":{"v":{"type":"integer"},"t":{"type":"string","maxLength":160},"lc":{"type":["string","null"]},"ln":{"type":["string","null"]},"th":{"type":"array","items":{"type":"array","prefixItems":[{"type":"integer"},{"type":"string","maxLength":160},{"type":"string","maxLength":160},{"type":"array","items":{"type":"integer"},"minItems":1},{"type":"integer"}],"items":false,"minItems":5,"maxItems":5}},"ob":{"type":"array","items":{"type":"array","prefixItems":[{"type":"integer"},{"type":"integer"},{"type":"string","maxLength":140},{"type":"array","items":{"type":"integer"},"minItems":1},{"type":"integer"},{"type":["integer","null"]}],"items":false,"minItems":6,"maxItems":6}}}}
+Top-level field semantics: v is schema version, t is suggested title, lc is language code, ln is language display name, th is themes, and ob is objectives.
+Theme tuple positions: id, title, summary, source segment indexes, relative priority.
+Objective tuple positions: id, theme id, instruction, source segment indexes, relative priority, allocation index.
+Every item inside th and ob must be a positional JSON array with exactly the listed values. Never return keyed objects inside th or ob and never repeat the tuple field names.
+The v value must match the authoritative schema version in the request.
 Theme and objective ids must be unique integers local to this response.
 Every returned theme must be referenced by at least one objective.
 Every objective must describe exactly one distinct card-worthy recall task and cite only source segments belonging to its theme.
-For each theme, the union of its objectives' source_segment_indexes must equal that theme's source_segment_indexes.
+For each theme, the union of its objectives' source segment indexes must equal that theme's source segment indexes.
 Theme and objective relative_priority values must be stable source-order ordinals, not judgments of relevance or importance.`,
   "blueprint.direct": `Build the final blueprint directly.
 Authorized objective count: {{targetCards}}.
 Card type setting: {{cardType}}.
 Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}.
-Required blueprint schema_version: {{schemaVersion}}.
+Required blueprint schema version: {{schemaVersion}}.
 Source fingerprint: {{sourceFingerprint}}.
 Produce exactly the authorized objective count. Never derive a different count from source data.
 The objectives array length is a hard structural constraint. Allocate the exact objective slots before writing the objectives and never return additional candidate objectives. After writing exactly those slots, stop.
+If the complete source contains fewer broad concepts than the authorized count, decompose supported compound material into complementary atomic recall tasks that test different source-supported claims. Never fill slots with paraphrase variants or overlapping restatements.
 When allocation constraints are nonempty, produce exactly each allocation's objective_count and ensure every cited segment falls inside that allocation's inclusive range. Set allocation_index accordingly. When they are empty, set allocation_index to null.
 Detect the dominant natural language from the source and preserve it in the title and language fields. Keep language fields null only when the evidence is insufficient.
 Inspect the complete source and construct its global conceptual map before assigning objective slots.
@@ -133,11 +138,14 @@ Create the smallest useful set of global themes that represents the source withi
 When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of dropping later themes or exhausting the count by over-splitting earlier material.
 Segment-reference coverage does not require one objective per segment. A single coherent objective may cite multiple related segments while still defining exactly one card.
 Prefer new conceptual coverage over alternate or equivalent formulations of material already assigned to another objective.
+Judge objective distinctness by the source facts required in the expected answer, not by differences in wording, question angle, or requested presentation. Two objectives are overlapping when substantially the same source facts would answer both; merge them and use the released slot for uncovered supported material.
+Before decomposing already covered material, scan every supplied source segment for unused supported definitions, relations, procedures, classifications, contrasts, conditions, consequences, applications, or source-provided reasoning tasks. Decompose a compound objective only into tasks whose expected answers use materially different source facts.
 Before returning, verify within every theme that its objective segment references jointly cover every segment declared by that theme. Do not declare a segment in a theme and then leave it without an objective.
 Each objective must be distinct, supported, atomic, and ordered within its theme.
-Keep every title, summary, and objective instruction as concise as possible while preserving the semantic distinction and source support required for downstream generation. Do not restate source passages or repeat the same context across fields.
+Keep every title, summary, and objective instruction within the formal length limits and as concise as possible while preserving the semantic distinction and source support required for downstream generation. Do not restate source passages or repeat the same context across fields.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
-<SOURCE_DATA>{{sourceJSON}}</SOURCE_DATA>`,
+<SOURCE_DATA>{{sourceJSON}}</SOURCE_DATA>
+Final structural check: count the ob items before returning. ob must contain exactly {{targetCards}} positional arrays. If it contains fewer, first use uncovered supported material, then decompose compound material only into tasks requiring different source facts. If it contains more, consolidate tasks sharing substantially the same expected answer. Return only after the count is exact and no two objectives can be answered by substantially the same source facts.`,
   "blueprint.map": `Analyze this contiguous source group as one part of a larger source.
 Map group: {{mapIndex}} of {{mapCount}}.
 Card type setting: {{cardType}}.
@@ -150,17 +158,18 @@ Preserve original segment indexes exactly. Cover the complete group and record e
 Reduce level: {{reduceLevel}}. Group: {{groupIndex}} of {{groupCount}}. Final output: {{isFinal}}.
 Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
-When final output is true, schema_version must be exactly {{schemaVersion}}.
+When final output is true, v must be exactly {{schemaVersion}}.
 If final output is false, return the compact evidence-digest schema required by the map operation. Merge equivalent themes and objectives, preserve all valid supporting segment indexes, retain the full supported concept map without inferred-importance ranking, and do not force the authorized count.
-If final output is true, first merge all evidence into a global conceptual map, then allocate the exact authorized objective slots before writing any objective. The objectives array length is a hard structural constraint; never return additional candidate objectives and stop after writing exactly the authorized slots. Maximize distinct supported coverage, applying an explicit user preference only when supported by the complete evidence and otherwise avoiding source order, length, repetition, formatting prominence, or inferred importance. Prefer new conceptual coverage over alternate or equivalent formulations of already assigned material. Every returned theme must receive at least one objective, and within each theme the union of objective segment references must equal the theme's source segment references. Segment-reference coverage does not require one objective per segment; one coherent objective may cite multiple related segments while still defining exactly one card. When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of omitting later themes or over-splitting earlier material. Return a concise source-grounded title and the dominant-language fields. Keep every title, summary, and objective instruction as concise as possible while preserving semantic distinction and source support; do not restate evidence across fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
+If final output is true, first merge all evidence into a global conceptual map, then allocate the exact authorized objective slots before writing any objective. The objectives array length is a hard structural constraint; never return additional candidate objectives and stop after writing exactly the authorized slots. Maximize distinct supported coverage, applying an explicit user preference only when supported by the complete evidence and otherwise avoiding source order, length, repetition, formatting prominence, or inferred importance. Prefer new conceptual coverage over alternate or equivalent formulations of already assigned material. Judge distinctness by the source facts required in the expected answer, not by wording, question angle, or presentation; merge tasks whose expected answers substantially overlap and use the released slots for uncovered supported material from any supplied segment. Every returned theme must receive at least one objective, and within each theme the union of objective segment references must equal the theme's source segment references. Segment-reference coverage does not require one objective per segment; one coherent objective may cite multiple related segments while still defining exactly one card. When supported concepts exceed the authorized count, combine closely related concepts into coherent objectives instead of omitting later themes or over-splitting earlier material. When broad concepts are fewer than the authorized count, scan every supplied segment for unused supported material before decomposing compound objectives, and split only into complementary tasks whose expected answers require materially different source facts. Return a concise source-grounded title and the dominant-language fields. Keep every title, summary, and objective instruction within the formal length limits and as concise as possible while preserving semantic distinction and source support; do not restate evidence across fields. Apply every nonempty allocation constraint exactly and set allocation_index to null when constraints are empty.
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>
-<EVIDENCE_DIGESTS>{{digestJSON}}</EVIDENCE_DIGESTS>`,
+<EVIDENCE_DIGESTS>{{digestJSON}}</EVIDENCE_DIGESTS>
+When final output is true, perform this final structural check after reading all evidence: ob must contain exactly {{targetCards}} positional arrays. If it contains fewer, first use uncovered supported material, then decompose compound material only into tasks requiring different source facts. If it contains more, consolidate tasks sharing substantially the same expected answer. Return only after the count is exact and no two objectives can be answered by substantially the same source facts.`,
   "blueprint.repair": `Repair the invalid final blueprint while preserving valid source-grounded content.
 Authorized objective count: {{targetCards}}. Card type setting: {{cardType}}. Depth setting: {{cardLevel}}.
 Prompt version: {{promptVersion}}. Source fingerprint: {{sourceFingerprint}}.
-Required blueprint schema_version: {{schemaVersion}}.
+Required blueprint schema version: {{schemaVersion}}.
 Resolve every reported validation issue. Return the complete final blueprint, not a patch. Never change the authorized count or allocation constraints.
-For count or coverage repairs, allocate the exact authorized objective slots before writing any objective and never return additional candidates. Redistribute objectives across the complete conceptual map. Do not repair by truncating a prefix or suffix, and do not use inferred importance. Every returned theme must receive at least one objective. Within each theme, make the union of objective source segment references equal the theme's source segment references. Segment-reference coverage does not require one objective per segment; one coherent objective may cite multiple related segments while still defining exactly one card.
+For count or coverage repairs, allocate the exact authorized objective slots before writing any objective and never return additional candidates. Redistribute objectives across the complete conceptual map. Judge distinctness by the source facts required in the expected answer; merge tasks whose answers substantially overlap and use the released slots for uncovered supported material. When additional slots are required, scan every supplied source segment before decomposing supported compound material, then split only into complementary atomic tasks whose expected answers require materially different source facts. Do not repair by truncating a prefix or suffix, and do not use inferred importance. Every returned theme must receive at least one objective. Within each theme, make the union of objective source segment references equal the theme's source segment references. Segment-reference coverage does not require one objective per segment; one coherent objective may cite multiple related segments while still defining exactly one card. Keep summaries and objective instructions within the formal length limits.
 <VALIDATION_ISSUES>{{issuesJSON}}</VALIDATION_ISSUES>
 <INVALID_BLUEPRINT>{{invalidBlueprintJSON}}</INVALID_BLUEPRINT>
 <ALLOCATION_CONSTRAINTS>{{allocationJSON}}</ALLOCATION_CONSTRAINTS>

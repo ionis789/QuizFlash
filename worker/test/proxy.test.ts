@@ -6,7 +6,7 @@ import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
-    expect(defaultPromptBundle.version).toBe("v11");
+    expect(defaultPromptBundle.version).toBe("v16");
     expect(defaultPromptBundle.templates["system.userInstructions"]).toContain("lower priority");
     expect(defaultPromptBundle.templates["user.instructions"]).toContain("{{userInstructionsJSON}}");
     expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
@@ -21,10 +21,19 @@ describe("QuizFlash AI proxy", () => {
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("construct its global conceptual map before assigning objective slots");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("Every returned theme must receive at least one objective");
     expect(defaultPromptBundle.templates["blueprint.repair"]).toContain("Do not repair by truncating a prefix or suffix");
-    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("the union of its objectives' source_segment_indexes");
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("the union of its objectives' source segment indexes");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("Prefer new conceptual coverage over alternate or equivalent formulations");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("objectives array length is a hard structural constraint");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("does not require one objective per segment");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("complementary atomic recall tasks");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("Never fill slots with paraphrase variants");
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"required":["v","t","lc","ln","th","ob"]');
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":5,"maxItems":5');
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":6,"maxItems":6');
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("Never return keyed objects inside th or ob");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("ob must contain exactly {{targetCards}} positional arrays");
+    expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("expected answer");
+    expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain('"suggested_title"');
   });
 
   it("accepts every supported blueprint operation and rejects unknown operations", () => {

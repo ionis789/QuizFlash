@@ -17,7 +17,7 @@ nonisolated struct AIBlueprintProviderProfile: Equatable, Sendable {
     )
 
     func maxOutputTokens(targetCards: Int) -> Int {
-        min(24_000, 768 + max(targetCards, 1) * 192)
+        min(20_000, 640 + max(targetCards, 1) * 144)
     }
 }
 
@@ -89,6 +89,247 @@ nonisolated struct AIBlueprintResponseDTO: Codable, Equatable, Sendable {
         let source_segment_indexes: [Int]
         let relative_priority: Int
         let allocation_index: Int?
+    }
+}
+
+/// Compact provider-only representation of a final blueprint response.
+///
+/// The planner expands this transport shape before deterministic validation so
+/// compact wire keys never leak into the app's internal blueprint model.
+nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let suggestedTitle: String
+    let languageCode: String?
+    let languageDisplayName: String?
+    let themes: [Theme]
+    let objectives: [Objective]
+
+    nonisolated struct Theme: Codable, Equatable, Sendable {
+        let id: Int
+        let title: String
+        let summary: String
+        let sourceSegmentIndexes: [Int]
+        let relativePriority: Int
+
+        init(
+            id: Int,
+            title: String,
+            summary: String,
+            sourceSegmentIndexes: [Int],
+            relativePriority: Int
+        ) {
+            self.id = id
+            self.title = title
+            self.summary = summary
+            self.sourceSegmentIndexes = sourceSegmentIndexes
+            self.relativePriority = relativePriority
+        }
+
+        init(from decoder: Decoder) throws {
+            if var values = try? decoder.unkeyedContainer() {
+                id = try values.decode(Int.self)
+                title = try values.decode(String.self)
+                summary = try values.decode(String.self)
+                sourceSegmentIndexes = try values.decode([Int].self)
+                relativePriority = try values.decode(Int.self)
+                guard values.isAtEnd else {
+                    throw DecodingError.dataCorruptedError(
+                        in: values,
+                        debugDescription: "A compact blueprint theme must contain exactly five values."
+                    )
+                }
+                return
+            }
+
+            let values = try decoder.container(keyedBy: ObjectCodingKeys.self)
+            id = try values.decode(Int.self, forKey: .id)
+            title = try values.decode(String.self, forKey: .title)
+            summary = try values.decode(String.self, forKey: .summary)
+            sourceSegmentIndexes = try values.decode([Int].self, forKey: .sourceSegmentIndexes)
+            relativePriority = try values.decode(Int.self, forKey: .relativePriority)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.unkeyedContainer()
+            try values.encode(id)
+            try values.encode(title)
+            try values.encode(summary)
+            try values.encode(sourceSegmentIndexes)
+            try values.encode(relativePriority)
+        }
+
+        private enum ObjectCodingKeys: String, CodingKey {
+            case id
+            case title
+            case summary
+            case sourceSegmentIndexes = "source_segment_indexes"
+            case relativePriority = "relative_priority"
+        }
+    }
+
+    nonisolated struct Objective: Codable, Equatable, Sendable {
+        let id: Int
+        let themeID: Int
+        let instruction: String
+        let sourceSegmentIndexes: [Int]
+        let relativePriority: Int
+        let allocationIndex: Int?
+
+        init(
+            id: Int,
+            themeID: Int,
+            instruction: String,
+            sourceSegmentIndexes: [Int],
+            relativePriority: Int,
+            allocationIndex: Int?
+        ) {
+            self.id = id
+            self.themeID = themeID
+            self.instruction = instruction
+            self.sourceSegmentIndexes = sourceSegmentIndexes
+            self.relativePriority = relativePriority
+            self.allocationIndex = allocationIndex
+        }
+
+        init(from decoder: Decoder) throws {
+            if var values = try? decoder.unkeyedContainer() {
+                id = try values.decode(Int.self)
+                themeID = try values.decode(Int.self)
+                instruction = try values.decode(String.self)
+                sourceSegmentIndexes = try values.decode([Int].self)
+                relativePriority = try values.decode(Int.self)
+                allocationIndex = try values.decodeNil() ? nil : try values.decode(Int.self)
+                guard values.isAtEnd else {
+                    throw DecodingError.dataCorruptedError(
+                        in: values,
+                        debugDescription: "A compact blueprint objective must contain exactly six values."
+                    )
+                }
+                return
+            }
+
+            let values = try decoder.container(keyedBy: ObjectCodingKeys.self)
+            id = try values.decode(Int.self, forKey: .id)
+            themeID = try values.decode(Int.self, forKey: .themeID)
+            instruction = try values.decode(String.self, forKey: .instruction)
+            sourceSegmentIndexes = try values.decode([Int].self, forKey: .sourceSegmentIndexes)
+            relativePriority = try values.decode(Int.self, forKey: .relativePriority)
+            allocationIndex = try values.decodeIfPresent(Int.self, forKey: .allocationIndex)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.unkeyedContainer()
+            try values.encode(id)
+            try values.encode(themeID)
+            try values.encode(instruction)
+            try values.encode(sourceSegmentIndexes)
+            try values.encode(relativePriority)
+            try values.encode(allocationIndex)
+        }
+
+        private enum ObjectCodingKeys: String, CodingKey {
+            case id
+            case themeID = "theme_id"
+            case instruction
+            case sourceSegmentIndexes = "source_segment_indexes"
+            case relativePriority = "relative_priority"
+            case allocationIndex = "allocation_index"
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "v"
+        case suggestedTitle = "t"
+        case languageCode = "lc"
+        case languageDisplayName = "ln"
+        case themes = "th"
+        case objectives = "ob"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard container.contains(.languageCode), container.contains(.languageDisplayName) else {
+            let missingKey = container.contains(.languageCode)
+                ? CodingKeys.languageDisplayName
+                : CodingKeys.languageCode
+            throw DecodingError.keyNotFound(
+                missingKey,
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Compact blueprint language fields are required and may be null."
+                )
+            )
+        }
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        suggestedTitle = try container.decode(String.self, forKey: .suggestedTitle)
+        languageCode = try container.decodeIfPresent(String.self, forKey: .languageCode)
+        languageDisplayName = try container.decodeIfPresent(String.self, forKey: .languageDisplayName)
+        themes = try container.decode([Theme].self, forKey: .themes)
+        objectives = try container.decode([Objective].self, forKey: .objectives)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(suggestedTitle, forKey: .suggestedTitle)
+        try container.encode(languageCode, forKey: .languageCode)
+        try container.encode(languageDisplayName, forKey: .languageDisplayName)
+        try container.encode(themes, forKey: .themes)
+        try container.encode(objectives, forKey: .objectives)
+    }
+
+    init(_ dto: AIBlueprintResponseDTO) {
+        schemaVersion = dto.schema_version
+        suggestedTitle = dto.suggested_title
+        languageCode = dto.language_code
+        languageDisplayName = dto.language_display_name
+        themes = dto.themes.map {
+            Theme(
+                id: $0.id,
+                title: $0.title,
+                summary: $0.summary,
+                sourceSegmentIndexes: $0.source_segment_indexes,
+                relativePriority: $0.relative_priority
+            )
+        }
+        objectives = dto.objectives.map {
+            Objective(
+                id: $0.id,
+                themeID: $0.theme_id,
+                instruction: $0.instruction,
+                sourceSegmentIndexes: $0.source_segment_indexes,
+                relativePriority: $0.relative_priority,
+                allocationIndex: $0.allocation_index
+            )
+        }
+    }
+
+    var expanded: AIBlueprintResponseDTO {
+        AIBlueprintResponseDTO(
+            schema_version: schemaVersion,
+            suggested_title: suggestedTitle,
+            language_code: languageCode,
+            language_display_name: languageDisplayName,
+            themes: themes.map {
+                .init(
+                    id: $0.id,
+                    title: $0.title,
+                    summary: $0.summary,
+                    source_segment_indexes: $0.sourceSegmentIndexes,
+                    relative_priority: $0.relativePriority
+                )
+            },
+            objectives: objectives.map {
+                .init(
+                    id: $0.id,
+                    theme_id: $0.themeID,
+                    instruction: $0.instruction,
+                    source_segment_indexes: $0.sourceSegmentIndexes,
+                    relative_priority: $0.relativePriority,
+                    allocation_index: $0.allocationIndex
+                )
+            }
+        )
     }
 }
 

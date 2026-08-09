@@ -2,6 +2,60 @@ import XCTest
 @testable import QuizFlash
 
 final class AISourceBlueprintTests: XCTestCase {
+    func testCompactProviderBlueprintRoundTripsIntoValidationDTO() throws {
+        let dto = makeDTO(targetCards: 3, segmentIndexes: [1, 2])
+        let compact = AICompactBlueprintResponseDTO(dto)
+        let encoded = try JSONEncoder().encode(compact)
+        let json = String(decoding: encoded, as: UTF8.self)
+        let decoded = try JSONDecoder().decode(AICompactBlueprintResponseDTO.self, from: encoded)
+
+        XCTAssertEqual(decoded.expanded, dto)
+        XCTAssertTrue(json.contains("\"th\":[["))
+        XCTAssertTrue(json.contains("\"ob\":[["))
+        XCTAssertFalse(json.contains("suggested_title"))
+        XCTAssertFalse(json.contains("source_segment_indexes"))
+    }
+
+    func testCompactProviderBlueprintAcceptsKeyedCollectionItems() throws {
+        let json = """
+        {
+          "v": 1,
+          "t": "Generated title",
+          "lc": null,
+          "ln": null,
+          "th": [
+            {
+              "id": 1,
+              "title": "Theme title",
+              "summary": "Theme summary",
+              "source_segment_indexes": [1],
+              "relative_priority": 1
+            }
+          ],
+          "ob": [
+            {
+              "id": 1,
+              "theme_id": 1,
+              "instruction": "Create one distinct card.",
+              "source_segment_indexes": [1],
+              "relative_priority": 1,
+              "allocation_index": null
+            }
+          ]
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(
+            AICompactBlueprintResponseDTO.self,
+            from: Data(json.utf8)
+        )
+
+        XCTAssertEqual(decoded.themes.count, 1)
+        XCTAssertEqual(decoded.objectives.count, 1)
+        XCTAssertEqual(decoded.expanded.themes[0].source_segment_indexes, [1])
+        XCTAssertNil(decoded.expanded.objectives[0].allocation_index)
+    }
+
     func testPlannerUsesExactlyOneDirectRequestWhenSourceFitsBudget() async throws {
         let recorder = BlueprintRequestRecorder(targetCards: 2)
         let planner = AIBlueprintPlanner(
@@ -631,7 +685,10 @@ private actor BlueprintRequestRecorder {
         let isInitialReduce = request.operation == "blueprint_reduce" &&
             recordedRequests.filter { $0.operation == "blueprint_reduce" }.count == 1
         if isInitialReduce, let initialBlueprintOverride {
-            return String(decoding: try encoder.encode(initialBlueprintOverride), as: UTF8.self)
+            return String(
+                decoding: try encoder.encode(AICompactBlueprintResponseDTO(initialBlueprintOverride)),
+                as: UTF8.self
+            )
         }
         let objectiveCount = shouldReturnInvalid
             ? max(targetCards - 1, 0)
@@ -671,7 +728,7 @@ private actor BlueprintRequestRecorder {
                 )
             }
         )
-        return String(decoding: try encoder.encode(dto), as: UTF8.self)
+        return String(decoding: try encoder.encode(AICompactBlueprintResponseDTO(dto)), as: UTF8.self)
     }
 
     func operations() -> [String] {

@@ -62,7 +62,7 @@ actor AIBlueprintPlanner {
                 "Building a source blueprint in one request.",
                 metadata: ["segment_count": String(selectedSegments.count), "target_cards": String(targetCards)]
             )
-            initialDTO = try await request(
+            initialDTO = try await requestFinalBlueprint(
                 messages: try service.buildBlueprintDirectMessages(
                     sourceJSON: sourcePayload,
                     allocationJSON: constraintsPayload,
@@ -72,8 +72,7 @@ actor AIBlueprintPlanner {
                     promptVersion: promptVersion
                 ),
                 maxCompletionTokens: profile.maxOutputTokens(targetCards: targetCards),
-                operation: "blueprint_reduce",
-                as: AIBlueprintResponseDTO.self
+                operation: "blueprint_reduce"
             )
         } else {
             initialDTO = try await buildWithMapReduce(
@@ -209,7 +208,7 @@ actor AIBlueprintPlanner {
             "Reducing source analysis into the final blueprint.",
             metadata: ["reduce_level": String(reduceLevel), "digest_count": String(digests.count)]
         )
-        return try await request(
+        return try await requestFinalBlueprint(
             messages: try service.buildBlueprintReduceMessages(
                 digestJSON: json(digests),
                 allocationJSON: allocationJSON,
@@ -223,8 +222,7 @@ actor AIBlueprintPlanner {
                 groupCount: 1
             ),
             maxCompletionTokens: profile.maxOutputTokens(targetCards: targetCards),
-            operation: "blueprint_reduce",
-            as: AIBlueprintResponseDTO.self
+            operation: "blueprint_reduce"
         )
     }
 
@@ -303,9 +301,9 @@ actor AIBlueprintPlanner {
                     throw AIServiceError.unknown("The source blueprint remained invalid after semantic repair.")
                 }
                 let invalidDTO = dto
-                dto = try await request(
+                dto = try await requestFinalBlueprint(
                     messages: try service.buildBlueprintRepairMessages(
-                        invalidBlueprintJSON: json(dto),
+                        invalidBlueprintJSON: compactJSON(dto),
                         issuesJSON: json(repairDiagnostics),
                         sourceJSON: sourceJSON,
                         allocationJSON: allocationJSON,
@@ -315,8 +313,7 @@ actor AIBlueprintPlanner {
                         promptVersion: promptVersion
                     ),
                     maxCompletionTokens: profile.maxOutputTokens(targetCards: targetCards),
-                    operation: "blueprint_repair",
-                    as: AIBlueprintResponseDTO.self
+                    operation: "blueprint_repair"
                 )
                 await service.trace(
                     .blueprintRepair,
@@ -510,6 +507,24 @@ actor AIBlueprintPlanner {
             operation: operation,
             as: type
         )
+    }
+
+    private func requestFinalBlueprint(
+        messages: [[String: Any]],
+        maxCompletionTokens: Int,
+        operation: String
+    ) async throws -> AIBlueprintResponseDTO {
+        let compact: AICompactBlueprintResponseDTO = try await request(
+            messages: messages,
+            maxCompletionTokens: maxCompletionTokens,
+            operation: operation,
+            as: AICompactBlueprintResponseDTO.self
+        )
+        return compact.expanded
+    }
+
+    private func compactJSON(_ dto: AIBlueprintResponseDTO) throws -> String {
+        try json(AICompactBlueprintResponseDTO(dto))
     }
 
     private func makeMapGroups(from segments: [AITextSourceSegment]) throws -> [String] {

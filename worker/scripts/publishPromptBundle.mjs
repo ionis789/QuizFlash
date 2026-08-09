@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 
 import {createHash} from "node:crypto";
-import {mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
-import {tmpdir} from "node:os";
-import {join} from "node:path";
+import {readFile} from "node:fs/promises";
 import {spawnSync} from "node:child_process";
 
 const requiredTemplateKeys = [
@@ -53,14 +51,10 @@ UPDATE ai_prompt_configs SET status = 'active', activated_at_ms = ${now} WHERE v
 ` : ""}
 `;
 
-const tempDir = await mkdtemp(join(tmpdir(), "quizflash-prompt-"));
-const sqlPath = join(tempDir, "publish-prompt.sql");
-await writeFile(sqlPath, sql);
-const result = spawnSync("npx", ["wrangler", "d1", "execute", "quizflash-ai", "--remote", "--file", sqlPath], {
+const result = spawnSync("npx", ["wrangler", "d1", "execute", "quizflash-ai", "--remote", "--command", sql], {
   cwd: new URL("..", import.meta.url),
   stdio: "inherit"
 });
-await rm(tempDir, {recursive: true, force: true});
 
 if (result.status !== 0) process.exit(result.status ?? 1);
 console.log(`Published prompt bundle ${bundle.version} (${hash}) as ${status}.`);

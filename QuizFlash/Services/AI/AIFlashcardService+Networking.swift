@@ -600,8 +600,13 @@ extension AIFlashcardService {
 
     func shouldRetry(_ error: AIServiceError) -> Bool {
         switch error {
-        case .networkError, .invalidResponse, .parsingFailed, .rateLimitExceeded, .timeout:
+        case .networkError, .invalidResponse, .rateLimitExceeded, .timeout:
             return true
+        case .parsingFailed:
+            // Cloud retries preserve providerCallId, so the proxy correctly
+            // returns the same idempotent payload. Re-decoding it cannot heal
+            // a contract mismatch and only adds exponential backoff latency.
+            return false
         case .invalidAPIKey:
             return false
         case .unknown(let message):
@@ -620,6 +625,9 @@ extension AIFlashcardService {
         }
 
         if let serviceError = error as? AIServiceError {
+            if case .parsingFailed = serviceError {
+                return true
+            }
             return shouldRetry(serviceError)
         }
 

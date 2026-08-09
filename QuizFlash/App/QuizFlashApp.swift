@@ -28,6 +28,12 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
             details: ["firebaseConfigured": String(FirebaseApp.app() != nil)]
         )
 
+#if DEBUG
+        Task { @MainActor in
+            AIGenerationLabLaunchRunner.shared.startIfRequested()
+        }
+#endif
+
         return true
     }
 
