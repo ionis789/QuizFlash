@@ -811,8 +811,6 @@ struct CreateDeckCapsuleContainer<Content: View>: View {
 }
 
 struct GenerateMoreAIButton: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let action: () -> Void
     var isEnabled: Bool = true
     let label: String
@@ -820,45 +818,59 @@ struct GenerateMoreAIButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
-                ZStack {
-                    Circle()
-                        .fill(accentColor.opacity(0.18))
-
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundStyle(accentColor)
-                }
-                .frame(width: 26, height: 26)
-
-                Text(label)
-                    .font(.system(size: 15, weight: .heavy))
-                    .lineLimit(1)
-                    .foregroundStyle(accentColor)
-            }
-            .padding(.leading, 10)
-            .padding(.trailing, 18)
-            .frame(height: UIConstants.Size.capsuleHeight)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(themeManager.roleColor(.buttonSurfaceFill))
-
-                Capsule(style: .continuous)
-                    .fill(accentColor.opacity(0.07))
-
-                Capsule(style: .continuous)
-                    .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
-            }
-            .contentShape(Capsule(style: .continuous))
+            GenerateMoreAIControlSurface(label: label)
         }
         .buttonStyle(GenerateMoreAIButtonStyle())
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.55)
         .accessibilityLabel(accessibilityLabel)
     }
+}
 
-    private var accentColor: Color {
-        themeManager.roleColor(.buttonDangerForeground)
+private struct GenerateMoreAIControlSurface: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
+
+    let label: String
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .bold))
+
+            Text(label)
+                .font(.system(size: 15, weight: .bold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .foregroundStyle(themeManager.accentColor.color)
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .frame(height: UIConstants.Size.capsuleHeight)
+        .background {
+            Capsule(style: .continuous)
+                .fill(themeManager.roleColor(.buttonSurfaceFill))
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .strokeBorder(borderColor, lineWidth: borderLineWidth)
+        }
+        .contentShape(Capsule(style: .continuous))
+    }
+
+    private var borderColor: Color {
+        AppBorderRenderer.color(
+            for: .control,
+            preferences: appPreferences.borderDesign,
+            colorScheme: colorScheme
+        )
+    }
+
+    private var borderLineWidth: CGFloat {
+        AppBorderRenderer.lineWidth(
+            for: .control,
+            preferences: appPreferences.borderDesign
+        )
     }
 }
 
@@ -907,29 +919,7 @@ private struct CompletionGenerateMoreControl: View {
     }
 
     private var generateMoreSurface: some View {
-        HStack(spacing: 9) {
-            generateMoreSymbol
-                .frame(width: 26, height: 26)
-
-            Text(generateMoreLabel)
-                .font(.system(size: 15, weight: .heavy))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .foregroundStyle(accentColor)
-        }
-        .padding(.leading, 10)
-        .padding(.trailing, 18)
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .background {
-            Capsule(style: .continuous)
-                .fill(themeManager.roleColor(.buttonSurfaceFill))
-
-            Capsule(style: .continuous)
-                .fill(accentColor.opacity(0.07))
-
-            Capsule(style: .continuous)
-                .strokeBorder(accentColor.opacity(0.36), lineWidth: 1.25)
-        }
+        GenerateMoreAIControlSurface(label: generateMoreLabel)
     }
 
     private var generateMoreRevealAnimation: Animation {
@@ -944,21 +934,6 @@ private struct CompletionGenerateMoreControl: View {
             return .easeOut(duration: 0.14)
         }
         return .easeOut(duration: UIConstants.Animation.standard)
-    }
-
-    private var generateMoreSymbol: some View {
-        ZStack {
-            Circle()
-                .fill(accentColor.opacity(0.18))
-
-            Image(systemName: "sparkles")
-                .font(.system(size: 13, weight: .black))
-                .foregroundStyle(accentColor)
-        }
-    }
-
-    private var accentColor: Color {
-        themeManager.roleColor(.buttonDangerForeground)
     }
 }
 
