@@ -85,23 +85,42 @@ extension DeckWorkspaceViewModel {
         }
     }
 
-    func consumeGeneratedBatchChunks(
-        from stream: AsyncThrowingStream<AIFlashcardBatchChunk, Error>
+    func consumeSourceGenerationEvents(
+        from stream: AsyncThrowingStream<AISourceGenerationPipelineEvent, Error>
     ) async throws {
-        aiState = .generatingCards(
-            progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
-            foundCount: aiGeneratedCardCount
-        )
-        resetAIGenerationRevealPipeline()
-        aiCardBatchStreamIsActive = true
-        aiRevealTask = Task { [weak self] in
-            guard let self else { return }
-            try await self.drainGeneratedCardsContinuously()
+        var didStartCardConsumption = false
+
+        func startCardConsumptionIfNeeded() {
+            guard !didStartCardConsumption else { return }
+            didStartCardConsumption = true
+            aiState = .generatingCards(
+                progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+                foundCount: aiGeneratedCardCount
+            )
+            resetAIGenerationRevealPipeline()
+            aiCardBatchStreamIsActive = true
+            aiRevealTask = Task { [weak self] in
+                guard let self else { return }
+                try await self.drainGeneratedCardsContinuously()
+            }
         }
 
         do {
-            for try await chunk in stream {
+            for try await event in stream {
                 try Task.checkCancellation()
+                guard case .batch(let chunk) = event else {
+                    if case .prepared(let context) = event {
+                        activeAISourceBlueprint = context.blueprint
+                        remainingAIBlueprintObjectiveIDs = context.remainingObjectiveIDs
+                        if deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                           !context.blueprint.suggestedTitle.isEmpty {
+                            deckTitle = context.blueprint.suggestedTitle
+                        }
+                        startCardConsumptionIfNeeded()
+                    }
+                    continue
+                }
+                startCardConsumptionIfNeeded()
                 registerGeneratedBatchChunk(chunk)
                 aiGeneratedShortfallCount += chunk.shortfallCount
                 guard !chunk.cards.isEmpty else { continue }
@@ -113,6 +132,7 @@ extension DeckWorkspaceViewModel {
                 await Task.yield()
             }
 
+            startCardConsumptionIfNeeded()
             aiCardBatchStreamIsActive = false
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
@@ -579,21 +599,14 @@ extension DeckWorkspaceViewModel {
                 return
             }
             
-            let texts = await DocumentTextExtractor.extractFastVisionTexts(from: images)
-            guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+            let source: AIPreparedGenerationSource
+            do {
+                source = try await AISourcePreparationService.preparePhotos(images)
+            } catch {
                 try? await AIGenerationSessionStore.shared.clearSession()
                 aiState = .error(localizedTextExtractionFailureMessage)
                 return
             }
-
-            let source = AIPreparedGenerationSource(
-                kind: .photos,
-                previewItems: makePhotoPreviewItems(images: images, texts: texts),
-                textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
-                images: images,
-                pdfURL: nil,
-                needsOCRCorrection: DocumentTextExtractor.needsAICorrectionForExtractedText(texts)
-            )
             prepareSheetState(for: source, pdfAnalysis: nil)
         }
         
@@ -733,7 +746,7 @@ extension DeckWorkspaceViewModel {
 
         switch aiGenerationOptions.sourceDistributionMode {
         case .auto:
-            return automaticAllocations(
+            return AISourceAllocationPlanner.automaticAllocations(
                 for: source.previewItems.map(\.characterCount),
                 totalCards: remainingCardCount
             )
@@ -742,7 +755,7 @@ extension DeckWorkspaceViewModel {
             let normalizedAllocations = normalizedManualAllocations(for: source.itemCount)
             guard !normalizedAllocations.isEmpty else { return [] }
 
-            let redistributedCounts = distributedCardCounts(
+            let redistributedCounts = AISourceAllocationPlanner.distributedCardCounts(
                 totalCards: remainingCardCount,
                 across: normalizedAllocations.map { Double(max($0.cardCount, 1)) }
             )

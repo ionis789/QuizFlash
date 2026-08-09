@@ -12,7 +12,7 @@ import SwiftData
 @MainActor
 final class DeckWorkspaceViewModelTests: XCTestCase {
     func testPhotoDocumentPageOrderUsesDetectedFooters() {
-        let reordered = DeckWorkspaceViewModel.documentPageReorderedIndices(
+        let reordered = AISourcePreparationService.documentPageReorderedIndices(
             for: [
                 """
                 l. Dac2 (V, +,.), (W, +,.) sunt doua spalii liniare.

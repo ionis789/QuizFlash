@@ -562,12 +562,10 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertEqual(plans.map(\.targetCards), Array(repeating: 25, count: 4))
     }
 
-    @MainActor
     func testHighVolumeAutomaticAllocationsPreferTenRangesCappedAtTenCards() {
-        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let characterCounts = Array(repeating: 1_000, count: 49)
 
-        let allocations = viewModel.automaticAllocations(
+        let allocations = AISourceAllocationPlanner.automaticAllocations(
             for: characterCounts,
             totalCards: 100
         )

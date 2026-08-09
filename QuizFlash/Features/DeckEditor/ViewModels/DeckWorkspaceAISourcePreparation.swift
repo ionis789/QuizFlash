@@ -6,11 +6,8 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
-import PDFKit
 
 extension DeckWorkspaceViewModel {
-    private static let automaticAllocationCardLimit = 10
-
     // MARK: - Workspace Seeding
 
     /// Re-seeds the editor so the Create tab can behave like a normal deck
@@ -288,83 +285,7 @@ extension DeckWorkspaceViewModel {
         }
     }
 
-    func resolvedAIGenerationOptions(
-        for source: AIPreparedGenerationSource,
-        base options: AIGenerationOptions,
-        aiService: AIFlashcardService
-    ) async throws -> AIGenerationOptions {
-        let sourceText = source.textSegments
-            .map(\.text)
-            .joined(separator: "\n\n")
-        let profile = try await aiService.resolveSourceGenerationProfile(fromText: sourceText)
-        if deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let suggestedTitle = profile?.deckTitle,
-           !suggestedTitle.isEmpty {
-            deckTitle = suggestedTitle
-        }
-
-        var resolvedOptions = options
-        if options.outputLanguageMode == .auto,
-           let languageHint = profile?.languageHint {
-            resolvedOptions.sourceLanguageHint = languageHint
-        }
-        return resolvedOptions
-    }
-
-    func resolvedBlueprintGenerationContext(
-        for source: AIPreparedGenerationSource,
-        targetCardCount: Int,
-        allocations: [AISourceRangeAllocation],
-        base options: AIGenerationOptions,
-        aiService: AIFlashcardService
-    ) async throws -> (blueprint: AISourceBlueprint, options: AIGenerationOptions) {
-        let manualConstraints = options.sourceDistributionMode == .manual ? allocations : []
-        let fingerprintSegments: [AITextSourceSegment]
-        if manualConstraints.isEmpty {
-            fingerprintSegments = source.textSegments
-        } else {
-            let selectedIndexes = Set(manualConstraints.flatMap { Array($0.startIndex...$0.endIndex) })
-            fingerprintSegments = source.textSegments.filter { selectedIndexes.contains($0.index) }
-        }
-        let fingerprint = AIBlueprintValidator.sourceFingerprint(for: fingerprintSegments)
-        let reusableBlueprint = activeAISourceBlueprint.flatMap { blueprint -> AISourceBlueprint? in
-            guard blueprint.sourceFingerprint == fingerprint,
-                  remainingAIBlueprintObjectiveIDs.count == targetCardCount else { return nil }
-            return blueprint
-        }
-
-        let blueprint: AISourceBlueprint
-        if let reusableBlueprint {
-            blueprint = reusableBlueprint
-        } else {
-            blueprint = try await aiService.buildSourceBlueprint(
-                segments: source.textSegments,
-                targetCards: targetCardCount,
-                options: options,
-                manualAllocations: manualConstraints
-            )
-            activeAISourceBlueprint = blueprint
-            remainingAIBlueprintObjectiveIDs = Set(blueprint.objectives.map(\.id))
-        }
-
-        if deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !blueprint.suggestedTitle.isEmpty {
-            deckTitle = blueprint.suggestedTitle
-        }
-
-        var resolvedOptions = options
-        switch options.outputLanguageMode {
-        case .auto:
-            if let languageHint = blueprint.dominantLanguage {
-                resolvedOptions.sourceLanguageHint = languageHint
-            }
-        case .manual:
-            resolvedOptions.sourceLanguageHint = options.manualOutputLanguage
-        }
-        return (blueprint, resolvedOptions)
-    }
-
-    /// Runs blueprint planning and card generation inside one persistent trace.
+    /// Consumes the single production source-generation pipeline.
     func executeTracedSourceGeneration(
         source: AIPreparedGenerationSource,
         allocations: [AISourceRangeAllocation],
@@ -372,43 +293,19 @@ extension DeckWorkspaceViewModel {
         options: AIGenerationOptions,
         aiService: AIFlashcardService
     ) async throws {
-        let sourceKind = source.isPDF ? "pdf" : "photos_ocr"
-        try await aiService.withDebugRun(
-            kind: .generation,
-            targetType: options.cardType.rawValue,
-            sourceKind: sourceKind,
-            targetCount: targetCardCount,
-            sourceCount: source.textSegments.count,
-            metadata: [
-                "allocation_count": String(allocations.count),
-                "distribution_mode": options.sourceDistributionMode.rawValue,
-                "has_user_instructions": String(options.normalizedUserInstructions != nil),
-                "user_instruction_length": String(options.normalizedUserInstructions?.count ?? 0),
-                "needs_ocr_correction": String(source.needsOCRCorrection),
-                "segment_count": String(source.textSegments.count)
-            ]
-        ) { [self] in
-            let generationContext = try await resolvedBlueprintGenerationContext(
-                for: source,
-                targetCardCount: targetCardCount,
-                allocations: allocations,
-                base: options,
-                aiService: aiService
-            )
-
-            try await consumeGeneratedBatchChunks(
-                from: aiService.generateFlashcardBatchStream(
-                    fromSegments: source.textSegments,
-                    targetCards: targetCardCount,
-                    allocations: allocations,
-                    needsOCRCorrection: source.needsOCRCorrection,
-                    options: generationContext.options,
-                    blueprint: generationContext.blueprint,
-                    remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
-                    initialCoveredPrompts: existingAISessionPromptPreviews()
-                )
-            )
-        }
+        let pipeline = AISourceGenerationPipeline(service: aiService)
+        let request = AISourceGenerationPipelineRequest(
+            segments: source.textSegments,
+            allocations: allocations,
+            targetCardCount: targetCardCount,
+            needsOCRCorrection: source.needsOCRCorrection,
+            sourceKind: source.isPDF ? "pdf" : "photos_ocr",
+            options: options,
+            reusableBlueprint: activeAISourceBlueprint,
+            remainingObjectiveIDs: remainingAIBlueprintObjectiveIDs,
+            coveredPrompts: existingAISessionPromptPreviews()
+        )
+        try await consumeSourceGenerationEvents(from: pipeline.events(for: request))
     }
 
     func existingAISessionPromptPreviews() -> [String] {
@@ -437,35 +334,15 @@ extension DeckWorkspaceViewModel {
 
             guard !images.isEmpty else { return }
 
-            let texts = await DocumentTextExtractor.extractFastVisionTexts(from: images)
-            await Task.yield()
-
-            guard DocumentTextExtractor.isUsableExtractedText(texts) else {
-                clearAISourcePreparation()
-                aiState = .error(localizedTextExtractionFailureMessage)
-                return
-            }
-
-            let orderedPayload = Self.reorderedPhotoPayloadIfDocumentPagesDetected(
-                images: images,
-                texts: texts
-            )
-            let source = AIPreparedGenerationSource(
-                kind: .photos,
-                previewItems: makePhotoPreviewItems(
-                    images: orderedPayload.images,
-                    texts: orderedPayload.texts
-                ),
-                textSegments: makeTextSegments(from: orderedPayload.texts, labelPrefix: "Image"),
-                images: orderedPayload.images,
-                pdfURL: nil,
-                needsOCRCorrection: DocumentTextExtractor.needsAICorrectionForExtractedText(texts)
-            )
+            let source = try await AISourcePreparationService.preparePhotos(images)
 
             prepareSheetState(for: source, pdfAnalysis: nil)
         } catch is CancellationError {
             clearAISourcePreparation()
             return
+        } catch is AISourcePreparationError {
+            clearAISourcePreparation()
+            aiState = .error(localizedTextExtractionFailureMessage)
         } catch {
             clearAISourcePreparation()
             aiState = .error(error.localizedDescription)
@@ -490,76 +367,27 @@ extension DeckWorkspaceViewModel {
             return
         }
 
-        var pageTexts = await extractPDFKitPageTexts(from: localURL)
-        var needsOCRCorrection = DocumentTextExtractor.needsAICorrectionForExtractedText(pageTexts)
-        PDFImportDebugStore.record(
-            "preparePDFSource pdfkit extracted",
-            details: [
-                "pages": String(pageTexts.count),
-                "chars": String(pageTexts.reduce(0) { $0 + $1.count }),
-                "usable": String(DocumentTextExtractor.isUsableExtractedText(pageTexts))
-            ]
-        )
-        await Task.yield()
-
-        if !DocumentTextExtractor.isUsableExtractedText(pageTexts) {
-            PDFImportDebugStore.record("preparePDFSource ocr fallback start")
-            pageTexts = await DocumentTextExtractor.extractVisionTextsFromPDFPages(from: localURL)
-            needsOCRCorrection = true
+        do {
+            let prepared = try await AISourcePreparationService.preparePDF(from: localURL)
+            prepareSheetState(for: prepared.source, pdfAnalysis: prepared.analysis)
             PDFImportDebugStore.record(
-                "preparePDFSource ocr fallback finished",
+                "preparePDFSource prepared",
                 details: [
-                    "pages": String(pageTexts.count),
-                    "chars": String(pageTexts.reduce(0) { $0 + $1.count }),
-                    "usable": String(DocumentTextExtractor.isUsableExtractedText(pageTexts))
+                    "pageCount": String(prepared.analysis.pageCount),
+                    "chars": String(prepared.analysis.extractedChars),
+                    "needsOCRCorrection": String(prepared.source.needsOCRCorrection)
                 ]
             )
-            await Task.yield()
-        }
-
-        guard DocumentTextExtractor.isUsableExtractedText(pageTexts) else {
+        } catch is CancellationError {
             clearAISourcePreparation()
-            PDFImportDebugStore.record("preparePDFSource failed unusable text")
+        } catch {
+            clearAISourcePreparation()
+            PDFImportDebugStore.record(
+                "preparePDFSource failed",
+                details: ["error": error.localizedDescription]
+            )
             aiState = .error(localizedTextExtractionFailureMessage)
-            return
         }
-
-        let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: localURL)
-        PDFImportDebugStore.record(
-            "preparePDFSource thumbnails",
-            details: ["count": String(thumbnails.count)]
-        )
-        await Task.yield()
-        let pageCount = max(pageTexts.count, await extractPDFPageCount(from: localURL))
-        let extractedChars = pageTexts.reduce(0) { $0 + $1.count }
-        let info = PDFAnalysisInfo(
-            quality: await extractPDFQuality(from: localURL),
-            pageCount: pageCount,
-            extractedChars: extractedChars
-        )
-
-        let source = AIPreparedGenerationSource(
-            kind: .pdf,
-            previewItems: makePDFPreviewItems(
-                pageTexts: pageTexts,
-                pageCount: pageCount,
-                thumbnails: thumbnails
-            ),
-            textSegments: makeTextSegments(from: pageTexts, labelPrefix: "Page"),
-            images: [],
-            pdfURL: localURL,
-            needsOCRCorrection: needsOCRCorrection
-        )
-
-        prepareSheetState(for: source, pdfAnalysis: info)
-        PDFImportDebugStore.record(
-            "preparePDFSource prepared",
-            details: [
-                "pageCount": String(pageCount),
-                "chars": String(extractedChars),
-                "needsOCRCorrection": String(needsOCRCorrection)
-            ]
-        )
     }
 
     func prepareSheetState(
@@ -595,189 +423,6 @@ extension DeckWorkspaceViewModel {
                 continuation.resume(returning: image)
             }
         }
-    }
-
-    func extractPDFKitPageTexts(from url: URL) async -> [String] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: DocumentTextExtractor.extractPDFKitPages(from: url))
-            }
-        }
-    }
-
-    func extractPDFPageCount(from url: URL) async -> Int {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: DocumentTextExtractor.pdfPageCount(url: url))
-            }
-        }
-    }
-
-    func extractPDFQuality(from url: URL) async -> Double {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: DocumentTextExtractor.pdfKitQuality(for: url))
-            }
-        }
-    }
-
-    func makePhotoPreviewItems(
-        images: [UIImage],
-        texts: [String]
-    ) -> [AIGenerationSourcePreviewItem] {
-        images.enumerated().map { index, image in
-            let text = texts.indices.contains(index) ? texts[index] : ""
-            return AIGenerationSourcePreviewItem(
-                index: index + 1,
-                title: "Image \(index + 1)",
-                characterCount: text.count,
-                thumbnail: image.resizedForAI(toMaxDimension: 240)
-            )
-        }
-    }
-
-    func makePDFPreviewItems(
-        pageTexts: [String],
-        pageCount: Int,
-        thumbnails: [UIImage]
-    ) -> [AIGenerationSourcePreviewItem] {
-        let totalPages = max(pageCount, pageTexts.count)
-
-        return (0 ..< totalPages).map { index in
-            let text = pageTexts.indices.contains(index) ? pageTexts[index] : ""
-            return AIGenerationSourcePreviewItem(
-                index: index + 1,
-                title: "Page \(index + 1)",
-                characterCount: text.count,
-                thumbnail: thumbnails.indices.contains(index) ? thumbnails[index] : nil
-            )
-        }
-    }
-
-    func makeTextSegments(
-        from texts: [String],
-        labelPrefix: String
-    ) -> [AITextSourceSegment] {
-        texts.enumerated().map { index, text in
-            AITextSourceSegment(
-                index: index + 1,
-                label: "\(labelPrefix) \(index + 1)",
-                text: text
-            )
-        }
-    }
-
-    nonisolated static func reorderedPhotoPayloadIfDocumentPagesDetected(
-        images: [UIImage],
-        texts: [String]
-    ) -> (images: [UIImage], texts: [String]) {
-        guard let indices = documentPageReorderedIndices(for: texts) else {
-            return (images, texts)
-        }
-
-        let orderedTexts = indices.compactMap { texts.indices.contains($0) ? texts[$0] : nil }
-        let orderedImages = indices.compactMap { images.indices.contains($0) ? images[$0] : nil }
-        guard orderedTexts.count == texts.count,
-              orderedImages.count == images.count else {
-            return (images, texts)
-        }
-        return (orderedImages, orderedTexts)
-    }
-
-    nonisolated static func documentPageReorderedIndices(for texts: [String]) -> [Int]? {
-        guard texts.count > 1 else { return nil }
-
-        let detections = texts.enumerated().compactMap { index, text -> (index: Int, page: Int, total: Int)? in
-            guard let footer = detectedDocumentPageFooter(in: text) else { return nil }
-            return (index, footer.page, footer.total)
-        }
-        guard !detections.isEmpty else { return nil }
-
-        let groupedByTotal = Dictionary(grouping: detections, by: \.total)
-        guard let dominant = groupedByTotal.max(by: { $0.value.count < $1.value.count }) else {
-            return nil
-        }
-
-        let minimumDetectedCount = min(
-            texts.count,
-            max(3, Int((Double(texts.count) * 0.45).rounded(.up)))
-        )
-        guard dominant.value.count >= minimumDetectedCount else {
-            return nil
-        }
-
-        let pagesByIndex = Dictionary(uniqueKeysWithValues: dominant.value.map { ($0.index, $0.page) })
-        let sortedIndices = texts.indices.sorted { lhs, rhs in
-            let lhsPage = pagesByIndex[lhs]
-            let rhsPage = pagesByIndex[rhs]
-
-            switch (lhsPage, rhsPage) {
-            case let (lhsPage?, rhsPage?):
-                if lhsPage == rhsPage {
-                    return lhs < rhs
-                }
-                return lhsPage < rhsPage
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                return lhs < rhs
-            }
-        }
-
-        return sortedIndices == Array(texts.indices) ? nil : sortedIndices
-    }
-
-    private nonisolated static func detectedDocumentPageFooter(in text: String) -> (page: Int, total: Int)? {
-        let lines = text
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .suffix(10)
-
-        for line in lines.reversed() {
-            if let explicit = pageFooterMatch(
-                in: line,
-                pattern: #"(?<!\d)([1-9]\d{0,2})\s*[/\\|]\s*([1-9]\d{1,2})(?!\d)"#
-            ) {
-                return explicit
-            }
-
-            let compact = line.replacingOccurrences(
-                of: #"\s+"#,
-                with: "",
-                options: .regularExpression
-            )
-            if let collapsed = pageFooterMatch(
-                in: compact,
-                pattern: #"^([1-9]\d{0,2})[1Il|/\\]([1-9]\d{1,2})$"#
-            ) {
-                return collapsed
-            }
-        }
-
-        return nil
-    }
-
-    private nonisolated static func pageFooterMatch(
-        in text: String,
-        pattern: String
-    ) -> (page: Int, total: Int)? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let nsRange = NSRange(text.startIndex ..< text.endIndex, in: text)
-        guard let match = regex.firstMatch(in: text, range: nsRange),
-              match.numberOfRanges >= 3,
-              let pageRange = Range(match.range(at: 1), in: text),
-              let totalRange = Range(match.range(at: 2), in: text),
-              let page = Int(text[pageRange]),
-              let total = Int(text[totalRange]),
-              total >= 2,
-              page >= 1,
-              page <= total else {
-            return nil
-        }
-        return (page, total)
     }
 
     func fullQualityPreviewImage(
@@ -1011,254 +656,6 @@ extension DeckWorkspaceViewModel {
         }
 
         return false
-    }
-
-    func automaticAllocations(
-        for characterCounts: [Int],
-        totalCards: Int
-    ) -> [AISourceRangeAllocation] {
-        guard !characterCounts.isEmpty, totalCards > 0 else { return [] }
-
-        let coverageRangeCount = preferredCoverageRangeCount(
-            itemCount: characterCounts.count,
-            totalCards: totalCards
-        )
-
-        let baseRanges = weightedCoverageRanges(
-            for: characterCounts,
-            groupCount: coverageRangeCount
-        )
-        guard !baseRanges.isEmpty else { return [] }
-
-        let weights = normalizedWeights(from: characterCounts)
-        let rangeWeights = baseRanges.map { range in
-            weights[range].reduce(0, +)
-        }
-        let distributedCardCounts = cappedDistributedCardCounts(
-            totalCards: totalCards,
-            across: rangeWeights,
-            maxCardsPerAllocation: Self.automaticAllocationCardLimit
-        )
-
-        let allocations: [AISourceRangeAllocation] = zip(baseRanges, distributedCardCounts).compactMap { range, cardCount in
-            guard cardCount > 0 else { return nil }
-            return AISourceRangeAllocation(
-                startIndex: range.lowerBound + 1,
-                endIndex: range.upperBound + 1,
-                cardCount: cardCount
-            )
-        }
-
-        return splitLargeAutomaticAllocations(
-            allocations,
-            characterCounts: characterCounts,
-            maxCardsPerAllocation: Self.automaticAllocationCardLimit
-        )
-    }
-
-    func preferredCoverageRangeCount(
-        itemCount: Int,
-        totalCards: Int
-    ) -> Int {
-        guard itemCount > 0, totalCards > 0 else { return 0 }
-
-        if itemCount <= 8 {
-            return min(itemCount, totalCards)
-        }
-
-        if totalCards >= 91 {
-            let highVolumeCardDriven = Int(ceil(Double(totalCards) / 10.0))
-            let preferredCount = max(3, highVolumeCardDriven)
-            return min(itemCount, min(totalCards, min(preferredCount, 14)))
-        }
-
-        let sourceDriven = Int(ceil(Double(itemCount) / 6.0))
-        let cardDriven = Int(ceil(Double(totalCards) / 8.0))
-        let preferredCount = max(3, max(sourceDriven, cardDriven))
-
-        return min(itemCount, min(totalCards, min(preferredCount, 14)))
-    }
-
-    func splitLargeAutomaticAllocations(
-        _ allocations: [AISourceRangeAllocation],
-        characterCounts: [Int],
-        maxCardsPerAllocation: Int
-    ) -> [AISourceRangeAllocation] {
-        let safeLimit = max(maxCardsPerAllocation, 1)
-
-        return allocations.flatMap { allocation -> [AISourceRangeAllocation] in
-            guard allocation.cardCount > safeLimit else { return [allocation] }
-
-            let lowerBound = max(allocation.startIndex - 1, 0)
-            let upperBound = min(allocation.endIndex, characterCounts.count)
-            guard lowerBound < upperBound else {
-                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
-            }
-
-            let requestedSplitCount = Int(ceil(Double(allocation.cardCount) / Double(safeLimit)))
-            let splitCount = min(requestedSplitCount, upperBound - lowerBound)
-            guard splitCount > 1 else {
-                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
-            }
-
-            let localCounts = Array(characterCounts[lowerBound..<upperBound])
-            let localRanges = weightedCoverageRanges(for: localCounts, groupCount: splitCount)
-            guard !localRanges.isEmpty else {
-                return splitAllocationByCardsOnly(allocation, maxCardsPerAllocation: safeLimit)
-            }
-
-            let cardCounts = evenlyDistributedCardCounts(allocation.cardCount, across: localRanges.count)
-            return zip(localRanges, cardCounts).map { range, cardCount in
-                AISourceRangeAllocation(
-                    startIndex: lowerBound + range.lowerBound + 1,
-                    endIndex: lowerBound + range.upperBound + 1,
-                    cardCount: cardCount
-                )
-            }
-        }
-    }
-
-    func splitAllocationByCardsOnly(
-        _ allocation: AISourceRangeAllocation,
-        maxCardsPerAllocation: Int
-    ) -> [AISourceRangeAllocation] {
-        let splitCount = Int(ceil(Double(allocation.cardCount) / Double(maxCardsPerAllocation)))
-        return evenlyDistributedCardCounts(allocation.cardCount, across: splitCount)
-            .map { cardCount in
-                AISourceRangeAllocation(
-                    startIndex: allocation.startIndex,
-                    endIndex: allocation.endIndex,
-                    cardCount: cardCount
-                )
-            }
-    }
-
-    func evenlyDistributedCardCounts(_ totalCards: Int, across count: Int) -> [Int] {
-        guard totalCards > 0, count > 0 else { return [] }
-        var result = Array(repeating: totalCards / count, count: count)
-        for index in 0..<(totalCards % count) {
-            result[index] += 1
-        }
-        return result
-    }
-
-    func distributedCardCounts(
-        totalCards: Int,
-        across weights: [Double]
-    ) -> [Int] {
-        guard !weights.isEmpty, totalCards > 0 else { return [] }
-
-        var counts = Array(repeating: 1, count: weights.count)
-        let remainingCards = totalCards - counts.count
-        guard remainingCards > 0 else {
-            return counts
-        }
-
-        let safeTotalWeight = max(weights.reduce(0, +), .leastNonzeroMagnitude)
-        let rawExtras = weights.map { weight in
-            (weight / safeTotalWeight) * Double(remainingCards)
-        }
-
-        var assignedExtras = 0
-        var remainders: [(index: Int, value: Double)] = []
-
-        for (index, rawExtra) in rawExtras.enumerated() {
-            let wholeCards = Int(rawExtra.rounded(.down))
-            counts[index] += wholeCards
-            assignedExtras += wholeCards
-            remainders.append((index: index, value: rawExtra - Double(wholeCards)))
-        }
-
-        let leftoverCards = remainingCards - assignedExtras
-        guard leftoverCards > 0 else {
-            return counts
-        }
-
-        let orderedIndices = remainders
-            .sorted {
-                if $0.value == $1.value {
-                    return weights[$0.index] > weights[$1.index]
-                }
-                return $0.value > $1.value
-            }
-            .map(\.index)
-
-        for offset in 0 ..< leftoverCards {
-            counts[orderedIndices[offset % orderedIndices.count]] += 1
-        }
-
-        return counts
-    }
-
-    func cappedDistributedCardCounts(
-        totalCards: Int,
-        across weights: [Double],
-        maxCardsPerAllocation: Int
-    ) -> [Int] {
-        let safeLimit = max(maxCardsPerAllocation, 1)
-        var counts = distributedCardCounts(totalCards: totalCards, across: weights)
-        guard !counts.isEmpty, counts.count * safeLimit >= totalCards else { return counts }
-
-        while let overIndex = counts.firstIndex(where: { $0 > safeLimit }),
-              let underIndex = counts.firstIndex(where: { $0 < safeLimit }) {
-            counts[overIndex] -= 1
-            counts[underIndex] += 1
-        }
-
-        return counts
-    }
-
-    func normalizedWeights(from characterCounts: [Int]) -> [Double] {
-        let positiveCounts = characterCounts.filter { $0 > 0 }
-        let averagePositive = positiveCounts.isEmpty
-            ? 1.0
-            : Double(positiveCounts.reduce(0, +)) / Double(positiveCounts.count)
-        let floorWeight = max(1.0, averagePositive * 0.18)
-
-        return characterCounts.map { count in
-            max(Double(count), floorWeight)
-        }
-    }
-
-    func weightedCoverageRanges(
-        for characterCounts: [Int],
-        groupCount: Int
-    ) -> [ClosedRange<Int>] {
-        guard !characterCounts.isEmpty, groupCount > 0 else { return [] }
-
-        let cappedGroupCount = min(groupCount, characterCounts.count)
-        let weights = normalizedWeights(from: characterCounts)
-
-        if cappedGroupCount == characterCounts.count {
-            return characterCounts.indices.map { $0 ... $0 }
-        }
-
-        var ranges: [ClosedRange<Int>] = []
-        var startIndex = 0
-
-        for groupIndex in 0 ..< (cappedGroupCount - 1) {
-            let groupsRemaining = cappedGroupCount - groupIndex
-            let remainingWeight = weights[startIndex...].reduce(0, +)
-            let targetWeight = remainingWeight / Double(groupsRemaining)
-            let latestEndIndex = characterCounts.count - groupsRemaining
-
-            var endIndex = startIndex
-            var accumulatedWeight = 0.0
-
-            while endIndex < latestEndIndex {
-                accumulatedWeight += weights[endIndex]
-                if accumulatedWeight >= targetWeight {
-                    break
-                }
-                endIndex += 1
-            }
-
-            ranges.append(startIndex ... endIndex)
-            startIndex = endIndex + 1
-        }
-
-        ranges.append(startIndex ... (characterCounts.count - 1))
-        return ranges
     }
 
     func mergeAllocationsWithSameRange(

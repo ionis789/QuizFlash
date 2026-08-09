@@ -73,38 +73,6 @@ enum CardEditorDestination: Identifiable, Equatable {
     }
 }
 
-// MARK: - AI Source Preparation
-
-/// One previewable source item shown inside the AI generation sheet.
-struct AIGenerationSourcePreviewItem: Identifiable {
-    let id = UUID()
-    let index: Int
-    let title: String
-    let characterCount: Int
-    let thumbnail: UIImage?
-}
-
-/// Fully prepared source payload reused by the generation sheet and the final
-/// AI pipeline so selection analysis is not recomputed unnecessarily.
-struct AIPreparedGenerationSource {
-    enum Kind {
-        case photos
-        case pdf
-    }
-
-    let kind: Kind
-    let previewItems: [AIGenerationSourcePreviewItem]
-    let textSegments: [AITextSourceSegment]
-    let images: [UIImage]
-    let pdfURL: URL?
-    let needsOCRCorrection: Bool
-
-    var isPDF: Bool { kind == .pdf }
-    var itemCount: Int { previewItems.count }
-    var totalCharacterCount: Int { previewItems.reduce(0) { $0 + $1.characterCount } }
-    var itemLabels: [String] { previewItems.map(\.title) }
-}
-
 struct DraftCardChangeSnapshot: Equatable {
     let originalCardID: PersistentIdentifier?
     let cardNumber: Int
@@ -303,7 +271,7 @@ final class DeckWorkspaceViewModel {
 
         switch aiGenerationOptions.sourceDistributionMode {
         case .auto:
-            return automaticAllocations(
+            return AISourceAllocationPlanner.automaticAllocations(
                 for: source.previewItems.map(\.characterCount),
                 totalCards: requestedCardCount
             )
