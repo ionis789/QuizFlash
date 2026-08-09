@@ -55,13 +55,15 @@ key	en	ro	ru
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
+%d Deck	%d Deck	%d deck	%d колода
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
+%d image	%d image	%d imagine	%d изображение
+%d images	%d images	%d imagini	%d изображений
 %d left	%d left	%d rămase	Осталось %d
 %d manual	%d manual	%d manuale	%d вручную
 %d match	%d match	%d potrivire	%d совпадение
@@ -155,8 +157,8 @@ Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно �
 An account with this email already exists.	An account with this email already exists.	Există deja un cont cu acest email.	Аккаунт с этим email уже существует.
 An AI provider API key is not configured.	An AI provider API key is not configured.	Cheia API pentru furnizorul AI nu este configurată.	Ключ API поставщика ИИ не настроен.
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -169,6 +171,7 @@ Apple returned an invalid identity token.	Apple returned an invalid identity tok
 Are you sure?	Are you sure?	Ești sigur?	Вы уверены?
 Attempts	Attempts	Încercări	Попытки
 Attempts %d	Attempts %d	Încercări %d	Попытки %d
+Authorizing	Authorizing	Autorizare	Авторизация
 Auto	Auto	Auto	Авто
 Auto Block	Auto Block	Bloc auto	Автоблок
 Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
@@ -193,6 +196,7 @@ Border Type	Border Type	Tip bordură	Тип границы
 Bottom	Bottom	Jos	Снизу
 Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
 Build a daily habit	Build a daily habit	Creează un obicei zilnic	Создай ежедневную привычку
+Building blueprint	Building blueprint	Construire schemă	Построение схемы
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
@@ -265,9 +269,11 @@ Continue with Google	Continue with Google	Continuă cu Google	Продолжит
 Controls how thick every border is.	Controls how thick every border is.	Controlează grosimea tuturor bordurilor.	Управляет толщиной всех границ.
 Controls how visible the border color is.	Controls how visible the border color is.	Controlează cât de vizibilă este culoarea bordurii.	Управляет заметностью цвета границы.
 Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
+Copied	Copied	Copiat	Скопировано
 Copied!	Copied!	Copiat!	Скопировано!
 Copy	Copy	Copiază	Копировать
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
+Copy JSON	Copy JSON	Copiază JSON	Копировать JSON
 Corpus and reproducible test configuration	Corpus and reproducible test configuration	Corpus și configurare de test reproductibilă	Корпус и воспроизводимая конфигурация теста
 Correct	Correct	Corect	Верно
 Correct rate	Accuracy	Acuratețe	Точность
@@ -357,8 +363,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -366,8 +372,10 @@ Export selected decks	Export selected decks	Exportă deckurile selectate	Экс�
 Exporting %d decks…	Exporting %d decks…	Se exportă %d deckuri…	Экспорт %d колод…
 Exporting %d deck…	Exporting %d deck…	Se exportă %d deck…	Экспорт %d колоды…
 Exporting...	Exporting...	Se exportă...	Экспорт...
+Failed	Failed	Eșuat	Ошибка
 Fill in every answer before saving.	Fill in every answer before saving.	Completează toate răspunsurile înainte de salvare.	Заполните все ответы перед сохранением.
 "Filtered by ""**%@**"""	"Filtered by ""**%@**"""	Filtrată după „**%@**”	"Отфильтровано по ""**%@**"""
+Finalizing	Finalizing	Finalizare	Завершение
 Firebase claim	Firebase claim	Claim Firebase	Claim Firebase
 First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
 Flashcard	Flashcard	Flashcard	Флэшкарточка
@@ -390,8 +398,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -588,7 +596,9 @@ Overflow Behaviour	Overflow Behaviour	Comportament de overflow	Поведени�
 Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
 Pace	Pace	Ritm	Темп
 Panels	Panels	Panouri	Панели
+Partial	Partial	Parțial	Частично
 Partial Sheet Background	Partial Sheet Background	Fundal sheet parțial	Фон неполноэкранного окна
+Passed	Passed	Reușit	Успешно
 Password	Password	Parolă	Пароль
 Password reset link sent.	Password reset link sent.	Linkul de resetare a fost trimis.	Ссылка для сброса пароля отправлена.
 Passwords do not match.	Passwords do not match.	Parolele nu coincid.	Пароли не совпадают.
@@ -630,13 +640,13 @@ Preview Mode	Preview Mode	Modul de previzualizare	Режим предварит�
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -681,6 +691,8 @@ Right	Right	Corect	Верно
 Romanian	Romanian	Română	Румынский
 Rounded	Rounded	Rotunjit	Скруглённый
 Row %@	Row %@	Rândul %@	Строка %@
+Run	Run	Rulează	Запуск
+Run Corpus	Run Corpus	Rulează corpusul	Запустить корпус
 Run mock AI generation	Run mock AI generation	Rulează generarea mock AI	Запустить mock AI генерацию
 Runtime tools available only in Development builds.	Runtime tools available only in Development builds.	Instrumente runtime disponibile doar în build-urile Development.	Инструменты выполнения доступны только в Development-сборках.
 Russian	Russian	Rusă	Русский
@@ -800,9 +812,12 @@ The Gaussian integral equals:	The Gaussian integral equals:	Integrala Gaussiană
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
+The production allocation plan did not match the requested target.	The production allocation plan did not match the requested target.	Planul real de alocare nu corespunde numărului solicitat.	Рабочий план распределения не соответствует запрошенному количеству.
 The saved lab manifest is not supported by this build.	The saved lab manifest is not supported by this build.	Manifestul salvat al laboratorului nu este acceptat de acest build.	Сохранённый манифест лаборатории не поддерживается этой сборкой.
+The selected card target exceeds the active plan.	The selected card target exceeds the active plan.	Numărul selectat de carduri depășește planul activ.	Выбранное количество карточек превышает лимит активного плана.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
 The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
+The source could not be prepared by the production pipeline.	The source could not be prepared by the production pipeline.	Sursa nu a putut fi pregătită de fluxul real de generare.	Источник не удалось подготовить через рабочий поток генерации.
 These settings are saved with the corpus.	These settings are saved with the corpus.	Aceste setări sunt salvate împreună cu corpusul.	Эти настройки сохраняются вместе с корпусом.
 Thickness	Thickness	Grosime	Толщина
 This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
@@ -818,8 +833,8 @@ This sign-in method is already linked to another account.	This sign-in method is
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
 this week	this week	săptămâna asta	эта неделя
-This Week	This Week	Săptămâna asta	Эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@

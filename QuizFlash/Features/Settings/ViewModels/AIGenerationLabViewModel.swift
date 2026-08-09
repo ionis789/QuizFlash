@@ -10,24 +10,23 @@ import UniformTypeIdentifiers
 
 nonisolated enum AIGenerationLabSourceKind: String, Codable, Equatable, Sendable {
     case pdf
-    case image
+    case photos
 }
 
 nonisolated struct AIGenerationLabSource: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let kind: AIGenerationLabSourceKind
     let displayName: String
-    let storedFilename: String
+    let storedFilenames: [String]
     let byteCount: Int64
     let sha256: String
     let pageCount: Int?
-    let pixelWidth: Int?
-    let pixelHeight: Int?
+    let imageCount: Int?
     let addedAtEpochMilliseconds: Int64
 }
 
 nonisolated struct AIGenerationLabManifest: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     var schemaVersion = currentSchemaVersion
     var sources: [AIGenerationLabSource] = []
@@ -71,7 +70,9 @@ actor AIGenerationLabCorpusStore {
     private let fileManager: FileManager
     private let rootDirectoryURL: URL
     private let sourcesDirectoryURL: URL
+    private let reportsDirectoryURL: URL
     private let manifestURL: URL
+    private let latestReportURL: URL
 
     init(
         rootDirectoryURL: URL? = nil,
@@ -94,7 +95,10 @@ actor AIGenerationLabCorpusStore {
 
         sourcesDirectoryURL = self.rootDirectoryURL
             .appendingPathComponent("Sources", isDirectory: true)
+        reportsDirectoryURL = self.rootDirectoryURL
+            .appendingPathComponent("Reports", isDirectory: true)
         manifestURL = self.rootDirectoryURL.appendingPathComponent("manifest.json")
+        latestReportURL = reportsDirectoryURL.appendingPathComponent("latest.json")
     }
 
     func loadManifest() throws -> AIGenerationLabManifest {
@@ -109,9 +113,11 @@ actor AIGenerationLabCorpusStore {
             throw AIGenerationLabStoreError.unsupportedManifest
         }
         guard manifest.sources.allSatisfy({ source in
-            fileManager.fileExists(
-                atPath: sourcesDirectoryURL.appendingPathComponent(source.storedFilename).path
-            )
+            !source.storedFilenames.isEmpty && source.storedFilenames.allSatisfy { filename in
+                fileManager.fileExists(
+                    atPath: sourcesDirectoryURL.appendingPathComponent(filename).path
+                )
+            }
         }) else {
             throw AIGenerationLabStoreError.missingStoredSource
         }
@@ -149,13 +155,10 @@ actor AIGenerationLabCorpusStore {
                 }
 
                 importedSources.append(
-                    try persistSource(
+                    try persistPDFSource(
                         data: data,
-                        kind: .pdf,
                         displayName: url.deletingPathExtension().lastPathComponent,
-                        filenameExtension: "pdf",
-                        pageCount: document.pageCount,
-                        pixelSize: nil
+                        pageCount: document.pageCount
                     )
                 )
             }
@@ -178,25 +181,10 @@ actor AIGenerationLabCorpusStore {
         var importedSources: [AIGenerationLabSource] = []
 
         do {
-            for imageImport in imports {
-                guard let pixelSize = Self.imagePixelSize(from: imageImport.data) else {
-                    throw AIGenerationLabStoreError.invalidImage
-                }
-
-                importedSources.append(
-                    try persistSource(
-                        data: imageImport.data,
-                        kind: .image,
-                        displayName: imageImport.displayName,
-                        filenameExtension: Self.safeExtension(imageImport.filenameExtension),
-                        pageCount: nil,
-                        pixelSize: pixelSize
-                    )
-                )
-            }
-
+            let photoSet = try persistPhotoSet(imports)
+            importedSources.append(photoSet)
             var updatedManifest = manifest
-            updatedManifest.sources.append(contentsOf: importedSources)
+            updatedManifest.sources.append(photoSet)
             try saveManifest(updatedManifest)
             return updatedManifest
         } catch {
@@ -237,25 +225,50 @@ actor AIGenerationLabCorpusStore {
         updatedManifest.sources.removeAll { $0.id == id }
         try saveManifest(updatedManifest)
 
-        let storedURL = sourcesDirectoryURL.appendingPathComponent(source.storedFilename)
-        try? fileManager.removeItem(at: storedURL)
+        removeStoredFiles(for: [source])
         return updatedManifest
     }
 
-    func storedFileURL(for source: AIGenerationLabSource) -> URL {
-        sourcesDirectoryURL.appendingPathComponent(source.storedFilename)
+    func storedFileURLs(for source: AIGenerationLabSource) -> [URL] {
+        source.storedFilenames.map { filename in
+            sourcesDirectoryURL.appendingPathComponent(filename)
+        }
     }
 
-    private func persistSource(
+    func saveReport(_ report: AIGenerationLabRunReport) throws {
+        try prepareDirectories()
+        let data = try encoder.encode(report)
+        let reportURL = reportsDirectoryURL.appendingPathComponent(
+            "run-\(report.id.uuidString).json"
+        )
+        try data.write(to: reportURL, options: [.atomic, .completeFileProtection])
+        try data.write(to: latestReportURL, options: [.atomic, .completeFileProtection])
+    }
+
+    func loadLatestReport() throws -> AIGenerationLabRunReport? {
+        try prepareDirectories()
+        guard fileManager.fileExists(atPath: latestReportURL.path) else { return nil }
+        let report = try decoder.decode(
+            AIGenerationLabRunReport.self,
+            from: Data(contentsOf: latestReportURL)
+        )
+        guard report.schemaVersion == AIGenerationLabRunReport.currentSchemaVersion else {
+            throw AIGenerationLabStoreError.unsupportedManifest
+        }
+        return report
+    }
+
+    func encodedReport(_ report: AIGenerationLabRunReport) throws -> Data {
+        try encoder.encode(report)
+    }
+
+    private func persistPDFSource(
         data: Data,
-        kind: AIGenerationLabSourceKind,
         displayName: String,
-        filenameExtension: String,
-        pageCount: Int?,
-        pixelSize: (width: Int, height: Int)?
+        pageCount: Int
     ) throws -> AIGenerationLabSource {
         let id = UUID()
-        let storedFilename = id.uuidString + "." + filenameExtension
+        let storedFilename = id.uuidString + ".pdf"
         let destinationURL = sourcesDirectoryURL.appendingPathComponent(storedFilename)
         try data.write(to: destinationURL, options: [.atomic, .completeFileProtection])
 
@@ -266,14 +279,62 @@ actor AIGenerationLabCorpusStore {
 
         return AIGenerationLabSource(
             id: id,
-            kind: kind,
+            kind: .pdf,
             displayName: displayName.isEmpty ? storedFilename : displayName,
-            storedFilename: storedFilename,
+            storedFilenames: [storedFilename],
             byteCount: Int64(data.count),
             sha256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
             pageCount: pageCount,
-            pixelWidth: pixelSize?.width,
-            pixelHeight: pixelSize?.height,
+            imageCount: nil,
+            addedAtEpochMilliseconds: Int64(Date().timeIntervalSince1970 * 1_000)
+        )
+    }
+
+    private func persistPhotoSet(
+        _ imports: [AIGenerationLabImageImport]
+    ) throws -> AIGenerationLabSource {
+        guard !imports.isEmpty else { throw AIGenerationLabStoreError.invalidImage }
+        guard imports.allSatisfy({ Self.imagePixelSize(from: $0.data) != nil }) else {
+            throw AIGenerationLabStoreError.invalidImage
+        }
+
+        let id = UUID()
+        var storedFilenames: [String] = []
+        do {
+            for (index, imageImport) in imports.enumerated() {
+                let filename = "\(id.uuidString)-\(index + 1).\(Self.safeExtension(imageImport.filenameExtension))"
+                let destinationURL = sourcesDirectoryURL.appendingPathComponent(filename)
+                try imageImport.data.write(
+                    to: destinationURL,
+                    options: [.atomic, .completeFileProtection]
+                )
+                storedFilenames.append(filename)
+            }
+        } catch {
+            for filename in storedFilenames {
+                try? fileManager.removeItem(
+                    at: sourcesDirectoryURL.appendingPathComponent(filename)
+                )
+            }
+            throw error
+        }
+
+        let firstName = imports.first?.displayName ?? id.uuidString
+        let displayName: String
+        if let lastName = imports.last?.displayName, imports.count > 1 {
+            displayName = "\(firstName) – \(lastName)"
+        } else {
+            displayName = firstName
+        }
+        return AIGenerationLabSource(
+            id: id,
+            kind: .photos,
+            displayName: displayName,
+            storedFilenames: storedFilenames,
+            byteCount: Int64(imports.reduce(0) { $0 + $1.data.count }),
+            sha256: Self.photoSetSHA256(imports.map(\.data)),
+            pageCount: nil,
+            imageCount: imports.count,
             addedAtEpochMilliseconds: Int64(Date().timeIntervalSince1970 * 1_000)
         )
     }
@@ -281,6 +342,11 @@ actor AIGenerationLabCorpusStore {
     private func prepareDirectories() throws {
         try fileManager.createDirectory(
             at: sourcesDirectoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        try fileManager.createDirectory(
+            at: reportsDirectoryURL,
             withIntermediateDirectories: true,
             attributes: [.protectionKey: FileProtectionType.complete]
         )
@@ -293,9 +359,23 @@ actor AIGenerationLabCorpusStore {
 
     private func removeStoredFiles(for sources: [AIGenerationLabSource]) {
         for source in sources {
-            let storedURL = sourcesDirectoryURL.appendingPathComponent(source.storedFilename)
-            try? fileManager.removeItem(at: storedURL)
+            for filename in source.storedFilenames {
+                let storedURL = sourcesDirectoryURL.appendingPathComponent(filename)
+                try? fileManager.removeItem(at: storedURL)
+            }
         }
+    }
+
+    private static func photoSetSHA256(_ items: [Data]) -> String {
+        var hasher = SHA256()
+        for data in items {
+            var length = UInt64(data.count).bigEndian
+            withUnsafeBytes(of: &length) { bytes in
+                hasher.update(data: Data(bytes))
+            }
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private static func imagePixelSize(from data: Data) -> (width: Int, height: Int)? {
@@ -331,10 +411,16 @@ actor AIGenerationLabCorpusStore {
 final class AIGenerationLabViewModel {
     private(set) var sources: [AIGenerationLabSource] = []
     private(set) var isWorking = false
+    private(set) var isRunning = false
     private(set) var hasLoaded = false
+    private(set) var maximumTargetCardCount = SubscriptionManager.premiumMaxCardsPerGeneration
+    private(set) var runProgress: AIGenerationLabRunProgress?
+    private(set) var completedCaseResults: [AIGenerationLabCaseResult] = []
+    private(set) var latestReport: AIGenerationLabRunReport?
+    private(set) var didCopyLatestReport = false
     var targetCardCount = 30 {
         didSet {
-            let clampedValue = min(max(targetCardCount, 5), 100)
+            let clampedValue = min(max(targetCardCount, 5), maximumTargetCardCount)
             if targetCardCount != clampedValue {
                 targetCardCount = clampedValue
             }
@@ -356,11 +442,21 @@ final class AIGenerationLabViewModel {
     var errorMessage = ""
 
     @ObservationIgnored private let store: AIGenerationLabCorpusStore
+    @ObservationIgnored private let runner: AIGenerationLabRunner
+    @ObservationIgnored private let subscriptionManager: SubscriptionManager
     @ObservationIgnored private var persistenceTask: Task<Void, Never>?
+    @ObservationIgnored private var runTask: Task<Void, Never>?
+    @ObservationIgnored private var copyFeedbackTask: Task<Void, Never>?
     @ObservationIgnored private var isApplyingManifest = false
 
-    init(store: AIGenerationLabCorpusStore = .shared) {
+    init(
+        store: AIGenerationLabCorpusStore = .shared,
+        runner: AIGenerationLabRunner? = nil,
+        subscriptionManager: SubscriptionManager? = nil
+    ) {
         self.store = store
+        self.runner = runner ?? AIGenerationLabRunner()
+        self.subscriptionManager = subscriptionManager ?? .shared
     }
 
     func load() async {
@@ -373,6 +469,9 @@ final class AIGenerationLabViewModel {
 
         do {
             apply(try await store.loadManifest())
+            latestReport = try await store.loadLatestReport()
+            completedCaseResults = latestReport?.cases ?? []
+            await refreshGenerationAccess()
         } catch {
             present(error)
         }
@@ -399,7 +498,10 @@ final class AIGenerationLabViewModel {
 
         do {
             var imports: [AIGenerationLabImageImport] = []
-            let existingImageCount = sources.lazy.filter { $0.kind == .image }.count
+            let existingImageCount = sources.lazy
+                .filter { $0.kind == .photos }
+                .compactMap(\.imageCount)
+                .reduce(0, +)
 
             for (offset, item) in items.enumerated() {
                 try Task.checkCancellation()
@@ -447,6 +549,50 @@ final class AIGenerationLabViewModel {
         return sources.indices.contains(index + offset)
     }
 
+    var canStartRun: Bool {
+        hasLoaded && !sources.isEmpty && !isWorking && !isRunning
+    }
+
+    func startRun() {
+        guard canStartRun else { return }
+        persistenceTask?.cancel()
+        didCopyLatestReport = false
+        let sourceSnapshot = sources
+        let targetSnapshot = targetCardCount
+        let optionsSnapshot = options
+
+        runTask = Task { [weak self] in
+            guard let self else { return }
+            await executeRun(
+                sources: sourceSnapshot,
+                targetCardCount: targetSnapshot,
+                options: optionsSnapshot
+            )
+        }
+    }
+
+    func cancelRun() {
+        runTask?.cancel()
+    }
+
+    func copyLatestReport() async {
+        guard let latestReport else { return }
+        do {
+            let data = try await store.encodedReport(latestReport)
+            guard let string = String(data: data, encoding: .utf8) else { return }
+            UIPasteboard.general.string = string
+            didCopyLatestReport = true
+            copyFeedbackTask?.cancel()
+            copyFeedbackTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                self?.didCopyLatestReport = false
+            }
+        } catch {
+            present(error)
+        }
+    }
+
     private var currentManifest: AIGenerationLabManifest {
         AIGenerationLabManifest(
             sources: sources,
@@ -468,6 +614,109 @@ final class AIGenerationLabViewModel {
             return
         } catch {
             present(error)
+        }
+    }
+
+    private func executeRun(
+        sources: [AIGenerationLabSource],
+        targetCardCount: Int,
+        options: AIGenerationOptions
+    ) async {
+        isRunning = true
+        completedCaseResults = []
+        latestReport = nil
+        defer {
+            isRunning = false
+            runProgress = nil
+            runTask = nil
+        }
+
+        await refreshGenerationAccess()
+        guard targetCardCount <= maximumTargetCardCount else {
+            present(AIGenerationLabExecutionError.targetExceedsPlan)
+            return
+        }
+        if let message = subscriptionManager.aiGenerationLimitMessage(
+            locale: AppPreferences.persistedResolvedLocale
+        ) {
+            present(AIGenerationLabExecutionError.accessDenied(message))
+            return
+        }
+
+        let runID = UUID()
+        let startedAt = Self.epochMilliseconds()
+        do {
+            try await store.saveManifest(
+                AIGenerationLabManifest(
+                    sources: sources,
+                    targetCardCount: targetCardCount,
+                    options: options
+                )
+            )
+
+            for (index, source) in sources.enumerated() {
+                try Task.checkCancellation()
+                let storedURLs = await store.storedFileURLs(for: source)
+                let result = try await runner.runCase(
+                    source: source,
+                    storedFileURLs: storedURLs,
+                    targetCardCount: targetCardCount,
+                    options: options,
+                    caseIndex: index + 1,
+                    caseCount: sources.count
+                ) { [weak self] progress in
+                    self?.runProgress = progress
+                }
+                completedCaseResults.append(result)
+                try await persistRunReport(
+                    id: runID,
+                    startedAt: startedAt,
+                    targetCardCount: targetCardCount,
+                    options: options
+                )
+            }
+        } catch is CancellationError {
+            if !completedCaseResults.isEmpty {
+                try? await persistRunReport(
+                    id: runID,
+                    startedAt: startedAt,
+                    targetCardCount: targetCardCount,
+                    options: options
+                )
+            }
+        } catch {
+            present(error)
+        }
+    }
+
+    private func persistRunReport(
+        id: UUID,
+        startedAt: Int64,
+        targetCardCount: Int,
+        options: AIGenerationOptions
+    ) async throws {
+        let info = Bundle.main.infoDictionary
+        let report = AIGenerationLabRunReport(
+            id: id,
+            startedAtEpochMilliseconds: startedAt,
+            finishedAtEpochMilliseconds: Self.epochMilliseconds(),
+            targetCardCountPerSource: targetCardCount,
+            options: options,
+            appVersion: info?["CFBundleShortVersionString"] as? String ?? "",
+            appBuild: info?["CFBundleVersion"] as? String ?? "",
+            deviceModel: UIDevice.current.model,
+            operatingSystem: "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
+            cases: completedCaseResults
+        )
+        try await store.saveReport(report)
+        latestReport = report
+    }
+
+    private func refreshGenerationAccess() async {
+        await subscriptionManager.refresh()
+        maximumTargetCardCount = subscriptionManager.maxCardsPerGeneration
+        if targetCardCount > maximumTargetCardCount {
+            targetCardCount = maximumTargetCardCount
         }
     }
 
@@ -501,6 +750,24 @@ final class AIGenerationLabViewModel {
     private func present(_ error: Error) {
         errorMessage = error.localizedDescription
         isShowingError = true
+    }
+
+    private static func epochMilliseconds() -> Int64 {
+        Int64(Date().timeIntervalSince1970 * 1_000)
+    }
+}
+
+nonisolated enum AIGenerationLabExecutionError: LocalizedError {
+    case targetExceedsPlan
+    case accessDenied(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .targetExceedsPlan:
+            return "The selected card target exceeds the active plan."
+        case .accessDenied(let message):
+            return message
+        }
     }
 }
 #endif

@@ -326,7 +326,7 @@ extension DeckWorkspaceViewModel {
             for item in items {
                 try Task.checkCancellation()
                 if let data = try await item.loadTransferable(type: Data.self),
-                   let image = await decodePreparedPhoto(from: data) {
+                   let image = await AISourcePreparationService.decodePreparedPhoto(from: data) {
                     images.append(image)
                 }
                 await Task.yield()
@@ -412,17 +412,6 @@ extension DeckWorkspaceViewModel {
             "Could not extract text from this source. Try another source.",
             locale: AppPreferences.persistedResolvedLocale
         )
-    }
-
-    func decodePreparedPhoto(from data: Data) async -> UIImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let image = autoreleasepool {
-                    UIImage(data: data)?.resizedForAI(toMaxDimension: 1024)
-                }
-                continuation.resume(returning: image)
-            }
-        }
     }
 
     func fullQualityPreviewImage(

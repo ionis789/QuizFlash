@@ -56,6 +56,19 @@ nonisolated enum AISourcePreparationError: LocalizedError {
 /// deck flow and diagnostics must call this type so OCR and page routing cannot
 /// diverge between surfaces.
 enum AISourcePreparationService {
+    /// Decodes and bounds a selected photo exactly as the production picker
+    /// does before OCR begins.
+    static func decodePreparedPhoto(from data: Data) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let image = autoreleasepool {
+                    UIImage(data: data)?.resizedForAI(toMaxDimension: 1024)
+                }
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
     static func preparePhotos(_ images: [UIImage]) async throws -> AIPreparedGenerationSource {
         let texts = await DocumentTextExtractor.extractFastVisionTexts(from: images)
         try Task.checkCancellation()

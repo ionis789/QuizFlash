@@ -17,6 +17,7 @@ struct AIGenerationLabView: View {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                 corpusSection
                 configurationSection
+                runSection
             }
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
@@ -47,7 +48,7 @@ struct AIGenerationLabView: View {
                 selectedPhotos = []
             }
         }
-        .alert(localized("Import Error"), isPresented: $viewModel.isShowingError) {
+        .alert(localized("AI Generation Lab"), isPresented: $viewModel.isShowingError) {
             Button(localized("OK"), role: .cancel) { }
         } message: {
             Text(localized(viewModel.errorMessage))
@@ -90,7 +91,7 @@ struct AIGenerationLabView: View {
                 importActionLabel(title: localized("Add PDFs"), icon: "doc.badge.plus")
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isWorking)
+            .disabled(viewModel.isWorking || viewModel.isRunning)
 
             PhotosPicker(
                 selection: $selectedPhotos,
@@ -101,7 +102,7 @@ struct AIGenerationLabView: View {
                 importActionLabel(title: localized("Add Images"), icon: "photo.badge.plus")
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isWorking)
+            .disabled(viewModel.isWorking || viewModel.isRunning)
         }
     }
 
@@ -209,7 +210,7 @@ struct AIGenerationLabView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(localized("More"))
         }
-        .disabled(viewModel.isWorking)
+        .disabled(viewModel.isWorking || viewModel.isRunning)
     }
 
     private var configurationSection: some View {
@@ -267,7 +268,7 @@ struct AIGenerationLabView: View {
                     .duoControlSurface(cornerRadius: UIConstants.Radius.card)
                 }
             }
-            .disabled(viewModel.isWorking)
+            .disabled(viewModel.isWorking || viewModel.isRunning)
         }
     }
 
@@ -286,7 +287,7 @@ struct AIGenerationLabView: View {
                     get: { viewModel.targetCardCount },
                     set: { viewModel.targetCardCount = $0 }
                 ),
-                in: 5 ... 100,
+                in: 5 ... viewModel.maximumTargetCardCount,
                 step: 5
             ) {
                 Text("\(viewModel.targetCardCount)")
@@ -296,6 +297,180 @@ struct AIGenerationLabView: View {
             }
             .fixedSize()
         }
+    }
+
+    private var runSection: some View {
+        SettingsSectionCard(
+            title: SettingsTextContent.verbatim(localized("Run")),
+            subtitle: nil
+        ) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                if let progress = viewModel.runProgress {
+                    runProgressView(progress)
+                    SettingsCardDivider()
+                }
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Button {
+                        if viewModel.isRunning {
+                            viewModel.cancelRun()
+                        } else {
+                            viewModel.startRun()
+                        }
+                    } label: {
+                        Label(
+                            localized(viewModel.isRunning ? "Cancel" : "Run Corpus"),
+                            systemImage: viewModel.isRunning ? "xmark" : "play.fill"
+                        )
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(
+                            viewModel.isRunning
+                                ? Color.red
+                                : themeManager.roleColor(.labelPrimaryForeground)
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIConstants.Size.buttonHeight)
+                        .primarySelectionSurface(
+                            isSelected: !viewModel.isRunning,
+                            cornerRadius: UIConstants.Size.buttonHeight / 2
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!viewModel.isRunning && !viewModel.canStartRun)
+
+                    if viewModel.latestReport != nil {
+                        Button {
+                            Task { await viewModel.copyLatestReport() }
+                        } label: {
+                            Label(
+                                localized(viewModel.didCopyLatestReport ? "Copied" : "Copy JSON"),
+                                systemImage: viewModel.didCopyLatestReport ? "checkmark" : "doc.on.doc"
+                            )
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(themeManager.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIConstants.Size.buttonHeight)
+                            .duoControlSurface(cornerRadius: UIConstants.Size.buttonHeight / 2)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isRunning)
+                    }
+                }
+
+                if !viewModel.completedCaseResults.isEmpty {
+                    SettingsCardDivider()
+                    VStack(spacing: UIConstants.Spacing.standard) {
+                        ForEach(Array(viewModel.completedCaseResults.enumerated()), id: \.element.id) { index, result in
+                            if index > 0 {
+                                SettingsCardDivider()
+                            }
+                            resultRow(result)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func runProgressView(_ progress: AIGenerationLabRunProgress) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                ProgressView()
+                    .tint(themeManager.accentColor.color)
+
+                Text(progress.sourceName)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Text("\(progress.caseIndex)/\(progress.caseCount)")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(themeManager.textSecondary)
+            }
+
+            Text(runStageText(progress.stage))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(themeManager.textSecondary)
+                .monospacedDigit()
+        }
+    }
+
+    private func resultRow(_ result: AIGenerationLabCaseResult) -> some View {
+        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+            Circle()
+                .fill(resultStatusColor(result.status))
+                .frame(width: 9, height: 9)
+                .padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.sourceName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(1)
+
+                Text(
+                    "\(result.generatedCardCount)/\(result.targetCardCount) · "
+                    + formattedDuration(result.timings.totalMilliseconds)
+                )
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(themeManager.textSecondary)
+
+                if let traceRunID = result.traceRunID {
+                    Text("Trace · \(traceRunID.uuidString.prefix(8))")
+                        .font(.caption2.monospaced().weight(.medium))
+                        .foregroundStyle(themeManager.textSecondary.opacity(0.72))
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Text(localized(resultStatusKey(result.status)))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(resultStatusColor(result.status))
+        }
+    }
+
+    private func runStageText(_ stage: AIGenerationLabRunStage) -> String {
+        switch stage {
+        case .preparing:
+            return localized("Preparing source")
+        case .authorizing:
+            return localized("Authorizing")
+        case .blueprint:
+            return localized("Building blueprint")
+        case .generating(let generated, let target):
+            return "\(localized("Generating")) · \(generated)/\(target)"
+        case .finalizing:
+            return localized("Finalizing")
+        }
+    }
+
+    private func resultStatusKey(_ status: AIGenerationLabCaseStatus) -> String {
+        switch status {
+        case .succeeded:
+            return "Passed"
+        case .partial:
+            return "Partial"
+        case .failed:
+            return "Failed"
+        }
+    }
+
+    private func resultStatusColor(_ status: AIGenerationLabCaseStatus) -> Color {
+        switch status {
+        case .succeeded:
+            return .green
+        case .partial:
+            return .orange
+        case .failed:
+            return .red
+        }
+    }
+
+    private func formattedDuration(_ milliseconds: Int) -> String {
+        String(format: "%.1fs", Double(milliseconds) / 1_000)
     }
 
     private var outputLanguagePicker: some View {
@@ -417,14 +592,15 @@ struct AIGenerationLabView: View {
                 locale: appPreferences.resolvedLocale
             )
             return "\(localized("PDF")) · \(pages) · \(size)"
-        case .image:
-            let dimensions: String
-            if let width = source.pixelWidth, let height = source.pixelHeight {
-                dimensions = "\(width) × \(height) px"
-            } else {
-                dimensions = localized("Image")
-            }
-            return "\(localized("Image")) · \(dimensions) · \(size)"
+        case .photos:
+            let imageCount = source.imageCount ?? 0
+            let images = AppLocalization.numbered(
+                imageCount,
+                singular: "%d image",
+                plural: "%d images",
+                locale: appPreferences.resolvedLocale
+            )
+            return "\(images) · \(size)"
         }
     }
 

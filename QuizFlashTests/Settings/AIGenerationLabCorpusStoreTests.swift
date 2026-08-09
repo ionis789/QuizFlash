@@ -33,11 +33,10 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
             appendingTo: manifest
         )
 
-        XCTAssertEqual(manifest.sources.map(\.kind), [.pdf, .image])
+        XCTAssertEqual(manifest.sources.map(\.kind), [.pdf, .photos])
         XCTAssertEqual(manifest.sources.map(\.displayName), ["reference", "IMG-001"])
         XCTAssertEqual(manifest.sources[0].pageCount, 1)
-        XCTAssertEqual(manifest.sources[1].pixelWidth, 24)
-        XCTAssertEqual(manifest.sources[1].pixelHeight, 16)
+        XCTAssertEqual(manifest.sources[1].imageCount, 1)
         XCTAssertEqual(manifest.sources[0].sha256, sha256(pdfData))
         XCTAssertEqual(manifest.sources[1].sha256, sha256(imageData))
 
@@ -45,8 +44,9 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
         XCTAssertEqual(reloaded, manifest)
 
         for source in manifest.sources {
-            let storedURL = await store.storedFileURL(for: source)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: storedURL.path))
+            let storedURLs = await store.storedFileURLs(for: source)
+            XCTAssertEqual(storedURLs.count, source.storedFilenames.count)
+            XCTAssertTrue(storedURLs.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
         }
     }
 
@@ -63,6 +63,48 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
                     data: firstData,
                     displayName: "IMG-001",
                     filenameExtension: "png"
+                )
+            ],
+            appendingTo: AIGenerationLabManifest()
+        )
+        manifest = try await store.importImages(
+            [
+                AIGenerationLabImageImport(
+                    data: secondData,
+                    displayName: "IMG-002",
+                    filenameExtension: "png"
+                )
+            ],
+            appendingTo: manifest
+        )
+
+        let firstSource = manifest.sources[0]
+        let secondSource = manifest.sources[1]
+        manifest = try await store.moveSource(id: secondSource.id, by: -1, in: manifest)
+        XCTAssertEqual(manifest.sources.map(\.id), [secondSource.id, firstSource.id])
+
+        let removedURLs = await store.storedFileURLs(for: secondSource)
+        manifest = try await store.removeSource(id: secondSource.id, from: manifest)
+
+        XCTAssertEqual(manifest.sources.map(\.id), [firstSource.id])
+        XCTAssertTrue(removedURLs.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+        let reloaded = try await store.loadManifest()
+        XCTAssertEqual(reloaded, manifest)
+    }
+
+    func testOnePhotoSelectionPersistsAsOneOrderedGenerationCase() async throws {
+        let rootURL = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = AIGenerationLabCorpusStore(rootDirectoryURL: rootURL)
+        let firstData = try XCTUnwrap(makeImageData(color: .red))
+        let secondData = try XCTUnwrap(makeImageData(color: .blue))
+        let manifest = try await store.importImages(
+            [
+                AIGenerationLabImageImport(
+                    data: firstData,
+                    displayName: "IMG-001",
+                    filenameExtension: "png"
                 ),
                 AIGenerationLabImageImport(
                     data: secondData,
@@ -73,18 +115,11 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
             appendingTo: AIGenerationLabManifest()
         )
 
-        let firstSource = manifest.sources[0]
-        let secondSource = manifest.sources[1]
-        manifest = try await store.moveSource(id: secondSource.id, by: -1, in: manifest)
-        XCTAssertEqual(manifest.sources.map(\.id), [secondSource.id, firstSource.id])
-
-        let removedURL = await store.storedFileURL(for: secondSource)
-        manifest = try await store.removeSource(id: secondSource.id, from: manifest)
-
-        XCTAssertEqual(manifest.sources.map(\.id), [firstSource.id])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: removedURL.path))
-        let reloaded = try await store.loadManifest()
-        XCTAssertEqual(reloaded, manifest)
+        XCTAssertEqual(manifest.sources.count, 1)
+        XCTAssertEqual(manifest.sources[0].kind, .photos)
+        XCTAssertEqual(manifest.sources[0].imageCount, 2)
+        let storedURLs = await store.storedFileURLs(for: manifest.sources[0])
+        XCTAssertEqual(try storedURLs.map(Data.init(contentsOf:)), [firstData, secondData])
     }
 
     func testGenerationConfigurationRoundTripsExactly() async throws {
@@ -108,6 +143,70 @@ final class AIGenerationLabCorpusStoreTests: XCTestCase {
 
         let reloaded = try await store.loadManifest()
         XCTAssertEqual(reloaded, manifest)
+    }
+
+    func testLatestRunReportPersistsFullCardsAndMetrics() async throws {
+        let rootURL = makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = AIGenerationLabCorpusStore(rootDirectoryURL: rootURL)
+        let sourceID = UUID()
+        let caseResult = AIGenerationLabCaseResult(
+            id: UUID(),
+            sourceID: sourceID,
+            sourceKind: .pdf,
+            sourceName: "reference",
+            sourceSHA256: "digest",
+            status: .succeeded,
+            targetCardCount: 1,
+            generatedCardCount: 1,
+            shortfallCount: 0,
+            batchCount: 1,
+            objectiveCoverageCount: 1,
+            uniquePromptCount: 1,
+            duplicatePromptCount: 0,
+            sourceSegmentCount: 2,
+            sourceCharacterCount: 120,
+            suggestedTitle: "Title",
+            detectedLanguageCode: "code",
+            promptVersion: "version",
+            traceRunID: UUID(),
+            timings: AIGenerationLabCaseTimings(
+                preparationMilliseconds: 10,
+                authorizationMilliseconds: 20,
+                blueprintMilliseconds: 30,
+                firstCardMilliseconds: 40,
+                cardGenerationMilliseconds: 50,
+                finalizationMilliseconds: 60,
+                totalMilliseconds: 170
+            ),
+            errorMessage: nil,
+            cards: [AIFlashcard(question: "Question", answer: "Answer")]
+        )
+        let report = AIGenerationLabRunReport(
+            startedAtEpochMilliseconds: 1,
+            finishedAtEpochMilliseconds: 2,
+            targetCardCountPerSource: 1,
+            options: AIGenerationOptions(),
+            appVersion: "1",
+            appBuild: "1",
+            deviceModel: "Device",
+            operatingSystem: "OS",
+            cases: [caseResult]
+        )
+
+        try await store.saveReport(report)
+
+        let reloaded = try XCTUnwrap(try await store.loadLatestReport())
+        XCTAssertEqual(reloaded.id, report.id)
+        XCTAssertEqual(reloaded.cases.count, 1)
+        XCTAssertEqual(reloaded.cases[0].sourceID, sourceID)
+        XCTAssertEqual(reloaded.cases[0].timings.totalMilliseconds, 170)
+        XCTAssertEqual(reloaded.cases[0].cards.count, 1)
+        XCTAssertEqual(
+            try await store.encodedReport(reloaded),
+            try await store.encodedReport(report)
+        )
     }
 
     func testUnsupportedManifestIsRejected() async throws {

@@ -877,6 +877,8 @@
 "Inner zone alignment: %@." = "Aliniere zone interioare: %@.";
 "%d page" = "%d pagină";
 "%d pages" = "%d pagini";
+"%d image" = "%d imagine";
+"%d images" = "%d imagini";
 "Add Images" = "Adaugă imagini";
 "Add PDFs" = "Adaugă PDF-uri";
 "AI Generation Lab" = "Laborator generare AI";
@@ -892,3 +894,16 @@
 "The saved lab manifest is not supported by this build." = "Manifestul salvat al laboratorului nu este acceptat de acest build.";
 "These settings are saved with the corpus." = "Aceste setări sunt salvate împreună cu corpusul.";
 "A saved lab source is missing from storage." = "O sursă salvată a laboratorului lipsește din stocare.";
+"Run" = "Rulează";
+"Run Corpus" = "Rulează corpusul";
+"Copy JSON" = "Copiază JSON";
+"Copied" = "Copiat";
+"Authorizing" = "Autorizare";
+"Building blueprint" = "Construire schemă";
+"Finalizing" = "Finalizare";
+"Passed" = "Reușit";
+"Partial" = "Parțial";
+"Failed" = "Eșuat";
+"The selected card target exceeds the active plan." = "Numărul selectat de carduri depășește planul activ.";
+"The source could not be prepared by the production pipeline." = "Sursa nu a putut fi pregătită de fluxul real de generare.";
+"The production allocation plan did not match the requested target." = "Planul real de alocare nu corespunde numărului solicitat.";

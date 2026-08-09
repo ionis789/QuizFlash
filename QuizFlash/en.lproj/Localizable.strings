@@ -877,6 +877,8 @@
 "Inner zone alignment: %@." = "Inner zone alignment: %@.";
 "%d page" = "%d page";
 "%d pages" = "%d pages";
+"%d image" = "%d image";
+"%d images" = "%d images";
 "Add Images" = "Add Images";
 "Add PDFs" = "Add PDFs";
 "AI Generation Lab" = "AI Generation Lab";
@@ -892,3 +894,16 @@
 "The saved lab manifest is not supported by this build." = "The saved lab manifest is not supported by this build.";
 "These settings are saved with the corpus." = "These settings are saved with the corpus.";
 "A saved lab source is missing from storage." = "A saved lab source is missing from storage.";
+"Run" = "Run";
+"Run Corpus" = "Run Corpus";
+"Copy JSON" = "Copy JSON";
+"Copied" = "Copied";
+"Authorizing" = "Authorizing";
+"Building blueprint" = "Building blueprint";
+"Finalizing" = "Finalizing";
+"Passed" = "Passed";
+"Partial" = "Partial";
+"Failed" = "Failed";
+"The selected card target exceeds the active plan." = "The selected card target exceeds the active plan.";
+"The source could not be prepared by the production pipeline." = "The source could not be prepared by the production pipeline.";
+"The production allocation plan did not match the requested target." = "The production allocation plan did not match the requested target.";

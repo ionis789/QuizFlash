@@ -877,6 +877,8 @@
 "Inner zone alignment: %@." = "Выравнивание внутренних зон: %@.";
 "%d page" = "%d страница";
 "%d pages" = "%d страниц";
+"%d image" = "%d изображение";
+"%d images" = "%d изображений";
 "Add Images" = "Добавить изображения";
 "Add PDFs" = "Добавить PDF";
 "AI Generation Lab" = "Лаборатория AI-генерации";
@@ -892,3 +894,16 @@
 "The saved lab manifest is not supported by this build." = "Сохранённый манифест лаборатории не поддерживается этой сборкой.";
 "These settings are saved with the corpus." = "Эти настройки сохраняются вместе с корпусом.";
 "A saved lab source is missing from storage." = "Сохранённый источник лаборатории отсутствует в хранилище.";
+"Run" = "Запуск";
+"Run Corpus" = "Запустить корпус";
+"Copy JSON" = "Копировать JSON";
+"Copied" = "Скопировано";
+"Authorizing" = "Авторизация";
+"Building blueprint" = "Построение схемы";
+"Finalizing" = "Завершение";
+"Passed" = "Успешно";
+"Partial" = "Частично";
+"Failed" = "Ошибка";
+"The selected card target exceeds the active plan." = "Выбранное количество карточек превышает лимит активного плана.";
+"The source could not be prepared by the production pipeline." = "Источник не удалось подготовить через рабочий поток генерации.";
+"The production allocation plan did not match the requested target." = "Рабочий план распределения не соответствует запрошенному количеству.";
