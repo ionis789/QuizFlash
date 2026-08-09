@@ -552,6 +552,7 @@
 "Open Sample Sheet" = "Open Sample Sheet";
 "Open this deck to start today's goal." = "Open this deck to start today's goal.";
 "Optional" = "Optional";
+"Instructions" = "Instructions";
 "Optional rationale" = "Optional rationale";
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}";
 "or" = "or";

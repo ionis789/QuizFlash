@@ -634,6 +634,7 @@ struct DeckWorkspaceView: View {
                     backgroundReceivesDragProgress: true,
                     showsBackdropBlur: true,
                     showsDefaultTopProgressiveBlur: false,
+                    avoidsKeyboard: true,
                     hidesTabBar: true
                 )
             ) { _, safeArea in

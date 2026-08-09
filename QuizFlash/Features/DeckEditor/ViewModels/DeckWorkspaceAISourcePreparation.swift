@@ -382,6 +382,8 @@ extension DeckWorkspaceViewModel {
             metadata: [
                 "allocation_count": String(allocations.count),
                 "distribution_mode": options.sourceDistributionMode.rawValue,
+                "has_user_instructions": String(options.normalizedUserInstructions != nil),
+                "user_instruction_length": String(options.normalizedUserInstructions?.count ?? 0),
                 "needs_ocr_correction": String(source.needsOCRCorrection),
                 "segment_count": String(source.textSegments.count)
             ]

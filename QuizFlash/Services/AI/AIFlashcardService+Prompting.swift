@@ -127,6 +127,13 @@ extension AIFlashcardService {
             message += try renderLanguageTemplate(AIPromptTemplateKey.userTextLanguage, languageHint: languageHint)
         }
 
+        if let instructionsJSON = try userInstructionsJSON(for: options) {
+            message += try renderPromptTemplate(
+                AIPromptTemplateKey.userInstructions,
+                values: ["userInstructionsJSON": instructionsJSON]
+            )
+        }
+
         if let blueprintContext {
             message += try renderBlueprintBatchContext(blueprintContext, coveredPrompts: coveredPrompts)
         }
@@ -180,6 +187,13 @@ extension AIFlashcardService {
             message += try renderLanguageTemplate(AIPromptTemplateKey.userVisionLanguage, languageHint: languageHint)
         }
 
+        if let instructionsJSON = try userInstructionsJSON(for: options) {
+            message += try renderPromptTemplate(
+                AIPromptTemplateKey.userInstructions,
+                values: ["userInstructionsJSON": instructionsJSON]
+            )
+        }
+
         if passIndex > 1 {
             message += try renderPromptTemplate(AIPromptTemplateKey.userVisionRepeat)
         }
@@ -227,9 +241,18 @@ extension AIFlashcardService {
             prompt += try renderPromptTemplate(AIPromptTemplateKey.systemOCR)
         }
 
+        if options.normalizedUserInstructions != nil {
+            prompt += try renderPromptTemplate(AIPromptTemplateKey.systemUserInstructions)
+        }
+
         prompt += try cardTypePromptAddition(for: options.cardType)
         prompt += try cardLevelPromptAddition(for: options.cardLevel)
         return prompt
+    }
+
+    nonisolated func userInstructionsJSON(for options: AIGenerationOptions) throws -> String? {
+        guard let instructions = options.normalizedUserInstructions else { return nil }
+        return String(decoding: try JSONEncoder().encode(instructions), as: UTF8.self)
     }
 
     nonisolated func requiredJSONSchemaPrompt(for contract: AIGeneratedCardContract) throws -> String {

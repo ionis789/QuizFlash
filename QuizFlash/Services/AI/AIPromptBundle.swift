@@ -31,6 +31,8 @@ nonisolated enum AIPromptTemplateKey {
     static let sourceTruncated = "source.truncated"
     static let systemBase = "system.base"
     static let systemOCR = "system.ocr"
+    static let systemUserInstructions = "system.userInstructions"
+    static let userInstructions = "user.instructions"
     static let userTextBase = "user.text.base"
     static let userTextCoveredHeader = "user.text.covered.header"
     static let userTextCoveredItem = "user.text.covered.item"
@@ -72,6 +74,8 @@ nonisolated enum AIPromptTemplateKey {
         sourceTruncated,
         systemBase,
         systemOCR,
+        systemUserInstructions,
+        userInstructions,
         userTextBase,
         userTextCoveredHeader,
         userTextCoveredItem,

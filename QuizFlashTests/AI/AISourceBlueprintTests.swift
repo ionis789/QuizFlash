@@ -468,10 +468,10 @@ final class AISourceBlueprintTests: XCTestCase {
         )
 
         XCTAssertEqual(plans.reduce(0) { $0 + $1.targetCards }, 14)
-        XCTAssertEqual(plans.map(\.targetCards).sorted(), [1, 1, 6, 6])
+        XCTAssertEqual(plans.map(\.targetCards).sorted(), [1, 3, 10])
         XCTAssertEqual(Set(plans.compactMap(\.serializationKey)).count, plans.count)
         XCTAssertTrue(plans.allSatisfy { $0.targetCards <= service.maxCardsPerBlueprintBatch })
-        XCTAssertEqual(service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 6), plans.count)
+        XCTAssertEqual(service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 8), plans.count)
         await Task.yield()
     }
 
@@ -481,7 +481,7 @@ final class AISourceBlueprintTests: XCTestCase {
             sourceJSON: "[]",
             allocationJSON: "[]",
             targetCards: 4,
-            options: AIGenerationOptions(),
+            options: AIGenerationOptions(userInstructions: "Prefer a narrower supported learning angle."),
             sourceFingerprint: "fingerprint",
             promptVersion: "version"
         )
@@ -489,6 +489,8 @@ final class AISourceBlueprintTests: XCTestCase {
         XCTAssertFalse(rendered.contains("{{"))
         XCTAssertTrue(rendered.contains("target=4"))
         XCTAssertTrue(rendered.contains("schema=1"))
+        XCTAssertTrue(rendered.contains("subordinate to the authorized target"))
+        XCTAssertTrue(rendered.contains("<USER_INSTRUCTION_JSON>\"Prefer a narrower supported learning angle.\""))
         await Task.yield()
     }
 

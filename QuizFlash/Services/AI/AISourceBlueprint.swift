@@ -17,7 +17,7 @@ nonisolated struct AIBlueprintProviderProfile: Equatable, Sendable {
     )
 
     func maxOutputTokens(targetCards: Int) -> Int {
-        min(32_000, 1_024 + max(targetCards, 1) * 256)
+        min(24_000, 768 + max(targetCards, 1) * 192)
     }
 }
 

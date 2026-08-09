@@ -33,6 +33,8 @@ Treat custom-sheet presentation motion as one non-configurable application contr
 
 After every code modification, commit the finished change before handing control back. Use a very short commit message, ideally only a few words and at most one concise sentence, describing what changed.
 
+QuizFlash is pre-release and has no production users. `MUST NOT` add backward-compatibility branches, legacy decoding defaults, dual contract support, deprecated aliases, fallback behavior for superseded app/backend versions, or other dead code unless the user explicitly requests compatibility for a specific artifact. When changing an internal contract, update every current caller, test, prompt bundle, and backend counterpart in the same task, then remove the superseded path. Existing keys or code that the current app still executes are not legacy merely because they predate the change.
+
 ## Local Machine Performance Guardrails
 
 Protect the user's laptop performance as a hard requirement. `MUST NOT` run broad, expensive, or unrelated commands just because they are available. Match verification scope to the task: for UI-only work, do not trigger backend builds, cloud deploys, package resolution, clean builds, or full dependency rebuilds unless the user explicitly asks for that level of verification.

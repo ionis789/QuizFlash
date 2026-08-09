@@ -552,6 +552,7 @@
 "Open Sample Sheet" = "Deschideți Sample Sheet";
 "Open this deck to start today's goal." = "Deschide acest deck ca să începi obiectivul de azi.";
 "Optional" = "Opțional";
+"Instructions" = "Instrucțiuni";
 "Optional rationale" = "Explicație opțională";
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Opțional. Utilizați acest lucru pentru câmpurile de corp specifice furnizorului, cum ar fi raționamentul OpenRouter. Exemplu: {\"resoning\":{\"enabled\":true}}";
 "or" = "sau";

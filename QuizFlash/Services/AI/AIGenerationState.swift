@@ -180,23 +180,6 @@ public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable, 
         }
     }
 
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-        switch rawValue {
-        case Self.simple.rawValue:
-            self = .simple
-        case Self.pro.rawValue, "balanced", "advanced":
-            self = .pro
-        default:
-            self = .pro
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
-    }
 }
 
 /// Distribution mode used to decide how much of each source segment is sent to AI.
@@ -373,32 +356,38 @@ extension AIGenerationLanguageHint {
 }
 
 public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
+    public static let maximumUserInstructionsLength = 2_000
+
     public var cardType: AICardGenerationType = .flashcards
     public var cardLevel: AICardGenerationLevel = .pro
-    /// Legacy persisted field kept for backward compatibility. Delivery is
-    /// adaptive now and no longer uses a user-visible fixed batch size.
-    public var cardsPerBatch: Int = 3
     public var sourceDistributionMode: AISourceDistributionMode = .auto
     public var outputLanguageMode: AIGenerationOutputLanguageMode = .auto
     public var manualOutputLanguage: AIGenerationLanguageHint? = nil
     public var sourceLanguageHint: AIGenerationLanguageHint? = nil
+    public var userInstructions: String = ""
 
     public init(
         cardType: AICardGenerationType = .flashcards,
         cardLevel: AICardGenerationLevel = .pro,
-        cardsPerBatch: Int = 3,
         sourceDistributionMode: AISourceDistributionMode = .auto,
         outputLanguageMode: AIGenerationOutputLanguageMode = .auto,
         manualOutputLanguage: AIGenerationLanguageHint? = nil,
-        sourceLanguageHint: AIGenerationLanguageHint? = nil
+        sourceLanguageHint: AIGenerationLanguageHint? = nil,
+        userInstructions: String = ""
     ) {
         self.cardType = cardType
         self.cardLevel = cardLevel
-        self.cardsPerBatch = cardsPerBatch
         self.sourceDistributionMode = sourceDistributionMode
         self.outputLanguageMode = outputLanguageMode
         self.manualOutputLanguage = manualOutputLanguage
         self.sourceLanguageHint = sourceLanguageHint
+        self.userInstructions = String(userInstructions.prefix(Self.maximumUserInstructionsLength))
+    }
+
+    public var normalizedUserInstructions: String? {
+        let trimmed = userInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(Self.maximumUserInstructionsLength))
     }
 
     public var outputLanguageSummary: String {
@@ -423,33 +412,36 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case cardType
         case cardLevel
-        case cardsPerBatch
         case sourceDistributionMode
         case outputLanguageMode
         case manualOutputLanguage
         case sourceLanguageHint
+        case userInstructions
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        cardType = try container.decodeIfPresent(AICardGenerationType.self, forKey: .cardType) ?? .flashcards
-        cardLevel = try container.decodeIfPresent(AICardGenerationLevel.self, forKey: .cardLevel) ?? .pro
-        cardsPerBatch = try container.decodeIfPresent(Int.self, forKey: .cardsPerBatch) ?? 3
-        sourceDistributionMode = try container.decodeIfPresent(AISourceDistributionMode.self, forKey: .sourceDistributionMode) ?? .auto
-        outputLanguageMode = try container.decodeIfPresent(AIGenerationOutputLanguageMode.self, forKey: .outputLanguageMode) ?? .auto
+        cardType = try container.decode(AICardGenerationType.self, forKey: .cardType)
+        cardLevel = try container.decode(AICardGenerationLevel.self, forKey: .cardLevel)
+        sourceDistributionMode = try container.decode(AISourceDistributionMode.self, forKey: .sourceDistributionMode)
+        outputLanguageMode = try container.decode(AIGenerationOutputLanguageMode.self, forKey: .outputLanguageMode)
         manualOutputLanguage = try container.decodeIfPresent(AIGenerationLanguageHint.self, forKey: .manualOutputLanguage)
         sourceLanguageHint = try container.decodeIfPresent(AIGenerationLanguageHint.self, forKey: .sourceLanguageHint)
+        userInstructions = String(
+            try container.decode(String.self, forKey: .userInstructions)
+                .prefix(Self.maximumUserInstructionsLength)
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(cardType, forKey: .cardType)
         try container.encode(cardLevel, forKey: .cardLevel)
-        try container.encode(cardsPerBatch, forKey: .cardsPerBatch)
         try container.encode(sourceDistributionMode, forKey: .sourceDistributionMode)
         try container.encode(outputLanguageMode, forKey: .outputLanguageMode)
         try container.encodeIfPresent(manualOutputLanguage, forKey: .manualOutputLanguage)
         try container.encodeIfPresent(sourceLanguageHint, forKey: .sourceLanguageHint)
+        try container.encode(userInstructions, forKey: .userInstructions)
     }
 
     /// Resolves the per-request card quota adaptively for speed while keeping

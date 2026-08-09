@@ -51,47 +51,49 @@ struct AIGenerationSheetView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let resolvedSafeTopInset = max(safeAreaInsets.top, proxy.safeAreaInsets.top)
-            let resolvedSafeBottomInset = max(safeAreaInsets.bottom, proxy.safeAreaInsets.bottom)
+        KeyboardAdaptiveSheetContent(isScrollable: false) {
+            GeometryReader { proxy in
+                let resolvedSafeTopInset = max(safeAreaInsets.top, proxy.safeAreaInsets.top)
+                let resolvedSafeBottomInset = max(safeAreaInsets.bottom, proxy.safeAreaInsets.bottom)
 
-            ZStack(alignment: .top) {
-                if isPreparingSource {
-                    preparingLayout
-                        .transition(.opacity)
-                } else {
-                    configurationLayout(bottomClearance: bottomActionClearance(safeBottomInset: resolvedSafeBottomInset))
-                        .transition(.opacity)
-                }
+                ZStack(alignment: .top) {
+                    if isPreparingSource {
+                        preparingLayout
+                            .transition(.opacity)
+                    } else {
+                        configurationLayout(bottomClearance: bottomActionClearance(safeBottomInset: resolvedSafeBottomInset))
+                            .transition(.opacity)
+                    }
 
-                TopProgressiveBlurOverlay(
-                    topHeight: resolvedSafeTopInset + UIConstants.Size.actionButton + UIConstants.Spacing.small,
-                    revealProgress: 1,
-                    tintColor: .black,
-                    configuration: ScreenTopProgressiveBlurConfiguration(
-                        maxBlurRadius: 5,
-                        fadeExtension: 24,
-                        tintOpacityTop: 0.78,
-                        tintOpacityMiddle: 0.18
-                    ),
-                    revealAnimation: nil
-                )
-                .zIndex(1)
-
-                header(safeTopInset: resolvedSafeTopInset)
-                    .zIndex(2)
-
-                if selectedSourcePreview != nil {
-                    SourcePreviewOverlay(
-                        image: selectedSourcePreviewImage,
-                        safeAreaInsets: safeAreaInsets,
-                        onClose: closeSourcePreview
+                    TopProgressiveBlurOverlay(
+                        topHeight: resolvedSafeTopInset + UIConstants.Size.actionButton + UIConstants.Spacing.small,
+                        revealProgress: 1,
+                        tintColor: .black,
+                        configuration: ScreenTopProgressiveBlurConfiguration(
+                            maxBlurRadius: 5,
+                            fadeExtension: 24,
+                            tintOpacityTop: 0.78,
+                            tintOpacityMiddle: 0.18
+                        ),
+                        revealAnimation: nil
                     )
-                    .transition(.opacity)
-                    .zIndex(10)
+                    .zIndex(1)
+
+                    header(safeTopInset: resolvedSafeTopInset)
+                        .zIndex(2)
+
+                    if selectedSourcePreview != nil {
+                        SourcePreviewOverlay(
+                            image: selectedSourcePreviewImage,
+                            safeAreaInsets: safeAreaInsets,
+                            onClose: closeSourcePreview
+                        )
+                        .transition(.opacity)
+                        .zIndex(10)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task(id: isPreparingSource) {
             guard isPreparingSource else { return }
@@ -119,6 +121,7 @@ struct AIGenerationSheetView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var preparingLayout: some View {
@@ -215,7 +218,33 @@ struct AIGenerationSheetView: View {
             compactOptionRow(title: "Language") {
                 outputLanguageCompactPicker
             }
+
+            compactOptionRow(
+                title: AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
+            ) {
+                TextField(
+                    AppLocalization.string("Optional", locale: appPreferences.resolvedLocale),
+                    text: userInstructionsBinding,
+                    axis: .vertical
+                )
+                .font(.body)
+                .lineLimit(2 ... 5)
+                .padding(.horizontal, UIConstants.Spacing.standard)
+                .padding(.vertical, 12)
+                .duoControlSurface(cornerRadius: 16)
+            }
         }
+    }
+
+    private var userInstructionsBinding: Binding<String> {
+        Binding(
+            get: { viewModel.aiGenerationOptions.userInstructions },
+            set: {
+                viewModel.aiGenerationOptions.userInstructions = String(
+                    $0.prefix(AIGenerationOptions.maximumUserInstructionsLength)
+                )
+            }
+        )
     }
 
     private var sourceCoverageContent: some View {

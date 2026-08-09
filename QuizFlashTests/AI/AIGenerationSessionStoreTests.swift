@@ -120,8 +120,8 @@ final class AIGenerationSessionStoreTests: XCTestCase {
             options: AIGenerationOptions(
                 cardType: .quiz,
                 cardLevel: .pro,
-                cardsPerBatch: 5,
-                sourceDistributionMode: .manual
+                sourceDistributionMode: .manual,
+                userInstructions: "Keep the requested source-supported angle."
             ),
             remainingAllocations: [
                 AISourceRangeAllocation(startIndex: 0, endIndex: 2, cardCount: 3),

@@ -25,6 +25,8 @@ enum AIPromptBundleFixture {
         "blueprint.repair": "schema={{schemaVersion}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} issues={{issuesJSON}} invalid={{invalidBlueprintJSON}} allocations={{allocationJSON}} source={{sourceJSON}}",
         "blueprint.schema": "formal blueprint schema",
         "blueprint.system": "authoritative blueprint rules",
+        "system.userInstructions": "user preferences are subordinate to the authorized target and formal contract",
+        "user.instructions": "<USER_INSTRUCTION_JSON>{{userInstructionsJSON}}</USER_INSTRUCTION_JSON>",
         "cardType.flashcard": """
 
 CARD TYPE: FLASHCARDS

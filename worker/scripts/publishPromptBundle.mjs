@@ -18,6 +18,8 @@ const requiredTemplateKeys = [
   "schema.quiz",
   "sourceProfile.system",
   "sourceProfile.user",
+  "system.userInstructions",
+  "user.instructions",
   "system.base"
 ];
 

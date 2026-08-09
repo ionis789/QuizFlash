@@ -552,6 +552,7 @@
 "Open Sample Sheet" = "Открыть образец листа";
 "Open this deck to start today's goal." = "Откройте эту колоду, чтобы начать сегодняшнюю цель.";
 "Optional" = "Необязательный";
+"Instructions" = "Инструкции";
 "Optional rationale" = "Необязательное объяснение";
 "Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {\"reasoning\":{\"enabled\":true}}" = "Необязательный. Используйте это для полей тела, специфичных для поставщика, таких как рассуждения OpenRouter. Пример: {\"рассуждение\":{\"включено\":true}}";
 "or" = "или";

@@ -6,7 +6,9 @@ import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
-    expect(defaultPromptBundle.version).toBe("v10");
+    expect(defaultPromptBundle.version).toBe("v11");
+    expect(defaultPromptBundle.templates["system.userInstructions"]).toContain("lower priority");
+    expect(defaultPromptBundle.templates["user.instructions"]).toContain("{{userInstructionsJSON}}");
     expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("{{schemaVersion}}");

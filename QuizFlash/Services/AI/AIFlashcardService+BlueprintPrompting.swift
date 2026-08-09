@@ -19,6 +19,7 @@ extension AIFlashcardService {
         values["sourceJSON"] = sourceJSON
         return try blueprintMessages(
             instructionKey: AIPromptTemplateKey.blueprintDirect,
+            userInstructionsJSON: try userInstructionsJSON(for: options),
             values: values
         )
     }
@@ -66,9 +67,11 @@ extension AIFlashcardService {
         values["isFinal"] = isFinal ? "true" : "false"
         values["groupIndex"] = String(groupIndex)
         values["groupCount"] = String(groupCount)
+        let instructionsJSON = isFinal ? try userInstructionsJSON(for: options) : nil
         return try blueprintMessages(
             instructionKey: AIPromptTemplateKey.blueprintReduce,
             includesFinalSchema: isFinal,
+            userInstructionsJSON: instructionsJSON,
             values: values
         )
     }
@@ -95,6 +98,7 @@ extension AIFlashcardService {
         values["sourceJSON"] = sourceJSON
         return try blueprintMessages(
             instructionKey: AIPromptTemplateKey.blueprintRepair,
+            userInstructionsJSON: try userInstructionsJSON(for: options),
             values: values
         )
     }
@@ -122,15 +126,27 @@ extension AIFlashcardService {
     private nonisolated func blueprintMessages(
         instructionKey: String,
         includesFinalSchema: Bool = true,
+        userInstructionsJSON: String? = nil,
         values: [String: String]
     ) throws -> [[String: Any]] {
         var system = try renderPromptTemplate(AIPromptTemplateKey.blueprintSystem)
         if includesFinalSchema {
             system += "\n" + (try renderPromptTemplate(AIPromptTemplateKey.blueprintSchema))
         }
+        if userInstructionsJSON != nil {
+            system += try renderPromptTemplate(AIPromptTemplateKey.systemUserInstructions)
+        }
+
+        var user = try renderPromptTemplate(instructionKey, values: values)
+        if let userInstructionsJSON {
+            user += try renderPromptTemplate(
+                AIPromptTemplateKey.userInstructions,
+                values: ["userInstructionsJSON": userInstructionsJSON]
+            )
+        }
         return [
             ["role": "system", "content": system],
-            ["role": "user", "content": try renderPromptTemplate(instructionKey, values: values)]
+            ["role": "user", "content": user]
         ]
     }
 
