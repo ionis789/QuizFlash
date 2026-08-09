@@ -10,6 +10,7 @@ const requiredTemplateKeys = [
   "blueprint.map",
   "blueprint.reduce",
   "blueprint.repair",
+  "blueprint.supplement",
   "blueprint.schema",
   "blueprint.system",
   "schema.flashcard",

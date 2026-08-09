@@ -103,6 +103,24 @@ extension AIFlashcardService {
         )
     }
 
+    nonisolated func buildBlueprintSupplementMessages(
+        supplementPlanJSON: String,
+        existingObjectivesJSON: String,
+        sourceJSON: String,
+        options: AIGenerationOptions
+    ) throws -> [[String: Any]] {
+        try blueprintMessages(
+            instructionKey: AIPromptTemplateKey.blueprintSupplement,
+            includesFinalSchema: false,
+            userInstructionsJSON: try userInstructionsJSON(for: options),
+            values: [
+                "supplementPlanJSON": supplementPlanJSON,
+                "existingObjectivesJSON": existingObjectivesJSON,
+                "sourceJSON": sourceJSON
+            ]
+        )
+    }
+
     nonisolated func renderBlueprintBatchContext(
         _ context: AIBlueprintBatchContext,
         coveredPrompts: [String]

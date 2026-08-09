@@ -23,6 +23,7 @@ enum AIPromptBundleFixture {
         "blueprint.map": "map={{mapIndex}}/{{mapCount}} type={{cardType}} depth={{cardLevel}} source={{sourceJSON}}",
         "blueprint.reduce": "schema={{schemaVersion}} level={{reduceLevel}} final={{isFinal}} group={{groupIndex}}/{{groupCount}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} allocations={{allocationJSON}} digests={{digestJSON}}",
         "blueprint.repair": "schema={{schemaVersion}} target={{targetCards}} type={{cardType}} depth={{cardLevel}} prompt={{promptVersion}} fingerprint={{sourceFingerprint}} issues={{issuesJSON}} invalid={{invalidBlueprintJSON}} allocations={{allocationJSON}} source={{sourceJSON}}",
+        "blueprint.supplement": "supplement={{supplementPlanJSON}} existing={{existingObjectivesJSON}} source={{sourceJSON}}",
         "blueprint.schema": "formal blueprint schema",
         "blueprint.system": "authoritative blueprint rules",
         "system.userInstructions": "user preferences are subordinate to the authorized target and formal contract",

@@ -17,6 +17,17 @@ actor AIBlueprintPlanner {
         let text: String
     }
 
+    private struct CoverageSupplementPlan: Codable, Sendable {
+        let themes: [Theme]
+
+        struct Theme: Codable, Sendable {
+            let theme_id: Int
+            let theme_title: String
+            let requested_objectives: Int
+            let focus_segment_indexes: [Int]
+        }
+    }
+
     private let service: AIFlashcardService
     private let profile: AIBlueprintProviderProfile
     private let providerRequestHandler: AIBlueprintProviderRequestHandler?
@@ -301,6 +312,49 @@ actor AIBlueprintPlanner {
                     throw AIServiceError.unknown("The source blueprint remained invalid after semantic repair.")
                 }
                 let invalidDTO = dto
+                if repairAttempt == 0,
+                   let supplementPlan = coverageSupplementPlan(
+                       for: dto,
+                       failure: failure,
+                       targetCards: targetCards,
+                       manualAllocations: manualAllocations
+                   ) {
+                    do {
+                        dto = try await applyingCoverageSupplement(
+                            supplementPlan,
+                            to: dto,
+                            segments: segments,
+                            targetCards: targetCards,
+                            options: options,
+                            manualAllocations: manualAllocations
+                        )
+                        await service.trace(
+                            .blueprintRepair,
+                            "Completed a focused blueprint coverage supplement.",
+                            metadata: [
+                                "repair_attempt": String(repairAttempt + 1),
+                                "repair_mode": "coverage_supplement",
+                                "supplement_theme_count": String(supplementPlan.themes.count),
+                                "supplement_objective_count": String(
+                                    supplementPlan.themes.reduce(0) { $0 + $1.requested_objectives }
+                                )
+                            ]
+                        )
+                        previousInvalidDTO = invalidDTO
+                        continue
+                    } catch {
+                        try Task.checkCancellation()
+                        await service.trace(
+                            .blueprintValidationFailed,
+                            "Focused blueprint coverage supplement failed; using complete semantic repair.",
+                            metadata: [
+                                "repair_attempt": String(repairAttempt),
+                                "repair_mode": "coverage_supplement_fallback",
+                                "error": String(describing: error)
+                            ]
+                        )
+                    }
+                }
                 dto = try await requestFinalBlueprint(
                     messages: try service.buildBlueprintRepairMessages(
                         invalidBlueprintJSON: compactJSON(dto),
@@ -352,40 +406,15 @@ actor AIBlueprintPlanner {
             return nil
         }
 
-        // Preserve one objective per discovered theme, then distribute the remaining
-        // capacity by candidate breadth. Source order is the only tie-breaker;
-        // provider priority values never decide what source material is retained.
-        let remainingSlots = targetCards - dto.themes.count
-        let extraCapacityByTheme = Dictionary(uniqueKeysWithValues: dto.themes.map { theme in
-            (theme.id, max((candidatesByTheme[theme.id]?.count ?? 0) - 1, 0))
+        let candidateCapacityByTheme = Dictionary(uniqueKeysWithValues: dto.themes.map { theme in
+            (theme.id, candidatesByTheme[theme.id]?.count ?? 0)
         })
-        let totalExtraCapacity = extraCapacityByTheme.values.reduce(0, +)
-        guard remainingSlots == 0 || totalExtraCapacity > 0 else { return nil }
-
-        var quotaByTheme = Dictionary(uniqueKeysWithValues: dto.themes.map { ($0.id, 1) })
-        var remainders: [(themeID: Int, sourceOrder: Int, value: Int)] = []
-        var allocatedExtra = 0
-
-        if remainingSlots > 0 {
-            for (sourceOrder, theme) in dto.themes.enumerated() {
-                let capacity = extraCapacityByTheme[theme.id] ?? 0
-                let scaledShare = remainingSlots * capacity
-                let baseShare = min(capacity, scaledShare / totalExtraCapacity)
-                quotaByTheme[theme.id, default: 1] += baseShare
-                allocatedExtra += baseShare
-                if baseShare < capacity {
-                    remainders.append((theme.id, sourceOrder, scaledShare % totalExtraCapacity))
-                }
-            }
-
-            var slotsToAllocate = remainingSlots - allocatedExtra
-            for remainder in remainders.sorted(by: {
-                $0.value == $1.value ? $0.sourceOrder < $1.sourceOrder : $0.value > $1.value
-            }) where slotsToAllocate > 0 {
-                quotaByTheme[remainder.themeID, default: 1] += 1
-                slotsToAllocate -= 1
-            }
-            guard slotsToAllocate == 0 else { return nil }
+        guard let quotaByTheme = neutralThemeQuotas(
+            dto.themes,
+            targetCards: targetCards,
+            capacityByTheme: candidateCapacityByTheme
+        ) else {
+            return nil
         }
 
         var selectedIndexes = Set<Int>()
@@ -417,9 +446,7 @@ actor AIBlueprintPlanner {
             return .init(
                 id: theme.id,
                 title: theme.title,
-                summary: theme.summary,
-                source_segment_indexes: retainedIndexes,
-                relative_priority: theme.relative_priority
+                source_segment_indexes: retainedIndexes
             )
         }
         guard normalizedThemes.count == dto.themes.count else { return nil }
@@ -432,6 +459,181 @@ actor AIBlueprintPlanner {
             themes: normalizedThemes,
             objectives: selectedObjectives
         )
+    }
+
+    private func coverageSupplementPlan(
+        for dto: AIBlueprintResponseDTO,
+        failure: AIBlueprintValidationFailure,
+        targetCards: Int,
+        manualAllocations: [AISourceRangeAllocation]
+    ) -> CoverageSupplementPlan? {
+        guard manualAllocations.isEmpty,
+              dto.objectives.count >= targetCards,
+              !dto.themes.isEmpty,
+              failure.issues.allSatisfy({ issue in
+                  switch issue {
+                  case .themeWithoutObjective, .uncoveredThemeSegments:
+                      return true
+                  case .wrongObjectiveCount(let expected, let actual):
+                      return expected == targetCards && actual > targetCards
+                  default:
+                      return false
+                  }
+              }),
+              Set(dto.themes.map(\.id)).count == dto.themes.count,
+              Set(dto.objectives.map(\.id)).count == dto.objectives.count,
+              let quotas = neutralThemeQuotas(dto.themes, targetCards: targetCards) else {
+            return nil
+        }
+
+        let validThemeIDs = Set(dto.themes.map(\.id))
+        guard dto.objectives.allSatisfy({ validThemeIDs.contains($0.theme_id) }) else {
+            return nil
+        }
+
+        let objectivesByTheme = Dictionary(grouping: dto.objectives, by: \.theme_id)
+        let plans = dto.themes.compactMap { theme -> CoverageSupplementPlan.Theme? in
+            let themeIndexes = Set(theme.source_segment_indexes)
+            let coveredIndexes = Set(
+                objectivesByTheme[theme.id, default: []]
+                    .flatMap(\.source_segment_indexes)
+            )
+            let uncoveredIndexes = themeIndexes.subtracting(coveredIndexes).sorted()
+            let currentCount = objectivesByTheme[theme.id, default: []].count
+            guard !uncoveredIndexes.isEmpty else { return nil }
+            let requestedCount = max((quotas[theme.id] ?? 1) - currentCount, 1)
+            return .init(
+                theme_id: theme.id,
+                theme_title: theme.title,
+                requested_objectives: requestedCount,
+                focus_segment_indexes: uncoveredIndexes
+            )
+        }
+        guard !plans.isEmpty else { return nil }
+        return CoverageSupplementPlan(themes: plans)
+    }
+
+    private func applyingCoverageSupplement(
+        _ plan: CoverageSupplementPlan,
+        to dto: AIBlueprintResponseDTO,
+        segments: [AITextSourceSegment],
+        targetCards: Int,
+        options: AIGenerationOptions,
+        manualAllocations: [AISourceRangeAllocation]
+    ) async throws -> AIBlueprintResponseDTO {
+        let requestedCountByTheme = Dictionary(uniqueKeysWithValues: plan.themes.map {
+            ($0.theme_id, $0.requested_objectives)
+        })
+        let focusIndexesByTheme = Dictionary(uniqueKeysWithValues: plan.themes.map {
+            ($0.theme_id, Set($0.focus_segment_indexes))
+        })
+        let gapIndexes = Set(plan.themes.flatMap(\.focus_segment_indexes))
+        let gapSegments = segments.filter { gapIndexes.contains($0.index) }
+        guard !gapSegments.isEmpty else { throw AIServiceError.invalidResponse }
+
+        let expectedSupplementCount = requestedCountByTheme.values.reduce(0, +)
+        let supplement: AIBlueprintSupplementResponseDTO = try await request(
+            messages: try service.buildBlueprintSupplementMessages(
+                supplementPlanJSON: json(plan),
+                existingObjectivesJSON: json(AICompactBlueprintResponseDTO(dto).objectives),
+                sourceJSON: sourceJSON(gapSegments),
+                options: options
+            ),
+            maxCompletionTokens: min(2_048, 192 + expectedSupplementCount * 128),
+            operation: "blueprint_repair",
+            as: AIBlueprintSupplementResponseDTO.self
+        )
+
+        guard supplement.objectives.count == expectedSupplementCount else {
+            throw AIServiceError.invalidResponse
+        }
+        let actualCountByTheme = Dictionary(grouping: supplement.objectives, by: \.themeID)
+            .mapValues(\.count)
+        guard actualCountByTheme == requestedCountByTheme else {
+            throw AIServiceError.invalidResponse
+        }
+
+        var instructionIdentities = Set(dto.objectives.map {
+            AIBlueprintValidator.textIdentity($0.instruction)
+        })
+        var nextID = (dto.objectives.map(\.id).max() ?? 0) + 1
+        var additions: [AIBlueprintResponseDTO.Objective] = []
+        for objective in supplement.objectives {
+            let instruction = AIBlueprintValidator.mechanicallyNormalized(objective.instruction)
+            let identity = AIBlueprintValidator.textIdentity(instruction)
+            let indexes = AIBlueprintValidator.normalizedIndexes(objective.sourceSegmentIndexes)
+            guard !instruction.isEmpty,
+                  instruction.count <= 500,
+                  instructionIdentities.insert(identity).inserted,
+                  let focusIndexes = focusIndexesByTheme[objective.themeID],
+                  !indexes.isEmpty,
+                  Set(indexes).isSubset(of: focusIndexes) else {
+                throw AIServiceError.invalidResponse
+            }
+            additions.append(
+                .init(
+                    id: nextID,
+                    theme_id: objective.themeID,
+                    instruction: instruction,
+                    source_segment_indexes: indexes
+                )
+            )
+            nextID += 1
+        }
+
+        let supplemented = AIBlueprintResponseDTO(
+            schema_version: dto.schema_version,
+            suggested_title: dto.suggested_title,
+            language_code: dto.language_code,
+            language_display_name: dto.language_display_name,
+            themes: dto.themes,
+            objectives: dto.objectives + additions
+        )
+        guard let trimmed = trimmingObjectiveSurplus(
+            supplemented,
+            targetCards: targetCards,
+            manualAllocations: manualAllocations
+        ) else {
+            throw AIServiceError.invalidResponse
+        }
+        return trimmed
+    }
+
+    /// Assigns every theme one slot, then distributes remaining slots by the
+    /// breadth of its declared source evidence. This is deterministic and does
+    /// not infer which subject matter is more important.
+    private func neutralThemeQuotas(
+        _ themes: [AIBlueprintResponseDTO.Theme],
+        targetCards: Int,
+        capacityByTheme: [Int: Int]? = nil
+    ) -> [Int: Int]? {
+        guard !themes.isEmpty, themes.count <= targetCards else { return nil }
+        if let capacityByTheme,
+           themes.contains(where: { capacityByTheme[$0.id, default: 0] < 1 }) {
+            return nil
+        }
+        var quotas = Dictionary(uniqueKeysWithValues: themes.map { ($0.id, 1) })
+        let breadths = themes.map { max(Set($0.source_segment_indexes).count, 1) }
+        var slotsToAllocate = targetCards - themes.count
+        while slotsToAllocate > 0 {
+            let eligibleIndexes = themes.indices.filter { index in
+                guard let capacityByTheme else { return true }
+                return quotas[themes[index].id, default: 1] < capacityByTheme[themes[index].id, default: 0]
+            }
+            guard var bestIndex = eligibleIndexes.first else { return nil }
+            for candidateIndex in eligibleIndexes.dropFirst() {
+                let bestDivisor = quotas[themes[bestIndex].id, default: 1] + 1
+                let candidateDivisor = quotas[themes[candidateIndex].id, default: 1] + 1
+                let candidateScore = breadths[candidateIndex] * bestDivisor
+                let bestScore = breadths[bestIndex] * candidateDivisor
+                if candidateScore > bestScore {
+                    bestIndex = candidateIndex
+                }
+            }
+            quotas[themes[bestIndex].id, default: 1] += 1
+            slotsToAllocate -= 1
+        }
+        return quotas
     }
 
     /// Selects provider objectives by maximum new segment coverage. Evenly

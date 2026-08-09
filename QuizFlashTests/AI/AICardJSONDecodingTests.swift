@@ -413,6 +413,17 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertEqual(body["max_tokens"] as? Int, 8_784)
     }
 
+    func testRequestBodyUsesExplicitPlannerTemperature() {
+        let service = makeService()
+        let body = service.requestBody(
+            messages: [["role": "user", "content": "Plan source coverage"]],
+            model: "test-text",
+            temperature: 0
+        )
+
+        XCTAssertEqual(body["temperature"] as? Double, 0)
+    }
+
     func testTextPromptPlacesStableSourceBeforeBatchMetadata() throws {
         let service = makeService()
         let prompt = try service.buildTextUserMessage(

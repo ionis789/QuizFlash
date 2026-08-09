@@ -175,10 +175,7 @@ extension AIFlashcardService {
 
         let segmentByIndex = Dictionary(uniqueKeysWithValues: segments.map { ($0.index, $0) })
         let objectiveByTheme = Dictionary(grouping: selectedObjectives, by: \.themeID)
-        let globalOutline = blueprint.themes.map { theme in
-            let compactSummary = String(theme.summary.prefix(180))
-            return "\(theme.title): \(compactSummary)"
-        }.joined(separator: "\n")
+        let globalOutline = blueprint.themes.map(\.title).joined(separator: "\n")
         let deliveryBatchSize = min(
             options.resolvedCardsPerBatch(for: selectedObjectives.count),
             maxCardsPerBlueprintBatch

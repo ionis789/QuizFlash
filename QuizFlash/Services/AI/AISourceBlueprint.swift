@@ -38,9 +38,7 @@ public nonisolated struct AISourceBlueprint: Codable, Equatable, Sendable {
 nonisolated struct AIBlueprintTheme: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let title: String
-    let summary: String
     let sourceSegmentIndexes: [Int]
-    let relativePriority: Int
 }
 
 nonisolated struct AIBlueprintObjective: Identifiable, Codable, Equatable, Sendable {
@@ -48,7 +46,6 @@ nonisolated struct AIBlueprintObjective: Identifiable, Codable, Equatable, Senda
     let themeID: UUID
     let instruction: String
     let sourceSegmentIndexes: [Int]
-    let relativePriority: Int
     let sourceAllocationID: UUID?
 }
 
@@ -77,9 +74,7 @@ nonisolated struct AIBlueprintResponseDTO: Codable, Equatable, Sendable {
     nonisolated struct Theme: Codable, Equatable, Sendable {
         let id: Int
         let title: String
-        let summary: String
         let source_segment_indexes: [Int]
-        let relative_priority: Int
     }
 
     nonisolated struct Objective: Codable, Equatable, Sendable {
@@ -87,8 +82,6 @@ nonisolated struct AIBlueprintResponseDTO: Codable, Equatable, Sendable {
         let theme_id: Int
         let instruction: String
         let source_segment_indexes: [Int]
-        let relative_priority: Int
-        let allocation_index: Int?
     }
 }
 
@@ -107,63 +100,46 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
     nonisolated struct Theme: Codable, Equatable, Sendable {
         let id: Int
         let title: String
-        let summary: String
         let sourceSegmentIndexes: [Int]
-        let relativePriority: Int
 
         init(
             id: Int,
             title: String,
-            summary: String,
-            sourceSegmentIndexes: [Int],
-            relativePriority: Int
+            sourceSegmentIndexes: [Int]
         ) {
             self.id = id
             self.title = title
-            self.summary = summary
             self.sourceSegmentIndexes = sourceSegmentIndexes
-            self.relativePriority = relativePriority
         }
 
         init(from decoder: Decoder) throws {
             if var values = try? decoder.unkeyedContainer() {
                 id = try values.decode(Int.self)
                 title = try values.decode(String.self)
-                summary = try values.decode(String.self)
                 sourceSegmentIndexes = try values.decode([Int].self)
-                relativePriority = try values.decode(Int.self)
                 guard values.isAtEnd else {
                     throw DecodingError.dataCorruptedError(
                         in: values,
-                        debugDescription: "A compact blueprint theme must contain exactly five values."
+                        debugDescription: "A compact blueprint theme must contain exactly three values."
                     )
                 }
                 return
             }
 
-            let values = try decoder.container(keyedBy: ObjectCodingKeys.self)
-            id = try values.decode(Int.self, forKey: .id)
-            title = try values.decode(String.self, forKey: .title)
-            summary = try values.decode(String.self, forKey: .summary)
-            sourceSegmentIndexes = try values.decode([Int].self, forKey: .sourceSegmentIndexes)
-            relativePriority = try values.decode(Int.self, forKey: .relativePriority)
+            throw DecodingError.typeMismatch(
+                [Any].self,
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "A compact blueprint theme must be a positional array."
+                )
+            )
         }
 
         func encode(to encoder: Encoder) throws {
             var values = encoder.unkeyedContainer()
             try values.encode(id)
             try values.encode(title)
-            try values.encode(summary)
             try values.encode(sourceSegmentIndexes)
-            try values.encode(relativePriority)
-        }
-
-        private enum ObjectCodingKeys: String, CodingKey {
-            case id
-            case title
-            case summary
-            case sourceSegmentIndexes = "source_segment_indexes"
-            case relativePriority = "relative_priority"
         }
     }
 
@@ -172,23 +148,17 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
         let themeID: Int
         let instruction: String
         let sourceSegmentIndexes: [Int]
-        let relativePriority: Int
-        let allocationIndex: Int?
 
         init(
             id: Int,
             themeID: Int,
             instruction: String,
-            sourceSegmentIndexes: [Int],
-            relativePriority: Int,
-            allocationIndex: Int?
+            sourceSegmentIndexes: [Int]
         ) {
             self.id = id
             self.themeID = themeID
             self.instruction = instruction
             self.sourceSegmentIndexes = sourceSegmentIndexes
-            self.relativePriority = relativePriority
-            self.allocationIndex = allocationIndex
         }
 
         init(from decoder: Decoder) throws {
@@ -197,24 +167,22 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
                 themeID = try values.decode(Int.self)
                 instruction = try values.decode(String.self)
                 sourceSegmentIndexes = try values.decode([Int].self)
-                relativePriority = try values.decode(Int.self)
-                allocationIndex = try values.decodeNil() ? nil : try values.decode(Int.self)
                 guard values.isAtEnd else {
                     throw DecodingError.dataCorruptedError(
                         in: values,
-                        debugDescription: "A compact blueprint objective must contain exactly six values."
+                        debugDescription: "A compact blueprint objective must contain exactly four values."
                     )
                 }
                 return
             }
 
-            let values = try decoder.container(keyedBy: ObjectCodingKeys.self)
-            id = try values.decode(Int.self, forKey: .id)
-            themeID = try values.decode(Int.self, forKey: .themeID)
-            instruction = try values.decode(String.self, forKey: .instruction)
-            sourceSegmentIndexes = try values.decode([Int].self, forKey: .sourceSegmentIndexes)
-            relativePriority = try values.decode(Int.self, forKey: .relativePriority)
-            allocationIndex = try values.decodeIfPresent(Int.self, forKey: .allocationIndex)
+            throw DecodingError.typeMismatch(
+                [Any].self,
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "A compact blueprint objective must be a positional array."
+                )
+            )
         }
 
         func encode(to encoder: Encoder) throws {
@@ -223,17 +191,6 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
             try values.encode(themeID)
             try values.encode(instruction)
             try values.encode(sourceSegmentIndexes)
-            try values.encode(relativePriority)
-            try values.encode(allocationIndex)
-        }
-
-        private enum ObjectCodingKeys: String, CodingKey {
-            case id
-            case themeID = "theme_id"
-            case instruction
-            case sourceSegmentIndexes = "source_segment_indexes"
-            case relativePriority = "relative_priority"
-            case allocationIndex = "allocation_index"
         }
     }
 
@@ -287,9 +244,7 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
             Theme(
                 id: $0.id,
                 title: $0.title,
-                summary: $0.summary,
-                sourceSegmentIndexes: $0.source_segment_indexes,
-                relativePriority: $0.relative_priority
+                sourceSegmentIndexes: $0.source_segment_indexes
             )
         }
         objectives = dto.objectives.map {
@@ -297,9 +252,7 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
                 id: $0.id,
                 themeID: $0.theme_id,
                 instruction: $0.instruction,
-                sourceSegmentIndexes: $0.source_segment_indexes,
-                relativePriority: $0.relative_priority,
-                allocationIndex: $0.allocation_index
+                sourceSegmentIndexes: $0.source_segment_indexes
             )
         }
     }
@@ -314,9 +267,7 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
                 .init(
                     id: $0.id,
                     title: $0.title,
-                    summary: $0.summary,
-                    source_segment_indexes: $0.sourceSegmentIndexes,
-                    relative_priority: $0.relativePriority
+                    source_segment_indexes: $0.sourceSegmentIndexes
                 )
             },
             objectives: objectives.map {
@@ -324,9 +275,7 @@ nonisolated struct AICompactBlueprintResponseDTO: Codable, Equatable, Sendable {
                     id: $0.id,
                     theme_id: $0.themeID,
                     instruction: $0.instruction,
-                    source_segment_indexes: $0.sourceSegmentIndexes,
-                    relative_priority: $0.relativePriority,
-                    allocation_index: $0.allocationIndex
+                    source_segment_indexes: $0.sourceSegmentIndexes
                 )
             }
         )
@@ -339,15 +288,61 @@ nonisolated struct AIBlueprintMapDigest: Codable, Equatable, Sendable {
 
     nonisolated struct Theme: Codable, Equatable, Sendable {
         let title: String
-        let summary: String
         let source_segment_indexes: [Int]
-        let relative_priority: Int
     }
 
     nonisolated struct Objective: Codable, Equatable, Sendable {
         let instruction: String
         let source_segment_indexes: [Int]
-        let relative_priority: Int
+    }
+}
+
+/// Provider-only patch used when a correctly sized blueprint leaves declared
+/// source coverage gaps. IDs are assigned locally after deterministic checks.
+nonisolated struct AIBlueprintSupplementResponseDTO: Codable, Equatable, Sendable {
+    let objectives: [Objective]
+
+    nonisolated struct Objective: Codable, Equatable, Sendable {
+        let themeID: Int
+        let instruction: String
+        let sourceSegmentIndexes: [Int]
+
+        init(themeID: Int, instruction: String, sourceSegmentIndexes: [Int]) {
+            self.themeID = themeID
+            self.instruction = instruction
+            self.sourceSegmentIndexes = sourceSegmentIndexes
+        }
+
+        init(from decoder: Decoder) throws {
+            var values = try decoder.unkeyedContainer()
+            themeID = try values.decode(Int.self)
+            var instructionProbe = values
+            if let instructionValue = try? instructionProbe.decode(String.self) {
+                values = instructionProbe
+                instruction = instructionValue
+            } else {
+                _ = try values.decode(Int.self)
+                instruction = try values.decode(String.self)
+            }
+            sourceSegmentIndexes = try values.decode([Int].self)
+            guard values.isAtEnd else {
+                throw DecodingError.dataCorruptedError(
+                    in: values,
+                    debugDescription: "A blueprint supplement objective must contain exactly three values."
+                )
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.unkeyedContainer()
+            try values.encode(themeID)
+            try values.encode(instruction)
+            try values.encode(sourceSegmentIndexes)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case objectives = "ob"
     }
 }
 
@@ -538,22 +533,13 @@ nonisolated enum AIBlueprintValidator {
         var normalizedThemeTitleOwner: [String: Int] = [:]
         for theme in dto.themes {
             let title = mechanicallyNormalized(theme.title)
-            let summary = mechanicallyNormalized(theme.summary)
             if title.isEmpty {
                 issues.append(.emptyTheme)
                 repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyTheme.description, path: "themes[id=\(theme.id)].title", entityID: theme.id))
             }
-            if summary.isEmpty {
-                issues.append(.emptyTheme)
-                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.emptyTheme.description, path: "themes[id=\(theme.id)].summary", entityID: theme.id))
-            }
             if title.count > 160 {
                 issues.append(.themeTooLong)
                 repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.themeTooLong.description, path: "themes[id=\(theme.id)].title", entityID: theme.id, maximumInteger: 160, actualInteger: title.count))
-            }
-            if summary.count > 800 {
-                issues.append(.themeTooLong)
-                repairDiagnostics.append(.init(code: AIBlueprintValidationIssue.themeTooLong.description, path: "themes[id=\(theme.id)].summary", entityID: theme.id, maximumInteger: 800, actualInteger: summary.count))
             }
             let titleIdentity = textIdentity(title)
             if let existingID = normalizedThemeTitleOwner[titleIdentity] {
@@ -576,6 +562,7 @@ nonisolated enum AIBlueprintValidator {
         }
 
         var normalizedInstructionOwner: [String: Int] = [:]
+        var allocationIndexByObjectiveID: [Int: Int] = [:]
         let validThemeIDs = Set(dto.themes.map(\.id)).sorted()
         for objective in dto.objectives {
             let instruction = mechanicallyNormalized(objective.instruction)
@@ -622,30 +609,25 @@ nonisolated enum AIBlueprintValidator {
             }
 
             if !allocations.isEmpty {
-                guard let allocationIndex = objective.allocation_index,
-                      let allocation = allocationByIndex[allocationIndex] else {
-                    issues.append(.invalidManualDistribution)
-                    repairDiagnostics.append(.init(
-                        code: AIBlueprintValidationIssue.invalidManualDistribution.description,
-                        path: "objectives[id=\(objective.id)].allocation_index",
-                        entityID: objective.id,
-                        actualInteger: objective.allocation_index,
-                        expectedIndexes: allocationByIndex.keys.sorted()
-                    ))
-                    continue
+                let matchingAllocationIndexes = allocationByIndex.compactMap { allocationIndex, allocation in
+                    let allocationIndexes = Set(allocation.startIndex...allocation.endIndex)
+                    return Set(objectiveIndexes).isSubset(of: allocationIndexes)
+                        ? allocationIndex
+                        : nil
                 }
-                let allocationIndexes = Set(allocation.startIndex...allocation.endIndex)
-                if !Set(objectiveIndexes).isSubset(of: allocationIndexes) {
+                guard matchingAllocationIndexes.count == 1,
+                      let allocationIndex = matchingAllocationIndexes.first else {
                     issues.append(.invalidManualDistribution)
                     repairDiagnostics.append(.init(
                         code: AIBlueprintValidationIssue.invalidManualDistribution.description,
                         path: "objectives[id=\(objective.id)].source_segment_indexes",
                         entityID: objective.id,
-                        relatedEntityID: allocationIndex,
-                        expectedIndexes: allocationIndexes.sorted(),
+                        expectedIndexes: allocationByIndex.values.flatMap { Array($0.startIndex...$0.endIndex) }.sorted(),
                         actualIndexes: objectiveIndexes
                     ))
+                    continue
                 }
+                allocationIndexByObjectiveID[objective.id] = allocationIndex
             }
         }
 
@@ -682,12 +664,12 @@ nonisolated enum AIBlueprintValidator {
 
         if !allocations.isEmpty {
             for (allocationIndex, allocation) in allocationByIndex {
-                let actual = dto.objectives.filter { $0.allocation_index == allocationIndex }.count
+                let actual = allocationIndexByObjectiveID.values.filter { $0 == allocationIndex }.count
                 if actual != allocation.cardCount {
                     issues.append(.invalidManualDistribution)
                     repairDiagnostics.append(.init(
                         code: AIBlueprintValidationIssue.invalidManualDistribution.description,
-                        path: "objectives[].allocation_index",
+                        path: "objectives[].source_segment_indexes",
                         entityID: allocationIndex,
                         expectedInteger: allocation.cardCount,
                         actualInteger: actual
@@ -710,9 +692,7 @@ nonisolated enum AIBlueprintValidator {
             AIBlueprintTheme(
                 id: themeIDMap[theme.id]!,
                 title: mechanicallyNormalized(theme.title),
-                summary: mechanicallyNormalized(theme.summary),
-                sourceSegmentIndexes: normalizedIndexes(theme.source_segment_indexes),
-                relativePriority: theme.relative_priority
+                sourceSegmentIndexes: normalizedIndexes(theme.source_segment_indexes)
             )
         }
         let objectives = dto.objectives.map { objective in
@@ -721,8 +701,7 @@ nonisolated enum AIBlueprintValidator {
                 themeID: themeIDMap[objective.theme_id]!,
                 instruction: mechanicallyNormalized(objective.instruction),
                 sourceSegmentIndexes: normalizedIndexes(objective.source_segment_indexes),
-                relativePriority: objective.relative_priority,
-                sourceAllocationID: objective.allocation_index.flatMap { allocationByIndex[$0]?.id }
+                sourceAllocationID: allocationIndexByObjectiveID[objective.id].flatMap { allocationByIndex[$0]?.id }
             )
         }
 

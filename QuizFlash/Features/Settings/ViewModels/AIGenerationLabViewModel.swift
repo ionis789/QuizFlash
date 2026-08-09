@@ -8,7 +8,7 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
-nonisolated enum AIGenerationLabSourceKind: String, Codable, Equatable, Sendable {
+nonisolated enum AIGenerationLabSourceKind: String, Codable, Equatable, Hashable, Sendable {
     case pdf
     case photos
 }
@@ -634,11 +634,32 @@ final class AIGenerationLabViewModel {
         hasLoaded && !sources.isEmpty && !isWorking && !isRunning
     }
 
-    func startRun() {
+    func configureCodeRun(
+        targetCardCount: Int,
+        options: AIGenerationOptions
+    ) {
+        guard !isRunning else { return }
+        self.targetCardCount = targetCardCount
+        self.options = options
+    }
+
+    func startRun(
+        sourceKinds: Set<AIGenerationLabSourceKind>? = nil,
+        sourceName: String? = nil
+    ) {
         guard canStartRun else { return }
         persistenceTask?.cancel()
         didCopyLatestReport = false
-        let sourceSnapshot = sources
+        var sourceSnapshot = sourceKinds.map { selectedKinds in
+            sources.filter { selectedKinds.contains($0.kind) }
+        } ?? sources
+        if let sourceName, !sourceName.isEmpty {
+            sourceSnapshot = sourceSnapshot.filter { $0.displayName == sourceName }
+        }
+        guard !sourceSnapshot.isEmpty else {
+            present(AIGenerationLabExecutionError.emptySourceSelection)
+            return
+        }
         let targetSnapshot = targetCardCount
         let optionsSnapshot = options
 
@@ -729,7 +750,7 @@ final class AIGenerationLabViewModel {
         do {
             try await store.saveManifest(
                 AIGenerationLabManifest(
-                    sources: sources,
+                    sources: self.sources,
                     targetCardCount: targetCardCount,
                     options: options
                 )
@@ -841,6 +862,7 @@ final class AIGenerationLabViewModel {
 nonisolated enum AIGenerationLabExecutionError: LocalizedError {
     case targetExceedsPlan
     case accessDenied(String)
+    case emptySourceSelection
 
     var errorDescription: String? {
         switch self {
@@ -848,6 +870,8 @@ nonisolated enum AIGenerationLabExecutionError: LocalizedError {
             return "The selected card target exceeds the active plan."
         case .accessDenied(let message):
             return message
+        case .emptySourceSelection:
+            return "No corpus sources match the code-run selection."
         }
     }
 }

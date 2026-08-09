@@ -66,8 +66,8 @@ public final class AIFlashcardService: @unchecked Sendable {
     let promptBundle: AIPromptBundle?
     let promptCacheStatus: String?
     let maxCharsPerChunk = 12_000
-    let maxCardsPerBlueprintBatch = 10
-    let maxConcurrentTextPlanRequests = 8
+    let maxCardsPerBlueprintBatch = 5
+    let maxConcurrentTextPlanRequests = 10
     let maxConcurrentVisionPlanRequests = 4
     let timeoutIntervalForRequest: TimeInterval = 360
     let timeoutIntervalForResource: TimeInterval = 1_800

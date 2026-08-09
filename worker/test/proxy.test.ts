@@ -6,21 +6,25 @@ import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 
 describe("QuizFlash AI proxy", () => {
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
-    expect(defaultPromptBundle.version).toBe("v16");
+    expect(defaultPromptBundle.version).toBe("v21");
     expect(defaultPromptBundle.templates["system.userInstructions"]).toContain("lower priority");
     expect(defaultPromptBundle.templates["user.instructions"]).toContain("{{userInstructionsJSON}}");
     expect(defaultPromptBundle.templates["blueprint.schema"]).not.toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("{{schemaVersion}}");
     expect(defaultPromptBundle.templates["blueprint.repair"]).toContain("{{schemaVersion}}");
+    expect(defaultPromptBundle.templates["blueprint.supplement"]).toContain("{{supplementPlanJSON}}");
+    expect(defaultPromptBundle.templates["rules.flashcard"]).toContain("complete, actionable recall question or instruction");
   });
 
   it("keeps blueprint planning neutral and requires coverage for every returned theme", () => {
     expect(defaultPromptBundle.templates["blueprint.system"]).toContain("Planning is coverage-neutral");
+    expect(defaultPromptBundle.templates["blueprint.system"]).toContain("no durable source-domain knowledge");
     expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("Every returned theme must be referenced by at least one objective");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("construct its global conceptual map before assigning objective slots");
-    expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("Every returned theme must receive at least one objective");
+    expect(defaultPromptBundle.templates["blueprint.reduce"]).toContain("derive themes exclusively by grouping those objectives");
     expect(defaultPromptBundle.templates["blueprint.repair"]).toContain("Do not repair by truncating a prefix or suffix");
+    expect(defaultPromptBundle.templates["blueprint.supplement"]).toContain("Do not paraphrase an existing objective");
     expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("the union of its objectives' source segment indexes");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("Prefer new conceptual coverage over alternate or equivalent formulations");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("objectives array length is a hard structural constraint");
@@ -28,8 +32,8 @@ describe("QuizFlash AI proxy", () => {
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("complementary atomic recall tasks");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("Never fill slots with paraphrase variants");
     expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"required":["v","t","lc","ln","th","ob"]');
-    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":5,"maxItems":5');
-    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":6,"maxItems":6');
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":3,"maxItems":3');
+    expect(defaultPromptBundle.templates["blueprint.schema"]).toContain('"minItems":4,"maxItems":4');
     expect(defaultPromptBundle.templates["blueprint.schema"]).toContain("Never return keyed objects inside th or ob");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("ob must contain exactly {{targetCards}} positional arrays");
     expect(defaultPromptBundle.templates["blueprint.direct"]).toContain("expected answer");

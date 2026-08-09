@@ -16,7 +16,7 @@ final class AISourceBlueprintTests: XCTestCase {
         XCTAssertFalse(json.contains("source_segment_indexes"))
     }
 
-    func testCompactProviderBlueprintAcceptsKeyedCollectionItems() throws {
+    func testCompactProviderBlueprintRejectsKeyedCollectionItems() throws {
         let json = """
         {
           "v": 1,
@@ -27,9 +27,7 @@ final class AISourceBlueprintTests: XCTestCase {
             {
               "id": 1,
               "title": "Theme title",
-              "summary": "Theme summary",
-              "source_segment_indexes": [1],
-              "relative_priority": 1
+              "source_segment_indexes": [1]
             }
           ],
           "ob": [
@@ -37,23 +35,28 @@ final class AISourceBlueprintTests: XCTestCase {
               "id": 1,
               "theme_id": 1,
               "instruction": "Create one distinct card.",
-              "source_segment_indexes": [1],
-              "relative_priority": 1,
-              "allocation_index": null
+              "source_segment_indexes": [1]
             }
           ]
         }
         """
 
-        let decoded = try JSONDecoder().decode(
-            AICompactBlueprintResponseDTO.self,
-            from: Data(json.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AICompactBlueprintResponseDTO.self,
+                from: Data(json.utf8)
+            )
         )
+    }
 
-        XCTAssertEqual(decoded.themes.count, 1)
+    func testSupplementDecoderAcceptsProviderOrdinalWithoutTrustingItAsThemeID() throws {
+        let data = Data(#"{"ob":[[3,1,"Add distinct missing coverage.",[20]]]}"#.utf8)
+        let decoded = try JSONDecoder().decode(AIBlueprintSupplementResponseDTO.self, from: data)
+
         XCTAssertEqual(decoded.objectives.count, 1)
-        XCTAssertEqual(decoded.expanded.themes[0].source_segment_indexes, [1])
-        XCTAssertNil(decoded.expanded.objectives[0].allocation_index)
+        XCTAssertEqual(decoded.objectives[0].themeID, 3)
+        XCTAssertEqual(decoded.objectives[0].instruction, "Add distinct missing coverage.")
+        XCTAssertEqual(decoded.objectives[0].sourceSegmentIndexes, [20])
     }
 
     func testPlannerUsesExactlyOneDirectRequestWhenSourceFitsBudget() async throws {
@@ -208,14 +211,14 @@ final class AISourceBlueprintTests: XCTestCase {
             language_code: "aa",
             language_display_name: "Detected language",
             themes: [
-                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1, 2, 3, 4], relative_priority: 1)
+                .init(id: 1, title: "Theme", source_segment_indexes: [1, 2, 3, 4])
             ],
             objectives: [
-                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil),
-                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1, 2], relative_priority: 2, allocation_index: nil),
-                .init(id: 3, theme_id: 1, instruction: "Objective 3", source_segment_indexes: [2], relative_priority: 3, allocation_index: nil),
-                .init(id: 4, theme_id: 1, instruction: "Objective 4", source_segment_indexes: [3], relative_priority: 4, allocation_index: nil),
-                .init(id: 5, theme_id: 1, instruction: "Objective 5", source_segment_indexes: [4], relative_priority: 5, allocation_index: nil)
+                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1]),
+                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1, 2]),
+                .init(id: 3, theme_id: 1, instruction: "Objective 3", source_segment_indexes: [2]),
+                .init(id: 4, theme_id: 1, instruction: "Objective 4", source_segment_indexes: [3]),
+                .init(id: 5, theme_id: 1, instruction: "Objective 5", source_segment_indexes: [4])
             ]
         )
         let recorder = BlueprintRequestRecorder(
@@ -267,8 +270,8 @@ final class AISourceBlueprintTests: XCTestCase {
         let repairCount = await recorder.operationCount("blueprint_repair")
         XCTAssertEqual(repairCount, 1)
         let repairPayload = await recorder.payload(for: "blueprint_repair")
-        XCTAssertTrue(repairPayload.contains("theme_without_objective"))
-        XCTAssertTrue(repairPayload.contains("themes[id=2].objectives"))
+        XCTAssertTrue(repairPayload.contains("supplement="))
+        XCTAssertTrue(repairPayload.contains("\"theme_id\":2"))
     }
 
     func testValidBlueprintProducesExactInternalObjectivesAndNormalizesFields() throws {
@@ -304,12 +307,12 @@ final class AISourceBlueprintTests: XCTestCase {
             language_code: "aa",
             language_display_name: "Detected language",
             themes: [
-                .init(id: 1, title: "Theme 1", summary: "Summary 1", source_segment_indexes: [1], relative_priority: 1),
-                .init(id: 2, title: "Theme 2", summary: "Summary 2", source_segment_indexes: [1], relative_priority: 2)
+                .init(id: 1, title: "Theme 1", source_segment_indexes: [1]),
+                .init(id: 2, title: "Theme 2", source_segment_indexes: [1])
             ],
             objectives: [
-                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil),
-                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1], relative_priority: 2, allocation_index: nil)
+                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1]),
+                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [1])
             ]
         )
 
@@ -335,10 +338,10 @@ final class AISourceBlueprintTests: XCTestCase {
             language_code: "aa",
             language_display_name: "Detected language",
             themes: [
-                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1, 2], relative_priority: 1)
+                .init(id: 1, title: "Theme", source_segment_indexes: [1, 2])
             ],
             objectives: [
-                .init(id: 1, theme_id: 1, instruction: "Objective", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil)
+                .init(id: 1, theme_id: 1, instruction: "Objective", source_segment_indexes: [1])
             ]
         )
 
@@ -366,8 +369,8 @@ final class AISourceBlueprintTests: XCTestCase {
             language_display_name: dto.language_display_name,
             themes: dto.themes,
             objectives: [
-                .init(id: 1, theme_id: 1, instruction: "Atomic objective", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil),
-                .init(id: 2, theme_id: 1, instruction: "  atomic   OBJECTIVE  ", source_segment_indexes: [1], relative_priority: 1, allocation_index: nil)
+                .init(id: 1, theme_id: 1, instruction: "Atomic objective", source_segment_indexes: [1]),
+                .init(id: 2, theme_id: 1, instruction: "  atomic   OBJECTIVE  ", source_segment_indexes: [1])
             ]
         )
 
@@ -390,10 +393,10 @@ final class AISourceBlueprintTests: XCTestCase {
             language_code: "aa",
             language_display_name: "Detected language",
             themes: [
-                .init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1], relative_priority: 1)
+                .init(id: 1, title: "Theme", source_segment_indexes: [1])
             ],
             objectives: [
-                .init(id: 8, theme_id: 1, instruction: "Objective", source_segment_indexes: [2], relative_priority: 1, allocation_index: nil)
+                .init(id: 8, theme_id: 1, instruction: "Objective", source_segment_indexes: [2])
             ]
         )
 
@@ -424,16 +427,16 @@ final class AISourceBlueprintTests: XCTestCase {
             AISourceRangeAllocation(startIndex: 2, endIndex: 2, cardCount: 2)
         ]
         let objectives: [AIBlueprintResponseDTO.Objective] = [
-            .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1], relative_priority: 3, allocation_index: 1),
-            .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [2], relative_priority: 2, allocation_index: 2),
-            .init(id: 3, theme_id: 1, instruction: "Objective 3", source_segment_indexes: [2], relative_priority: 1, allocation_index: 2)
+            .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1]),
+            .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [2]),
+            .init(id: 3, theme_id: 1, instruction: "Objective 3", source_segment_indexes: [2])
         ]
         let dto = AIBlueprintResponseDTO(
             schema_version: 1,
             suggested_title: "Source title",
             language_code: "aa",
             language_display_name: "Detected language",
-            themes: [.init(id: 1, title: "Theme", summary: "Summary", source_segment_indexes: [1, 2], relative_priority: 1)],
+            themes: [.init(id: 1, title: "Theme", source_segment_indexes: [1, 2])],
             objectives: objectives
         )
 
@@ -459,7 +462,7 @@ final class AISourceBlueprintTests: XCTestCase {
             language_code: dto.language_code,
             language_display_name: dto.language_display_name,
             themes: dto.themes,
-            objectives: [.init(id: 1, theme_id: 1, instruction: "Objective", source_segment_indexes: [2], relative_priority: 1, allocation_index: 1)]
+            objectives: [.init(id: 1, theme_id: 1, instruction: "Objective", source_segment_indexes: [2])]
         )
         assertValidationIssue(.invalidManualDistribution) {
             try AIBlueprintValidator.validate(
@@ -492,8 +495,8 @@ final class AISourceBlueprintTests: XCTestCase {
     func testBlueprintPlansUseSmallIndependentBatchesAcrossThemes() async throws {
         let service = try makeService()
         let segments = makeSegments(2)
-        let themeA = AIBlueprintTheme(id: UUID(), title: "Theme A", summary: "Summary A", sourceSegmentIndexes: [1], relativePriority: 2)
-        let themeB = AIBlueprintTheme(id: UUID(), title: "Theme B", summary: "Summary B", sourceSegmentIndexes: [2], relativePriority: 1)
+        let themeA = AIBlueprintTheme(id: UUID(), title: "Theme A", sourceSegmentIndexes: [1])
+        let themeB = AIBlueprintTheme(id: UUID(), title: "Theme B", sourceSegmentIndexes: [2])
         let objectives = (0..<14).map { index in
             let theme = index < 13 ? themeA : themeB
             return AIBlueprintObjective(
@@ -501,7 +504,6 @@ final class AISourceBlueprintTests: XCTestCase {
                 themeID: theme.id,
                 instruction: "Objective \(index)",
                 sourceSegmentIndexes: theme.sourceSegmentIndexes,
-                relativePriority: 14 - index,
                 sourceAllocationID: nil
             )
         }
@@ -522,7 +524,7 @@ final class AISourceBlueprintTests: XCTestCase {
         )
 
         XCTAssertEqual(plans.reduce(0) { $0 + $1.targetCards }, 14)
-        XCTAssertEqual(plans.map(\.targetCards).sorted(), [1, 3, 10])
+        XCTAssertEqual(plans.map(\.targetCards).sorted(), [1, 3, 5, 5])
         XCTAssertEqual(Set(plans.compactMap(\.serializationKey)).count, plans.count)
         XCTAssertTrue(plans.allSatisfy { $0.targetCards <= service.maxCardsPerBlueprintBatch })
         XCTAssertEqual(service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 8), plans.count)
@@ -608,9 +610,7 @@ final class AISourceBlueprintTests: XCTestCase {
                 .init(
                     id: 1,
                     title: "Theme",
-                    summary: "Summary",
-                    source_segment_indexes: segmentIndexes,
-                    relative_priority: 1
+                    source_segment_indexes: segmentIndexes
                 )
             ],
             objectives: (1...targetCards).map { index in
@@ -619,9 +619,7 @@ final class AISourceBlueprintTests: XCTestCase {
                     id: index,
                     theme_id: 1,
                     instruction: "Objective \(index)",
-                    source_segment_indexes: [segmentIndex],
-                    relative_priority: targetCards - index + 1,
-                    allocation_index: nil
+                    source_segment_indexes: [segmentIndex]
                 )
             }
         )
@@ -660,19 +658,50 @@ private actor BlueprintRequestRecorder {
         recordedRequests.append(request)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        let requestContent = request.messages.compactMap { $0["content"] as? String }.joined()
 
         if request.operation == "blueprint_map" {
-            let content = request.messages.compactMap { $0["content"] as? String }.joined()
-            let indexes = sourceIndexes(in: content)
+            let indexes = sourceIndexes(in: requestContent)
             let digest = AIBlueprintMapDigest(
                 themes: indexes.map {
-                    .init(title: "Theme \($0)", summary: "Summary \($0)", source_segment_indexes: [$0], relative_priority: 1)
+                    .init(title: "Theme \($0)", source_segment_indexes: [$0])
                 },
                 objectives: indexes.map {
-                    .init(instruction: "Objective \($0)", source_segment_indexes: [$0], relative_priority: 1)
+                    .init(instruction: "Objective \($0)", source_segment_indexes: [$0])
                 }
             )
             return String(decoding: try encoder.encode(digest), as: UTF8.self)
+        }
+
+        if request.operation == "blueprint_repair",
+           let planStart = requestContent.range(of: "supplement=")?.upperBound,
+           let planEnd = requestContent.range(of: " existing=", range: planStart..<requestContent.endIndex)?.lowerBound {
+            struct Plan: Decodable {
+                let themes: [Theme]
+
+                struct Theme: Decodable {
+                    let theme_id: Int
+                    let requested_objectives: Int
+                    let focus_segment_indexes: [Int]
+                }
+            }
+            let plan = try JSONDecoder().decode(
+                Plan.self,
+                from: Data(requestContent[planStart..<planEnd].utf8)
+            )
+            let objectives = plan.themes.flatMap { theme in
+                (0..<theme.requested_objectives).map { index in
+                    AIBlueprintSupplementResponseDTO.Objective(
+                        themeID: theme.theme_id,
+                        instruction: "Supplement objective \(theme.theme_id)-\(index + 1)",
+                        sourceSegmentIndexes: [theme.focus_segment_indexes[index % theme.focus_segment_indexes.count]]
+                    )
+                }
+            }
+            return String(
+                decoding: try encoder.encode(AIBlueprintSupplementResponseDTO(objectives: objectives)),
+                as: UTF8.self
+            )
         }
 
         let shouldReturnInvalid: Bool
@@ -702,9 +731,7 @@ private actor BlueprintRequestRecorder {
                 .init(
                     id: themeIndex,
                     title: "Theme \(themeIndex)",
-                    summary: "Summary \(themeIndex)",
-                    source_segment_indexes: [1],
-                    relative_priority: themeCount - themeIndex + 1
+                    source_segment_indexes: [1]
                 )
             },
             objectives: (0..<objectiveCount).map { index in
@@ -722,9 +749,7 @@ private actor BlueprintRequestRecorder {
                     id: index + 1,
                     theme_id: themeID,
                     instruction: "Objective \(index + 1)",
-                    source_segment_indexes: [1],
-                    relative_priority: objectiveCount - index,
-                    allocation_index: nil
+                    source_segment_indexes: [1]
                 )
             }
         )

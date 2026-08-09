@@ -69,7 +69,8 @@ extension AIFlashcardService {
                 messages: messages,
                 model: self.textModel,
                 maxCompletionTokens: maxCompletionTokens,
-                cloudOperation: operation
+                cloudOperation: operation,
+                temperature: 0
             ) { [self] data in
                 let content = try await self.parseResponseContent(from: data)
                 do {
@@ -126,6 +127,7 @@ extension AIFlashcardService {
         model: String,
         maxCompletionTokens: Int?,
         cloudOperation: String? = nil,
+        temperature: Double? = nil,
         parser: @escaping @Sendable (Data) async throws -> T
     ) async throws -> T {
         guard let url = apiEndpoint else { throw AIServiceError.networkError }
@@ -174,7 +176,8 @@ extension AIFlashcardService {
                     let body = self.requestBody(
                         messages: messages,
                         model: model,
-                        maxCompletionTokens: maxCompletionTokens
+                        maxCompletionTokens: maxCompletionTokens,
+                        temperature: temperature
                     )
                     let traceBody = self.traceJSONString(forJSONObject: body) ?? "Failed to pretty-print request body."
                     await self.trace(
@@ -317,7 +320,8 @@ extension AIFlashcardService {
     func requestBody(
         messages: [[String: Any]],
         model: String,
-        maxCompletionTokens: Int? = nil
+        maxCompletionTokens: Int? = nil,
+        temperature: Double? = nil
     ) -> [String: Any] {
         switch provider.requestStyle {
         case .openAICompatible:
@@ -328,7 +332,7 @@ extension AIFlashcardService {
             ]
 
             if supportsTemperatureParameter(for: model) {
-                body["temperature"] = 0.2
+                body["temperature"] = temperature ?? 0.2
             }
             if let maxCompletionTokens {
                 body["max_tokens"] = maxCompletionTokens

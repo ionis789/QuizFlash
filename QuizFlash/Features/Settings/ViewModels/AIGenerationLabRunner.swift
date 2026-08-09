@@ -439,6 +439,13 @@ final class AIGenerationLabLaunchRunner {
     static let shared = AIGenerationLabLaunchRunner()
     static let runLaunchArgument = "-RunAIGenerationLabCorpus"
     static let seedImageMirrorsLaunchArgument = "-SeedAIGenerationLabImageMirrors"
+    static let importPDFPathArgument = "-AILabImportPDFPath"
+    static let targetCardCountArgument = "-AILabTargetCardCount"
+    static let cardTypeArgument = "-AILabCardType"
+    static let cardLevelArgument = "-AILabCardLevel"
+    static let sourceKindArgument = "-AILabSourceKind"
+    static let sourceNameArgument = "-AILabSourceName"
+    static let userInstructionsArgument = "-AILabUserInstructions"
 
     private var runTask: Task<Void, Never>?
 
@@ -447,7 +454,9 @@ final class AIGenerationLabLaunchRunner {
     func startIfRequested(arguments: [String] = ProcessInfo.processInfo.arguments) {
         let shouldRun = arguments.contains(Self.runLaunchArgument)
         let shouldSeedImageMirrors = arguments.contains(Self.seedImageMirrorsLaunchArgument)
-        guard shouldRun || shouldSeedImageMirrors, runTask == nil else { return }
+        let importPDFPaths = values(after: Self.importPDFPathArgument, in: arguments)
+        guard shouldRun || shouldSeedImageMirrors || !importPDFPaths.isEmpty,
+              runTask == nil else { return }
 
         runTask = Task { [weak self] in
             guard let self else { return }
@@ -456,6 +465,17 @@ final class AIGenerationLabLaunchRunner {
             let viewModel = AIGenerationLabViewModel.shared
             print("AI_LAB_CODE_RUN setup_started")
             await viewModel.load()
+
+            if !importPDFPaths.isEmpty {
+                await viewModel.importPDFs(
+                    .success(importPDFPaths.map { URL(fileURLWithPath: $0) })
+                )
+                guard viewModel.errorMessage.isEmpty else {
+                    print("AI_LAB_CODE_RUN failed reason=\(viewModel.errorMessage)")
+                    return
+                }
+                print("AI_LAB_CODE_RUN pdf_import_ready sources=\(viewModel.sources.count)")
+            }
 
             if shouldSeedImageMirrors {
                 await viewModel.importPDFImageMirrors()
@@ -470,6 +490,18 @@ final class AIGenerationLabLaunchRunner {
                 print("AI_LAB_CODE_RUN setup_completed")
                 return
             }
+
+            let configuration = codeRunConfiguration(arguments: arguments)
+            viewModel.configureCodeRun(
+                targetCardCount: configuration.targetCardCount,
+                options: configuration.options
+            )
+            print(
+                "AI_LAB_CODE_RUN configured target=\(configuration.targetCardCount) "
+                    + "type=\(configuration.options.cardType.rawValue) "
+                    + "level=\(configuration.options.cardLevel.rawValue) "
+                    + "source=\(configuration.sourceLabel)"
+            )
 
             AuthManager.shared.startListening()
             guard await waitForAuthenticatedSession() else {
@@ -487,7 +519,10 @@ final class AIGenerationLabLaunchRunner {
                 return
             }
 
-            viewModel.startRun()
+            viewModel.startRun(
+                sourceKinds: configuration.sourceKinds,
+                sourceName: configuration.sourceName
+            )
             for _ in 0..<40 where !viewModel.isRunning {
                 await Task.yield()
             }
@@ -532,6 +567,71 @@ final class AIGenerationLabLaunchRunner {
             try? await Task.sleep(for: .milliseconds(250))
         }
         return false
+    }
+
+    private func codeRunConfiguration(arguments: [String]) -> CodeRunConfiguration {
+        let targetCardCount = value(after: Self.targetCardCountArgument, in: arguments)
+            .flatMap(Int.init)
+            .map { max($0, 1) }
+            ?? 30
+        let cardType = value(after: Self.cardTypeArgument, in: arguments)
+            .flatMap(AICardGenerationType.init(rawValue:))
+            ?? .flashcards
+        let cardLevel = value(after: Self.cardLevelArgument, in: arguments)
+            .flatMap(AICardGenerationLevel.init(rawValue:))
+            ?? .pro
+        let userInstructions = value(after: Self.userInstructionsArgument, in: arguments) ?? ""
+        let sourceValue = value(after: Self.sourceKindArgument, in: arguments) ?? "all"
+        let sourceName = value(after: Self.sourceNameArgument, in: arguments)
+        let sourceKinds: Set<AIGenerationLabSourceKind>?
+        switch sourceValue {
+        case AIGenerationLabSourceKind.pdf.rawValue:
+            sourceKinds = [.pdf]
+        case AIGenerationLabSourceKind.photos.rawValue:
+            sourceKinds = [.photos]
+        default:
+            sourceKinds = nil
+        }
+
+        return CodeRunConfiguration(
+            targetCardCount: targetCardCount,
+            options: AIGenerationOptions(
+                cardType: cardType,
+                cardLevel: cardLevel,
+                sourceDistributionMode: .auto,
+                outputLanguageMode: .auto,
+                userInstructions: userInstructions
+            ),
+            sourceKinds: sourceKinds,
+            sourceName: sourceName,
+            sourceLabel: sourceName ?? sourceValue
+        )
+    }
+
+    private func value(after argument: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: argument),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
+    }
+
+    private func values(after argument: String, in arguments: [String]) -> [String] {
+        arguments.indices.compactMap { index in
+            guard arguments[index] == argument,
+                  arguments.indices.contains(index + 1) else {
+                return nil
+            }
+            return arguments[index + 1]
+        }
+    }
+
+    private struct CodeRunConfiguration {
+        let targetCardCount: Int
+        let options: AIGenerationOptions
+        let sourceKinds: Set<AIGenerationLabSourceKind>?
+        let sourceName: String?
+        let sourceLabel: String
     }
 }
 

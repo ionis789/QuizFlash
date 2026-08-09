@@ -12,6 +12,7 @@ nonisolated enum AIPromptTemplateKey {
     static let blueprintMap = "blueprint.map"
     static let blueprintReduce = "blueprint.reduce"
     static let blueprintRepair = "blueprint.repair"
+    static let blueprintSupplement = "blueprint.supplement"
     static let blueprintSchema = "blueprint.schema"
     static let blueprintSystem = "blueprint.system"
     static let cardTypeFlashcard = "cardType.flashcard"
@@ -55,6 +56,7 @@ nonisolated enum AIPromptTemplateKey {
         blueprintMap,
         blueprintReduce,
         blueprintRepair,
+        blueprintSupplement,
         blueprintSchema,
         blueprintSystem,
         cardTypeFlashcard,
