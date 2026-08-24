@@ -251,6 +251,21 @@ actor AIBlueprintPlanner {
         var dto = initialDTO
         var previousInvalidDTO: AIBlueprintResponseDTO?
         for repairAttempt in 0...2 {
+            if let normalization = normalizingThemeEvidence(
+                in: dto,
+                against: segments
+            ) {
+                dto = normalization.dto
+                await service.trace(
+                    .blueprintEvidenceNormalized,
+                    "Aligned theme evidence with valid objective references locally.",
+                    metadata: [
+                        "changed_theme_count": String(normalization.changedThemeCount),
+                        "added_segment_reference_count": String(normalization.addedSegmentReferenceCount),
+                        "repair_attempt": String(repairAttempt)
+                    ]
+                )
+            }
             if let trimmedDTO = trimmingObjectiveSurplus(
                 dto,
                 targetCards: targetCards,
@@ -378,6 +393,69 @@ actor AIBlueprintPlanner {
             }
         }
         throw AIServiceError.invalidResponse
+    }
+
+    /// Theme evidence is redundant metadata: every objective already carries
+    /// the exact source references that support it. Providers occasionally
+    /// omit a valid objective reference from its parent theme. Expanding the
+    /// parent evidence locally is lossless and leaves all semantic choices,
+    /// declared coverage, and objective instructions unchanged.
+    private func normalizingThemeEvidence(
+        in dto: AIBlueprintResponseDTO,
+        against segments: [AITextSourceSegment]
+    ) -> (
+        dto: AIBlueprintResponseDTO,
+        changedThemeCount: Int,
+        addedSegmentReferenceCount: Int
+    )? {
+        let validSegmentIndexes = Set(segments.map(\.index))
+        let themeIDs = dto.themes.map(\.id)
+        guard Set(themeIDs).count == themeIDs.count else { return nil }
+
+        let validThemeIDs = Set(themeIDs)
+        var objectiveIndexesByTheme: [Int: Set<Int>] = [:]
+        for objective in dto.objectives {
+            let objectiveIndexes = Set(objective.source_segment_indexes)
+            guard validThemeIDs.contains(objective.theme_id),
+                  !objectiveIndexes.isEmpty,
+                  objectiveIndexes.isSubset(of: validSegmentIndexes) else {
+                return nil
+            }
+            objectiveIndexesByTheme[objective.theme_id, default: []]
+                .formUnion(objectiveIndexes)
+        }
+
+        var changedThemeCount = 0
+        var addedSegmentReferenceCount = 0
+        let normalizedThemes = dto.themes.map { theme in
+            let declaredIndexes = Set(theme.source_segment_indexes)
+            let objectiveIndexes = objectiveIndexesByTheme[theme.id, default: []]
+            let expandedIndexes = declaredIndexes.union(objectiveIndexes)
+            let addedCount = expandedIndexes.subtracting(declaredIndexes).count
+            guard addedCount > 0 else { return theme }
+
+            changedThemeCount += 1
+            addedSegmentReferenceCount += addedCount
+            return AIBlueprintResponseDTO.Theme(
+                id: theme.id,
+                title: theme.title,
+                source_segment_indexes: expandedIndexes.sorted()
+            )
+        }
+        guard changedThemeCount > 0 else { return nil }
+
+        return (
+            AIBlueprintResponseDTO(
+                schema_version: dto.schema_version,
+                suggested_title: dto.suggested_title,
+                language_code: dto.language_code,
+                language_display_name: dto.language_display_name,
+                themes: normalizedThemes,
+                objectives: dto.objectives
+            ),
+            changedThemeCount,
+            addedSegmentReferenceCount
+        )
     }
 
     private func trimmingObjectiveSurplus(

@@ -246,6 +246,47 @@ final class AISourceBlueprintTests: XCTestCase {
         XCTAssertEqual(repairCount, 0)
     }
 
+    func testPlannerExpandsThemeEvidenceFromValidObjectivesWithoutRepairRequest() async throws {
+        let response = AIBlueprintResponseDTO(
+            schema_version: 1,
+            suggested_title: "Source title",
+            language_code: "aa",
+            language_display_name: "Detected language",
+            themes: [
+                .init(id: 1, title: "Theme 1", source_segment_indexes: [1, 2]),
+                .init(id: 2, title: "Theme 2", source_segment_indexes: [3])
+            ],
+            objectives: [
+                .init(id: 1, theme_id: 1, instruction: "Objective 1", source_segment_indexes: [1]),
+                .init(id: 2, theme_id: 1, instruction: "Objective 2", source_segment_indexes: [2]),
+                .init(id: 3, theme_id: 2, instruction: "Objective 3", source_segment_indexes: [3]),
+                .init(id: 4, theme_id: 2, instruction: "Objective 4", source_segment_indexes: [2])
+            ]
+        )
+        let recorder = BlueprintRequestRecorder(
+            targetCards: 4,
+            initialBlueprintOverride: response
+        )
+        let planner = AIBlueprintPlanner(
+            service: try makeService(),
+            providerRequestHandler: { request in
+                try await recorder.response(for: request)
+            }
+        )
+
+        let blueprint = try await planner.build(
+            segments: makeSegments(3),
+            targetCards: 4,
+            options: AIGenerationOptions(),
+            manualAllocations: []
+        )
+
+        XCTAssertEqual(blueprint.objectives.count, 4)
+        XCTAssertEqual(blueprint.themes[1].sourceSegmentIndexes, [2, 3])
+        let repairCount = await recorder.operationCount("blueprint_repair")
+        XCTAssertEqual(repairCount, 0)
+    }
+
     func testPlannerRepairsAnExactCountBlueprintWithAnUncoveredTheme() async throws {
         let recorder = BlueprintRequestRecorder(
             targetCards: 3,
