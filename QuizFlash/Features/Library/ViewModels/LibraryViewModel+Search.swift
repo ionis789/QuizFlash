@@ -12,22 +12,6 @@ import SwiftData
 
 extension LibraryViewModel {
 
-    /// Clears the input and toggles off search state safely.
-    func clearSearch() {
-        searchGeneration += 1
-        inputDebounceTask?.cancel()
-        searchTask?.cancel()
-        noMatchPresentationTask?.cancel()
-        noMatchPresentationTask = nil
-        searchText = ""
-        renderedSearchQuery = ""
-        isSearching = false
-        isSearchLoading = false
-        isNoMatchReady = false
-        searchResults = []
-        expandedSearchDecks.removeAll()
-    }
-
     /// Reevaluates input and debounces text changes before searching.
     func debounceSearchInput(_ newValue: String) {
         inputDebounceTask?.cancel()

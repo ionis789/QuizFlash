@@ -45,6 +45,9 @@ struct LibraryTopBarView: View {
     var searchChromeTransition: Animation {
         .snappy(duration: searchChromeTransitionDuration, extraBounce: 0)
     }
+    var searchContentDismissAnimation: Animation {
+        .easeOut(duration: 0.12)
+    }
     var chromeContainerHeight: CGFloat {
         UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.capsuleHeight
     }
@@ -112,6 +115,13 @@ struct LibraryTopBarView: View {
         isSearchFocused = false
         emitDismissSearchHaptic()
 
+        // Start removing the result content while the search backdrop is still
+        // mounted. This prevents the fading empty/result state from lingering
+        // over an already-unblurred Library list.
+        withAnimation(searchContentDismissAnimation) {
+            viewModel.debounceSearchInput("")
+        }
+
         withAnimation(searchChromeTransition) {
             searchFieldExpansionProgress = 0
         }
@@ -130,7 +140,6 @@ struct LibraryTopBarView: View {
                 searchFieldExpansionProgress = 0
                 isSearchFieldInteractive = false
                 viewModel.isSearching = false
-                viewModel.clearSearch()
             }
         }
     }
