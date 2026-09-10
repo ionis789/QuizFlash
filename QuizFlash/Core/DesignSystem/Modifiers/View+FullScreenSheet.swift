@@ -8,6 +8,24 @@ import UIKit
 
 private let fullScreenSheetDismissVerticalBias: CGFloat = 1.2
 
+/// Tracks app-owned modal sheet presentation for global gesture owners.
+@MainActor
+final class FullScreenSheetModalPresentationState {
+    static let shared = FullScreenSheetModalPresentationState()
+
+    private var activeSheetIDs: Set<UUID> = []
+
+    var isPresentationActive: Bool { !activeSheetIDs.isEmpty }
+
+    func registerSheet(_ id: UUID) {
+        activeSheetIDs.insert(id)
+    }
+
+    func unregisterSheet(_ id: UUID) {
+        activeSheetIDs.remove(id)
+    }
+}
+
 #if DEBUG
 /// Bounded, copyable lifecycle trace for modal-touch investigations.
 @MainActor
@@ -1002,6 +1020,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
 #endif
         .onAppear {
+            FullScreenSheetModalPresentationState.shared.registerSheet(touchDiagnosticsID)
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onAppear")
             FullScreenSheetTouchDiagnostics.shared.registerSheet(
@@ -1041,6 +1060,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             startPresentationAnimationIfNeeded()
         }
         .onDisappear {
+            FullScreenSheetModalPresentationState.shared.unregisterSheet(touchDiagnosticsID)
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onDisappear")
             FullScreenSheetTouchDiagnostics.shared.unregisterSheet(touchDiagnosticsID)

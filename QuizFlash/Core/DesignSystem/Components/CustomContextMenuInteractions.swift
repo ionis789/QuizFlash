@@ -212,6 +212,18 @@ private final class CustomContextMenuGlobalTouchRecognizer: UIGestureRecognizer 
             return
         }
 
+        if FullScreenSheetModalPresentationState.shared.isPresentationActive {
+#if DEBUG
+            FullScreenSheetTouchDiagnostics.shared.record(
+                "context-menu.rejected-by-active-sheet",
+                details: "target=\(debugViewPath(touch.view))"
+            )
+            FullScreenSheetTouchDiagnostics.shared.copyReportToPasteboard()
+#endif
+            state = .failed
+            return
+        }
+
         let locationInWindow = touch.location(in: nil)
 #if DEBUG
         let diagnostics = FullScreenSheetTouchDiagnostics.shared
