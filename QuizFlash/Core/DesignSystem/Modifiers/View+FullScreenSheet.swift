@@ -875,6 +875,13 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .offset(y: sheetBottomAlignmentOffset)
 
         let baseView = ZStack(alignment: .bottom) {
+            // UIKit can otherwise forward a long press through transparent SwiftUI
+            // regions to an interactive presenter below the sheet. Keep a concrete
+            // modal hit-test surface behind the hosted content so its controls still
+            // win while empty preview areas cannot open a source context menu.
+            FullScreenSheetTouchShield()
+                .frame(width: containerWidth, height: containerHeight)
+
             if isFullHeightSheet, configuration.showsBackdropBlur {
                 fullScreenBackdropBlurOverlay(revealProgress: effectiveBackdropProgress)
             } else if isFullHeightSheet {
@@ -1475,6 +1482,39 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 }
 
 // MARK: - Backdrop Touch Shield
+
+/// UIKit hit-test surface that makes every custom sheet modal over its presenter.
+private struct FullScreenSheetTouchShield: UIViewRepresentable {
+    func makeUIView(context: Context) -> TouchShieldView {
+        TouchShieldView()
+    }
+
+    func updateUIView(_ uiView: TouchShieldView, context: Context) {}
+
+    final class TouchShieldView: UIView {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isOpaque = false
+            isUserInteractionEnabled = true
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            guard !isHidden,
+                  alpha > 0.01,
+                  isUserInteractionEnabled,
+                  bounds.contains(point) else {
+                return nil
+            }
+            return self
+        }
+    }
+}
 
 private struct BackdropDismissTouchShield: UIViewRepresentable {
     let onTap: () -> Void
