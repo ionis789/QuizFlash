@@ -8,6 +8,52 @@ import UIKit
 
 private let fullScreenSheetDismissVerticalBias: CGFloat = 1.2
 
+#if DEBUG
+/// Bounded, copyable lifecycle trace for modal-touch investigations.
+@MainActor
+final class FullScreenSheetTouchDiagnostics {
+    static let shared = FullScreenSheetTouchDiagnostics()
+
+    private var activeSheets: [UUID: String] = [:]
+    private var events: [String] = []
+    private var nextSequence = 0
+
+    var hasActiveSheet: Bool { !activeSheets.isEmpty }
+
+    func registerSheet(_ id: UUID, identifier: String?) {
+        activeSheets[id] = identifier ?? "unnamed"
+        record("sheet.presented", details: "id=\(id.uuidString) identifier=\(activeSheets[id] ?? "unnamed")")
+    }
+
+    func unregisterSheet(_ id: UUID) {
+        let identifier = activeSheets.removeValue(forKey: id) ?? "unknown"
+        record("sheet.dismissed", details: "id=\(id.uuidString) identifier=\(identifier)")
+    }
+
+    func record(_ event: String, details: String = "") {
+        nextSequence += 1
+        let suffix = details.isEmpty ? "" : " \(details)"
+        events.append("\(nextSequence). \(event)\(suffix)")
+        if events.count > 24 {
+            events.removeFirst(events.count - 24)
+        }
+    }
+
+    func copyReportToPasteboard() {
+        let sheetSummary = activeSheets
+            .map { "\($0.value):\($0.key.uuidString)" }
+            .sorted()
+            .joined(separator: ", ")
+        let report = ([
+            "QUIZFLASH_SHEET_TOUCH_TRACE",
+            "activeSheets=\(sheetSummary)",
+            "events:"
+        ] + events).joined(separator: "\n")
+        UIPasteboard.general.string = report
+    }
+}
+#endif
+
 private func fullScreenSheetHasDownwardDismissIntent(
     _ pan: UIPanGestureRecognizer,
     in view: UIView?
@@ -725,6 +771,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var activeChildPresentationIDs: Set<UUID> = []
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var stableWindowMetrics: FullScreenSheetWindowMetrics?
+    @State private var touchDiagnosticsID = UUID()
 
     private var sheetMotionAnimation: Animation { FullScreenSheetMotion.animation() }
 
@@ -957,6 +1004,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .onAppear {
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onAppear")
+            FullScreenSheetTouchDiagnostics.shared.registerSheet(
+                touchDiagnosticsID,
+                identifier: configuration.debugIdentifier
+            )
 #endif
             captureStableWindowMetricsIfNeeded()
             offset = 0
@@ -992,6 +1043,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .onDisappear {
 #if DEBUG
             fullScreenSheetDebugLog(configuration.debugIdentifier, "container.onDisappear")
+            FullScreenSheetTouchDiagnostics.shared.unregisterSheet(touchDiagnosticsID)
 #endif
             if configuration.debugIdentifier == "auth.primary" {
                 AuthFlowDebugTrace.record(
@@ -1512,6 +1564,19 @@ private struct FullScreenSheetTouchShield: UIViewRepresentable {
                 return nil
             }
             return self
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+#if DEBUG
+            if let touch = touches.first {
+                let location = touch.location(in: self)
+                FullScreenSheetTouchDiagnostics.shared.record(
+                    "sheet-shield.touch-received",
+                    details: "x=\(String(format: "%.1f", location.x)) y=\(String(format: "%.1f", location.y))"
+                )
+            }
+#endif
+            super.touchesBegan(touches, with: event)
         }
     }
 }

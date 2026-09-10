@@ -213,10 +213,30 @@ private final class CustomContextMenuGlobalTouchRecognizer: UIGestureRecognizer 
         }
 
         let locationInWindow = touch.location(in: nil)
+#if DEBUG
+        let diagnostics = FullScreenSheetTouchDiagnostics.shared
+        diagnostics.record(
+            "context-menu.touch-down",
+            details: "x=\(fmt(locationInWindow.x)) y=\(fmt(locationInWindow.y)) target=\(debugViewPath(touch.view)) sheetActive=\(diagnostics.hasActiveSheet)"
+        )
+#endif
         guard let resolvedSource = sourceRegistry.resolvedSource(at: locationInWindow) else {
+#if DEBUG
+            FullScreenSheetTouchDiagnostics.shared.record("context-menu.source-not-found")
+#endif
             state = .failed
             return
         }
+
+#if DEBUG
+        if diagnostics.hasActiveSheet {
+            diagnostics.record(
+                "context-menu.source-resolved-while-sheet-active",
+                details: "source=\(resolvedSource.sourceDescription) frame=(x=\(fmt(resolvedSource.frame.minX)) y=\(fmt(resolvedSource.frame.minY)) w=\(fmt(resolvedSource.frame.width)) h=\(fmt(resolvedSource.frame.height)))"
+            )
+            diagnostics.copyReportToPasteboard()
+        }
+#endif
 
         activeSourceID = resolvedSource.id
         activeSourceDescription = resolvedSource.sourceDescription
@@ -485,4 +505,18 @@ private final class CustomContextMenuGlobalTouchRecognizer: UIGestureRecognizer 
     private func fmt(_ value: CGFloat) -> String {
         String(format: "%.1f", Double(value))
     }
+
+#if DEBUG
+    private func debugViewPath(_ view: UIView?) -> String {
+        var names: [String] = []
+        var current = view
+
+        while let candidate = current, names.count < 5 {
+            names.append(String(describing: type(of: candidate)))
+            current = candidate.superview
+        }
+
+        return names.joined(separator: " <- ")
+    }
+#endif
 }
