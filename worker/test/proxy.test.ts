@@ -3,8 +3,117 @@ import {describe, expect, it} from "vitest";
 import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, providerOperation, rollingBillingWindow, usageWindowForAccount, validatedCardCount, validatedCardCountForTarget} from "../src";
 import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
+import {
+  authenticateRevenueCatWebhook,
+  subscriptionStateFromRevenueCat,
+  webhookFirebaseUIDs,
+  type BillingEnv
+} from "../src/billing";
 
 describe("QuizFlash AI proxy", () => {
+  it("accepts a current production premium entitlement", () => {
+    const state = subscriptionStateFromRevenueCat({
+      request_date_ms: Date.UTC(2026, 8, 19),
+      subscriber: {
+        original_app_user_id: "firebase-user",
+        entitlements: {
+          premium: {
+            product_identifier: "com.sion.QuizFlash.premium.monthly",
+            expires_date: "2026-10-19T00:00:00Z",
+            purchase_date: "2026-09-19T00:00:00Z"
+          }
+        },
+        subscriptions: {
+          "com.sion.QuizFlash.premium.monthly": {
+            is_sandbox: false,
+            expires_date: "2026-10-19T00:00:00Z",
+            original_purchase_date: "2026-09-19T00:00:00Z",
+            purchase_date: "2026-09-19T00:00:00Z",
+            unsubscribe_detected_at: null,
+            refunded_at: null
+          }
+        }
+      }
+    }, "firebase-user", new Set());
+
+    expect(state).toMatchObject({
+      premium: true,
+      environment: "production",
+      willRenew: true,
+      productIdentifier: "com.sion.QuizFlash.premium.monthly"
+    });
+  });
+
+  it("allows sandbox premium only for explicitly configured Firebase UIDs", () => {
+    const customerInfo = {
+      request_date_ms: Date.UTC(2026, 8, 19),
+      subscriber: {
+        entitlements: {
+          premium: {
+            product_identifier: "com.sion.QuizFlash.premium.yearly",
+            expires_date: "2027-09-19T00:00:00Z"
+          }
+        },
+        subscriptions: {
+          "com.sion.QuizFlash.premium.yearly": {
+            is_sandbox: true,
+            expires_date: "2027-09-19T00:00:00Z"
+          }
+        }
+      }
+    };
+
+    expect(subscriptionStateFromRevenueCat(customerInfo, "tester", new Set()).premium).toBe(false);
+    expect(subscriptionStateFromRevenueCat(customerInfo, "tester", new Set(["tester"])).premium).toBe(true);
+  });
+
+  it("does not leave an expired entitlement premium", () => {
+    const state = subscriptionStateFromRevenueCat({
+      request_date_ms: Date.UTC(2026, 8, 19),
+      subscriber: {
+        entitlements: {
+          premium: {
+            product_identifier: "com.sion.QuizFlash.premium.monthly",
+            expires_date: "2026-08-19T00:00:00Z"
+          }
+        },
+        subscriptions: {
+          "com.sion.QuizFlash.premium.monthly": {
+            is_sandbox: false,
+            expires_date: "2026-08-19T00:00:00Z"
+          }
+        }
+      }
+    }, "firebase-user", new Set());
+
+    expect(state.premium).toBe(false);
+  });
+
+  it("reconciles both sides of a RevenueCat transfer and ignores anonymous IDs", () => {
+    expect(webhookFirebaseUIDs({
+      api_version: "1.0",
+      event: {
+        transferred_from: ["sourceUID", "$RCAnonymousID:ignored"],
+        transferred_to: ["destinationUID"]
+      }
+    })).toEqual(["sourceUID", "destinationUID"]);
+  });
+
+  it("rejects a webhook with the wrong authorization value", async () => {
+    const request = new Request("https://example.test/v1/billing/webhook", {
+      method: "POST",
+      headers: {Authorization: "Bearer wrong"}
+    });
+    const env = {
+      REVENUECAT_WEBHOOK_AUTHORIZATION: "Bearer expected"
+    } as BillingEnv;
+
+    await expect(authenticateRevenueCatWebhook(request, "{}", env)).rejects.toMatchObject({
+      status: 401,
+      code: "unauthenticated"
+    });
+  });
+
   it("publishes the exact blueprint schema placeholder on final-output templates", () => {
     expect(defaultPromptBundle.version).toBe("v21");
     expect(defaultPromptBundle.templates["system.userInstructions"]).toContain("lower priority");

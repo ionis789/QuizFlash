@@ -21,11 +21,24 @@ export type FirestoreMonthlyUsage = {
 export type FirestoreAccountState = {
   uid: string;
   premium: boolean;
+  subscription: FirestoreSubscriptionState | null;
   aiBillingAnchorMs: number | null;
   freeGenerationsUsed: number;
   freeGenerationsLimit: number;
   monthlyBudgetMicroUSD: number;
   monthlyUsage: FirestoreMonthlyUsage;
+};
+
+export type FirestoreSubscriptionState = {
+  entitlementIdentifier: string;
+  productIdentifier: string | null;
+  environment: "production" | "sandbox" | "unknown";
+  expiresAtMs: number | null;
+  willRenew: boolean;
+  originalPurchaseAtMs: number | null;
+  latestPurchaseAtMs: number | null;
+  revenueCatOriginalAppUserID: string | null;
+  verifiedAtMs: number;
 };
 
 export type GenerationUsageDelta = {
@@ -49,6 +62,10 @@ type FirestoreValue = {
   mapValue?: {
     fields?: Record<string, FirestoreValue>;
   };
+};
+
+export type VerifiedSubscriptionState = FirestoreSubscriptionState & {
+  premium: boolean;
 };
 
 type FirestoreDocument = {
@@ -237,6 +254,55 @@ export async function writeFirestoreBillingAnchor(
   throw new Error("Firestore billing anchor write conflicted too many times.");
 }
 
+export async function writeFirestoreSubscriptionState(
+  uid: string,
+  state: VerifiedSubscriptionState,
+  env: FirestoreAdminEnv
+): Promise<FirestoreAccountState> {
+  const accessToken = await serviceAccountAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+
+  for (let attempt = 0; attempt < maximumCommitAttempts; attempt += 1) {
+    const period = monthKey(state.verifiedAtMs);
+    const documents = await readAccountDocuments(uid, period, env, accessToken);
+    const previousVerifiedAtMs = documents.account.subscription?.verifiedAtMs ?? 0;
+    if (previousVerifiedAtMs > state.verifiedAtMs) {
+      return documents.account;
+    }
+
+    const anchorMs = state.premium && documents.account.aiBillingAnchorMs === null
+      ? state.verifiedAtMs
+      : documents.account.aiBillingAnchorMs;
+    const nextAccount: FirestoreAccountState = {
+      ...documents.account,
+      premium: state.premium,
+      subscription: state,
+      aiBillingAnchorMs: anchorMs
+    };
+    const now = new Date().toISOString();
+    const fields: Record<string, FirestoreValue> = {
+      premium: {booleanValue: state.premium},
+      plan: {stringValue: state.premium ? "premium" : "free"},
+      subscription: subscriptionValue(state),
+      updatedAt: {timestampValue: now}
+    };
+    if (anchorMs !== null) {
+      fields.aiBillingAnchorMs = integerValue(anchorMs);
+    }
+
+    const response = await commitWrites([
+      updateWrite(userPath(uid, env), fields, documents.profile)
+    ], env, accessToken);
+    if (response.ok) {
+      return nextAccount;
+    }
+    if (response.status !== 409 && response.status !== 412) {
+      throw new Error(`Firestore subscription write failed with status ${response.status}.`);
+    }
+  }
+
+  throw new Error("Firestore subscription write conflicted too many times.");
+}
+
 export function applyingUsageDelta(
   account: FirestoreAccountState,
   delta: GenerationUsageDelta
@@ -281,9 +347,11 @@ export function parseFirestoreAccountState(
   const rootUsagePeriod = rootUsageFields?.period?.stringValue;
   const monthlyArchiveFields = usage?.fields ?? {};
   const premiumField = profileFields.premium?.booleanValue;
-  const premium = typeof premiumField === "boolean"
+  const storedPremium = typeof premiumField === "boolean"
     ? premiumField
     : profileFields.plan?.stringValue === "premium";
+  const subscription = parseSubscriptionState(profileFields.subscription);
+  const premium = storedPremium && subscriptionIsTemporallyValid(subscription, Date.now());
   const aiBillingAnchorMs = nullableIntegerField(profileFields, "aiBillingAnchorMs");
   const rootUsageMatchesRequest = rootUsagePeriod === period
     || (premium && aiBillingAnchorMs !== null && rootUsagePeriod?.startsWith("r30_") === true);
@@ -297,6 +365,7 @@ export function parseFirestoreAccountState(
   return {
     uid,
     premium,
+    subscription,
     aiBillingAnchorMs,
     freeGenerationsUsed: integerField(profileFields, "freeGenerationsUsed", 0),
     freeGenerationsLimit: integerField(profileFields, "freeGenerationsLimit", defaultFreeGenerationsLimit),
@@ -319,6 +388,52 @@ export function parseFirestoreAccountState(
       cacheMissTokens: integerField(usageFields, "cacheMissTokens", 0)
     }
   };
+}
+
+function parseSubscriptionState(value: FirestoreValue | undefined): FirestoreSubscriptionState | null {
+  const fields = value?.mapValue?.fields;
+  const entitlementIdentifier = fields?.entitlementIdentifier?.stringValue;
+  const verifiedAtMs = Number(fields?.verifiedAtMs?.integerValue);
+  if (!fields || !entitlementIdentifier || !Number.isFinite(verifiedAtMs)) {
+    return null;
+  }
+  const environment = fields.environment?.stringValue;
+  return {
+    entitlementIdentifier,
+    productIdentifier: fields.productIdentifier?.stringValue ?? null,
+    environment: environment === "production" || environment === "sandbox" ? environment : "unknown",
+    expiresAtMs: nullableIntegerField(fields, "expiresAtMs"),
+    willRenew: fields.willRenew?.booleanValue === true,
+    originalPurchaseAtMs: nullableIntegerField(fields, "originalPurchaseAtMs"),
+    latestPurchaseAtMs: nullableIntegerField(fields, "latestPurchaseAtMs"),
+    revenueCatOriginalAppUserID: fields.revenueCatOriginalAppUserID?.stringValue ?? null,
+    verifiedAtMs: nonNegativeInteger(verifiedAtMs)
+  };
+}
+
+function subscriptionIsTemporallyValid(
+  subscription: FirestoreSubscriptionState | null,
+  nowMs: number
+): boolean {
+  if (!subscription) return true;
+  return subscription.expiresAtMs === null || subscription.expiresAtMs > nowMs;
+}
+
+function subscriptionValue(state: VerifiedSubscriptionState): FirestoreValue {
+  const fields: Record<string, FirestoreValue> = {
+    entitlementIdentifier: {stringValue: state.entitlementIdentifier},
+    environment: {stringValue: state.environment},
+    willRenew: {booleanValue: state.willRenew},
+    verifiedAtMs: integerValue(state.verifiedAtMs)
+  };
+  if (state.productIdentifier) fields.productIdentifier = {stringValue: state.productIdentifier};
+  if (state.expiresAtMs !== null) fields.expiresAtMs = integerValue(state.expiresAtMs);
+  if (state.originalPurchaseAtMs !== null) fields.originalPurchaseAtMs = integerValue(state.originalPurchaseAtMs);
+  if (state.latestPurchaseAtMs !== null) fields.latestPurchaseAtMs = integerValue(state.latestPurchaseAtMs);
+  if (state.revenueCatOriginalAppUserID) {
+    fields.revenueCatOriginalAppUserID = {stringValue: state.revenueCatOriginalAppUserID};
+  }
+  return {mapValue: {fields}};
 }
 
 async function readAccountDocuments(
@@ -595,6 +710,11 @@ function integerValue(value: number): FirestoreValue {
 
 function nonNegativeInteger(value: number): number {
   return Math.max(0, Math.trunc(Number.isFinite(value) ? value : 0));
+}
+
+function monthKey(nowMs: number): string {
+  const date = new Date(nowMs);
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function usageFieldsAreEmpty(fields: Record<string, FirestoreValue> | undefined): boolean {

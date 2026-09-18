@@ -8,6 +8,12 @@ import {
   type FirestoreAccountState
 } from "./firestoreUsage";
 import {defaultPromptBundle, type PromptBundleRecord, validatedPromptBundle} from "./promptBundle";
+import {
+  acceptRevenueCatWebhook,
+  BillingError,
+  reconcileRevenueCatCustomer,
+  retryFailedRevenueCatWebhooks
+} from "./billing";
 
 type Env = {
   AI_DB: D1Database;
@@ -20,6 +26,10 @@ type Env = {
   DEEPSEEK_BASE_URL: string;
   DEEPSEEK_MODEL: string;
   PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD: string;
+  REVENUECAT_SECRET_API_KEY: string;
+  REVENUECAT_WEBHOOK_AUTHORIZATION: string;
+  REVENUECAT_WEBHOOK_SIGNING_SECRET?: string;
+  REVENUECAT_SANDBOX_UIDS?: string;
 };
 
 type StartRequest = {
@@ -60,6 +70,7 @@ type QuotaResponse = {
   billingWindowKey: string;
   billingWindowStartMs: number;
   billingWindowEndMs: number;
+  subscription: FirestoreAccountState["subscription"];
 };
 
 type UsageWindow = {
@@ -481,7 +492,8 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
       usageBasis: window.basis,
       billingWindowKey: window.key,
       billingWindowStartMs: window.startMs,
-      billingWindowEndMs: window.endMs
+      billingWindowEndMs: window.endMs,
+      subscription: account.subscription
     };
   }
 
@@ -674,7 +686,7 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const startedAt = performance.now();
     const requestID = crypto.randomUUID();
     const url = new URL(request.url);
@@ -690,6 +702,12 @@ export default {
       }
       if (request.method === "GET" && url.pathname === "/v1/entitlements") {
         return timedJSON(await readEntitlement(request, env), startedAt, requestID);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/billing/sync") {
+        return timedJSON(await syncBilling(request, env), startedAt, requestID);
+      }
+      if (request.method === "POST" && url.pathname === "/v1/billing/webhook") {
+        return timedJSON(await acceptRevenueCatWebhook(request, env, context), startedAt, requestID);
       }
       if (request.method === "GET" && url.pathname === "/v1/usage/generations") {
         return timedJSON(await readUsageGenerations(request, env), startedAt, requestID);
@@ -707,9 +725,12 @@ export default {
     }
   },
   async scheduled(_: ScheduledController, env: Env): Promise<void> {
-    await env.AI_DB.prepare(
-      "DELETE FROM ai_provider_calls WHERE response_expires_at_ms IS NOT NULL AND response_expires_at_ms <= ?"
-    ).bind(Date.now()).run();
+    await Promise.all([
+      env.AI_DB.prepare(
+        "DELETE FROM ai_provider_calls WHERE response_expires_at_ms IS NOT NULL AND response_expires_at_ms <= ?"
+      ).bind(Date.now()).run(),
+      retryFailedRevenueCatWebhooks(env)
+    ]);
   }
 } satisfies ExportedHandler<Env>;
 
@@ -810,6 +831,13 @@ async function readEntitlement(request: Request, env: Env): Promise<Record<strin
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
   const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement(uid);
   return {...usageQuota};
+}
+
+async function syncBilling(request: Request, env: Env): Promise<Record<string, unknown>> {
+  const uid = await verifyFirebaseIDToken(bearerToken(request), env);
+  const subscription = await reconcileRevenueCatCustomer(uid, env);
+  const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement(uid);
+  return {premium: subscription.premium, subscription, usageQuota, quota: usageQuota};
 }
 
 async function readUsageGenerations(request: Request, env: Env): Promise<Record<string, unknown>> {
@@ -1071,8 +1099,12 @@ function timedJSON(payload: Record<string, unknown>, startedAt: number, requestI
 }
 
 function errorResponse(error: unknown, startedAt: number, requestID: string, route: string): Response {
-  const workerError = error instanceof WorkerError ? error : new WorkerError(500, "internal", "Internal server error.");
-  if (!(error instanceof WorkerError)) {
+  const workerError = error instanceof WorkerError
+    ? error
+    : error instanceof BillingError
+      ? new WorkerError(error.status, error.code, error.message)
+      : new WorkerError(500, "internal", "Internal server error.");
+  if (!(error instanceof WorkerError) && !(error instanceof BillingError)) {
     console.error(JSON.stringify({event: "worker_request_failed", request_id: requestID, route, error_name: errorName(error)}));
   }
   const body: Record<string, unknown> = {error: {code: workerError.code, message: workerError.message}};
