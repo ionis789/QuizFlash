@@ -309,6 +309,23 @@ final class CloudAIProxyClient {
         }
     }
 
+    /// Asks the trusted backend to reconcile RevenueCat for the current Firebase user.
+    func syncBilling() async throws -> CloudAIQuotaState {
+        guard let user = Auth.auth().currentUser,
+              let idToken = try? await user.getIDToken(),
+              let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            throw CloudAIProxyError.signInRequired
+        }
+
+        let response: QuotaResponseEnvelope = try await sendJSON(
+            endpoint: baseURL.appending(path: "v1/billing/sync"),
+            method: "POST",
+            bearerToken: idToken,
+            body: EmptyBillingRequest()
+        )
+        return response.usageQuota
+    }
+
     func currentUsageGenerations() async throws -> [CloudAIGenerationUsageRecord] {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
@@ -831,6 +848,8 @@ private struct QuotaResponseEnvelope: Decodable {
             ?? container.decode(CloudAIQuotaState.self, forKey: .quota)
     }
 }
+
+private struct EmptyBillingRequest: Encodable { }
 
 private struct UsageGenerationsResponse: Decodable {
     let generations: [CloudAIGenerationUsageRecord]

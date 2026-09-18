@@ -7,10 +7,11 @@ import FirebaseAuth
 import FirebaseFirestore
 import Foundation
 import Observation
+import RevenueCat
 
 // MARK: - Subscription Manager
 
-/// Reads the current subscription state from Firebase while App Store setup is unavailable.
+/// Coordinates the RevenueCat storefront while keeping the backend authoritative for access.
 @Observable
 @MainActor
 final class SubscriptionManager {
@@ -32,6 +33,10 @@ final class SubscriptionManager {
     private(set) var cloudAIUsageQuota: CloudAIQuotaState?
     private(set) var cloudAIGenerationHistory: [CloudAIGenerationUsageRecord] = []
     private(set) var lastErrorMessage: String?
+    private(set) var monthlyPackage: Package?
+    private(set) var annualPackage: Package?
+    private(set) var isLoadingOfferings = false
+    private(set) var isPurchaseInProgress = false
     var presentPaywall = false
 
     @ObservationIgnored
@@ -39,6 +44,9 @@ final class SubscriptionManager {
 
     @ObservationIgnored
     private var activeUID: String?
+
+    @ObservationIgnored
+    private var revenueCatUID: String?
 
     // MARK: - Init
 
@@ -57,6 +65,7 @@ final class SubscriptionManager {
                 "configure-signed-out",
                 layer: "subscription"
             )
+            await signOutRevenueCatIfNeeded()
             applySignedOutState()
             return
         }
@@ -66,6 +75,8 @@ final class SubscriptionManager {
             layer: "subscription",
             details: ["uid": backendTraceSafeID(user.uid)]
         )
+        prepareStateForUIDIfNeeded(user.uid)
+        await configureRevenueCat(for: user.uid)
         await refresh(uid: user.uid)
     }
 
@@ -106,7 +117,7 @@ final class SubscriptionManager {
 
             if resolvedProfilePremium {
                 isPremium = true
-                planSource = .manualFirestore
+                planSource = .revenueCat
             } else {
                 isPremium = false
                 planSource = .free
@@ -260,7 +271,7 @@ final class SubscriptionManager {
 
     func applyCloudAIQuotaState(_ state: CloudAIQuotaState) {
         isPremium = state.premium
-        planSource = state.premium ? .manualFirestore : .free
+        planSource = state.premium ? .revenueCat : .free
         if state.premium {
             clearFreeQuota()
         } else {
@@ -280,9 +291,71 @@ final class SubscriptionManager {
         }
     }
 
-    /// Placeholder action until App Store Connect purchases are available.
+    func loadOfferings() async throws {
+        guard revenueCatIsAvailable else {
+            throw SubscriptionManagerError.storeUnavailable
+        }
+
+        isLoadingOfferings = true
+        defer { isLoadingOfferings = false }
+
+        do {
+            let offering = try await Purchases.shared.offerings().current
+            monthlyPackage = offering?.monthly
+            annualPackage = offering?.annual
+            guard monthlyPackage != nil || annualPackage != nil else {
+                throw SubscriptionManagerError.offeringsUnavailable
+            }
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    @discardableResult
+    func purchase(_ period: SubscriptionBillingPeriod) async throws -> Bool {
+        guard let uid = activeUID, revenueCatIsAvailable else {
+            throw SubscriptionManagerError.storeUnavailable
+        }
+
+        if monthlyPackage == nil && annualPackage == nil {
+            try await loadOfferings()
+        }
+        let package = period == .monthly ? monthlyPackage : annualPackage
+        guard let package else {
+            throw SubscriptionManagerError.productUnavailable
+        }
+
+        isPurchaseInProgress = true
+        defer { isPurchaseInProgress = false }
+
+        do {
+            let result = try await Purchases.shared.purchase(package: package)
+            guard !result.userCancelled else { return false }
+            try await reconcileBackend(expectedUID: uid)
+            return true
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     func restorePurchases() async throws {
-        throw SubscriptionManagerError.storeUnavailable
+        guard let uid = activeUID, revenueCatIsAvailable else {
+            throw SubscriptionManagerError.storeUnavailable
+        }
+
+        isPurchaseInProgress = true
+        defer { isPurchaseInProgress = false }
+
+        do {
+            _ = try await Purchases.shared.restorePurchases()
+            try await reconcileBackend(expectedUID: uid)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
     }
 
     // MARK: - Private
@@ -295,6 +368,8 @@ final class SubscriptionManager {
         lastErrorMessage = nil
         cloudAIUsageQuota = nil
         cloudAIGenerationHistory = []
+        monthlyPackage = nil
+        annualPackage = nil
     }
 
     private func prepareStateForUIDIfNeeded(_ uid: String) {
@@ -303,6 +378,51 @@ final class SubscriptionManager {
         clearFreeQuota()
         cloudAIUsageQuota = nil
         cloudAIGenerationHistory = []
+        monthlyPackage = nil
+        annualPackage = nil
+    }
+
+    private var revenueCatIsAvailable: Bool {
+        Purchases.isConfigured && revenueCatUID == activeUID
+    }
+
+    private func configureRevenueCat(for uid: String) async {
+        guard let apiKey = revenueCatPublicSDKKey else { return }
+
+        do {
+            if !Purchases.isConfigured {
+                Purchases.configure(withAPIKey: apiKey, appUserID: uid)
+            } else if revenueCatUID != uid {
+                _ = try await Purchases.shared.logIn(uid)
+            }
+            guard activeUID == uid else { return }
+            revenueCatUID = uid
+            try await loadOfferings()
+        } catch {
+            guard activeUID == uid else { return }
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func signOutRevenueCatIfNeeded() async {
+        guard Purchases.isConfigured, revenueCatUID != nil else { return }
+        _ = try? await Purchases.shared.logOut()
+        revenueCatUID = nil
+    }
+
+    private func reconcileBackend(expectedUID uid: String) async throws {
+        let quota = try await CloudAIProxyClient.shared.syncBilling()
+        guard activeUID == uid, Auth.auth().currentUser?.uid == uid else { return }
+        applyCloudAIQuotaState(quota)
+        await refresh(uid: uid)
+    }
+
+    private var revenueCatPublicSDKKey: String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "RevenueCatPublicSDKKey") as? String else {
+            return nil
+        }
+        let key = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.isEmpty ? nil : key
     }
 
     private func clearFreeQuota() {
@@ -378,7 +498,7 @@ final class SubscriptionManager {
 enum SubscriptionPlanSource: String, Sendable {
     case none
     case free
-    case manualFirestore
+    case revenueCat
 
     func localizedTitle(locale: Locale) -> String {
         switch self {
@@ -386,21 +506,32 @@ enum SubscriptionPlanSource: String, Sendable {
             return AppLocalization.string("Not signed in", locale: locale)
         case .free:
             return AppLocalization.string("Free", locale: locale)
-        case .manualFirestore:
-            return AppLocalization.string("Manual premium", locale: locale)
+        case .revenueCat:
+            return AppLocalization.string("Premium", locale: locale)
         }
     }
+}
+
+enum SubscriptionBillingPeriod: Sendable {
+    case monthly
+    case annual
 }
 
 // MARK: - Subscription Manager Error
 
 enum SubscriptionManagerError: LocalizedError {
     case storeUnavailable
+    case offeringsUnavailable
+    case productUnavailable
 
     var errorDescription: String? {
         switch self {
         case .storeUnavailable:
-            return "Purchases are not available until App Store Connect is ready."
+            return "Purchases are not configured yet."
+        case .offeringsUnavailable:
+            return "No subscription offering is currently available."
+        case .productUnavailable:
+            return "This subscription product is currently unavailable."
         }
     }
 }

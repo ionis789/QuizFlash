@@ -79,6 +79,7 @@
 		CB4867262FDFC60500356D9C /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CB4867252FDFC60500356D9C /* GoogleSignInSwift */; };
 		CB48672B2FDFC60500356D9C /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CB48672A2FDFC60500356D9C /* FirebaseFirestore */; };
 		CB48672D2FDFC60500356D9C /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = CB48672C2FDFC60500356D9C /* FirebaseFunctions */; };
+		D0B100012F91000100B11101 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = D0B100022F91000100B11101 /* RevenueCat */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +208,7 @@
 				CB48672D2FDFC60500356D9C /* FirebaseFunctions in Frameworks */,
 				CB4867242FDFC60500356D9C /* GoogleSignIn in Frameworks */,
 				CB4867262FDFC60500356D9C /* GoogleSignInSwift in Frameworks */,
+				D0B100012F91000100B11101 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,6 +340,7 @@
 				CB48672C2FDFC60500356D9C /* FirebaseFunctions */,
 				CB4867232FDFC60500356D9C /* GoogleSignIn */,
 				CB4867252FDFC60500356D9C /* GoogleSignInSwift */,
+				D0B100022F91000100B11101 /* RevenueCat */,
 			);
 			productName = QuizFlash;
 			productReference = CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */;
@@ -402,6 +405,7 @@
 				CB05196E2F8FF67F00FB3093 /* XCRemoteSwiftPackageReference "ProgressiveBlurHeader" */,
 				CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				CB4867272FDFC60500356D9C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				D0B100032F91000100B11101 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CB5C2D752EF8A48400FB1D07 /* Products */;
@@ -852,6 +856,14 @@
 				minimumVersion = 9.0.0;
 			};
 		};
+		D0B100032F91000100B11101 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -899,6 +911,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CB48671E2FDFC60500356D9C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFunctions;
+		};
+		D0B100022F91000100B11101 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0B100032F91000100B11101 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
