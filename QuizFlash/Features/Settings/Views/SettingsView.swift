@@ -178,11 +178,13 @@ struct SettingsView: View {
         .fullScreenSheet(
             isPresented: $isPremiumSheetPresented,
             configuration: .sheet(
-                heightMode: .custom(0.62),
+                heightMode: .custom(0.82),
                 showsCloseButton: true
             )
         ) { _ in
-            manualPremiumSheet
+            PremiumPaywallView {
+                isPremiumSheetPresented = false
+            }
         } background: {
             themeManager.screenBackground
         }
@@ -328,10 +330,22 @@ struct SettingsView: View {
 
                 profileDivider
 
-                profileMetric(
-                    icon: accountPlanIcon,
-                    title: accountPlanSummary
-                )
+                Button {
+                    isPremiumSheetPresented = true
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        profileMetric(
+                            icon: accountPlanIcon,
+                            title: accountPlanSummary
+                        )
+
+                        Image(systemName: "chevron.compact.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .padding(.vertical, UIConstants.Spacing.standard)
 
                 if isPremiumUser {
@@ -996,37 +1010,6 @@ struct SettingsView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-    }
-
-    private var manualPremiumSheet: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(AppLocalization.string("Premium access", locale: appPreferences.resolvedLocale))
-                .font(.title2.weight(.bold))
-
-            Text(AppLocalization.string("Premium is managed manually until App Store Connect is ready.", locale: appPreferences.resolvedLocale))
-                .font(.body.weight(.medium))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button {
-                Task { @MainActor in
-                    await subscriptionManager.refresh()
-                    isPremiumSheetPresented = false
-                }
-            } label: {
-                Text(AppLocalization.string("Refresh Plan", locale: appPreferences.resolvedLocale))
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, UIConstants.Spacing.standard)
-                    .background(themeManager.accentColor.color, in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Spacer(minLength: 0)
-        }
-        .padding(UIConstants.Spacing.large)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var streakSummary: String {

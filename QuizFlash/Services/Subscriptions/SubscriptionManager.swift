@@ -512,7 +512,7 @@ enum SubscriptionPlanSource: String, Sendable {
     }
 }
 
-enum SubscriptionBillingPeriod: Sendable {
+enum SubscriptionBillingPeriod: Hashable, Sendable {
     case monthly
     case annual
 }
