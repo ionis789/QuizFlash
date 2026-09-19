@@ -24,7 +24,7 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 
 - RevenueCat Purchases SDK is integrated in iOS. `SubscriptionManager` configures it after Firebase Auth with Firebase UID as `appUserID`, loads the monthly package, purchases, restores, and refreshes backend-authoritative state.
 - The Worker has signed RevenueCat webhook ingestion, idempotent retry storage, REST reconciliation, and Firestore subscription projection. Remote RevenueCat secrets and webhook configuration still require rollout verification before production sales.
-- The repository currently carries a RevenueCat Test Store public SDK key. Replace it with the Apple app public SDK key only after the RevenueCat Apple configuration and product mappings validate.
+- The iOS app is configured with the QuizFlash Apple app's public RevenueCat SDK key. Secret API and webhook credentials remain server-only.
 - App Store Connect contains the iOS app `QuizFlash AI` with bundle ID `com.sion.QuizFlash`, subscription group `QuizFlash Premium`, and monthly product `com.sion.QuizFlash.premium.monthly` with one-month duration and worldwide availability.
 - QuizFlash intentionally launches with only the monthly subscription; annual UI, source configuration, tests, rollout documentation, and obsolete RevenueCat annual/Test Store configuration have been removed. The App Store monthly product has worldwide availability, a 5.99 USD/month reference price with Apple's regional equivalents, and English, Romanian, and Russian customer metadata. RevenueCat maps both the Test Store monthly product and `com.sion.QuizFlash.premium.monthly` to the `premium` entitlement and the `default` offering's `$rc_monthly` package. Its remaining store work is review information. The measured AI cost supports this launch price with the 1.50 USD rolling internal AI budget.
 - The App Store Connect API credential validates in RevenueCat. The In-App Purchase key currently needs attention until Apple/RevenueCat recognizes it as compatible with the newly created app record.
@@ -33,5 +33,5 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 ## Immediate Work Order
 
 1. Complete the monthly App Store review information.
-2. Switch to the production Apple RevenueCat public SDK key and verify the remote webhook/secret deployment.
+2. Verify the remote RevenueCat webhook/secret deployment.
 3. Run sandbox purchase, restore, renewal/cancellation, webhook, Firestore, relaunch, and second-device verification.

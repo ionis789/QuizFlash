@@ -32,7 +32,7 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 - [x] Create the `premium` entitlement and attach the Test Store and App Store monthly products.
 - [x] Create the `default` offering with the `$rc_monthly` package.
 - [ ] Configure restore behavior to transfer purchases to the latest App User ID.
-- [ ] Obtain the public iOS SDK key for app configuration.
+- [x] Configure the app with the public Apple RevenueCat SDK key.
 - [ ] Create a server secret for RevenueCat API reconciliation.
 - [ ] Create a webhook authorization secret.
 - [ ] Store both server secrets only in Cloudflare Worker secrets.
