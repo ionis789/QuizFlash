@@ -10,7 +10,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Firestore is the canonical backend for Auth-linked profiles, background deck sync, server-verified subscription state, free AI quota, and AI usage. Premium quota uses a rolling 30-day billing window anchored by the server-owned `aiBillingAnchorMs`, not a calendar month.
 - Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
 - Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
-- RevenueCat Purchases SDK, the Premium paywall, purchase/restore flows, backend reconciliation, signed webhook ingestion, and Firestore subscription projection are implemented in source. The client now uses the Apple app public SDK key and the monthly App Store product is mapped in RevenueCat; StoreKit product availability, webhook/secret deployment verification, and end-to-end sandbox validation remain incomplete.
+- RevenueCat Purchases SDK, the Premium paywall, purchase/restore flows, backend reconciliation, signed webhook ingestion, and Firestore subscription projection are implemented in source. Debug builds use the Test Store public SDK key, Release builds use the Apple app public SDK key, and the monthly products are mapped in RevenueCat; StoreKit product availability, webhook/secret deployment verification, and end-to-end sandbox validation remain incomplete.
 
 ## Authority And Identity
 
@@ -97,7 +97,7 @@ The source implementation exists; remaining work is remote configuration and end
 
 1. Keep RevenueCat configured only after Firebase Auth resolves, using Firebase UID as `appUserID`. Log out or reidentify RevenueCat when the Firebase session changes; never leave the previous user's entitlement cached on the next user.
 2. Keep the single entitlement identifier `premium`. Map the App Store monthly product to it and expose it through the default offering's monthly package. QuizFlash intentionally launches without an annual product.
-3. Replace the Test Store public SDK key with the Apple app public SDK key only after the RevenueCat Apple app configuration and product mappings validate. Public SDK keys may be in client configuration; secret API and webhook keys must remain Worker secrets.
+3. Keep public SDK keys configuration-specific: Test Store for Debug and the Apple app key for Release. Secret API and webhook keys must remain Worker secrets.
 4. Keep the signed Worker webhook and authenticated REST reconciliation authoritative for writing Firestore `premium` and subscription state. Verify the deployed signature/authorization configuration and idempotent event processing; never let the device write `premium: true`.
 5. Let the client display RevenueCat entitlement state for responsiveness, but let Firestore/Worker decide backend access. Preserve the bounded reconciliation/pending behavior for webhook delay.
 6. Validate sandbox purchase, restore, renewal, cancellation, refund, app relaunch, and second-device access before describing the integration as production-ready.

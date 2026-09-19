@@ -921,6 +921,9 @@
 "Continue" = "Продолжить";
 "Loading Plans…" = "Загрузка планов…";
 "Subscriptions Unavailable" = "Подписки недоступны";
+"Subscriptions are temporarily unavailable. Please try again later." = "Подписки временно недоступны. Повторите попытку позже.";
+"The purchase could not be completed. Please try again." = "Не удалось завершить покупку. Повторите попытку.";
+"Purchases could not be restored. Please try again." = "Не удалось восстановить покупки. Повторите попытку.";
 "Restore Purchases" = "Восстановить покупки";
 "Premium is active" = "Premium активен";
 "Manage Subscription" = "Управление подпиской";

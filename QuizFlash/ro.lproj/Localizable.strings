@@ -921,6 +921,9 @@
 "Continue" = "Continuă";
 "Loading Plans…" = "Se încarcă planurile…";
 "Subscriptions Unavailable" = "Abonamente indisponibile";
+"Subscriptions are temporarily unavailable. Please try again later." = "Abonamentele sunt temporar indisponibile. Încearcă din nou mai târziu.";
+"The purchase could not be completed. Please try again." = "Achiziția nu a putut fi finalizată. Încearcă din nou.";
+"Purchases could not be restored. Please try again." = "Achizițiile nu au putut fi restaurate. Încearcă din nou.";
 "Restore Purchases" = "Restaurează achizițiile";
 "Premium is active" = "Premium este activ";
 "Manage Subscription" = "Administrează abonamentul";

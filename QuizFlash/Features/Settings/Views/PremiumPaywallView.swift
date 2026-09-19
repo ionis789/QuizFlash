@@ -131,7 +131,8 @@ struct PremiumPaywallView: View {
                         onPurchaseCompleted()
                     }
                 } catch {
-                    errorMessage = error.localizedDescription
+                    reportDebugError(error, action: "purchase")
+                    errorMessage = localized("The purchase could not be completed. Please try again.")
                 }
             }
         } label: {
@@ -163,7 +164,8 @@ struct PremiumPaywallView: View {
                         onPurchaseCompleted()
                     }
                 } catch {
-                    errorMessage = error.localizedDescription
+                    reportDebugError(error, action: "restore")
+                    errorMessage = localized("Purchases could not be restored. Please try again.")
                 }
             }
         }
@@ -219,8 +221,15 @@ struct PremiumPaywallView: View {
         do {
             try await subscriptionManager.loadOfferings()
         } catch {
-            errorMessage = error.localizedDescription
+            reportDebugError(error, action: "load offerings")
+            errorMessage = localized("Subscriptions are temporarily unavailable. Please try again later.")
         }
+    }
+
+    private func reportDebugError(_ error: Error, action: String) {
+#if DEBUG
+        print("[PremiumPaywall] Failed to \(action): \(error.localizedDescription)")
+#endif
     }
 
     private func localized(_ key: String) -> String {

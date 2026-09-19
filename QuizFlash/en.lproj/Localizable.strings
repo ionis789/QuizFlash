@@ -921,6 +921,9 @@
 "Continue" = "Continue";
 "Loading Plans…" = "Loading Plans…";
 "Subscriptions Unavailable" = "Subscriptions Unavailable";
+"Subscriptions are temporarily unavailable. Please try again later." = "Subscriptions are temporarily unavailable. Please try again later.";
+"The purchase could not be completed. Please try again." = "The purchase could not be completed. Please try again.";
+"Purchases could not be restored. Please try again." = "Purchases could not be restored. Please try again.";
 "Restore Purchases" = "Restore Purchases";
 "Premium is active" = "Premium is active";
 "Manage Subscription" = "Manage Subscription";

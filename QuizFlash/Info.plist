@@ -38,7 +38,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>RevenueCatPublicSDKKey</key>
-	<string>appl_NeFiIOcLVJHWDYtKGyWzxRUqAiL</string>
+	<string>$(REVENUECAT_PUBLIC_SDK_KEY)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

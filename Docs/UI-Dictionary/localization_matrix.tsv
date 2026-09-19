@@ -657,6 +657,7 @@ Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
+Purchases could not be restored. Please try again.	Purchases could not be restored. Please try again.	Achizițiile nu au putut fi restaurate. Încearcă din nou.	Не удалось восстановить покупки. Повторите попытку.
 Purple	Purple	Mov	Фиолетовый
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
@@ -798,6 +799,7 @@ Streak	Streak	Serie	Серия
 Strong	Strong	Puternică	Сильная
 Study cards and widget cards.	Study cards and widget cards.	Carduri de studiu și carduri widget.	Учебные карточки и виджеты.
 Study smarter	Study smarter	Studiază mai inteligent	Учитесь умнее
+Subscriptions are temporarily unavailable. Please try again later.	Subscriptions are temporarily unavailable. Please try again later.	Abonamentele sunt temporar indisponibile. Încearcă din nou mai târziu.	Подписки временно недоступны. Повторите попытку позже.
 Subscriptions renew automatically unless canceled at least 24 hours before the current period ends.	Subscriptions renew automatically unless canceled at least 24 hours before the current period ends.	Abonamentele se reînnoiesc automat dacă nu sunt anulate cu cel puțin 24 de ore înainte de sfârșitul perioadei curente.	Подписка продлевается автоматически, если ее не отменить минимум за 24 часа до окончания текущего периода.
 Subscriptions Unavailable	Subscriptions Unavailable	Abonamente indisponibile	Подписки недоступны
 Sunday	Sunday	Duminică	Воскресенье
@@ -834,6 +836,7 @@ The limit renews continuously	The limit renews continuously	Limita se reînnoie�
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
 The production allocation plan did not match the requested target.	The production allocation plan did not match the requested target.	Planul real de alocare nu corespunde numărului solicitat.	Рабочий план распределения не соответствует запрошенному количеству.
+The purchase could not be completed. Please try again.	The purchase could not be completed. Please try again.	Achiziția nu a putut fi finalizată. Încearcă din nou.	Не удалось завершить покупку. Повторите попытку.
 The saved lab manifest is not supported by this build.	The saved lab manifest is not supported by this build.	Manifestul salvat al laboratorului nu este acceptat de acest build.	Сохранённый манифест лаборатории не поддерживается этой сборкой.
 The selected card target exceeds the active plan.	The selected card target exceeds the active plan.	Numărul selectat de carduri depășește planul activ.	Выбранное количество карточек превышает лимит активного плана.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
