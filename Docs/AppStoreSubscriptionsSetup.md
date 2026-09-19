@@ -47,7 +47,7 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 
 ## Commercial and review data
 
-- [ ] Set the monthly price and base currency.
+- [x] Set the monthly price to the 5.99 USD reference tier with Apple's regional equivalents.
 - [ ] Choose distribution countries.
 - [ ] Provide the public business identity and support contact.
 - [ ] Publish privacy, terms, and support pages.
