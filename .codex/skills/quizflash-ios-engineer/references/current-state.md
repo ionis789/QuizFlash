@@ -18,7 +18,7 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 - The Worker already provides authenticated generation sessions, raw DeepSeek proxying, per-call token telemetry, idempotent retry caching, rolling 30-day usage finalization, account deletion, prompt configuration, and RevenueCat reconciliation/webhook handling.
 - Source now uses `deepseek-flash`, a versioned immutable D1 pricing catalog with an atomic active-version pointer, peak/off-peak response-model accounting, and a 1,500,000 microUSD rolling 30-day internal Premium default. The active generation may finish with a small overshoot; the next generation is rejected. Accounting failures block new starts instead of silently recording zero cost.
 - iOS shows Premium AI usage as a percentage plus renewal timing and maps quota exhaustion to localized English/Romanian/Russian copy without exposing internal USD values. The exact retired 2,000,000 default is migrated lazily on the next canonical Firestore account read; custom limits remain unchanged.
-- D1 migration `0006` and the Worker release are live. `/health` reports `deepseek-flash@2026-09-10`, model `deepseek-flash`, the 1,500,000 microUSD default, and a 2026-10-10 pricing review date. One real large sandbox generation and inspection of its recorded accounting metadata remain pending.
+- D1 migration `0006` and the Worker release are live. `/health` reports `deepseek-flash@2026-09-10`, model `deepseek-flash`, the 1,500,000 microUSD default, and a 2026-10-10 pricing review date. A real 100-card sandbox request completed with 96 validated cards and cost 48,211 microUSD in the `off_peak` band; all 26 provider calls were recorded as `accounted` with the active pricing version, and the rolling quota advanced from 4,213 to 52,424 microUSD.
 
 ## Subscriptions And Store Rollout
 
@@ -26,13 +26,12 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 - The Worker has signed RevenueCat webhook ingestion, idempotent retry storage, REST reconciliation, and Firestore subscription projection. Remote RevenueCat secrets and webhook configuration still require rollout verification before production sales.
 - The repository currently carries a RevenueCat Test Store public SDK key. Replace it with the Apple app public SDK key only after the RevenueCat Apple configuration and product mappings validate.
 - App Store Connect contains the iOS app `QuizFlash AI` with bundle ID `com.sion.QuizFlash`, subscription group `QuizFlash Premium`, and monthly product `com.sion.QuizFlash.premium.monthly` with one-month duration and worldwide availability.
-- The monthly subscription still needs its price, customer-facing localization, review metadata, and RevenueCat product/entitlement/offering mapping. The annual product has not been created. The working launch price recommendation is 5.99 USD/month, to be confirmed after the accounting change is measured.
+- The monthly subscription still needs its price, customer-facing localization, review metadata, and RevenueCat product/entitlement/offering mapping. The annual product has not been created. The measured AI cost supports the 5.99 USD/month launch price recommendation with the 1.50 USD rolling internal AI budget.
 - The App Store Connect API credential validates in RevenueCat. The In-App Purchase key currently needs attention until Apple/RevenueCat recognizes it as compatible with the newly created app record.
 - Paid-app and tax agreements are active. Banking processing and trader phone verification remain external launch blockers to recheck rather than solve in source code.
 
 ## Immediate Work Order
 
-1. Run one real large sandbox generation and inspect its recorded tokens, cost, pricing version/band, and quota update.
-2. Complete the monthly App Store subscription metadata and price.
-3. Create the annual subscription, then import/map both products to the RevenueCat `premium` entitlement and default offering.
-4. Switch to the production Apple RevenueCat public SDK key and run sandbox purchase, restore, renewal/cancellation, webhook, Firestore, relaunch, and second-device verification.
+1. Complete the monthly App Store subscription metadata and set the launch price.
+2. Create the annual subscription, then import/map both products to the RevenueCat `premium` entitlement and default offering.
+3. Switch to the production Apple RevenueCat public SDK key and run sandbox purchase, restore, renewal/cancellation, webhook, Firestore, relaunch, and second-device verification.
