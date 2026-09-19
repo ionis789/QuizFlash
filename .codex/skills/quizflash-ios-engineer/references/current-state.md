@@ -18,7 +18,7 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 - The Worker already provides authenticated generation sessions, raw DeepSeek proxying, per-call token telemetry, idempotent retry caching, rolling 30-day usage finalization, account deletion, prompt configuration, and RevenueCat reconciliation/webhook handling.
 - Source now uses `deepseek-flash`, a versioned immutable D1 pricing catalog with an atomic active-version pointer, peak/off-peak response-model accounting, and a 1,500,000 microUSD rolling 30-day internal Premium default. The active generation may finish with a small overshoot; the next generation is rejected. Accounting failures block new starts instead of silently recording zero cost.
 - iOS shows Premium AI usage as a percentage plus renewal timing and maps quota exhaustion to localized English/Romanian/Russian copy without exposing internal USD values. The exact retired 2,000,000 default is migrated lazily on the next canonical Firestore account read; custom limits remain unchanged.
-- The source change is locally verified but not yet live: Cloudflare Wrangler authentication expired on 2026-09-19, so D1 migration `0006`, catalog activation, Worker deployment, `/health`, and one real sandbox generation remain pending.
+- D1 migration `0006` and the Worker release are live. `/health` reports `deepseek-flash@2026-09-10`, model `deepseek-flash`, the 1,500,000 microUSD default, and a 2026-10-10 pricing review date. One real large sandbox generation and inspection of its recorded accounting metadata remain pending.
 
 ## Subscriptions And Store Rollout
 
@@ -32,7 +32,7 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 
 ## Immediate Work Order
 
-1. Re-authenticate Wrangler, apply D1 migration `0006`, deploy the Worker, verify `/health`, then run one real large sandbox generation and inspect its recorded tokens, cost, pricing version/band, and quota update.
+1. Run one real large sandbox generation and inspect its recorded tokens, cost, pricing version/band, and quota update.
 2. Complete the monthly App Store subscription metadata and price.
 3. Create the annual subscription, then import/map both products to the RevenueCat `premium` entitlement and default offering.
 4. Switch to the production Apple RevenueCat public SDK key and run sandbox purchase, restore, renewal/cancellation, webhook, Firestore, relaunch, and second-device verification.
