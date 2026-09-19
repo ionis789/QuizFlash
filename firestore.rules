@@ -10,36 +10,22 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function sensitiveUserFieldsChanged() {
-      return request.resource.data.diff(resource.data).changedKeys().hasAny([
-        'plan',
-        'premium',
-        'usage',
-        'cost',
-        'aiUsage',
-        'aiBillingAnchorMs',
-        'aiMonthlyBudgetMicroUSD',
-        'freeGenerationsUsed',
-        'freeGenerationsLimit'
-      ]);
+    function userEditableFields() {
+      return [
+        'email',
+        'displayName',
+        'photoURL',
+        'providers',
+        'updatedAt'
+      ];
     }
 
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid)
-        && !request.resource.data.keys().hasAny([
-          'plan',
-          'premium',
-          'usage',
-          'cost',
-          'aiUsage',
-          'aiBillingAnchorMs',
-          'aiMonthlyBudgetMicroUSD',
-          'freeGenerationsUsed',
-          'freeGenerationsLimit'
-        ]);
+        && request.resource.data.keys().hasOnly(userEditableFields());
       allow update: if owns(uid)
-        && !sensitiveUserFieldsChanged();
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(userEditableFields());
       allow delete: if false;
 
       match /decks/{deckId} {

@@ -9,13 +9,16 @@
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions,firestore",
     "deploy": "npm run build && firebase deploy --only functions,firestore:rules",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:firestore": "node --test test/firestore.rules.test.mjs"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.4.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
     "typescript": "^5.7.3"
   }
 }
