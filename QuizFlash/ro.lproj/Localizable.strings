@@ -926,3 +926,7 @@
 "Terms of Use" = "Condiții de utilizare";
 "Privacy Policy" = "Politica de confidențialitate";
 "This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription." = "Această acțiune șterge definitiv contul și datele sincronizate. Ștergerea contului nu anulează un abonament Apple activ.";
+"Share content with AI?" = "Trimiți conținutul către AI?";
+"Not Now" = "Nu acum";
+"Allow & Generate" = "Permite și generează";
+"To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "Pentru a genera carduri, QuizFlash trimite către DeepSeek, prin serviciul Cloudflare al QuizFlash, textul introdus sau extras din documente și imagini. Nu include informații personale sensibile. Nimic nu este trimis până când nu permiți.";

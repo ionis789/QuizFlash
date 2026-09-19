@@ -926,3 +926,7 @@
 "Terms of Use" = "Условия использования";
 "Privacy Policy" = "Политика конфиденциальности";
 "This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription." = "Это навсегда удалит учетную запись и синхронизированные данные. Удаление учетной записи не отменяет активную подписку Apple.";
+"Share content with AI?" = "Отправить содержимое ИИ?";
+"Not Now" = "Не сейчас";
+"Allow & Generate" = "Разрешить и создать";
+"To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "Для создания карточек QuizFlash отправляет DeepSeek через сервис Cloudflare QuizFlash текст, который вы вводите или извлекаете из документов и изображений. Не добавляйте конфиденциальные персональные данные. До вашего разрешения ничего не отправляется.";

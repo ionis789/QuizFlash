@@ -926,3 +926,7 @@
 "Terms of Use" = "Terms of Use";
 "Privacy Policy" = "Privacy Policy";
 "This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription." = "This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription.";
+"Share content with AI?" = "Share content with AI?";
+"Not Now" = "Not Now";
+"Allow & Generate" = "Allow & Generate";
+"To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it.";

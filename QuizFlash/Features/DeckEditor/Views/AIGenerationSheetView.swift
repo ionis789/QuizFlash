@@ -29,6 +29,8 @@ struct AIGenerationSheetView: View {
     @State private var sourcePreviewTask: Task<Void, Never>?
     @State private var headerHeight: CGFloat = 0
     @State private var isSubmittingGeneration = false
+    @State private var showAIDataConsent = false
+    @AppStorage("privacy.aiDataSharing.deepSeek.v1") private var hasAIDataSharingConsent = false
 
     private var accent: Color {
         ThemeManager.shared.accentColor.color
@@ -98,6 +100,26 @@ struct AIGenerationSheetView: View {
         .task(id: isPreparingSource) {
             guard isPreparingSource else { return }
             viewModel.startPendingAISourcePreparationIfNeeded()
+        }
+        .alert(
+            AppLocalization.string("Share content with AI?", locale: appPreferences.resolvedLocale),
+            isPresented: $showAIDataConsent
+        ) {
+            Button(
+                AppLocalization.string("Not Now", locale: appPreferences.resolvedLocale),
+                role: .cancel
+            ) {}
+            Button(AppLocalization.string("Allow & Generate", locale: appPreferences.resolvedLocale)) {
+                hasAIDataSharingConsent = true
+                submitPrimaryAction()
+            }
+        } message: {
+            Text(
+                AppLocalization.string(
+                    "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it.",
+                    locale: appPreferences.resolvedLocale
+                )
+            )
         }
     }
 
@@ -457,6 +479,17 @@ struct AIGenerationSheetView: View {
     }
 
     private func requestPrimaryAction() {
+        guard !isSubmittingGeneration else { return }
+
+        guard hasAIDataSharingConsent else {
+            showAIDataConsent = true
+            return
+        }
+
+        submitPrimaryAction()
+    }
+
+    private func submitPrimaryAction() {
         guard !isSubmittingGeneration else { return }
         isSubmittingGeneration = true
 
