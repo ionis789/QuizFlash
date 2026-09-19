@@ -17,8 +17,10 @@ struct SettingsView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(CloudUserProfileService.self) private var cloudUserProfileService
+    @Environment(CloudSyncCoordinator.self) private var cloudSyncCoordinator
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var scrollContentHeight: CGFloat = 0
@@ -133,9 +135,17 @@ struct SettingsView: View {
                 beginDeleteAccount()
             }
 
+            if isPremiumUser {
+                Button(AppLocalization.string("Manage Subscription", locale: appPreferences.resolvedLocale)) {
+                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                        openURL(url)
+                    }
+                }
+            }
+
             Button(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale), role: .cancel) { }
         } message: {
-            Text(AppLocalization.string("This deletes your Firebase account. Local decks stay on this device.", locale: appPreferences.resolvedLocale))
+            Text(AppLocalization.string("This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription.", locale: appPreferences.resolvedLocale))
         }
         .fullScreenSheet(
             isPresented: $showDeleteAccountPasswordSheet,
@@ -673,10 +683,7 @@ struct SettingsView: View {
                 tint: .red,
                 isEnabled: !deleteAccountPassword.isEmpty
             ) {
-                try await cloudUserProfileService.deleteUserData()
-                try await authManager.deleteAccount(
-                    reauthentication: .password(deleteAccountPassword)
-                )
+                try await deleteAccount(reauthentication: .password(deleteAccountPassword))
                 deleteAccountPassword = ""
                 showDeleteAccountPasswordSheet = false
             } onError: { error in
@@ -756,10 +763,9 @@ struct SettingsView: View {
                     guard let presentingViewController else {
                         throw AuthManagerError.missingPresenter
                     }
-                    try await cloudUserProfileService.deleteUserData()
-                    try await authManager.deleteAccount(
-                        reauthentication: .google(presentingViewController)
-                    )
+                    try await deleteAccount(reauthentication: .google(presentingViewController))
+                } else if providers.contains(AuthProviderID.apple.rawValue) {
+                    try await deleteAccount(reauthentication: .apple)
                 } else {
                     throw AuthManagerError.missingCredential
                 }
@@ -767,6 +773,37 @@ struct SettingsView: View {
                 presentAuthError(error)
             }
         }
+    }
+
+    private func deleteAccount(reauthentication: AuthReauthenticationRequest) async throws {
+        try await authManager.reauthenticateForAccountDeletion(reauthentication)
+        cloudSyncCoordinator.stop()
+
+        do {
+            try await cloudUserProfileService.deleteUserData()
+            try deleteLocalAccountData()
+            try await authManager.deleteReauthenticatedAccount()
+        } catch {
+            cloudSyncCoordinator.configure(
+                for: authManager.currentUser,
+                modelContainer: modelContext.container
+            )
+            throw error
+        }
+    }
+
+    private func deleteLocalAccountData() throws {
+        try modelContext.delete(model: ReviewEvent.self)
+        try modelContext.delete(model: DailyActivityLog.self)
+        try modelContext.delete(model: HomeDailyCardAggregate.self)
+        try modelContext.delete(model: HomeDailyDeckAggregate.self)
+        try modelContext.delete(model: HomeDailyStudyAggregate.self)
+        try modelContext.delete(model: DeckPlayModeSettingsModel.self)
+        try modelContext.delete(model: CardModel.self)
+        try modelContext.delete(model: DeckModel.self)
+        try modelContext.delete(model: FolderModel.self)
+        try modelContext.delete(model: UserProfile.self)
+        try modelContext.save()
     }
 
     private func presentAuthError(_ error: Error) {

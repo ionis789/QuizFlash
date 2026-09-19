@@ -14,6 +14,7 @@ import {
   reconcileRevenueCatCustomer,
   retryFailedRevenueCatWebhooks
 } from "./billing";
+import {accountIsDeleted, deleteAccountData} from "./accountDeletion";
 
 type Env = {
   AI_DB: D1Database;
@@ -217,6 +218,10 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
   async start(input: SessionStart): Promise<SessionStartResult> {
     return this.enqueue(() => this.startLocked(input));
+  }
+
+  async deleteAccountState(): Promise<void> {
+    await this.ctx.storage.deleteAll();
   }
 
   private async startLocked(input: SessionStart): Promise<SessionStartResult> {
@@ -709,6 +714,9 @@ export default {
       if (request.method === "POST" && url.pathname === "/v1/billing/webhook") {
         return timedJSON(await acceptRevenueCatWebhook(request, env, context), startedAt, requestID);
       }
+      if (request.method === "POST" && url.pathname === "/v1/account/delete-data") {
+        return timedJSON(await deleteAuthenticatedAccountData(request, env), startedAt, requestID);
+      }
       if (request.method === "GET" && url.pathname === "/v1/usage/generations") {
         return timedJSON(await readUsageGenerations(request, env), startedAt, requestID);
       }
@@ -739,6 +747,7 @@ async function startGeneration(request: Request, env: Env): Promise<Record<strin
   try {
     const idToken = bearerToken(request);
     const uid = await verifyFirebaseIDToken(idToken, env);
+    await ensureAccountActive(uid, env);
     stage = "parse_request";
     const payload = await request.json<StartRequest>();
     const targetCards = positiveInteger(payload.targetCards, "targetCards");
@@ -829,15 +838,30 @@ async function finishGeneration(request: Request, env: Env, failed: boolean): Pr
 
 async function readEntitlement(request: Request, env: Env): Promise<Record<string, unknown>> {
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
+  await ensureAccountActive(uid, env);
   const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement(uid);
   return {...usageQuota};
 }
 
 async function syncBilling(request: Request, env: Env): Promise<Record<string, unknown>> {
   const uid = await verifyFirebaseIDToken(bearerToken(request), env);
+  await ensureAccountActive(uid, env);
   const subscription = await reconcileRevenueCatCustomer(uid, env);
   const usageQuota = await env.USER_GENERATION.getByName(uid).entitlement(uid);
   return {premium: subscription.premium, subscription, usageQuota, quota: usageQuota};
+}
+
+async function deleteAuthenticatedAccountData(request: Request, env: Env): Promise<Record<string, unknown>> {
+  const uid = await verifyFirebaseIDToken(bearerToken(request), env);
+  await env.USER_GENERATION.getByName(uid).deleteAccountState();
+  await deleteAccountData(uid, env);
+  return {ok: true, status: "completed"};
+}
+
+async function ensureAccountActive(uid: string, env: Env): Promise<void> {
+  if (await accountIsDeleted(uid, env)) {
+    throw new WorkerError(410, "account-deleted", "This account has been deleted.");
+  }
 }
 
 async function readUsageGenerations(request: Request, env: Env): Promise<Record<string, unknown>> {

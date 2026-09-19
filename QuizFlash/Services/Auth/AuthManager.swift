@@ -615,7 +615,15 @@ final class AuthManager {
     }
 
     func deleteAccount(reauthentication: AuthReauthenticationRequest) async throws {
-        try await authProvider.reauthenticate(with: reauthentication)
+        try await reauthenticateForAccountDeletion(reauthentication)
+        try await deleteReauthenticatedAccount()
+    }
+
+    func reauthenticateForAccountDeletion(_ request: AuthReauthenticationRequest) async throws {
+        try await authProvider.reauthenticate(with: request)
+    }
+
+    func deleteReauthenticatedAccount() async throws {
         try await authProvider.deleteCurrentUser()
         sessionState = .signedOut
     }
@@ -747,6 +755,7 @@ final class AuthManager {
 @MainActor
 private final class FirebaseAuthClient: AuthProviding {
     private var appleCoordinator: AppleSignInCoordinator?
+    private var pendingAppleAuthorizationCode: String?
     private var firebaseSignInCoordinator: FirebaseCredentialSignInCoordinator?
     private var googleCoordinator: GoogleSignInCoordinator?
 
@@ -977,6 +986,11 @@ private final class FirebaseAuthClient: AuthProviding {
             throw AuthManagerError.missingCurrentUser
         }
 
+        if user.providerData.contains(where: { $0.providerID == AuthProviderID.apple.rawValue }),
+           let pendingAppleAuthorizationCode {
+            try await Auth.auth().revokeToken(withAuthorizationCode: pendingAppleAuthorizationCode)
+            self.pendingAppleAuthorizationCode = nil
+        }
         try await user.delete()
     }
 
@@ -1047,6 +1061,7 @@ private final class FirebaseAuthClient: AuthProviding {
         defer { appleCoordinator = nil }
 
         let result = try await coordinator.start()
+        pendingAppleAuthorizationCode = result.authorizationCode
         return OAuthProvider.appleCredential(
             withIDToken: result.identityToken,
             rawNonce: nonce,
@@ -1317,6 +1332,7 @@ private extension User {
 private struct AppleSignInResult {
     let identityToken: String
     let fullName: PersonNameComponents?
+    let authorizationCode: String?
 }
 
 @MainActor
@@ -1380,7 +1396,8 @@ extension AppleSignInCoordinator: ASAuthorizationControllerDelegate {
 
             finish(.success(AppleSignInResult(
                 identityToken: tokenString,
-                fullName: credential.fullName
+                fullName: credential.fullName,
+                authorizationCode: credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
             )))
         }
     }

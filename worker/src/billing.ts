@@ -3,6 +3,7 @@ import {
   type FirestoreAdminEnv,
   type VerifiedSubscriptionState
 } from "./firestoreUsage";
+import {accountIsDeleted} from "./accountDeletion";
 
 export type BillingEnv = FirestoreAdminEnv & {
   AI_DB: D1Database;
@@ -74,6 +75,9 @@ export async function reconcileRevenueCatCustomer(
   env: BillingEnv,
   fetcher: typeof fetch = fetch
 ): Promise<VerifiedSubscriptionState> {
+  if (await accountIsDeleted(uid, env)) {
+    return deletedAccountSubscriptionState();
+  }
   const apiKey = requiredSecret(env.REVENUECAT_SECRET_API_KEY, "RevenueCat API");
   const response = await fetcher(
     `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`,
@@ -96,6 +100,21 @@ export async function reconcileRevenueCatCustomer(
   );
   await writeFirestoreSubscriptionState(uid, state, env);
   return state;
+}
+
+function deletedAccountSubscriptionState(): VerifiedSubscriptionState {
+  return {
+    premium: false,
+    entitlementIdentifier: premiumEntitlementIdentifier,
+    productIdentifier: null,
+    environment: "unknown",
+    expiresAtMs: null,
+    willRenew: false,
+    originalPurchaseAtMs: null,
+    latestPurchaseAtMs: null,
+    revenueCatOriginalAppUserID: null,
+    verifiedAtMs: Date.now()
+  };
 }
 
 export function subscriptionStateFromRevenueCat(

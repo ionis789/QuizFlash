@@ -326,6 +326,22 @@ final class CloudAIProxyClient {
         return response.usageQuota
     }
 
+    /// Permanently removes server-side AI usage data while preserving a deletion tombstone.
+    func deleteAccountData() async throws {
+        guard let user = Auth.auth().currentUser,
+              let idToken = try? await user.getIDToken(),
+              let baseURL = try? CloudAIProxyConfiguration.baseURL() else {
+            throw CloudAIProxyError.signInRequired
+        }
+
+        let _: AccountDeletionResponse = try await sendJSON(
+            endpoint: baseURL.appending(path: "v1/account/delete-data"),
+            method: "POST",
+            bearerToken: idToken,
+            body: EmptyBillingRequest()
+        )
+    }
+
     func currentUsageGenerations() async throws -> [CloudAIGenerationUsageRecord] {
         guard let user = Auth.auth().currentUser,
               let idToken = try? await user.getIDToken(),
@@ -850,6 +866,11 @@ private struct QuotaResponseEnvelope: Decodable {
 }
 
 private struct EmptyBillingRequest: Encodable { }
+
+private struct AccountDeletionResponse: Decodable {
+    let ok: Bool
+    let status: String
+}
 
 private struct UsageGenerationsResponse: Decodable {
     let generations: [CloudAIGenerationUsageRecord]

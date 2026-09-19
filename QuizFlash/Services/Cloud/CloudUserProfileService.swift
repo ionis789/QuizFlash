@@ -88,6 +88,7 @@ final class CloudUserProfileService {
 
     /// Deletes cloud-owned user data before the Firebase Auth account is deleted.
     func deleteUserData() async throws {
+        try await CloudAIProxyClient.shared.deleteAccountData()
         _ = try await functions.httpsCallable("deleteUserData").call([:])
     }
 

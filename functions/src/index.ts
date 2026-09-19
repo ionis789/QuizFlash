@@ -1,7 +1,6 @@
 import {initializeApp} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {FieldValue, getFirestore, Timestamp} from "firebase-admin/firestore";
-import type {CollectionReference} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {defineInt, defineSecret, defineString} from "firebase-functions/params";
 
@@ -213,9 +212,7 @@ export const generateDeck = onCall({
 export const deleteUserData = onCall({enforceAppCheck: false}, async (request) => {
   const uid = requireUID(request.auth?.uid);
   await getAuth().getUser(uid);
-  await deleteDecks(uid);
-  await deleteCollection(db.collection("users").doc(uid).collection("usage"), 100);
-  await db.collection("users").doc(uid).delete();
+  await db.recursiveDelete(db.collection("users").doc(uid));
   return {ok: true};
 });
 
@@ -321,28 +318,4 @@ function systemPrompt(options: GenerateDeckRequest["options"]): string {
     "Each zone is {\"id\":\"UUID\",\"type\":\"text\",\"text\":\"...\",\"textStyle\":\"body\",\"sizeMode\":\"auto\",\"blockAlignment\":\"leading\",\"verticalAlignment\":\"center\",\"textColor\":\"primary\",\"isBold\":false,\"isItalic\":false,\"fontFamily\":\"system\",\"highlightColor\":\"none\",\"imageScale\":1}.",
     "The root JSON shape must be {\"schemaVersion\":1,\"cards\":[...]}."
   ].join("\n");
-}
-
-async function deleteCollection(
-  collection: CollectionReference,
-  batchSize: number
-): Promise<void> {
-  while (true) {
-    const snapshot = await collection.limit(batchSize).get();
-    if (snapshot.empty) {
-      return;
-    }
-
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-  }
-}
-
-async function deleteDecks(uid: string): Promise<void> {
-  const decks = await db.collection("users").doc(uid).collection("decks").get();
-  for (const deck of decks.docs) {
-    await deleteCollection(deck.ref.collection("cards"), 100);
-    await deck.ref.delete();
-  }
 }

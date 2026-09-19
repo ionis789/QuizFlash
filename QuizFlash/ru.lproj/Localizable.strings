@@ -925,3 +925,4 @@
 "Subscriptions renew automatically unless canceled at least 24 hours before the current period ends." = "Подписка продлевается автоматически, если ее не отменить минимум за 24 часа до окончания текущего периода.";
 "Terms of Use" = "Условия использования";
 "Privacy Policy" = "Политика конфиденциальности";
+"This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription." = "Это навсегда удалит учетную запись и синхронизированные данные. Удаление учетной записи не отменяет активную подписку Apple.";
