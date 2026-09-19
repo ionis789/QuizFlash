@@ -22,16 +22,16 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 
 ## Subscriptions And Store Rollout
 
-- RevenueCat Purchases SDK is integrated in iOS. `SubscriptionManager` configures it after Firebase Auth with Firebase UID as `appUserID`, loads monthly/annual packages, purchases, restores, and refreshes backend-authoritative state.
+- RevenueCat Purchases SDK is integrated in iOS. `SubscriptionManager` configures it after Firebase Auth with Firebase UID as `appUserID`, loads the monthly package, purchases, restores, and refreshes backend-authoritative state.
 - The Worker has signed RevenueCat webhook ingestion, idempotent retry storage, REST reconciliation, and Firestore subscription projection. Remote RevenueCat secrets and webhook configuration still require rollout verification before production sales.
 - The repository currently carries a RevenueCat Test Store public SDK key. Replace it with the Apple app public SDK key only after the RevenueCat Apple configuration and product mappings validate.
 - App Store Connect contains the iOS app `QuizFlash AI` with bundle ID `com.sion.QuizFlash`, subscription group `QuizFlash Premium`, and monthly product `com.sion.QuizFlash.premium.monthly` with one-month duration and worldwide availability.
-- The monthly subscription still needs its price, customer-facing localization, review metadata, and RevenueCat product/entitlement/offering mapping. The annual product has not been created. The measured AI cost supports the 5.99 USD/month launch price recommendation with the 1.50 USD rolling internal AI budget.
+- QuizFlash intentionally launches with only the monthly subscription; annual UI, source configuration, tests, and rollout documentation have been removed. The App Store monthly product has worldwide availability and English, Romanian, and Russian customer metadata. Its remaining work is price confirmation, review information, and RevenueCat product/entitlement/offering mapping. The measured AI cost supports the 5.99 USD/month launch price with the 1.50 USD rolling internal AI budget.
 - The App Store Connect API credential validates in RevenueCat. The In-App Purchase key currently needs attention until Apple/RevenueCat recognizes it as compatible with the newly created app record.
 - Paid-app and tax agreements are active. Banking processing and trader phone verification remain external launch blockers to recheck rather than solve in source code.
 
 ## Immediate Work Order
 
-1. Complete the monthly App Store subscription metadata and set the launch price.
-2. Create the annual subscription, then import/map both products to the RevenueCat `premium` entitlement and default offering.
+1. Confirm the monthly App Store price and complete its review information.
+2. Import/map the monthly product to the RevenueCat `premium` entitlement and default offering.
 3. Switch to the production Apple RevenueCat public SDK key and run sandbox purchase, restore, renewal/cancellation, webhook, Firestore, relaunch, and second-device verification.

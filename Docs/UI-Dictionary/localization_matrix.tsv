@@ -185,7 +185,6 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-Billed annually	Billed annually	Facturat anual	Оплата ежегодно
 Billed monthly	Billed monthly	Facturat lunar	Оплата ежемесячно
 Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
@@ -916,7 +915,6 @@ What is the value of this integral?	What is the value of this integral?	Care est
 Where it changes	Where it changes	Unde se schimbă	Где меняется
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP
-Yearly	Yearly	Anual	Ежегодно
 Yellow	Yellow	Galben	Жёлтый
 Yes	Yes	Da	Да
 Yesterday	Yesterday	Ieri	Вчера

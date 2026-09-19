@@ -34,7 +34,6 @@ final class SubscriptionManager {
     private(set) var cloudAIGenerationHistory: [CloudAIGenerationUsageRecord] = []
     private(set) var lastErrorMessage: String?
     private(set) var monthlyPackage: Package?
-    private(set) var annualPackage: Package?
     private(set) var isLoadingOfferings = false
     private(set) var isPurchaseInProgress = false
     var presentPaywall = false
@@ -302,8 +301,7 @@ final class SubscriptionManager {
         do {
             let offering = try await Purchases.shared.offerings().current
             monthlyPackage = offering?.monthly
-            annualPackage = offering?.annual
-            guard monthlyPackage != nil || annualPackage != nil else {
+            guard monthlyPackage != nil else {
                 throw SubscriptionManagerError.offeringsUnavailable
             }
             lastErrorMessage = nil
@@ -314,16 +312,15 @@ final class SubscriptionManager {
     }
 
     @discardableResult
-    func purchase(_ period: SubscriptionBillingPeriod) async throws -> Bool {
+    func purchaseMonthly() async throws -> Bool {
         guard let uid = activeUID, revenueCatIsAvailable else {
             throw SubscriptionManagerError.storeUnavailable
         }
 
-        if monthlyPackage == nil && annualPackage == nil {
+        if monthlyPackage == nil {
             try await loadOfferings()
         }
-        let package = period == .monthly ? monthlyPackage : annualPackage
-        guard let package else {
+        guard let monthlyPackage else {
             throw SubscriptionManagerError.productUnavailable
         }
 
@@ -331,7 +328,7 @@ final class SubscriptionManager {
         defer { isPurchaseInProgress = false }
 
         do {
-            let result = try await Purchases.shared.purchase(package: package)
+            let result = try await Purchases.shared.purchase(package: monthlyPackage)
             guard !result.userCancelled else { return false }
             try await reconcileBackend(expectedUID: uid)
             return true
@@ -369,7 +366,6 @@ final class SubscriptionManager {
         cloudAIUsageQuota = nil
         cloudAIGenerationHistory = []
         monthlyPackage = nil
-        annualPackage = nil
     }
 
     private func prepareStateForUIDIfNeeded(_ uid: String) {
@@ -379,7 +375,6 @@ final class SubscriptionManager {
         cloudAIUsageQuota = nil
         cloudAIGenerationHistory = []
         monthlyPackage = nil
-        annualPackage = nil
     }
 
     private var revenueCatIsAvailable: Bool {
@@ -510,11 +505,6 @@ enum SubscriptionPlanSource: String, Sendable {
             return AppLocalization.string("Premium", locale: locale)
         }
     }
-}
-
-enum SubscriptionBillingPeriod: Hashable, Sendable {
-    case monthly
-    case annual
 }
 
 // MARK: - Subscription Manager Error

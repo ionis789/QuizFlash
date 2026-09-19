@@ -7,7 +7,6 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 - Bundle ID: `com.sion.QuizFlash`
 - Subscription group: `QuizFlash Premium`
 - Monthly product: `com.sion.QuizFlash.premium.monthly`
-- Yearly product: `com.sion.QuizFlash.premium.yearly`
 - RevenueCat entitlement: `premium`
 - RevenueCat offering: `default`
 - RevenueCat App User ID: authenticated Firebase UID
@@ -19,8 +18,7 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 - [ ] Confirm Release signing uses the distribution team.
 - [ ] Accept the Paid Apps Agreement and complete tax and banking details.
 - [ ] Create the `QuizFlash Premium` subscription group.
-- [ ] Create the monthly and yearly products with the identifiers above.
-- [ ] Put both products at the same service level.
+- [ ] Create the monthly product with the identifier above.
 - [ ] Add English, Romanian, and Russian names and descriptions.
 - [ ] Configure availability and review screenshots.
 - [ ] Leave Billing Grace Period disabled for version 1.0.
@@ -30,9 +28,9 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 
 - [ ] Create the QuizFlash project and iOS app.
 - [ ] Connect the Apple credentials required for product import and receipt verification.
-- [ ] Import both App Store products.
-- [ ] Create the `premium` entitlement and attach both products.
-- [ ] Create the `default` offering with monthly and annual packages.
+- [ ] Import the monthly App Store product.
+- [ ] Create the `premium` entitlement and attach the monthly product.
+- [ ] Create the `default` offering with the monthly package.
 - [ ] Configure restore behavior to transfer purchases to the latest App User ID.
 - [ ] Obtain the public iOS SDK key for app configuration.
 - [ ] Create a server secret for RevenueCat API reconciliation.
@@ -49,7 +47,7 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 
 ## Commercial and review data
 
-- [ ] Choose monthly and annual prices and the base currency.
+- [ ] Set the monthly price and base currency.
 - [ ] Choose distribution countries.
 - [ ] Provide the public business identity and support contact.
 - [ ] Publish privacy, terms, and support pages.
@@ -66,9 +64,7 @@ Record dates and outcomes here without account data or secrets.
 | --- | --- | --- |
 | Products load in Sandbox |  |  |
 | Monthly purchase activates server entitlement |  |  |
-| Annual purchase activates server entitlement |  |  |
 | Restore on another device succeeds |  |  |
 | Transfer removes the previous account entitlement |  |  |
 | Expiration or revocation removes access |  |  |
 | TestFlight purchase flow succeeds |  |  |
-

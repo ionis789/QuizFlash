@@ -917,9 +917,7 @@
 "Renews %@" = "Обновится %@";
 "app.language.identifier" = "ru";
 "Monthly" = "Ежемесячно";
-"Yearly" = "Ежегодно";
 "Billed monthly" = "Оплата ежемесячно";
-"Billed annually" = "Оплата ежегодно";
 "Continue" = "Продолжить";
 "Loading Plans…" = "Загрузка планов…";
 "Subscriptions Unavailable" = "Подписки недоступны";

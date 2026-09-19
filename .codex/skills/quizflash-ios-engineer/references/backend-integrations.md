@@ -96,7 +96,7 @@ The trusted production boundary is the `quizflash-ai` Cloudflare Worker, not Fir
 The source implementation exists; remaining work is remote configuration and end-to-end validation, not a second purchase stack.
 
 1. Keep RevenueCat configured only after Firebase Auth resolves, using Firebase UID as `appUserID`. Log out or reidentify RevenueCat when the Firebase session changes; never leave the previous user's entitlement cached on the next user.
-2. Keep the single entitlement identifier `premium`. Map the App Store monthly and annual products to it and expose them through the default offering's monthly/annual packages.
+2. Keep the single entitlement identifier `premium`. Map the App Store monthly product to it and expose it through the default offering's monthly package. QuizFlash intentionally launches without an annual product.
 3. Replace the Test Store public SDK key with the Apple app public SDK key only after the RevenueCat Apple app configuration and product mappings validate. Public SDK keys may be in client configuration; secret API and webhook keys must remain Worker secrets.
 4. Keep the signed Worker webhook and authenticated REST reconciliation authoritative for writing Firestore `premium` and subscription state. Verify the deployed signature/authorization configuration and idempotent event processing; never let the device write `premium: true`.
 5. Let the client display RevenueCat entitlement state for responsiveness, but let Firestore/Worker decide backend access. Preserve the bounded reconciliation/pending behavior for webhook delay.

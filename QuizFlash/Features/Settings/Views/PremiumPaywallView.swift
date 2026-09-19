@@ -4,8 +4,8 @@
 //
 
 
-import RevenueCat
 import SwiftUI
+import RevenueCat
 
 struct PremiumPaywallView: View {
     @Environment(AppPreferences.self) private var appPreferences
@@ -14,7 +14,6 @@ struct PremiumPaywallView: View {
 
     let onPurchaseCompleted: () -> Void
 
-    @State private var selectedPeriod: SubscriptionBillingPeriod = .annual
     @State private var errorMessage: String?
 
     private let privacyURL = URL(string: "https://quizflash.app/privacy")!
@@ -30,7 +29,7 @@ struct PremiumPaywallView: View {
                 if subscriptionManager.isPremium {
                     activeSubscriptionContent
                 } else {
-                    planSelector
+                    monthlyPlan
                     purchaseButton
                     restoreButton
                 }
@@ -51,8 +50,7 @@ struct PremiumPaywallView: View {
         .scrollIndicators(.hidden)
         .task {
             guard !subscriptionManager.isPremium,
-                  subscriptionManager.monthlyPackage == nil,
-                  subscriptionManager.annualPackage == nil else { return }
+                  subscriptionManager.monthlyPackage == nil else { return }
             await loadOfferings()
         }
     }
@@ -100,59 +98,28 @@ struct PremiumPaywallView: View {
         }
     }
 
-    private var planSelector: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            planButton(
-                period: .monthly,
-                title: localized("Monthly"),
-                package: subscriptionManager.monthlyPackage
-            )
-            planButton(
-                period: .annual,
-                title: localized("Yearly"),
-                package: subscriptionManager.annualPackage
-            )
+    private var monthlyPlan: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            Text(localized("Monthly"))
+                .font(.headline.weight(.bold))
+            Text(subscriptionManager.monthlyPackage?.storeProduct.localizedPriceString ?? localized("Unavailable"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(themeManager.textPrimary)
+            Text(localized("Billed monthly"))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(themeManager.textSecondary)
         }
-    }
-
-    private func planButton(
-        period: SubscriptionBillingPeriod,
-        title: String,
-        package: Package?
-    ) -> some View {
-        Button {
-            selectedPeriod = period
-            errorMessage = nil
-        } label: {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text(title)
-                    .font(.headline.weight(.bold))
-                Text(package?.storeProduct.localizedPriceString ?? localized("Unavailable"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(selectedPeriod == period ? themeManager.textPrimary : themeManager.textSecondary)
-                Text(period == .annual ? localized("Billed annually") : localized("Billed monthly"))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(themeManager.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(UIConstants.Spacing.standard)
-            .background(
-                selectedPeriod == period
-                    ? themeManager.accentColor.color.opacity(0.16)
-                    : themeManager.roleColor(.widgetSurfaceFill),
-                in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                    .strokeBorder(
-                        selectedPeriod == period ? themeManager.accentColor.color : .clear,
-                        lineWidth: 2
-                    )
-            }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(UIConstants.Spacing.standard)
+        .background(
+            themeManager.accentColor.color.opacity(0.16),
+            in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                .strokeBorder(themeManager.accentColor.color, lineWidth: 2)
         }
-        .buttonStyle(.plain)
-        .disabled(package == nil)
-        .opacity(package == nil ? 0.62 : 1)
+        .opacity(subscriptionManager.monthlyPackage == nil ? 0.62 : 1)
     }
 
     private var purchaseButton: some View {
@@ -160,7 +127,7 @@ struct PremiumPaywallView: View {
             Task { @MainActor in
                 errorMessage = nil
                 do {
-                    if try await subscriptionManager.purchase(selectedPeriod) {
+                    if try await subscriptionManager.purchaseMonthly() {
                         onPurchaseCompleted()
                     }
                 } catch {
@@ -182,8 +149,8 @@ struct PremiumPaywallView: View {
             .background(themeManager.accentColor.color, in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(selectedPackage == nil || subscriptionManager.isPurchaseInProgress)
-        .opacity(selectedPackage == nil ? 0.55 : 1)
+        .disabled(subscriptionManager.monthlyPackage == nil || subscriptionManager.isPurchaseInProgress)
+        .opacity(subscriptionManager.monthlyPackage == nil ? 0.55 : 1)
     }
 
     private var restoreButton: some View {
@@ -238,28 +205,19 @@ struct PremiumPaywallView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var selectedPackage: Package? {
-        selectedPeriod == .monthly
-            ? subscriptionManager.monthlyPackage
-            : subscriptionManager.annualPackage
-    }
-
     private var purchaseButtonTitle: String {
-        guard let selectedPackage else {
+        guard let monthlyPackage = subscriptionManager.monthlyPackage else {
             return subscriptionManager.isLoadingOfferings
                 ? localized("Loading Plans…")
                 : localized("Subscriptions Unavailable")
         }
-        return "\(localized("Continue")) — \(selectedPackage.storeProduct.localizedPriceString)"
+        return "\(localized("Continue")) — \(monthlyPackage.storeProduct.localizedPriceString)"
     }
 
     private func loadOfferings() async {
         errorMessage = nil
         do {
             try await subscriptionManager.loadOfferings()
-            if subscriptionManager.annualPackage == nil {
-                selectedPeriod = .monthly
-            }
         } catch {
             errorMessage = error.localizedDescription
         }

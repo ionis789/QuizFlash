@@ -51,14 +51,14 @@ describe("QuizFlash AI proxy", () => {
       subscriber: {
         entitlements: {
           premium: {
-            product_identifier: "com.sion.QuizFlash.premium.yearly",
-            expires_date: "2027-09-19T00:00:00Z"
+            product_identifier: "com.sion.QuizFlash.premium.monthly",
+            expires_date: "2026-10-19T00:00:00Z"
           }
         },
         subscriptions: {
-          "com.sion.QuizFlash.premium.yearly": {
+          "com.sion.QuizFlash.premium.monthly": {
             is_sandbox: true,
-            expires_date: "2027-09-19T00:00:00Z"
+            expires_date: "2026-10-19T00:00:00Z"
           }
         }
       }

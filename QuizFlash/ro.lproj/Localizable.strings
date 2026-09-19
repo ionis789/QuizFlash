@@ -917,9 +917,7 @@
 "Renews %@" = "Se reînnoiește pe %@";
 "app.language.identifier" = "ro";
 "Monthly" = "Lunar";
-"Yearly" = "Anual";
 "Billed monthly" = "Facturat lunar";
-"Billed annually" = "Facturat anual";
 "Continue" = "Continuă";
 "Loading Plans…" = "Se încarcă planurile…";
 "Subscriptions Unavailable" = "Abonamente indisponibile";
