@@ -8,8 +8,8 @@ initializeApp();
 
 const deepSeekAPIKey = defineSecret("DEEPSEEK_API_KEY");
 const deepSeekBaseURL = defineString("DEEPSEEK_BASE_URL", {default: "https://api.deepseek.com"});
-const deepSeekModel = defineString("DEEPSEEK_MODEL", {default: "deepseek-v4-flash"});
-const premiumMonthlyAIBudgetCents = defineInt("PREMIUM_MONTHLY_AI_BUDGET_CENTS", {default: 200});
+const deepSeekModel = defineString("DEEPSEEK_MODEL", {default: "deepseek-flash"});
+const premiumMonthlyAIBudgetMicroUSD = defineInt("PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD", {default: 1_500_000});
 
 const freeLifetimeGenerationLimit = 5;
 const freeMaxCardsPerGeneration = 30;
@@ -145,8 +145,8 @@ export const generateDeck = onCall({
   }
 
   const usageSnapshot = await usageRef.get();
-  const currentMonthlyCost = numberOrZero(usageSnapshot.data()?.costCents);
-  if (premium && currentMonthlyCost >= premiumMonthlyAIBudgetCents.value()) {
+  const currentMonthlyCost = numberOrZero(usageSnapshot.data()?.costMicroUSD);
+  if (premium && currentMonthlyCost >= premiumMonthlyAIBudgetMicroUSD.value()) {
     throw new HttpsError("resource-exhausted", "Monthly AI budget reached.");
   }
 
@@ -194,7 +194,7 @@ export const generateDeck = onCall({
   writeBatch.set(usageRef, {
     generatedCards: FieldValue.increment(batch.cards.length),
     requestCount: FieldValue.increment(1),
-    costCents: FieldValue.increment(0),
+    costMicroUSD: FieldValue.increment(0),
     updatedAt: FieldValue.serverTimestamp()
   }, {merge: true});
 

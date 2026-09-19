@@ -133,6 +133,9 @@
 "Adjust only study content, keeping app chrome and controls stable." = "Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.";
 "AI generation paused" = "Generarea AI este pe pauză";
 "AI usage" = "Utilizare AI";
+"AI usage included" = "Utilizare AI inclusă";
+"AI usage is temporarily unavailable." = "Utilizarea AI este temporar indisponibilă.";
+"AI usage starts renewing on %@." = "Utilizarea AI începe să se reînnoiască pe %@.";
 "Align Bottom" = "Aliniază jos";
 "Align Center" = "Aliniază la centru";
 "Align Left" = "Aliniază la stânga";
@@ -286,7 +289,7 @@
 "Deck Title" = "Deck Titlu";
 "DECK-SCOPED SETTINGS" = "SETĂRI PENTRU PUNTE";
 "Deeper cards with structure, context, and key nuance." = "Carduri mai profunde, cu structură, context și nuanțe-cheie.";
-"DeepSeek endpoint with deepseek-v4-flash defaults." = "Endpoint DeepSeek cu setările implicite deepseek-v4-flash.";
+"DeepSeek endpoint with deepseek-flash defaults." = "Endpoint DeepSeek cu setările implicite deepseek-flash.";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
 "Defined" = "Definită";
@@ -910,8 +913,9 @@
 "QuizFlash Premium" = "QuizFlash Premium";
 "Create larger decks and keep generating with a rolling AI budget." = "Creează seturi mai mari și continuă să generezi cu un buget AI recurent.";
 "Up to 100 cards per generation" = "Până la 100 de carduri per generare";
-"AI generation within a $2 rolling 30-day budget" = "Generare AI într-un buget de 2 USD pentru ultimele 30 de zile";
-"Your allowance refreshes continuously as usage ages out" = "Bugetul se reînnoiește continuu pe măsură ce utilizarea veche expiră";
+"The limit renews continuously" = "Limita se reînnoiește continuu";
+"Renews %@" = "Se reînnoiește pe %@";
+"app.language.identifier" = "ro";
 "Monthly" = "Lunar";
 "Yearly" = "Anual";
 "Billed monthly" = "Facturat lunar";

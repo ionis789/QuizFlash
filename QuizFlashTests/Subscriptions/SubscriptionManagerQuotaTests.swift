@@ -8,6 +8,10 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerQuotaTests: XCTestCase {
+    func testPremiumFallbackUsesInternalOneDollarFiftyBudget() {
+        XCTAssertEqual(SubscriptionManager.defaultPremiumMonthlyAIUsageLimitMicroUSD, 1_500_000)
+    }
+
     func testFreeQuotaAcceptsAuthoritativeReset() {
         let manager = SubscriptionManager()
 

@@ -88,6 +88,16 @@ enum AppLocalization {
         )
     }
 
+    /// Resolves app-owned copy through the currently installed bundle override.
+    nonisolated static func string(_ key: String) -> String {
+        Bundle.main.localizedString(forKey: key, value: key, table: nil)
+    }
+
+    /// Returns the locale paired with the currently installed bundle override.
+    nonisolated static var activeLocale: Locale {
+        Locale(identifier: string("app.language.identifier"))
+    }
+
     nonisolated static func string(
         _ key: String,
         locale: Locale

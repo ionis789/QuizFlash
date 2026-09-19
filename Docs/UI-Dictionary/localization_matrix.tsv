@@ -142,6 +142,9 @@ AI Generation Lab	AI Generation Lab	Laborator generare AI	Лаборатория
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
 AI Generation Trace	AI Generation Trace	Trace generare AI	Трассировка генерации ИИ
 AI usage	AI usage	Utilizare AI	Использование AI
+AI usage included	AI usage included	Utilizare AI inclusă	Использование ИИ включено
+AI usage is temporarily unavailable.	AI usage is temporarily unavailable.	Utilizarea AI este temporar indisponibilă.	Использование ИИ временно недоступно.
+AI usage starts renewing on %@.	AI usage starts renewing on %@.	Utilizarea AI începe să se reînnoiască pe %@.	Лимит ИИ начнёт восстанавливаться %@.
 Align Bottom	Align Bottom	Aliniază jos	Выровнять по низу
 Align Center	Align Center	Aliniază la centru	По центру
 Align Left	Align Left	Aliniază la stânga	По левому краю
@@ -151,6 +154,7 @@ Align Top	Align Top	Aliniază sus	Выровнять по верху
 All Cards	All Cards	Toate cardurile	Все карточки
 All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
+Allow & Generate	Allow & Generate	Permite și generează	Разрешить и создать
 Almost ready	Almost ready	Aproape gata	Почти готово
 Already have an account?	Already have an account?	Ai deja cont?	Уже есть аккаунт?
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
@@ -166,6 +170,7 @@ App Default	App Default	Implicit aplicație	По умолчанию прилож
 App Default (%@)	App Default (%@)	Implicit aplicație (%@)	По умолчанию приложения (%@)
 App Interface	App Interface	Interfața aplicației	Интерфейс приложения
 App Text	App Text	Text aplicație	Текст приложения
+app.language.identifier	en	ro	ru
 Apple did not return an identity token.	Apple did not return an identity token.	Apple nu a returnat un token de identitate.	Apple не вернул токен идентификации.
 Apple returned an invalid identity token.	Apple returned an invalid identity token.	Apple a returnat un token de identitate invalid.	Apple вернул недействительный токен идентификации.
 Are you sure?	Are you sure?	Ești sigur?	Вы уверены?
@@ -180,6 +185,8 @@ Backend Trace	Backend Trace	Trace backend	Трассировка backend
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
+Billed annually	Billed annually	Facturat anual	Оплата ежегодно
+Billed monthly	Billed monthly	Facturat lunar	Оплата ежемесячно
 Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blue	Blue	Albastru	Синий
@@ -212,8 +219,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -286,6 +293,7 @@ Create a deck to start studying from Home.	Create a deck to start studying from 
 Create Account	Create Account	Creează cont	Создать аккаунт
 Create cards with AI	Create cards with AI	Creează carduri cu AI	Создавай карточки с AI
 Create Deck	Create Deck	Creează deck	Создать колоду
+Create larger decks and keep generating with a rolling AI budget.	Create larger decks and keep generating with a rolling AI budget.	Creează seturi mai mari și continuă să generezi cu un buget AI recurent.	Создавайте большие наборы и продолжайте генерацию в рамках скользящего бюджета ИИ.
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
 Create your first deck and start learning.	Create your first deck and start learning.	Creează primul tău deck și începe să înveți.	Создайте первую колоду и начните учиться.
@@ -304,7 +312,7 @@ Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
 Deeper cards with structure, context, and key nuance.	Deeper cards with structure, context, and key nuance.	Carduri mai profunde, cu structură, context și nuanțe-cheie.	Более глубокие карточки со структурой, контекстом и ключевыми нюансами.
-DeepSeek endpoint with deepseek-v4-flash defaults.	DeepSeek endpoint with deepseek-v4-flash defaults.	Endpoint DeepSeek cu setările implicite deepseek-v4-flash.	Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.
+DeepSeek endpoint with deepseek-flash defaults.	DeepSeek endpoint with deepseek-flash defaults.	Endpoint DeepSeek cu setările implicite deepseek-flash.	Конечная точка DeepSeek со значениями deepseek-flash по умолчанию.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
 Defined	Defined	Definită	Чёткая
@@ -398,8 +406,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -490,9 +498,11 @@ Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библи
 List	List	Listă	Список
 Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
+Loading Plans…	Loading Plans…	Se încarcă planurile…	Загрузка планов…
 Location: %@	Location: %@	Locație: %@	Расположение: %@
 Log in or sign up	Log in or sign up	Conectează-te sau înscrie-te	Войти или создать аккаунт
 Log Out	Log Out	Deconectare	Выйти
+Manage Subscription	Manage Subscription	Administrează abonamentul	Управление подпиской
 Manual	Manual	Manual	Вручную
 Manual input	Manual input	Introducere manuală	Ручной ввод
 Manual premium	Manual premium	Premium manual	Premium вручную
@@ -510,6 +520,7 @@ Mode	Mode	Modul	Режим
 Momentum	Momentum	Impuls	Импульс
 Monday	Monday	Luni	Понедельник
 Monospaced	Monospaced	Monospațiat	Моноширинный
+Monthly	Monthly	Lunar	Ежемесячно
 More	More	Mai mult	Более
 More actions	More actions	Mai multe acțiuni	Еще действия
 More library actions	More library actions	Mai multe acțiuni în bibliotecă	Еще действия библиотеки
@@ -551,8 +562,8 @@ No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
+No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -568,6 +579,7 @@ No trace sessions	No trace sessions	Nu există sesiuni trace	Нет trace-сес
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
+Not Now	Not Now	Nu acum	Не сейчас
 Not now	Not now	Nu acum	Не сейчас
 Not signed in	Not signed in	Neautentificat	Не выполнен вход
 Nothing in the shared UI registry matches â%@â.	Nothing in the shared UI registry matches â%@â.	Nimic din registrul UI partajat nu se potrivește cu â%@â.	Ничто в реестре общего пользовательского интерфейса не соответствует %@â.
@@ -629,19 +641,21 @@ Please wait a moment and try again.	Please wait a moment and try again.	Așteapt
 Practice today. Remember tomorrow.	Practice today. Remember tomorrow.	Exersează azi. Reține mâine.	Практикуйся сегодня. Помни завтра.
 Premium access	Premium access	Acces Premium	Доступ Premium
 Premium active	Premium active	Premium activ	Premium активен
+Premium is active	Premium is active	Premium este activ	Premium активен
 Premium is managed manually until App Store Connect is ready.	Premium is managed manually until App Store Connect is ready.	Premium este administrat manual până când App Store Connect este gata.	Premium управляется вручную, пока App Store Connect не готов.
 Preparing Quiz	Preparing Quiz	Se pregătește quizul	Подготовка квиза
 Preparing request	Preparing request	Se pregătește cererea	Подготовка запроса
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Preview Onboarding	Preview Onboarding	Previzualizează onboarding	Предпросмотр онбординга
+Privacy Policy	Privacy Policy	Politica de confidențialitate	Политика конфиденциальности
 Pro	Pro	Pro	Pro
 Progress	Progress	Progres	Прогресс
-PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt	Prompt	Enunț	Задание
+PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Provider	Provider	Furnizor	Провайдер
 Purple	Purple	Mov	Фиолетовый
@@ -653,6 +667,7 @@ Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
 Quiz editor HUD	Quiz editor HUD	HUD editor quiz	HUD редактора квиза
 Quiz Isn't Ready	Quiz Isn't Ready	Quiz-ul nu este pregătit	Режим викторины ещё не готов
 QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
+QuizFlash Premium	QuizFlash Premium	QuizFlash Premium	QuizFlash Premium
 QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
 Radius %.1f	Radius %.1f	Raza %.1f	Радиус %.1f
 readiness	readiness	pregătire	готовность
@@ -672,6 +687,7 @@ Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
 Render	Render	Randare	Рендер
+Renews %@	Renews %@	Se reînnoiește pe %@	Обновится %@
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
 Replace Zone	Replace Zone	Înlocuiește zona	Заменить зону
 Resend Email	Resend Email	Retrimite emailul	Отправить снова
@@ -679,10 +695,11 @@ Resend in %d s	Resend in %d s	Retrimite în %d s	Повторить через %
 Reset	Reset	Resetează	Сброс
 Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симуляцию
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
+Restore Purchases	Restore Purchases	Restaurează achizițiile	Восстановить покупки
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -733,6 +750,7 @@ Settings rows, sheets, grouped surfaces.	Settings rows, sheets, grouped surfaces
 Shadow Color	Shadow Color	Culoare umbră	Цвет тени
 Shadow Tuner	Shadow Tuner	Reglaj umbră	Настройка тени
 Shape	Shape	Formă	Форма
+Share content with AI?	Share content with AI?	Trimiți conținutul către AI?	Отправить содержимое ИИ?
 Shared Consumers	Shared Consumers	Consumatori partajați	Общие потребители
 Shared Sheet Playground	Shared Sheet Playground	Loc de joacă comun cu foi	Общая игровая площадка на листе
 Short, useful cards focused on the essential idea.	Short, useful cards focused on the essential idea.	Carduri scurte și utile, axate pe ideea esențială.	Короткие полезные карточки, сфокусированные на главной идее.
@@ -781,6 +799,8 @@ Streak	Streak	Serie	Серия
 Strong	Strong	Puternică	Сильная
 Study cards and widget cards.	Study cards and widget cards.	Carduri de studiu și carduri widget.	Учебные карточки и виджеты.
 Study smarter	Study smarter	Studiază mai inteligent	Учитесь умнее
+Subscriptions renew automatically unless canceled at least 24 hours before the current period ends.	Subscriptions renew automatically unless canceled at least 24 hours before the current period ends.	Abonamentele se reînnoiesc automat dacă nu sunt anulate cu cel puțin 24 de ore înainte de sfârșitul perioadei curente.	Подписка продлевается автоматически, если ее не отменить минимум за 24 часа до окончания текущего периода.
+Subscriptions Unavailable	Subscriptions Unavailable	Abonamente indisponibile	Подписки недоступны
 Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
@@ -799,6 +819,7 @@ Tap the label above to flip the card	Tap the label above to flip the card	Atinge
 Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
 Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
 Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Șabloanele completează numai punctele finale și șirurile de model. Puteți edita liber totul după aceea, păstrând în același timp cheia API actuală.	Шаблоны предварительно заполняют только строки конечной точки и модели. После этого вы сможете свободно все редактировать, сохраняя при этом текущий ключ API.
+Terms of Use	Terms of Use	Condiții de utilizare	Условия использования
 Test Corpus	Test Corpus	Corpus de test	Тестовый корпус
 Text Color	Text Color	Culoare text	Цвет текста
 Text Lines	Text Lines	Linii text	Строки текста
@@ -810,6 +831,7 @@ The email or password is incorrect.	The email or password is incorrect.	Emailul 
 The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
 The Gaussian integral equals:	The Gaussian integral equals:	Integrala Gaussiană este egală cu:	Интеграл Гаусса равен:
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
+The limit renews continuously	The limit renews continuously	Limita se reînnoiește continuu	Лимит восстанавливается непрерывно
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
 The production allocation plan did not match the requested target.	The production allocation plan did not match the requested target.	Planul real de alocare nu corespunde numărului solicitat.	Рабочий план распределения не соответствует запрошенному количеству.
@@ -828,16 +850,18 @@ This is the prompt learners will see.	This is the prompt learners will see.	Aces
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
+This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription.	This permanently deletes your account and synced data. Deleting the account does not cancel an active Apple subscription.	Această acțiune șterge definitiv contul și datele sincronizate. Ștergerea contului nu anulează un abonament Apple activ.	Это навсегда удалит учетную запись и синхронизированные данные. Удаление учетной записи не отменяет активную подписку Apple.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-this week	this week	săptămâna asta	эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
+To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it.	To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it.	Pentru a genera carduri, QuizFlash trimite către DeepSeek, prin serviciul Cloudflare al QuizFlash, textul introdus sau extras din documente și imagini. Nu include informații personale sensibile. Nimic nu este trimis până când nu permiți.	Для создания карточек QuizFlash отправляет DeepSeek через сервис Cloudflare QuizFlash текст, который вы вводите или извлекаете из документов и изображений. Не добавляйте конфиденциальные персональные данные. До вашего разрешения ничего не отправляется.
 To goal	To goal	Până la obiectiv	До цели
 Today	Today	Azi	Сегодня
 Today clear	Today clear	Azi închis	Сегодня закрыто
@@ -869,6 +893,7 @@ Unlock full AI features	Unlock full AI features	Deblochează toate funcțiile AI
 Unpin	Unpin	Anulează fixarea	Открепить
 Unpin selected cards	Unpin selected cards	Anulează fixarea cardurilor selectate	Открепить выбранные карточки
 Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
+Up to 100 cards per generation	Up to 100 cards per generation	Până la 100 de carduri per generare	До 100 карточек за одну генерацию
 Upcoming	Upcoming	Următoarele	Дальше
 Update Goal	Update Goal	Actualizează ținta	Обновить цель
 Upgrade to Premium to generate more cards.	Upgrade to Premium to generate more cards.	Treci la Premium ca să generezi mai multe carduri.	Перейдите на Premium, чтобы генерировать больше карточек.
@@ -891,6 +916,7 @@ What is the value of this integral?	What is the value of this integral?	Care est
 Where it changes	Where it changes	Unde se schimbă	Где меняется
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
 XP	XP	XP	XP
+Yearly	Yearly	Anual	Ежегодно
 Yellow	Yellow	Galben	Жёлтый
 Yes	Yes	Da	Да
 Yesterday	Yesterday	Ieri	Вчера

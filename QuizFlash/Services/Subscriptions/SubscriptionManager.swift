@@ -22,7 +22,7 @@ final class SubscriptionManager {
     static let defaultFreeGenerationsLimit = 5
     static let freeMaxCardsPerGeneration = 30
     static let premiumMaxCardsPerGeneration = 100
-    static let defaultPremiumMonthlyAIUsageLimitMicroUSD = 2_000_000
+    static let defaultPremiumMonthlyAIUsageLimitMicroUSD = 1_500_000
 
     // MARK: - State
 

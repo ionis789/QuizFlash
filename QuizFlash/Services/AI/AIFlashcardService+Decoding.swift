@@ -98,6 +98,19 @@ extension AIFlashcardService {
         return nil
     }
 
+    func quotaAvailabilityDate(from data: Data) -> Date? {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let quota = (object["usageQuota"] ?? object["quota"]) as? [String: Any],
+            let milliseconds = quota["billingWindowEndMs"] as? NSNumber,
+            milliseconds.doubleValue > 0
+        else {
+            return nil
+        }
+
+        return Date(timeIntervalSince1970: milliseconds.doubleValue / 1_000)
+    }
+
     func decodeGeneratedCards(
         from jsonString: String,
         contract: AIGeneratedCardContract

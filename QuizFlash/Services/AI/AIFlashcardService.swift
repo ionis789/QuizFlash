@@ -11,6 +11,7 @@ public enum AIServiceError: LocalizedError {
     case invalidResponse
     case parsingFailed
     case rateLimitExceeded
+    case quotaExhausted(availableAt: Date?)
     case timeout
     case unknown(String)
 
@@ -21,6 +22,21 @@ public enum AIServiceError: LocalizedError {
         case .invalidResponse: return "Invalid response."
         case .parsingFailed: return "Parsing failed."
         case .rateLimitExceeded: return "Too many requests. Try again later."
+        case .quotaExhausted(let availableAt):
+            guard let availableAt else {
+                return AppLocalization.string("AI usage is temporarily unavailable.")
+            }
+            let date = availableAt.formatted(
+                .dateTime
+                    .day()
+                    .month(.wide)
+                    .year()
+                    .hour()
+                    .minute()
+                    .locale(AppLocalization.activeLocale)
+            )
+            let format = AppLocalization.string("AI usage starts renewing on %@.")
+            return String.localizedStringWithFormat(format, date)
         case .timeout: return "Timeout – no response from the server."
         case .unknown(let msg): return msg
         }

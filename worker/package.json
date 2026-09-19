@@ -9,6 +9,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "prompt:publish": "node --experimental-strip-types scripts/publishPromptBundle.mjs",
+    "pricing:publish": "node scripts/publishPricingConfig.mjs",
     "plan-limit:set": "node scripts/setPlanLimit.mjs"
   },
   "devDependencies": {

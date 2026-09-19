@@ -144,6 +144,39 @@ final class CloudAIProxyClientContractTests: XCTestCase {
         XCTAssertEqual(failure?["generationId"] as? String, "generation-123")
         XCTAssertNil(failure?["generationID"])
     }
+
+    func testDecodesRollingQuotaRenewalDate() throws {
+        let data = Data(
+            """
+            {
+              "premium": true,
+              "monthlyCostMicroUSD": 750000,
+              "limitMicroUSD": 1500000,
+              "consumedMicroUSD": 750000,
+              "reservedMicroUSD": 0,
+              "availableMicroUSD": 750000,
+              "percent": 0.5,
+              "usageBasis": "rolling_30d",
+              "billingWindowEndMs": 1791604800000
+            }
+            """.utf8
+        )
+
+        let quota = try JSONDecoder().decode(CloudAIQuotaState.self, from: data)
+
+        XCTAssertEqual(quota.usageProgress, 0.5, accuracy: 0.001)
+        XCTAssertEqual(quota.billingWindowEndMs, 1_791_604_800_000)
+    }
+
+    func testQuotaExhaustionIsTypedAndDoesNotExposeUSD() {
+        let error = CloudAIProxyError.quotaExhausted(
+            availableAt: Date(timeIntervalSince1970: 1_791_604_800)
+        )
+
+        XCTAssertNotNil(error.errorDescription)
+        XCTAssertFalse(error.errorDescription?.contains("$") == true)
+        XCTAssertFalse(error.errorDescription?.contains("USD") == true)
+    }
 }
 
 private enum CloudFinalizationTestError: Error {

@@ -710,7 +710,7 @@ final class CloudAIProxyClient {
             if let quota = Self.usageQuota(from: data) {
                 SubscriptionManager.shared.applyCloudAIQuotaState(quota)
             }
-            throw CloudAIProxyError.response(message: Self.errorMessage(from: data, fallbackStatus: httpResponse.statusCode))
+            throw Self.proxyError(from: data, fallbackStatus: httpResponse.statusCode)
         }
         do {
             return try JSONDecoder().decode(Response.self, from: data)
@@ -726,6 +726,20 @@ final class CloudAIProxyClient {
             return "AI request failed (HTTP \(fallbackStatus))."
         }
         return message
+    }
+
+    private static func proxyError(from data: Data, fallbackStatus: Int) -> CloudAIProxyError {
+        guard let payload = try? JSONDecoder().decode(ProxyErrorEnvelope.self, from: data) else {
+            return .response(message: errorMessage(from: data, fallbackStatus: fallbackStatus))
+        }
+        if payload.error?.code == "AI_QUOTA_EXHAUSTED" {
+            let endMilliseconds = (payload.usageQuota ?? payload.quota)?.billingWindowEndMs
+            let availableAt = endMilliseconds.map {
+                Date(timeIntervalSince1970: TimeInterval($0) / 1_000)
+            }
+            return .quotaExhausted(availableAt: availableAt)
+        }
+        return .response(message: errorMessage(from: data, fallbackStatus: fallbackStatus))
     }
 
     private static func usageQuota(from data: Data) -> CloudAIQuotaState? {
@@ -805,6 +819,7 @@ nonisolated enum CloudAIProxyError: LocalizedError {
     case signInRequired
     case configurationMissing
     case invalidResponse
+    case quotaExhausted(availableAt: Date?)
     case response(message: String)
 
     var errorDescription: String? {
@@ -812,6 +827,21 @@ nonisolated enum CloudAIProxyError: LocalizedError {
         case .signInRequired: return "Sign in is required."
         case .configurationMissing: return "AI service is not configured."
         case .invalidResponse: return "The AI service returned an invalid response."
+        case .quotaExhausted(let availableAt):
+            guard let availableAt else {
+                return AppLocalization.string("AI usage is temporarily unavailable.")
+            }
+            let date = availableAt.formatted(
+                .dateTime
+                    .day()
+                    .month(.wide)
+                    .year()
+                    .hour()
+                    .minute()
+                    .locale(AppLocalization.activeLocale)
+            )
+            let format = AppLocalization.string("AI usage starts renewing on %@.")
+            return String.localizedStringWithFormat(format, date)
         case .response(let message): return message
         }
     }
@@ -903,6 +933,11 @@ struct FailRequest: Encodable {
 }
 private struct EmptyResponse: Decodable { }
 private struct ProxyErrorEnvelope: Decodable {
-    struct ErrorPayload: Decodable { let message: String? }
+    struct ErrorPayload: Decodable {
+        let code: String?
+        let message: String?
+    }
     let error: ErrorPayload?
+    let usageQuota: CloudAIQuotaState?
+    let quota: CloudAIQuotaState?
 }

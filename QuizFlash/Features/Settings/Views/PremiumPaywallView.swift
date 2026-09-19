@@ -79,8 +79,8 @@ struct PremiumPaywallView: View {
     private var benefits: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             benefit(icon: "rectangle.stack.fill", text: localized("Up to 100 cards per generation"))
-            benefit(icon: "sparkles", text: localized("AI generation within a $2 rolling 30-day budget"))
-            benefit(icon: "arrow.triangle.2.circlepath", text: localized("Your allowance refreshes continuously as usage ages out"))
+            benefit(icon: "sparkles", text: localized("AI usage included"))
+            benefit(icon: "arrow.triangle.2.circlepath", text: localized("The limit renews continuously"))
         }
         .padding(UIConstants.Spacing.standard)
         .background(themeManager.roleColor(.widgetSurfaceFill), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))

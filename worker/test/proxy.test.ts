@@ -1,7 +1,8 @@
-import {SELF} from "cloudflare:test";
+import {SELF, env} from "cloudflare:test";
 import {describe, expect, it} from "vitest";
-import {estimateCostMicroUSD, extractProviderMetadata, promptStartResponse, providerOperation, rollingBillingWindow, usageWindowForAccount, validatedCardCount, validatedCardCountForTarget} from "../src";
+import {extractProviderMetadata, premiumBudgetAllowsGeneration, promptStartResponse, providerOperation, rollingBillingWindow, usageWindowForAccount, validatedCardCount, validatedCardCountForTarget} from "../src";
 import {applyingUsageDelta, parseFirestoreAccountState} from "../src/firestoreUsage";
+import {activePricingSelection, estimateCostMicroUSD, pricingBandAt, validatedPricingConfig, type AIPricingConfig, type PricingSelection} from "../src/pricing";
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 import {
   authenticateRevenueCatWebhook,
@@ -176,7 +177,12 @@ describe("QuizFlash AI proxy", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Request-ID")).toMatch(/^[0-9a-f-]{36}$/);
-    await expect(response.json()).resolves.toEqual({ok: true});
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      pricingVersion: "deepseek-flash@2026-09-10",
+      pricingModel: "deepseek-flash",
+      defaultPremiumBudgetMicroUSD: 1_500_000
+    });
   });
 
   it("rejects unauthenticated generation starts", async () => {
@@ -261,6 +267,18 @@ describe("QuizFlash AI proxy", () => {
     expect(account.monthlyUsage.requestCount).toBe(2);
   });
 
+  it("migrates only the retired default budget", () => {
+    const migrated = parseFirestoreAccountState("user", "202609", {
+      fields: {aiMonthlyBudgetMicroUSD: {integerValue: "2000000"}}
+    }, null);
+    const custom = parseFirestoreAccountState("custom", "202609", {
+      fields: {aiMonthlyBudgetMicroUSD: {integerValue: "2500000"}}
+    }, null);
+
+    expect(migrated.monthlyBudgetMicroUSD).toBe(1_500_000);
+    expect(custom.monthlyBudgetMicroUSD).toBe(2_500_000);
+  });
+
   it("reads the server-owned rolling billing anchor", () => {
     const account = parseFirestoreAccountState("user", "202606", {
       fields: {
@@ -284,6 +302,12 @@ describe("QuizFlash AI proxy", () => {
       basis: "rolling_30d"
     });
     expect(nextWindow.startMs).toBe(anchor + 30 * 24 * 60 * 60 * 1000);
+  });
+
+  it("allows only positive premium budget before a generation starts", () => {
+    expect(premiumBudgetAllowsGeneration(1_500_000, 1_499_999, 0)).toBe(true);
+    expect(premiumBudgetAllowsGeneration(1_500_000, 1_500_000, 0)).toBe(false);
+    expect(premiumBudgetAllowsGeneration(1_500_000, 1_500_100, 0)).toBe(false);
   });
 
   it("uses the rolling period when finalizing a premium account", () => {
@@ -439,7 +463,7 @@ describe("QuizFlash AI proxy", () => {
   it("calculates exact DeepSeek cost from returned usage and response model", () => {
     const bytes = new TextEncoder().encode(JSON.stringify({
       id: "chatcmpl-test",
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       usage: {
         prompt_tokens: 1000,
         prompt_cache_hit_tokens: 100,
@@ -450,18 +474,19 @@ describe("QuizFlash AI proxy", () => {
       choices: [{finish_reason: "stop"}]
     })).buffer;
 
-    const metadata = extractProviderMetadata(bytes, "client-alias", true);
+    const metadata = extractProviderMetadata(bytes, "client-alias", true, pricingSelection("peak"));
 
     expect(metadata.accountingStatus).toBe("accounted");
-    expect(metadata.pricingVersion).toBe("deepseek-v4-flash@2026-06");
-    expect(metadata.costMicroUSD).toBe(estimateCostMicroUSD("deepseek-v4-flash", 100, 900, 50));
+    expect(metadata.pricingVersion).toBe("deepseek-flash@2026-09-10");
+    expect(metadata.pricingBand).toBe("peak");
+    expect(metadata.costMicroUSD).toBe(estimateCostMicroUSD(pricingConfig, "peak", 100, 900, 50));
     expect(metadata.responseID).toBe("chatcmpl-test");
   });
 
   it("does not double-count a fully cached prompt", () => {
     const bytes = new TextEncoder().encode(JSON.stringify({
       id: "chatcmpl-cached",
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       usage: {
         prompt_tokens: 1000,
         prompt_cache_hit_tokens: 1000,
@@ -472,24 +497,123 @@ describe("QuizFlash AI proxy", () => {
       choices: [{finish_reason: "stop"}]
     })).buffer;
 
-    const metadata = extractProviderMetadata(bytes, "deepseek-v4-flash", true);
+    const metadata = extractProviderMetadata(bytes, "deepseek-flash", true, pricingSelection("off_peak"));
 
     expect(metadata.cacheHitTokens).toBe(1000);
     expect(metadata.cacheMissTokens).toBe(0);
-    expect(metadata.costMicroUSD).toBe(estimateCostMicroUSD("deepseek-v4-flash", 1000, 0, 50));
+    expect(metadata.costMicroUSD).toBe(estimateCostMicroUSD(pricingConfig, "off_peak", 1000, 0, 50));
   });
 
   it("marks successful provider responses without usage as accounting errors", () => {
     const bytes = new TextEncoder().encode(JSON.stringify({
       id: "chatcmpl-test",
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       choices: [{finish_reason: "stop"}]
     })).buffer;
 
-    const metadata = extractProviderMetadata(bytes, "deepseek-v4-flash", true);
+    const metadata = extractProviderMetadata(bytes, "deepseek-flash", true, pricingSelection("peak"));
 
     expect(metadata.accountingStatus).toBe("accounting_error");
     expect(metadata.costMicroUSD).toBe(0);
     expect(metadata.usagePresent).toBe(false);
   });
+
+  it("uses exact UTC peak boundaries and keeps weekends off-peak", () => {
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 0, 59))).toBe("off_peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 1, 0))).toBe("peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 3, 59))).toBe("peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 4, 0))).toBe("off_peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 6, 0))).toBe("peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 14, 10, 0))).toBe("off_peak");
+    expect(pricingBandAt(pricingConfig, Date.UTC(2026, 8, 13, 2, 0))).toBe("off_peak");
+  });
+
+  it("rounds the combined token categories to the nearest microUSD", () => {
+    expect(estimateCostMicroUSD(pricingConfig, "off_peak", 1, 1, 1)).toBe(1);
+    expect(estimateCostMicroUSD(pricingConfig, "peak", 100, 900, 50)).toBe(331);
+  });
+
+  it("marks unknown response models as accounting errors", () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      model: "unknown-model",
+      usage: {prompt_tokens: 1, completion_tokens: 1}
+    })).buffer;
+
+    const metadata = extractProviderMetadata(bytes, "deepseek-flash", true, pricingSelection("peak"));
+
+    expect(metadata.accountingStatus).toBe("accounting_error");
+    expect(metadata.costMicroUSD).toBe(0);
+  });
+
+  it("rejects invalid pricing catalogs", () => {
+    expect(() => validatedPricingConfig({
+      ...pricingConfig,
+      acceptedResponseModels: []
+    })).toThrow();
+  });
+
+  it("atomically activates a new pricing version without rewriting history", async () => {
+    const nextVersion = "deepseek-flash@test-activation";
+    try {
+      await env.AI_DB.prepare(
+        `INSERT INTO ai_pricing_configs (
+          version, model, accepted_response_models_json,
+          peak_cache_hit_micro_usd_per_million, peak_cache_miss_micro_usd_per_million, peak_output_micro_usd_per_million,
+          off_peak_cache_hit_micro_usd_per_million, off_peak_cache_miss_micro_usd_per_million, off_peak_output_micro_usd_per_million,
+          peak_schedule_json, created_at_ms, activated_at_ms, review_after_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        nextVersion, "deepseek-flash", '["deepseek-flash"]',
+        7_000, 310_000, 1_210_000, 4_000, 160_000, 610_000,
+        JSON.stringify(pricingConfig.peakSchedule), Date.UTC(2026, 8, 19),
+        Date.UTC(2026, 8, 19), Date.UTC(2026, 10, 19)
+      ).run();
+      await env.AI_DB.prepare(
+        `INSERT INTO ai_pricing_active (singleton, version, updated_at_ms) VALUES (1, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET version = excluded.version, updated_at_ms = excluded.updated_at_ms`
+      ).bind(nextVersion, Date.UTC(2026, 8, 19)).run();
+
+      const selection = await activePricingSelection(env.AI_DB, Date.UTC(2026, 8, 20));
+      const historical = await env.AI_DB.prepare(
+        "SELECT version FROM ai_pricing_configs WHERE version = ?"
+      ).bind(pricingConfig.version).first<{version: string}>();
+
+      expect(selection.config.version).toBe(nextVersion);
+      expect(historical?.version).toBe(pricingConfig.version);
+    } finally {
+      await env.AI_DB.prepare(
+        "UPDATE ai_pricing_active SET version = ?, updated_at_ms = ? WHERE singleton = 1"
+      ).bind(pricingConfig.version, Date.UTC(2026, 8, 19)).run();
+      await env.AI_DB.prepare("DELETE FROM ai_pricing_configs WHERE version = ?").bind(nextVersion).run();
+    }
+  });
 });
+
+const pricingConfig: AIPricingConfig = validatedPricingConfig({
+  version: "deepseek-flash@2026-09-10",
+  model: "deepseek-flash",
+  acceptedResponseModels: ["deepseek-flash"],
+  peak: {
+    cacheHitMicroUSDPerMillion: 6_000,
+    cacheMissMicroUSDPerMillion: 300_000,
+    outputMicroUSDPerMillion: 1_200_000
+  },
+  offPeak: {
+    cacheHitMicroUSDPerMillion: 3_000,
+    cacheMissMicroUSDPerMillion: 150_000,
+    outputMicroUSDPerMillion: 600_000
+  },
+  peakSchedule: {
+    weekdaysUTC: [1, 2, 3, 4, 5],
+    intervalsUTC: [
+      {startMinute: 60, endMinute: 240},
+      {startMinute: 360, endMinute: 600}
+    ]
+  },
+  activatedAtMs: Date.UTC(2026, 8, 10, 4),
+  reviewAfterMs: Date.UTC(2026, 9, 10, 4)
+});
+
+function pricingSelection(band: "peak" | "off_peak"): PricingSelection {
+  return {config: pricingConfig, band, selectedAtMs: Date.UTC(2026, 8, 14, 2)};
+}

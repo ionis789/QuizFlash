@@ -916,9 +916,19 @@ struct SettingsView: View {
                     }
                 }
                 .frame(height: 6)
+
+                if let renewalText = premiumUsageRenewalText(quota) {
+                    Text(renewalText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
             .accessibilityLabel(AppLocalization.string("AI usage", locale: appPreferences.resolvedLocale))
-            .accessibilityValue("\(formattedUsagePercent(quota.usageProgress)), \(formattedMicroUSD(quota.consumedMicroUSD + quota.reservedMicroUSD)) / \(formattedMicroUSD(limitMicroUSD))")
+            .accessibilityValue(
+                [formattedUsagePercent(quota.usageProgress), premiumUsageRenewalText(quota)]
+                    .compactMap { $0 }
+                    .joined(separator: ", ")
+            )
         }
     }
 
@@ -1148,14 +1158,25 @@ struct SettingsView: View {
         }
     }
 
-    private func formattedMicroUSD(_ value: Int) -> String {
-        let amount = Double(max(value, 0)) / 1_000_000
-        return amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
-    }
-
     private func formattedUsagePercent(_ progress: Double) -> String {
         let boundedProgress = max(0, min(progress, 1))
         return boundedProgress.formatted(.percent.precision(.fractionLength(0)))
+    }
+
+    private func premiumUsageRenewalText(_ quota: CloudAIQuotaState) -> String? {
+        guard let endMilliseconds = quota.billingWindowEndMs, endMilliseconds > 0 else {
+            return nil
+        }
+        let date = Date(timeIntervalSince1970: TimeInterval(endMilliseconds) / 1_000)
+        let formattedDate = date.formatted(
+            .dateTime
+                .day()
+                .month(.abbreviated)
+                .year()
+                .locale(appPreferences.resolvedLocale)
+        )
+        let format = AppLocalization.string("Renews %@", locale: appPreferences.resolvedLocale)
+        return String.localizedStringWithFormat(format, formattedDate)
     }
 
     private var appLanguageBinding: Binding<AppLanguagePreference> {

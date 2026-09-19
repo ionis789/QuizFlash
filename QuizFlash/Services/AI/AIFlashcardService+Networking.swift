@@ -531,7 +531,7 @@ extension AIFlashcardService {
             completionTokens: completionTokens ?? 0
         ) {
             metadata["estimated_cost_micro_usd"] = String(costMicroUSD)
-            metadata["estimated_cost_pricing_basis"] = "deepseek-v4-flash_2026-06-22"
+            metadata["estimated_cost_pricing_basis"] = "deepseek-flash_2026-09-10_debug_only"
         }
 
         return metadata
@@ -544,12 +544,20 @@ extension AIFlashcardService {
         completionTokens: Int
     ) -> Int? {
         let normalizedModel = pricingModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard normalizedModel == "deepseek-v4-flash" else { return nil }
+        guard normalizedModel == "deepseek-flash" else { return nil }
 
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = Date()
+        let weekday = calendar.component(.weekday, from: now)
+        let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+        let isWeekday = (2...6).contains(weekday)
+        let isPeak = isWeekday && ((60..<240).contains(minute) || (360..<600).contains(minute))
+        let multiplier = isPeak ? 1.0 : 0.5
         let costUSD = (
-            Double(cacheHitTokens) * 0.0028
-            + Double(cacheMissTokens) * 0.14
-            + Double(completionTokens) * 0.28
+            Double(cacheHitTokens) * 0.006 * multiplier
+            + Double(cacheMissTokens) * 0.30 * multiplier
+            + Double(completionTokens) * 1.20 * multiplier
         ) / 1_000_000
         return Int((costUSD * 1_000_000).rounded())
     }
@@ -606,6 +614,8 @@ extension AIFlashcardService {
         switch error {
         case .networkError, .invalidResponse, .rateLimitExceeded, .timeout:
             return true
+        case .quotaExhausted:
+            return false
         case .parsingFailed:
             // Cloud retries preserve providerCallId, so the proxy correctly
             // returns the same idempotent payload. Re-decoding it cannot heal
@@ -664,7 +674,7 @@ extension AIFlashcardService {
             return RetriableRequestError(serviceError: .timeout, retryAfter: retryAfter)
         case 429:
             if apiErrorCode(from: data) == "AI_QUOTA_EXHAUSTED" {
-                return AIServiceError.unknown(message)
+                return AIServiceError.quotaExhausted(availableAt: quotaAvailabilityDate(from: data))
             }
             return RetriableRequestError(serviceError: .rateLimitExceeded, retryAfter: retryAfter)
         case 500, 502, 503, 504:

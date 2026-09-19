@@ -21,8 +21,9 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 2. `POST /v1/generations/start` verifies Firebase Auth, reads canonical entitlement from Firestore, derives the active quota window, then creates the operational session through the UID Durable Object. Premium quota windows are rolling 30-day windows anchored by server-owned `users/{uid}.aiBillingAnchorMs`, not calendar months.
 3. `AIFlashcardService` keeps its local planner and builds the exact OpenAI-compatible request body: model, messages, response format, temperature, and thinking options.
 4. `AIRequestTransport.cloudProxy` changes only the destination and adds generation/session/provider-call headers. `POST /v1/chat/completions` forwards the received body bytes to DeepSeek and returns the response bytes unchanged.
-5. iOS derives a best-effort deck title locally from source headings or the PDF filename, then runs the existing retry policy, JSON/DTO decoding, LaTeX normalization, and local card insertion. New clients send only card batches through the proxy; the title operation remains accepted for backward compatibility.
-6. iOS calls `/finish` with validated-card count or `/fail` after cancellation/no usable output. The Worker atomically finalizes canonical Firestore usage with a server-only `usageEvents/{generationId}` idempotency record, then replaces the D1 cache from that Firestore result.
+5. Immediately before each upstream call, the Worker loads the active D1 pricing version and chooses its UTC peak/off-peak band. It bills only an accepted actual response model with complete token usage; an accounting failure is recorded and blocks the user's next generation start.
+6. iOS derives a best-effort deck title locally from source headings or the PDF filename, then runs the existing retry policy, JSON/DTO decoding, LaTeX normalization, and local card insertion. New clients send only card batches through the proxy; the title operation remains accepted for backward compatibility.
+7. iOS calls `/finish` with validated-card count or `/fail` after cancellation/no usable output. The Worker atomically finalizes canonical Firestore usage with a server-only `usageEvents/{generationId}` idempotency record, then replaces the D1 cache from that Firestore result.
 
 ### Ownership Boundaries
 
@@ -38,6 +39,14 @@ Do not place a secret value in source, app configuration, trace payloads, logs, 
 - D1 usage tables are operational telemetry and the source for reconstructing premium usage inside the active rolling 30-day window. The Worker must never push D1 usage outside that active window into Firestore quota state.
 - An admin edit in Firestore affects the next entitlement/start/finalization request. That request also replaces the corresponding D1 cache row.
 - Failed or expired generations do not consume a free generation, but any provider cost/tokens already incurred are finalized in monthly Firestore usage.
+- Premium uses a 1,500,000 microUSD built-in rolling-window default. A call in progress may cross the limit; a later start is denied when no positive amount remains. Internal currency values are not customer-facing copy.
+
+### Pricing Catalog
+
+- D1 `ai_pricing_configs` is the billing-rate authority. The active production version is `deepseek-flash@2026-09-10` for request/response model `deepseek-flash`.
+- Peak is Monday-Friday 01:00-04:00 and 06:00-10:00 UTC, with end times exclusive. Rates are stored as integer microUSD per million tokens for cache hits, cache misses, and output tokens.
+- Publish an immutable validated version from `worker/` with `npm run pricing:publish -- pricing/<file>.json`; add `--activate` to atomically switch the singleton active-version pointer. Prior catalog rows and provider-call version/band metadata remain unchanged.
+- `GET /health` exposes only operational pricing metadata: active version/model, review date/status, and the configured default budget. The scheduled handler emits an operational event when review is due; it never changes rates automatically.
 
 Do not move parsing, JSON repair, escaping repair, title parsing, prompt rewriting, card mapping, or card persistence into the Worker. Those changes previously caused visible regressions in generated-card formatting.
 
@@ -48,7 +57,7 @@ Do not move parsing, JSON repair, escaping repair, title parsing, prompt rewriti
 - `POST /v1/generations/finish`: finalizes a completed/partial generation using locally validated-card count.
 - `POST /v1/generations/fail`: releases a failed/cancelled reservation.
 - `GET /v1/entitlements`: returns current entitlement/quota state.
-- `GET /health`: deployment health check.
+- `GET /health`: deployment health check plus active pricing version/model/review metadata.
 
 The Worker may parse a cloned provider response only for usage/cost telemetry. It must return the original response bytes and relevant status/header semantics to iOS.
 
@@ -84,4 +93,5 @@ A remote prompt is a quality/configuration control, not a security control. Beca
 3. Contract-test direct fixture versus proxy fixture: same request bytes must yield identical title/card decoding and LaTeX normalization.
 4. Test free quota boundary, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, same idempotency key, provider failure, and cancellation.
 5. Deploy with `wrangler deploy` from `worker/`; verify `GET /health` afterward.
-6. For a prompt-bundle change, verify the version/hash recorded in local AI trace, a cache hit does not add a network request, and a version change updates the next generation without an app update.
+6. For a pricing change, apply D1 migrations first, publish/activate the version deliberately, verify health metadata, and retain the prior catalog row for historical audit.
+7. For a prompt-bundle change, verify the version/hash recorded in local AI trace, a cache hit does not add a network request, and a version change updates the next generation without an app update.

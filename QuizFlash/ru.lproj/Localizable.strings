@@ -133,6 +133,9 @@
 "Adjust only study content, keeping app chrome and controls stable." = "Настраивает только учебный контент, оставляя интерфейс приложения стабильным.";
 "AI generation paused" = "AI генерация на паузе";
 "AI usage" = "Использование AI";
+"AI usage included" = "Использование ИИ включено";
+"AI usage is temporarily unavailable." = "Использование ИИ временно недоступно.";
+"AI usage starts renewing on %@." = "Лимит ИИ начнёт восстанавливаться %@.";
 "Align Bottom" = "Выровнять по низу";
 "Align Center" = "По центру";
 "Align Left" = "По левому краю";
@@ -286,7 +289,7 @@
 "Deck Title" = "Название колоды";
 "DECK-SCOPED SETTINGS" = "НАСТРОЙКИ ПАЛУБЫ";
 "Deeper cards with structure, context, and key nuance." = "Более глубокие карточки со структурой, контекстом и ключевыми нюансами.";
-"DeepSeek endpoint with deepseek-v4-flash defaults." = "Конечная точка DeepSeek со значениями deepseek-v4-flash по умолчанию.";
+"DeepSeek endpoint with deepseek-flash defaults." = "Конечная точка DeepSeek со значениями deepseek-flash по умолчанию.";
 "Default" = "По умолчанию";
 "Default %@" = "По умолчанию %@";
 "Defined" = "Чёткая";
@@ -910,8 +913,9 @@
 "QuizFlash Premium" = "QuizFlash Premium";
 "Create larger decks and keep generating with a rolling AI budget." = "Создавайте большие наборы и продолжайте генерацию в рамках скользящего бюджета ИИ.";
 "Up to 100 cards per generation" = "До 100 карточек за одну генерацию";
-"AI generation within a $2 rolling 30-day budget" = "Генерация ИИ в рамках бюджета 2 доллара за последние 30 дней";
-"Your allowance refreshes continuously as usage ages out" = "Лимит постоянно восстанавливается по мере истечения старого использования";
+"The limit renews continuously" = "Лимит восстанавливается непрерывно";
+"Renews %@" = "Обновится %@";
+"app.language.identifier" = "ru";
 "Monthly" = "Ежемесячно";
 "Yearly" = "Ежегодно";
 "Billed monthly" = "Оплата ежемесячно";

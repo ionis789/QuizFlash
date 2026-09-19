@@ -121,7 +121,7 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .deepSeek:
-            return "DeepSeek endpoint with deepseek-v4-flash defaults."
+            return "DeepSeek endpoint with deepseek-flash defaults."
         case .openAI:
             return "OpenAI endpoint with GPT-4.1 Mini defaults."
         case .openRouter:
@@ -136,7 +136,7 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
     func localizedSubtitle(locale: Locale) -> String {
         switch self {
         case .deepSeek:
-            return AppLocalization.string("DeepSeek endpoint with deepseek-v4-flash defaults.", locale: locale)
+            return AppLocalization.string("DeepSeek endpoint with deepseek-flash defaults.", locale: locale)
         case .openAI:
             return AppLocalization.string("OpenAI endpoint with GPT-4.1 Mini defaults.", locale: locale)
         case .openRouter:
@@ -153,7 +153,8 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
 
 /// One saved AI provider configuration editable from the Settings screen.
 struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
-    private static let deepSeekV4FlashModel = "deepseek-v4-flash"
+    fileprivate static let deepSeekFlashModel = "deepseek-flash"
+    fileprivate static let retiredDeepSeekFlashModel = "deepseek-v4-flash"
     private static let deepSeekNonThinkingExtraBodyJSONString = #"{"thinking":{"type":"disabled"}}"#
 
     var id: UUID
@@ -348,8 +349,8 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
                 name: "DeepSeek",
                 endpointURLString: "https://api.deepseek.com/chat/completions",
                 apiKey: "",
-                textModel: Self.deepSeekV4FlashModel,
-                visionModel: Self.deepSeekV4FlashModel,
+                textModel: Self.deepSeekFlashModel,
+                visionModel: Self.deepSeekFlashModel,
                 extraBodyJSONString: Self.deepSeekNonThinkingExtraBodyJSONString
             )
         case .openAI:
@@ -438,6 +439,9 @@ final class AIProviderStore {
         if let payload = Self.loadPayload(from: fileURL, fileManager: fileManager) {
             profiles = payload.profiles.isEmpty ? Self.defaultProfiles() : payload.profiles
             activeProfileID = payload.activeProfileID ?? profiles.first?.id
+            if migrateRetiredDeepSeekModelIfNeeded() {
+                persist()
+            }
         } else {
             profiles = Self.defaultProfiles()
             activeProfileID = profiles.first?.id
@@ -564,6 +568,24 @@ final class AIProviderStore {
             .preset(.openAI),
             .preset(.openRouter)
         ]
+    }
+
+    private func migrateRetiredDeepSeekModelIfNeeded() -> Bool {
+        var changed = false
+        profiles = profiles.map { profile in
+            var profile = profile
+            guard profile.endpointURLString.contains("api.deepseek.com") else { return profile }
+            if profile.textModel == AIProviderProfile.retiredDeepSeekFlashModel {
+                profile.textModel = AIProviderProfile.deepSeekFlashModel
+                changed = true
+            }
+            if profile.visionModel == AIProviderProfile.retiredDeepSeekFlashModel {
+                profile.visionModel = AIProviderProfile.deepSeekFlashModel
+                changed = true
+            }
+            return profile
+        }
+        return changed
     }
 
     nonisolated static func makeStorageURL(fileManager: FileManager = .default) -> URL {

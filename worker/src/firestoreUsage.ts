@@ -100,7 +100,8 @@ type ParsedAccountDocuments = {
 };
 
 const defaultFreeGenerationsLimit = 5;
-const defaultPremiumMonthlyBudgetMicroUSD = 2_000_000;
+const previousDefaultPremiumMonthlyBudgetMicroUSD = 2_000_000;
+const defaultPremiumMonthlyBudgetMicroUSD = 1_500_000;
 const maximumCommitAttempts = 4;
 const textEncoder = new TextEncoder();
 
@@ -369,9 +370,8 @@ export function parseFirestoreAccountState(
     aiBillingAnchorMs,
     freeGenerationsUsed: integerField(profileFields, "freeGenerationsUsed", 0),
     freeGenerationsLimit: integerField(profileFields, "freeGenerationsLimit", defaultFreeGenerationsLimit),
-    monthlyBudgetMicroUSD: integerField(
-      profileFields,
-      "aiMonthlyBudgetMicroUSD",
+    monthlyBudgetMicroUSD: migratedMonthlyBudgetMicroUSD(
+      integerField(profileFields, "aiMonthlyBudgetMicroUSD", fallbackMonthlyBudgetMicroUSD),
       fallbackMonthlyBudgetMicroUSD
     ),
     monthlyUsage: {
@@ -610,7 +610,11 @@ function missingCanonicalProfileFields(
   if (typeof existing.premium?.booleanValue !== "boolean") {
     fields.premium = {booleanValue: documents.account.premium};
   }
-  if (existing.aiMonthlyBudgetMicroUSD?.integerValue === undefined) {
+  const storedMonthlyBudget = Number(existing.aiMonthlyBudgetMicroUSD?.integerValue);
+  if (
+    existing.aiMonthlyBudgetMicroUSD?.integerValue === undefined
+    || storedMonthlyBudget === previousDefaultPremiumMonthlyBudgetMicroUSD
+  ) {
     fields.aiMonthlyBudgetMicroUSD = integerValue(documents.account.monthlyBudgetMicroUSD);
   }
   if (
@@ -757,6 +761,12 @@ function configuredMonthlyBudgetMicroUSD(env: FirestoreAdminEnv): number {
   return Number.isInteger(parsed) && parsed > 0
     ? parsed
     : defaultPremiumMonthlyBudgetMicroUSD;
+}
+
+function migratedMonthlyBudgetMicroUSD(value: number, currentDefault: number): number {
+  return value === previousDefaultPremiumMonthlyBudgetMicroUSD
+    ? currentDefault
+    : value;
 }
 
 let cachedServiceAccountToken: {value: string; expiresAtMs: number} | undefined;

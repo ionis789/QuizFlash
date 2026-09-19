@@ -2,7 +2,8 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "quizflash-ai",
   "main": "src/index.ts",
-  "compatibility_date": "2025-09-06",
+  "compatibility_date": "2026-09-19",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": {
     "enabled": true,
@@ -12,8 +13,8 @@
     "FIREBASE_PROJECT_ID": "quizflash-6b0ea",
     "FIREBASE_WEB_API_KEY": "AIzaSyCO4FDvtx0KD550myOaKEMq5KxhwfFfId4",
     "DEEPSEEK_BASE_URL": "https://api.deepseek.com",
-    "DEEPSEEK_MODEL": "deepseek-v4-flash",
-    "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD": "2000000"
+    "DEEPSEEK_MODEL": "deepseek-flash",
+    "PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD": "1500000"
   },
   "d1_databases": [
     {

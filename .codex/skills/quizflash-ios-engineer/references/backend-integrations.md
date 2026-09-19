@@ -40,7 +40,7 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Do not make entitlement, budget, quota, or usage client-writable.
 - `users/{uid}.premium` is the canonical entitlement checkbox. An explicit `false` overrides any legacy `plan` value.
 - `users/{uid}.aiBillingAnchorMs` is the server-owned premium activation anchor in epoch milliseconds. If it is missing for an existing development account, the Worker initializes it from the first premium D1 generation, otherwise from the current request time.
-- `users/{uid}.aiMonthlyBudgetMicroUSD` is the canonical per-user premium budget. `users/{uid}.aiUsage` is the canonical active-window usage map exposed for administration.
+- `users/{uid}.aiMonthlyBudgetMicroUSD` is the canonical per-user premium budget. The built-in default is 1,500,000 microUSD per rolling 30-day window; the Worker migrates only the retired exact 2,000,000 default and preserves explicit custom limits. `users/{uid}.aiUsage` is the canonical active-window usage map exposed for administration.
 - Historical usage is mirrored atomically at `users/{uid}/usage/{period}`. Calendar periods use `YYYYMM`; premium rolling billing periods use `r30_<windowStartMs>`. Finalized generation IDs are stored as server-only idempotency records at `users/{uid}/usageEvents/{generationId}`.
 - Cloud deck data remains below `users/{uid}/decks/{deckId}/cards/{cardId}`. The current design uses soft deletion because client deletes are denied by the rules; account cleanup is a callable backend operation.
 
@@ -66,7 +66,8 @@ Required behavior:
 5. Make retries idempotent. Firestore `usageEvents/{generationId}` is created in the same atomic commit as the quota/usage mutation, so a network retry cannot consume twice.
 6. Do not charge a free generation for a failed provider request. Provider cost and tokens are still recorded for failed/expired requests that reached DeepSeek.
 7. D1 is operational storage plus premium billing-window telemetry: generation sessions, provider-call idempotency, encrypted retry responses, prompt configuration, and a replaceable usage cache. Every authorization starts from Firestore account state, then premium usage is rebuilt for the active rolling window from finalized D1 generation rows and mirrored back to Firestore.
-8. Test at least free request 1, free request 5, rejected request 6, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, plan changes while the app is open, and two concurrent requests.
+8. A Premium generation may finish slightly above its internal budget. Reject the next start unless `limit - consumed - reserved` is positive; do not reserve an estimated provider cost before the call.
+9. Test at least free request 1, free request 5, rejected request 6, free 31-card rejection, premium 100-card acceptance, premium 101-card rejection, exact-budget rejection, one-call overshoot followed by rejection, plan changes while the app is open, and two concurrent requests.
 
 ## DeepSeek Production Boundary
 
@@ -77,9 +78,10 @@ The trusted production boundary is the `quizflash-ai` Cloudflare Worker, not Fir
 3. Enforce free/premium card limits, free quota, and premium monthly budget in the Worker from canonical Firestore values. Use Durable Objects for per-user concurrency and D1 for operational sessions, telemetry, prompt configuration, and retry caching.
 4. Keep iOS as the owner of planner allocations, dynamic message composition, retries, generated-title flow, card DTO decoding, LaTeX normalization, and SwiftData insertion. Title and card requests must share the same transparent proxy path.
 5. Record only operational metadata in D1: generation/provider-call IDs, model, token usage, estimated `microUSD` cost, response status, duration, and encrypted short-lived retry response. Do not store source text or prompt text in telemetry.
-6. Derive cost from the response model plus cache-hit, cache-miss, and completion token usage. Do not use the client-requested model alias as the billing source.
-7. Keep `AIProviderStore` only for DEBUG developer profiles. Release builds must use `CloudAIProxyClient` and never send an API key.
-8. Prompt configuration may be backend-owned for iteration, but it does not authorize anything. Preserve the transparent raw provider transport and use versioned cached templates so a prompt update never requires an app update or a new per-request network round trip.
+6. Derive cost from the actual response model plus cache-hit, cache-miss, and completion token usage. The active versioned D1 pricing config selects the UTC peak/off-peak band immediately before the provider call. Do not use the client-requested model alias as the billing source.
+7. Treat missing token usage, a missing/unknown response model, or an invalid/missing active pricing config as an accounting failure. Record the provider-call failure and block subsequent generation starts for that user until the unresolved accounting error is repaired; never silently record zero cost.
+8. Keep `AIProviderStore` only for DEBUG developer profiles. Release builds must use `CloudAIProxyClient` and never send an API key.
+9. Prompt configuration may be backend-owned for iteration, but it does not authorize anything. Preserve the transparent raw provider transport and use versioned cached templates so a prompt update never requires an app update or a new per-request network round trip.
 
 ## Firebase Operations
 

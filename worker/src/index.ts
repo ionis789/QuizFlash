@@ -15,6 +15,13 @@ import {
   retryFailedRevenueCatWebhooks
 } from "./billing";
 import {accountIsDeleted, deleteAccountData} from "./accountDeletion";
+import {
+  activePricingSelection,
+  estimateCostMicroUSD,
+  pricedModelIsAccepted,
+  type PricingBand,
+  type PricingSelection
+} from "./pricing";
 
 type Env = {
   AI_DB: D1Database;
@@ -115,6 +122,14 @@ type StoredProviderCall = {
   response_ciphertext: string | null;
   response_iv: string | null;
   response_expires_at_ms: number | null;
+  pricing_version: string;
+  pricing_band: PricingBand | null;
+  accounting_status: ProviderAccountingStatus;
+  final_cost_micro_usd: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  response_model: string | null;
 };
 
 type StoredPromptConfig = {
@@ -191,6 +206,7 @@ type D1UsageRepairRow = {
 type UsageEventResponse = {
   providerCallId: string;
   pricingVersion: string;
+  pricingBand: PricingBand | null;
   accountingStatus: ProviderAccountingStatus;
   costMicroUSD: number;
   promptTokens: number;
@@ -203,7 +219,7 @@ type ProviderAccountingStatus = "accounted" | "accounting_error" | "not_billable
 
 const freeMaxCardsPerGeneration = 30;
 const premiumMaxCardsPerGeneration = 100;
-const pricingVersion = "deepseek-v4-flash@2026-06";
+const defaultPremiumMonthlyBudgetMicroUSD = 1_500_000;
 const activeSessionTTLMilliseconds = 20 * 60 * 1_000;
 const providerResponseTTLMilliseconds = 15 * 60 * 1_000;
 const textEncoder = new TextEncoder();
@@ -226,6 +242,22 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
   private async startLocked(input: SessionStart): Promise<SessionStartResult> {
     const now = Date.now();
+    try {
+      await activePricingSelection(this.env.AI_DB, now);
+    } catch (error) {
+      console.error(JSON.stringify({event: "pricing_catalog_invalid", error_name: errorName(error)}));
+      return sessionRejection(503, "AI_ACCOUNTING_UNAVAILABLE", "AI accounting is temporarily unavailable.");
+    }
+    const unresolvedAccountingError = await this.env.AI_DB.prepare(
+      `SELECT 1 AS blocked
+       FROM ai_provider_calls calls
+       JOIN ai_generations generations ON generations.id = calls.generation_id
+       WHERE generations.uid = ? AND calls.accounting_status = 'accounting_error'
+       LIMIT 1`
+    ).bind(input.uid).first<{blocked: number}>();
+    if (unresolvedAccountingError) {
+      return sessionRejection(503, "AI_ACCOUNTING_UNAVAILABLE", "AI accounting is temporarily unavailable.");
+    }
     const active = await this.ctx.storage.get<SessionState>("active");
     if (active && active.expiresAtMs > now && active.idempotencyKey !== input.idempotencyKey) {
       const released = await this.releaseUnusedActiveReservation(active, now);
@@ -266,7 +298,11 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
 
     if (account.premium) {
       const usageQuota = await this.entitlementResponse(account, window);
-      if ((usageQuota.availableMicroUSD ?? 0) <= 0) {
+      if (!premiumBudgetAllowsGeneration(
+        usageQuota.limitMicroUSD,
+        usageQuota.consumedMicroUSD,
+        usageQuota.reservedMicroUSD
+      )) {
         return sessionRejection(429, "AI_QUOTA_EXHAUSTED", "Monthly AI budget reached.", usageQuota);
       }
     }
@@ -390,15 +426,15 @@ export class UserGenerationCoordinator extends DurableObject<Env> {
             provider_call_id, generation_id, operation, requested_model, response_model, provider_response_id,
             http_status, finish_reason, upstream_duration_ms, raw_response_bytes, prompt_tokens, completion_tokens, total_tokens,
             cache_hit_tokens, cache_miss_tokens, estimated_cost_micro_usd, final_cost_micro_usd,
-            pricing_version, accounting_status, accounted_at_ms, response_ciphertext, response_iv,
+            pricing_version, pricing_band, accounting_status, accounted_at_ms, response_ciphertext, response_iv,
             response_expires_at_ms, created_at_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
           input.providerCallId, input.generationId, input.operation, input.requestedModel, input.metadata.model, input.metadata.responseID,
           input.httpStatus, input.metadata.finishReason, input.upstreamDurationMs, input.rawResponseBytes,
           input.metadata.promptTokens, input.metadata.completionTokens,
           input.metadata.totalTokens, input.metadata.cacheHitTokens, input.metadata.cacheMissTokens, input.metadata.costMicroUSD,
-          input.metadata.costMicroUSD, input.metadata.pricingVersion, input.metadata.accountingStatus,
+          input.metadata.costMicroUSD, input.metadata.pricingVersion, input.metadata.pricingBand, input.metadata.accountingStatus,
           input.metadata.accountingStatus === "accounted" ? input.createdAtMs : null,
           input.responseCiphertext, input.responseIV, input.responseExpiresAtMs, input.createdAtMs
         )
@@ -726,21 +762,50 @@ export default {
       if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
         return proxyCompletion(request, env, startedAt);
       }
-      if (request.method === "GET" && url.pathname === "/health") return timedJSON({ok: true}, startedAt, requestID);
+      if (request.method === "GET" && url.pathname === "/health") {
+        return timedJSON(await healthResponse(env), startedAt, requestID);
+      }
       throw new WorkerError(404, "not-found", "Endpoint not found.");
     } catch (error) {
       return errorResponse(error, startedAt, requestID, url.pathname);
     }
   },
   async scheduled(_: ScheduledController, env: Env): Promise<void> {
+    const now = Date.now();
     await Promise.all([
       env.AI_DB.prepare(
         "DELETE FROM ai_provider_calls WHERE response_expires_at_ms IS NOT NULL AND response_expires_at_ms <= ?"
-      ).bind(Date.now()).run(),
+      ).bind(now).run(),
       retryFailedRevenueCatWebhooks(env)
     ]);
+    try {
+      const pricing = await activePricingSelection(env.AI_DB, now);
+      if (pricing.config.reviewAfterMs <= now) {
+        console.warn(JSON.stringify({
+          event: "pricing_review_due",
+          pricing_version: pricing.config.version,
+          review_after_ms: pricing.config.reviewAfterMs,
+          at_ms: now
+        }));
+      }
+    } catch (error) {
+      console.error(JSON.stringify({event: "pricing_catalog_invalid", error_name: errorName(error), at_ms: now}));
+    }
   }
 } satisfies ExportedHandler<Env>;
+
+async function healthResponse(env: Env): Promise<Record<string, unknown>> {
+  const now = Date.now();
+  const selection = await activePricingSelection(env.AI_DB, now);
+  return {
+    ok: true,
+    pricingVersion: selection.config.version,
+    pricingModel: selection.config.model,
+    pricingReviewAfter: new Date(selection.config.reviewAfterMs).toISOString(),
+    pricingReviewDue: selection.config.reviewAfterMs <= now,
+    defaultPremiumBudgetMicroUSD: configuredPremiumBudgetMicroUSD(env)
+  };
+}
 
 async function startGeneration(request: Request, env: Env): Promise<Record<string, unknown>> {
   let stage = "authenticate";
@@ -916,22 +981,39 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
   const rawBody = await request.arrayBuffer();
   const requestPayload = parseProviderRequest(rawBody, env.DEEPSEEK_MODEL);
   const cached = await env.AI_DB.prepare(
-    "SELECT provider_call_id, http_status, response_ciphertext, response_iv, response_expires_at_ms FROM ai_provider_calls WHERE provider_call_id = ?"
+    `SELECT provider_call_id, http_status, response_ciphertext, response_iv, response_expires_at_ms,
+      pricing_version, pricing_band, accounting_status, final_cost_micro_usd,
+      prompt_tokens, completion_tokens, total_tokens, response_model
+     FROM ai_provider_calls WHERE provider_call_id = ?`
   ).bind(providerCallId).first<StoredProviderCall>();
   if (cached?.response_ciphertext && cached.response_iv && (cached.response_expires_at_ms ?? 0) > Date.now()) {
     const cachedBytes = await decryptResponse(cached.response_ciphertext, cached.response_iv, env.RESPONSE_CACHE_ENCRYPTION_KEY);
     return providerResponse(cachedBytes, cached.http_status, startedAt, "cache", undefined, undefined, undefined, undefined, {
       providerCallId,
-      pricingVersion,
-      accountingStatus: "not_billable",
-      costMicroUSD: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
-      responseModel: null
+      pricingVersion: cached.pricing_version,
+      pricingBand: cached.pricing_band,
+      accountingStatus: cached.accounting_status,
+      costMicroUSD: cached.final_cost_micro_usd,
+      promptTokens: cached.prompt_tokens,
+      completionTokens: cached.completion_tokens,
+      totalTokens: cached.total_tokens,
+      responseModel: cached.response_model
     });
   }
 
+  const providerCallStartedAt = Date.now();
+  let pricingSelection: PricingSelection;
+  try {
+    pricingSelection = await activePricingSelection(env.AI_DB, providerCallStartedAt);
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "pricing_catalog_invalid",
+      generation_id: generationId,
+      provider_call_id: providerCallId,
+      error_name: errorName(error)
+    }));
+    throw new WorkerError(503, "AI_ACCOUNTING_UNAVAILABLE", "AI accounting is temporarily unavailable.");
+  }
   const upstreamStartedAt = performance.now();
   const upstream = await fetch(`${env.DEEPSEEK_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
@@ -943,7 +1025,7 @@ async function proxyCompletion(request: Request, env: Env, startedAt: number): P
   });
   const upstreamDuration = performance.now() - upstreamStartedAt;
   const responseBytes = await upstream.arrayBuffer();
-  const metadata = extractProviderMetadata(responseBytes, requestPayload.model, upstream.ok);
+  const metadata = extractProviderMetadata(responseBytes, requestPayload.model, upstream.ok, pricingSelection);
   const encrypted = await encryptResponse(responseBytes, env.RESPONSE_CACHE_ENCRYPTION_KEY);
   const now = Date.now();
   const accounting = await stub.finalizeProviderCall({
@@ -985,10 +1067,16 @@ type ProviderMetadata = {
   cacheMissTokens: number;
   costMicroUSD: number;
   pricingVersion: string;
+  pricingBand: PricingBand | null;
   accountingStatus: ProviderAccountingStatus;
 };
 
-export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: string, billable: boolean): ProviderMetadata {
+export function extractProviderMetadata(
+  bytes: ArrayBuffer,
+  requestedModel: string,
+  billable: boolean,
+  pricingSelection: PricingSelection | null
+): ProviderMetadata {
   try {
     const envelope = JSON.parse(textDecoder.decode(bytes)) as ProviderEnvelope;
     const usagePresent = envelope.usage !== undefined;
@@ -1000,12 +1088,23 @@ export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: stri
       ? Math.max(0, promptTokens - cacheHitTokens)
       : numeric(usage.prompt_cache_miss_tokens);
     const model = envelope.model ?? null;
-    const costMicroUSD = billable && usagePresent && model !== null
-      ? estimateCostMicroUSD(model, cacheHitTokens, cacheMissTokens, completionTokens)
+    const isAccountable = billable
+      && usagePresent
+      && model !== null
+      && pricingSelection !== null
+      && pricedModelIsAccepted(pricingSelection.config, model);
+    const costMicroUSD = isAccountable
+      ? estimateCostMicroUSD(
+        pricingSelection.config,
+        pricingSelection.band,
+        cacheHitTokens,
+        cacheMissTokens,
+        completionTokens
+      )
       : 0;
     const accountingStatus: ProviderAccountingStatus = !billable
       ? "not_billable"
-      : usagePresent && model !== null && isPricedModel(model)
+      : isAccountable
         ? "accounted"
         : "accounting_error";
     return {
@@ -1019,7 +1118,8 @@ export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: stri
       cacheHitTokens,
       cacheMissTokens,
       costMicroUSD,
-      pricingVersion,
+      pricingVersion: pricingSelection?.config.version ?? "unavailable",
+      pricingBand: pricingSelection?.band ?? null,
       accountingStatus
     };
   } catch {
@@ -1035,19 +1135,11 @@ export function extractProviderMetadata(bytes: ArrayBuffer, requestedModel: stri
       cacheHitTokens: 0,
       cacheMissTokens: 0,
       costMicroUSD: 0,
-      pricingVersion,
+      pricingVersion: pricingSelection?.config.version ?? "unavailable",
+      pricingBand: pricingSelection?.band ?? null,
       accountingStatus: billable ? "accounting_error" : "not_billable"
     };
   }
-}
-
-export function estimateCostMicroUSD(model: string, cacheHitTokens: number, cacheMissTokens: number, completionTokens: number): number {
-  if (!isPricedModel(model)) return 0;
-  return Math.round((cacheHitTokens * 0.0028 + cacheMissTokens * 0.14 + completionTokens * 0.28));
-}
-
-function isPricedModel(model: string): boolean {
-  return model.trim().toLowerCase() === "deepseek-v4-flash";
 }
 
 function parseProviderRequest(rawBody: ArrayBuffer, allowedModel: string): { model: string } {
@@ -1215,6 +1307,7 @@ function usageEvent(providerCallId: string, metadata: ProviderMetadata): UsageEv
   return {
     providerCallId,
     pricingVersion: metadata.pricingVersion,
+    pricingBand: metadata.pricingBand,
     accountingStatus: metadata.accountingStatus,
     costMicroUSD: metadata.costMicroUSD,
     promptTokens: metadata.promptTokens,
@@ -1222,6 +1315,13 @@ function usageEvent(providerCallId: string, metadata: ProviderMetadata): UsageEv
     totalTokens: metadata.totalTokens,
     responseModel: metadata.model
   };
+}
+
+function configuredPremiumBudgetMicroUSD(env: Env): number {
+  const parsed = Number(env.PREMIUM_MONTHLY_AI_BUDGET_MICRO_USD);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? parsed
+    : defaultPremiumMonthlyBudgetMicroUSD;
 }
 
 function generationUsageDelta(
@@ -1317,6 +1417,15 @@ export function usageWindowForAccount(account: FirestoreAccountState, now: numbe
     return rollingBillingWindow(account.aiBillingAnchorMs, now);
   }
   return calendarUsageWindow(monthKey(now));
+}
+
+export function premiumBudgetAllowsGeneration(
+  limitMicroUSD: number | null,
+  consumedMicroUSD: number,
+  reservedMicroUSD: number
+): boolean {
+  return limitMicroUSD !== null
+    && limitMicroUSD - Math.max(0, consumedMicroUSD) - Math.max(0, reservedMicroUSD) > 0;
 }
 
 function nonNegativeInteger(value: unknown): number {

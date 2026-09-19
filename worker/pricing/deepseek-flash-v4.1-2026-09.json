@@ -1,0 +1,24 @@
+{
+  "version": "deepseek-flash@2026-09-10",
+  "model": "deepseek-flash",
+  "acceptedResponseModels": ["deepseek-flash"],
+  "peak": {
+    "cacheHitMicroUSDPerMillion": 6000,
+    "cacheMissMicroUSDPerMillion": 300000,
+    "outputMicroUSDPerMillion": 1200000
+  },
+  "offPeak": {
+    "cacheHitMicroUSDPerMillion": 3000,
+    "cacheMissMicroUSDPerMillion": 150000,
+    "outputMicroUSDPerMillion": 600000
+  },
+  "peakSchedule": {
+    "weekdaysUTC": [1, 2, 3, 4, 5],
+    "intervalsUTC": [
+      {"startMinute": 60, "endMinute": 240},
+      {"startMinute": 360, "endMinute": 600}
+    ]
+  },
+  "activatedAtMs": 1789012800000,
+  "reviewAfterMs": 1791604800000
+}

@@ -133,6 +133,9 @@
 "Adjust only study content, keeping app chrome and controls stable." = "Adjust only study content, keeping app chrome and controls stable.";
 "AI generation paused" = "AI generation paused";
 "AI usage" = "AI usage";
+"AI usage included" = "AI usage included";
+"AI usage is temporarily unavailable." = "AI usage is temporarily unavailable.";
+"AI usage starts renewing on %@." = "AI usage starts renewing on %@.";
 "Align Bottom" = "Align Bottom";
 "Align Center" = "Align Center";
 "Align Left" = "Align Left";
@@ -286,7 +289,7 @@
 "Deck Title" = "Deck Title";
 "DECK-SCOPED SETTINGS" = "DECK-SCOPED SETTINGS";
 "Deeper cards with structure, context, and key nuance." = "Deeper cards with structure, context, and key nuance.";
-"DeepSeek endpoint with deepseek-v4-flash defaults." = "DeepSeek endpoint with deepseek-v4-flash defaults.";
+"DeepSeek endpoint with deepseek-flash defaults." = "DeepSeek endpoint with deepseek-flash defaults.";
 "Default" = "Default";
 "Default %@" = "Default %@";
 "Defined" = "Defined";
@@ -910,8 +913,9 @@
 "QuizFlash Premium" = "QuizFlash Premium";
 "Create larger decks and keep generating with a rolling AI budget." = "Create larger decks and keep generating with a rolling AI budget.";
 "Up to 100 cards per generation" = "Up to 100 cards per generation";
-"AI generation within a $2 rolling 30-day budget" = "AI generation within a $2 rolling 30-day budget";
-"Your allowance refreshes continuously as usage ages out" = "Your allowance refreshes continuously as usage ages out";
+"The limit renews continuously" = "The limit renews continuously";
+"Renews %@" = "Renews %@";
+"app.language.identifier" = "en";
 "Monthly" = "Monthly";
 "Yearly" = "Yearly";
 "Billed monthly" = "Billed monthly";
