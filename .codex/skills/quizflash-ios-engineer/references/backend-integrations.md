@@ -7,10 +7,10 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 - Firebase project: the configured default project in `.firebaserc` is `quizflash-6b0ea`.
 - The iOS app boots Firebase in `App/QuizFlashApp.swift` and uses Firebase Auth, Firestore, and Firebase Functions.
 - Firestore rules are deployed to the fresh `quizflash-6b0ea` project. The project has no legacy user or deck data and must not acquire a first-login migration path.
-- Firestore is the canonical backend for Auth-linked profiles, background deck sync, manual premium state, free AI quota, and AI usage. Premium quota uses a rolling 30-day billing window anchored by the server-owned `aiBillingAnchorMs`, not a calendar month.
+- Firestore is the canonical backend for Auth-linked profiles, background deck sync, server-verified subscription state, free AI quota, and AI usage. Premium quota uses a rolling 30-day billing window anchored by the server-owned `aiBillingAnchorMs`, not a calendar month.
 - Firebase Cloud Functions remain source-only because the project does not use Firebase Blaze. They are not the production DeepSeek path.
 - Production AI uses the Cloudflare Worker described in `references/ai-proxy.md`. Release builds use its transparent proxy; DEBUG may use a developer-selected direct provider profile. A project-owned DeepSeek key must never remain in a shipped client path.
-- RevenueCat is not integrated yet. `SubscriptionManager` currently reads the canonical Firestore user document; `restorePurchases()` is intentionally a placeholder.
+- RevenueCat Purchases SDK, the Premium paywall, purchase/restore flows, backend reconciliation, signed webhook ingestion, and Firestore subscription projection are implemented in source. The current client key is for RevenueCat Test Store; Apple product mapping, production public SDK key rollout, webhook/secret deployment verification, and end-to-end sandbox validation remain incomplete.
 
 ## Authority And Identity
 
@@ -91,16 +91,15 @@ The trusted production boundary is the `quizflash-ai` Cloudflare Worker, not Fir
 
 ## RevenueCat Rollout
 
-Do not add a paywall first. Build entitlement synchronization first, then the purchase UI.
+The source implementation exists; remaining work is remote configuration and end-to-end validation, not a second purchase stack.
 
-1. Wait for Apple Developer and App Store Connect access. Create the app record, subscription products, subscription group, sandbox tester, and required agreements/tax/banking configuration.
-2. Add RevenueCat iOS SDK through Swift Package Manager. Configure it only after Firebase Auth resolves, using the Firebase UID as `appUserID`. Log out or reidentify RevenueCat when the Firebase session changes; never leave the previous user's entitlement cached on the next user.
-3. Define one entitlement identifier, for example `premium`. Map App Store products/offering packages to that entitlement in RevenueCat.
-4. Make RevenueCat's signed webhook/backend integration update Firebase through Admin SDK by writing the server-owned `premium` field. Verify webhook signature and process events idempotently by event ID.
-5. Keep Firestore as the app's common entitlement read model. `SubscriptionManager` should refresh the user document after a purchase, restore, renewal, cancellation, refund, or webhook update. Do not let a device write `premium: true`.
-6. Let the client display RevenueCat entitlement state for responsiveness, but let Firestore/Functions decide backend access. Handle delayed webhooks with a bounded refresh/pending state rather than granting permanent access from an unverified local flag.
-7. Replace the placeholder `restorePurchases()` with the RevenueCat restore flow, then refresh Firebase state and validate the user can use the entitlement after an app restart and on a second device.
-8. Migrate current manual premium documents deliberately: define who is eligible, set server-owned fields once, track migration version, and remove temporary manual-admin UI before launch.
+1. Keep RevenueCat configured only after Firebase Auth resolves, using Firebase UID as `appUserID`. Log out or reidentify RevenueCat when the Firebase session changes; never leave the previous user's entitlement cached on the next user.
+2. Keep the single entitlement identifier `premium`. Map the App Store monthly and annual products to it and expose them through the default offering's monthly/annual packages.
+3. Replace the Test Store public SDK key with the Apple app public SDK key only after the RevenueCat Apple app configuration and product mappings validate. Public SDK keys may be in client configuration; secret API and webhook keys must remain Worker secrets.
+4. Keep the signed Worker webhook and authenticated REST reconciliation authoritative for writing Firestore `premium` and subscription state. Verify the deployed signature/authorization configuration and idempotent event processing; never let the device write `premium: true`.
+5. Let the client display RevenueCat entitlement state for responsiveness, but let Firestore/Worker decide backend access. Preserve the bounded reconciliation/pending behavior for webhook delay.
+6. Validate sandbox purchase, restore, renewal, cancellation, refund, app relaunch, and second-device access before describing the integration as production-ready.
+7. Migrate any manual development premium documents deliberately, track the migration, and remove temporary manual-admin paths before launch.
 
 ## Required Verification
 

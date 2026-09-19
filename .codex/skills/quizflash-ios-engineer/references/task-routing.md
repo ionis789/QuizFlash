@@ -105,12 +105,12 @@ Use this route for zone-based editing issues: caret placement, long-press select
   - Firebase bootstrap/session/profile: `App/QuizFlashApp.swift`, `Services/Auth/AuthManager.swift`, `Services/Cloud/CloudUserProfileService.swift`.
   - Firestore deck sync: `Services/Cloud/CloudSyncService.swift`, then `firestore.rules` if the data shape or authorization changes.
   - Quota or plan UI: `Services/Subscriptions/SubscriptionManager.swift`, then `Features/DeckEditor/Views/DeckWorkspaceContent.swift` or `Features/Settings/Views/SettingsView.swift`.
-  - Cloud AI: `Services/Cloud/CloudAIGenerationService.swift`, then `functions/src/index.ts`.
+  - Cloud AI transport: `Services/Cloud/CloudAIProxyClient.swift`, then `worker/src/index.ts` and `worker/src/firestoreUsage.ts`. Firebase Functions are source-only, not the production AI path.
   - Direct/development AI provider: `Services/AI/AIProviderStore.swift`, `Services/AI/AIFlashcardService+Networking.swift`; do not treat this path as the production secret-holder.
-  - RevenueCat: inspect the planned purchase adapter and `SubscriptionManager`; add the backend webhook/function contract before adding a paywall UI.
-- Treat `firestore.rules` and `functions/src/index.ts` as a paired security contract. Never relax a rule merely to make the client work.
+  - RevenueCat: inspect `Services/Subscriptions/SubscriptionManager.swift`, `Features/Settings/Views/PremiumPaywallView.swift`, then the Worker billing/reconciliation contract in `worker/src/billing.ts`. Extend the existing SDK/paywall/webhook path; do not create a parallel purchase adapter.
+- Treat `firestore.rules`, the production Worker, and its Firestore REST writes as one security contract. Keep `functions/src/index.ts` consistent where it mirrors limits or document shapes, but do not mistake it for the live AI path. Never relax a rule merely to make the client work.
 - Verify each server-owned decision at the source: authenticated UID, entitlement/plan, target-card limit, usage/quota, cost/concurrency, and the persisted response used by the UI.
-- Use the Firebase CLI only with the configured project. Inspect and test before deployment; deploy Firestore rules and Functions deliberately and report when a platform plan blocks a Functions deployment.
+- Use the Firebase and Wrangler CLIs only with the configured projects. Inspect and test before deployment; deploy Firestore rules, Worker changes, D1 migrations, and any source-only Functions changes as separate deliberate actions, reporting any platform blocker precisely.
 
 ### DeckView chrome or grid tweak
 

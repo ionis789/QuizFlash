@@ -1,6 +1,6 @@
 ---
 name: quizflash-ios-engineer
-description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, Firebase Auth/Firestore, a Cloudflare transparent DeepSeek proxy, and a future RevenueCat subscription integration. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI, SwiftData, Firebase/backend security, AI prompts, quotas, provider transport, subscription/paywall work, navigation, performance, editor/play rendering, or when the user requests advanced debugging, detailed diagnostics, construction flow, event flow, or tester-provided debug output.
+description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, Firebase Auth/Firestore, a Cloudflare transparent DeepSeek proxy, and RevenueCat subscriptions. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI, SwiftData, Firebase/backend security, AI prompts, quotas, provider transport, subscription/paywall work, navigation, performance, editor/play rendering, or when the user requests advanced debugging, detailed diagnostics, construction flow, event flow, or tester-provided debug output.
 ---
 
 # QuizFlash iOS Engineer
@@ -8,6 +8,10 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 ## Overview
 
 Create and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
+
+At the start of every QuizFlash task, `MUST` read `references/current-state.md` completely before planning or editing. Treat it as the concise source of truth for the app's implemented integrations, active external rollout, known stale contracts, and immediate work order.
+
+`references/current-state.md` is a living snapshot, not a changelog. Every task that materially changes architecture, a source-of-truth boundary, a production service, a product limit, a subscription/store rollout milestone, an external blocker, or the agreed next major work `MUST` update that snapshot in the same commit. Replace or delete stale statements instead of preserving historical wording. If a detailed reference such as `backend-integrations.md`, `ai-proxy.md`, `project-map.md`, or `task-routing.md` contradicts the implemented code after the change, update the affected reference in the same task. Do not update the snapshot for ordinary UI polish, isolated bug fixes, or transient debugging observations that do not change the general project state.
 
 When the user sends screenshots, treat them as direct QuizFlash app evidence unless they explicitly say otherwise. First identify which app screen/surface is shown from visible UI, navigation chrome, labels, tabs, cards, or controls, then map the issue to the smallest likely owner file before editing. The user often draws red callouts with text boxes and pointer tails directly on screenshots; interpret those annotations as the primary problem statement and infer the intended correction from where each pointer lands. Do not treat the red annotation boxes as app UI. If a screenshot is ambiguous, use `rg` on visible labels/symbols to locate the owning screen, and ask a question only when the screen or intended target still cannot be identified safely.
 
@@ -73,7 +77,7 @@ Use the current DeckEditor naming. `CardEditorView` is the router from `CardEdit
 
 QuizFlash uses SwiftData as the local runtime store and a canonical `.json` deck document as the external contract for export/import, backend sync, and AI card payloads. Keep those layers separate: do not make SwiftData models conform to API shape directly, and do not let AI generate deck metadata, IDs, dates, counters, or persistence state. AI generation should return only the shared card DTO for supported Flashcard/Quiz content; the app validates that DTO, maps it to `DraftCardContent`, then creates or updates `CardModel` instances.
 
-QuizFlash now has a Firebase backend. Treat Firebase Auth, Firestore rules, Cloud Functions, DeepSeek usage, and future RevenueCat entitlement sync as one security boundary, not unrelated features. Before changing user profiles, cloud sync, AI generation, quota/plan logic, provider keys, purchases, or Firestore rules, `MUST` read `references/backend-integrations.md` and follow its current-state notes and rollout order. The backend must be the authority for paid access, quotas, and provider secrets; a SwiftUI check, a Firestore field writable by a client, or a local AI-provider profile is never sufficient production enforcement.
+QuizFlash has a Firebase backend and an in-progress RevenueCat/App Store rollout. Treat Firebase Auth, Firestore rules, Cloudflare AI usage, RevenueCat entitlement sync, and purchases as one security boundary, not unrelated features. Before changing user profiles, cloud sync, AI generation, quota/plan logic, provider keys, purchases, or Firestore rules, `MUST` read `references/backend-integrations.md` and follow its current-state notes and rollout order. The backend must be the authority for paid access, quotas, and provider secrets; a SwiftUI check, a Firestore field writable by a client, or a local AI-provider profile is never sufficient production enforcement.
 
 QuizFlash production AI uses the `quizflash-ai` Cloudflare Worker as a transparent DeepSeek proxy. Before changing AI prompting, the proxy, quota, or provider transport, `MUST` also read `references/ai-proxy.md`. Keep the release pipeline invariant: iOS owns the generation planner, dynamic request composition, title generation, retries, DTO decoding, LaTeX normalization, and local card insertion; the Worker owns Firebase authentication, entitlement/quota/cost enforcement, the DeepSeek secret, and raw request/response forwarding. Do not move prompt composition, JSON repair, title parsing, DTO mapping, or response rewriting into the Worker.
 
@@ -100,7 +104,7 @@ Use these priority levels consistently:
 
 ## Quick Start
 
-1. `MUST` open the target file first.
+1. `MUST` read `references/current-state.md`, then open the target file.
 2. `SHOULD` read `references/task-routing.md` before expanding context when the smallest safe path is not obvious.
 3. `MUST` open the smallest paired owner file next.
    - `Features/*/Views/*.swift`: pull the paired `ViewModels/` file only if the change touches state, async work, persistence, derived data, or navigation owned outside the view.
@@ -282,6 +286,7 @@ Do not boot a hidden/headless simulator as a fallback when Device Hub has no act
 
 ## References
 
+- `references/current-state.md`: Mandatory concise snapshot of implemented systems, external rollout state, known stale contracts, and immediate work order. Keep it current whenever a major app fact changes.
 - `references/task-routing.md`: Smallest safe starting points and escalation triggers for local tasks.
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
