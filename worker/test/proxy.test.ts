@@ -6,12 +6,23 @@ import {activePricingSelection, estimateCostMicroUSD, pricingBandAt, validatedPr
 import {defaultPromptBundle, validatedPromptBundle} from "../src/promptBundle";
 import {
   authenticateRevenueCatWebhook,
+  revenueCatServerHeaders,
   subscriptionStateFromRevenueCat,
   webhookFirebaseUIDs,
   type BillingEnv
 } from "../src/billing";
 
 describe("QuizFlash AI proxy", () => {
+  it("does not identify server-side RevenueCat reconciliation as an SDK request", () => {
+    const headers = revenueCatServerHeaders("secret-key");
+
+    expect(headers).toEqual({
+      Accept: "application/json",
+      Authorization: "Bearer secret-key"
+    });
+    expect(headers).not.toHaveProperty("X-Platform");
+  });
+
   it("accepts a current production premium entitlement", () => {
     const state = subscriptionStateFromRevenueCat({
       request_date_ms: Date.UTC(2026, 8, 19),

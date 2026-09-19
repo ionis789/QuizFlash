@@ -82,11 +82,7 @@ export async function reconcileRevenueCatCustomer(
   const response = await fetcher(
     `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`,
     {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "X-Platform": "ios"
-      }
+      headers: revenueCatServerHeaders(apiKey)
     }
   );
   if (!response.ok) {
@@ -100,6 +96,13 @@ export async function reconcileRevenueCatCustomer(
   );
   await writeFirestoreSubscriptionState(uid, state, env);
   return state;
+}
+
+export function revenueCatServerHeaders(apiKey: string): Record<string, string> {
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${apiKey}`
+  };
 }
 
 function deletedAccountSubscriptionState(): VerifiedSubscriptionState {
