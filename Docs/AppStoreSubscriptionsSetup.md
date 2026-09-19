@@ -28,9 +28,9 @@ This checklist records the external configuration required by the QuizFlash 1.0 
 
 - [ ] Create the QuizFlash project and iOS app.
 - [ ] Connect the Apple credentials required for product import and receipt verification.
-- [ ] Import the monthly App Store product.
-- [ ] Create the `premium` entitlement and attach the monthly product.
-- [ ] Create the `default` offering with the monthly package.
+- [x] Import the monthly App Store product.
+- [x] Create the `premium` entitlement and attach the Test Store and App Store monthly products.
+- [x] Create the `default` offering with the `$rc_monthly` package.
 - [ ] Configure restore behavior to transfer purchases to the latest App User ID.
 - [ ] Obtain the public iOS SDK key for app configuration.
 - [ ] Create a server secret for RevenueCat API reconciliation.
