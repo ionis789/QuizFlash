@@ -30,6 +30,18 @@
 import SwiftUI
 import SwiftData
 
+#if DEBUG
+private struct TabBarOuterFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .null
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let nextFrame = nextValue()
+        guard !nextFrame.isNull else { return }
+        value = nextFrame
+    }
+}
+#endif
+
 struct MainAppView: View {
     // MARK: - State
 
@@ -59,6 +71,12 @@ struct MainAppView: View {
     @State private var sheetHiddenTabBarRequestIDs: Set<UUID> = []
     /// User-driven compact state sourced from the active scroll surface.
     @State private var isTabBarCompactedByScroll = false
+
+    #if DEBUG
+    @State private var tabBarDiagnosticOuterFrame: CGRect = .null
+    @State private var tabBarDiagnosticTrackFrame: CGRect = .null
+    @State private var tabBarDiagnosticEvents: [String] = []
+    #endif
 
     private static let tabBarBlurDebugScreenID = EdgeShadowDebugScreenID.tabBarBlur
 
@@ -287,8 +305,19 @@ struct MainAppView: View {
 
                 CustomContextMenuHost()
                     .zIndex(10)
+
+                tabBarGeometryDiagnosticHUD(in: proxy)
+                    .zIndex(100)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            #if DEBUG
+            .onPreferenceChange(TabBarOuterFramePreferenceKey.self) { frame in
+                updateTabBarDiagnosticFrame(frame, layer: "outer")
+            }
+            .onPreferenceChange(TabBarTrackFramePreferenceKey.self) { frame in
+                updateTabBarDiagnosticFrame(frame, layer: "track")
+            }
+            #endif
         }
         .environment(customContextMenuCoordinator)
         .environment(customContextMenuSourceRegistry)
@@ -465,6 +494,16 @@ struct MainAppView: View {
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
+            #if DEBUG
+            .background {
+                GeometryReader { outerProxy in
+                    Color.clear.preference(
+                        key: TabBarOuterFramePreferenceKey.self,
+                        value: outerProxy.frame(in: .global)
+                    )
+                }
+            }
+            #endif
             .scaleEffect(
                 isTabBarCompactedByScroll ? UIConstants.Layout.bottomChromeCompactScale : 1,
                 anchor: .bottom
@@ -496,6 +535,111 @@ struct MainAppView: View {
             bar
         }
     }
+
+    @ViewBuilder
+    private func tabBarGeometryDiagnosticHUD(in proxy: GeometryProxy) -> some View {
+        #if DEBUG
+        let report = tabBarGeometryDiagnosticReport(in: proxy)
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text(report)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("TAP TO COPY")
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundStyle(.yellow)
+        }
+        .padding(10)
+        .frame(maxWidth: 350, alignment: .leading)
+        .background(.black.opacity(0.9), in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.red, lineWidth: 2)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            UIPasteboard.general.string = report
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 8)
+        .allowsHitTesting(true)
+        #else
+        EmptyView()
+        #endif
+    }
+
+    #if DEBUG
+    private func updateTabBarDiagnosticFrame(_ frame: CGRect, layer: String) {
+        guard !frame.isNull, frame.width > 0, frame.height > 0 else { return }
+
+        let previousFrame = layer == "outer"
+            ? tabBarDiagnosticOuterFrame
+            : tabBarDiagnosticTrackFrame
+        guard !approximatelyEqual(previousFrame, frame) else { return }
+
+        if layer == "outer" {
+            tabBarDiagnosticOuterFrame = frame
+        } else {
+            tabBarDiagnosticTrackFrame = frame
+        }
+
+        let event = "\(layer) x:\(whole(frame.minX)) y:\(whole(frame.minY)) w:\(whole(frame.width)) h:\(whole(frame.height))"
+        tabBarDiagnosticEvents.append(event)
+        if tabBarDiagnosticEvents.count > 12 {
+            tabBarDiagnosticEvents.removeFirst(tabBarDiagnosticEvents.count - 12)
+        }
+    }
+
+    private func tabBarGeometryDiagnosticReport(in proxy: GeometryProxy) -> String {
+        let rootFrame = proxy.frame(in: .global)
+        let screenMaxY = UIScreen.main.bounds.maxY
+        let requestedGap = UIConstants.Spacing.standard
+        let outerGap = tabBarDiagnosticOuterFrame.isNull
+            ? nil
+            : screenMaxY - tabBarDiagnosticOuterFrame.maxY
+        let trackGap = tabBarDiagnosticTrackFrame.isNull
+            ? nil
+            : screenMaxY - tabBarDiagnosticTrackFrame.maxY
+        let events = tabBarDiagnosticEvents.suffix(4).joined(separator: "\n")
+
+        return """
+        TAB GAP DIAG v5
+        requested:\(oneDecimal(requestedGap)) safeBottom:\(oneDecimal(proxy.safeAreaInsets.bottom))
+        screenMaxY:\(oneDecimal(screenMaxY)) root:\(rectDescription(rootFrame))
+        outer:\(rectDescription(tabBarDiagnosticOuterFrame)) gap:\(optionalDecimal(outerGap))
+        track:\(rectDescription(tabBarDiagnosticTrackFrame)) gap:\(optionalDecimal(trackGap))
+        events:\n\(events.isEmpty ? "waiting for geometry" : events)
+        """
+    }
+
+    private func approximatelyEqual(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        guard !lhs.isNull, !rhs.isNull else { return false }
+        return abs(lhs.minX - rhs.minX) < 0.5
+            && abs(lhs.minY - rhs.minY) < 0.5
+            && abs(lhs.width - rhs.width) < 0.5
+            && abs(lhs.height - rhs.height) < 0.5
+    }
+
+    private func rectDescription(_ rect: CGRect) -> String {
+        guard !rect.isNull else { return "pending" }
+        return "(\(whole(rect.minX)),\(whole(rect.minY)),\(whole(rect.width)),\(whole(rect.height)))"
+    }
+
+    private func optionalDecimal(_ value: CGFloat?) -> String {
+        guard let value else { return "pending" }
+        return oneDecimal(value)
+    }
+
+    private func oneDecimal(_ value: CGFloat) -> String {
+        String(format: "%.1f", value)
+    }
+
+    private func whole(_ value: CGFloat) -> String {
+        String(format: "%.0f", value)
+    }
+    #endif
 
     // MARK: - Route Destinations
 

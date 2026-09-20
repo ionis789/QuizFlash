@@ -7,6 +7,18 @@
 
 import SwiftUI
 
+#if DEBUG
+struct TabBarTrackFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .null
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let nextFrame = nextValue()
+        guard !nextFrame.isNull else { return }
+        value = nextFrame
+    }
+}
+#endif
+
 /// A reusable capsule selector powered by the same delayed commit and UIKit-backed
 /// selection motion used by the app tab bar.
 struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
@@ -83,6 +95,16 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
                     .background {
                         Capsule()
                             .fill(themeManager.roleColor(.tabBarTrackFill))
+                            #if DEBUG
+                            .background {
+                                GeometryReader { trackProxy in
+                                    Color.clear.preference(
+                                        key: TabBarTrackFramePreferenceKey.self,
+                                        value: trackProxy.frame(in: .global)
+                                    )
+                                }
+                            }
+                            #endif
                     }
                     .geometryGroup()
                 }
