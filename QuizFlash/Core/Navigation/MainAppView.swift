@@ -461,7 +461,7 @@ struct MainAppView: View {
             ? min(max(availableWidth * 0.56, 560), 700)
             : availableWidth
         let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
-        let physicalBottomGap = UIConstants.Spacing.small
+        let physicalBottomGap = UIConstants.Spacing.standard
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
