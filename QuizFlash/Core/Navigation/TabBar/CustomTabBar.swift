@@ -46,6 +46,9 @@ struct CustomTabBar: View {
                 .accessibilityLabel(tab.localizedTitle(locale: appPreferences.resolvedLocale))
         }
         .frame(height: UIConstants.Size.bottomChromeBarHeight)
+        // Apply the physical screen gap to the rendered control itself. Moving
+        // the root wrapper does not move this geometry-grouped surface reliably.
+        .offset(y: -UIConstants.Spacing.standard)
         .padding(.horizontal, 22)
         .ignoresSafeArea(.container, edges: .bottom)
     }
