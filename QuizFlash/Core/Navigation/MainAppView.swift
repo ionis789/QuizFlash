@@ -593,7 +593,7 @@ struct MainAppView: View {
     private func tabBarGeometryDiagnosticReport(in proxy: GeometryProxy) -> String {
         let rootFrame = proxy.frame(in: .global)
         let screenMaxY = UIScreen.main.bounds.maxY
-        let requestedGap = UIConstants.Spacing.standard
+        let requestedGap = UIConstants.Spacing.extraLarge
         let outerGap = tabBarDiagnosticOuterFrame.isNull
             ? nil
             : screenMaxY - tabBarDiagnosticOuterFrame.maxY
@@ -603,7 +603,7 @@ struct MainAppView: View {
         let events = tabBarDiagnosticEvents.suffix(4).joined(separator: "\n")
 
         return """
-        TAB GAP DIAG v7
+        TAB GAP DIAG v8
         requested:\(oneDecimal(requestedGap)) safeBottom:\(oneDecimal(proxy.safeAreaInsets.bottom))
         screenMaxY:\(oneDecimal(screenMaxY)) root:\(rectDescription(rootFrame))
         outer:\(rectDescription(tabBarDiagnosticOuterFrame)) gap:\(optionalDecimal(outerGap))
