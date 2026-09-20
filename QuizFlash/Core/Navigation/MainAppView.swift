@@ -491,6 +491,7 @@ struct MainAppView: View {
             : availableWidth
         let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
         let physicalBottomGap = UIConstants.Spacing.standard
+        let physicalBottomOffset = proxy.safeAreaInsets.bottom - physicalBottomGap
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
@@ -509,8 +510,7 @@ struct MainAppView: View {
                 anchor: .bottom
             )
             .animation(.bottomChromeSpring, value: isTabBarCompactedByScroll)
-            .padding(.bottom, physicalBottomGap)
-            .offset(y: proxy.safeAreaInsets.bottom)
+            .offset(y: physicalBottomOffset)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
 
         if usesDetachedPadTabBar {
@@ -605,7 +605,7 @@ struct MainAppView: View {
         let events = tabBarDiagnosticEvents.suffix(4).joined(separator: "\n")
 
         return """
-        TAB GAP DIAG v5
+        TAB GAP DIAG v6
         requested:\(oneDecimal(requestedGap)) safeBottom:\(oneDecimal(proxy.safeAreaInsets.bottom))
         screenMaxY:\(oneDecimal(screenMaxY)) root:\(rectDescription(rootFrame))
         outer:\(rectDescription(tabBarDiagnosticOuterFrame)) gap:\(optionalDecimal(outerGap))
