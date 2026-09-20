@@ -101,9 +101,9 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
-    private var questionContentHiddenScale: CGFloat { 0.952 }
+    private var questionContentHiddenScale: CGFloat { 0.98 }
     private var questionContentTransition: Animation {
-        .spring(response: 0.36, dampingFraction: 0.84)
+        .easeInOut(duration: 0.22)
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -459,14 +459,6 @@ private struct QuizModeSessionView: View {
                 color: .cyan,
                 label: "FLOW screen=\(Self.metric(screenWidth)) content=\(Self.metric(contentWidth)) padH=\(Self.metric(contentHorizontalPadding)) padT=\(Self.metric(contentTopPadding)) padB=\(Self.metric(contentBottomPadding))"
             )
-        }
-        .onChange(of: card.id) { _, _ in
-            measuredChoiceZoneWidths = [:]
-            questionLeafDebugSnapshots = []
-            choiceLeafDebugSnapshots = [:]
-            questionBlockDebugBounds = []
-            choiceBlockDebugBounds = [:]
-            explanationBlockDebugBounds = []
         }
     }
 
@@ -1316,15 +1308,18 @@ private struct QuizModeSessionView: View {
             guard !Task.isCancelled else { return }
 
             viewModel.advance()
+            resetQuestionLayoutMeasurements()
 
-            try? await Task.sleep(nanoseconds: 35_000_000)
-            guard !Task.isCancelled else { return }
+            if let nextCard = viewModel.currentCard {
+                await waitForStableQuestionLayout(for: nextCard)
+                guard !Task.isCancelled else { return }
 
-            withAnimation(questionContentTransition) {
-                isQuestionContentVisible = true
-            }
-            withBottomChromeAnimation {
-                areFloatingControlsVisible = true
+                withAnimation(questionContentTransition) {
+                    isQuestionContentVisible = true
+                }
+                withBottomChromeAnimation {
+                    areFloatingControlsVisible = true
+                }
             }
 
             try? await Task.sleep(nanoseconds: 320_000_000)
@@ -1345,7 +1340,8 @@ private struct QuizModeSessionView: View {
 
         questionTransitionTask?.cancel()
         questionTransitionTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 35_000_000)
+            guard let currentCard = viewModel.currentCard else { return }
+            await waitForStableQuestionLayout(for: currentCard)
             guard !Task.isCancelled else { return }
 
             withAnimation(questionContentTransition) {
@@ -1358,6 +1354,80 @@ private struct QuizModeSessionView: View {
             questionTransitionTask = nil
         }
     }
+
+    /// Keeps a newly mounted question hidden until its rich-content geometry has
+    /// settled. This prevents the estimator's full-width surfaces and late text
+    /// measurements from becoming visible as several separate resize steps.
+    private func waitForStableQuestionLayout(for card: QuizPlayableCard) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(1.5))
+        var previousSnapshot: QuizQuestionLayoutSnapshot?
+        var stableSampleCount = 0
+
+        while !Task.isCancelled && clock.now < deadline {
+            let snapshot = QuizQuestionLayoutSnapshot(
+                measuredChoiceWidths: measuredChoiceZoneWidths,
+                questionBounds: questionBlockDebugBounds,
+                choiceBounds: choiceBlockDebugBounds
+            )
+
+            if isQuestionLayoutReady(snapshot, for: card) {
+                if snapshot == previousSnapshot {
+                    stableSampleCount += 1
+                } else {
+                    previousSnapshot = snapshot
+                    stableSampleCount = 1
+                }
+
+                if stableSampleCount >= 3 {
+                    return
+                }
+            } else {
+                previousSnapshot = nil
+                stableSampleCount = 0
+            }
+
+            try? await Task.sleep(for: .milliseconds(32))
+        }
+    }
+
+    private func isQuestionLayoutReady(
+        _ snapshot: QuizQuestionLayoutSnapshot,
+        for card: QuizPlayableCard
+    ) -> Bool {
+        guard viewModel.currentCard?.id == card.id,
+              snapshot.questionBounds.contains(where: Self.hasVisibleRenderBounds) else {
+            return false
+        }
+
+        return card.choices.allSatisfy { choice in
+            (snapshot.measuredChoiceWidths[choice.id] ?? 0) > 0
+                && snapshot.choiceBounds[choice.id]?.contains(where: Self.hasVisibleRenderBounds) == true
+        }
+    }
+
+    private func resetQuestionLayoutMeasurements() {
+        measuredChoiceZoneWidths = [:]
+        questionLeafDebugSnapshots = []
+        choiceLeafDebugSnapshots = [:]
+        questionBlockDebugBounds = []
+        choiceBlockDebugBounds = [:]
+        explanationBlockDebugBounds = []
+    }
+
+    nonisolated private static func hasVisibleRenderBounds(_ bounds: ZoneContentRenderBlockBounds) -> Bool {
+        let frame = bounds.frame
+        return !frame.isNull
+            && !frame.isInfinite
+            && frame.width > 0
+            && frame.height > 0
+    }
+}
+
+private struct QuizQuestionLayoutSnapshot: Equatable {
+    let measuredChoiceWidths: [UUID: CGFloat]
+    let questionBounds: [ZoneContentRenderBlockBounds]
+    let choiceBounds: [UUID: [ZoneContentRenderBlockBounds]]
 }
 
 // MARK: - Explanation Sheet
