@@ -470,10 +470,7 @@ struct MainAppView: View {
             )
             .animation(.bottomChromeSpring, value: isTabBarCompactedByScroll)
             .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
-            .padding(
-                .bottom,
-                proxy.safeAreaInsets.bottom + UIConstants.Layout.bottomChromeBottomPadding
-            )
+            .padding(.bottom, UIConstants.Spacing.small)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
 
         if usesDetachedPadTabBar {
