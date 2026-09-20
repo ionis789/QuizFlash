@@ -91,6 +91,8 @@ private struct QuizModeSessionView: View {
     @State private var areFloatingControlsVisible = false
     @State private var isQuestionTransitioning = false
     @State private var questionTransitionTask: Task<Void, Never>?
+    @State private var preparedQuizCardUpperBound = 0
+    @State private var quizCardPreloadTask: Task<Void, Never>?
 #if DEBUG
     @State private var transitionDebugTimeline = QuizTransitionDebugTimeline()
 #endif
@@ -214,6 +216,8 @@ private struct QuizModeSessionView: View {
         .onChange(of: viewModel.currentCard?.id) { _, _ in
             showsExplanationSheet = false
             measuredExplanationSheetHeight = 0
+            resetQuestionLayoutMeasurements(reason: "current-card")
+            resetQuizCardPreloadWindow()
             recordQuizTransitionEvent(
                 "current-card changed card=\(currentQuizDebugCardID) visible=\(isQuestionContentVisible) transitioning=\(isQuestionTransitioning)"
             )
@@ -232,6 +236,7 @@ private struct QuizModeSessionView: View {
         }
         .onDisappear {
             questionTransitionTask?.cancel()
+            quizCardPreloadTask?.cancel()
             viewModel.tearDown()
         }
     }
@@ -345,11 +350,8 @@ private struct QuizModeSessionView: View {
                 message: viewModel.errorMessage.isEmpty ? "The quiz session couldn't be prepared right now." : viewModel.errorMessage
             )
         case .ready:
-            if let currentCard = viewModel.currentCard {
-                questionFlow(for: currentCard, safeBottomInset: safeBottomInset)
-                    .opacity(isQuestionContentVisible ? 1 : 0.001)
-                    .scaleEffect(isQuestionContentVisible ? 1 : questionContentHiddenScale)
-                    .animation(questionContentTransition, value: isQuestionContentVisible)
+            if viewModel.currentCard != nil {
+                bufferedQuestionFlow(safeBottomInset: safeBottomInset)
             } else {
                 centeredMessageCard(
                     icon: "questionmark.circle",
@@ -358,6 +360,32 @@ private struct QuizModeSessionView: View {
                 )
             }
         }
+    }
+
+    private func bufferedQuestionFlow(safeBottomInset: CGFloat) -> some View {
+        ZStack {
+            ForEach(bufferedQuizCardEntries) { entry in
+                let isCurrentCard = entry.index == viewModel.currentIndex
+
+                questionFlow(
+                    for: entry.card,
+                    safeBottomInset: safeBottomInset,
+                    isCurrentCard: isCurrentCard
+                )
+                .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
+                .scaleEffect(
+                    isQuestionContentVisible && isCurrentCard
+                        ? 1
+                        : questionContentHiddenScale
+                )
+                .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
+                .accessibilityHidden(!isCurrentCard)
+                .zIndex(isCurrentCard ? 10 : Double(-entry.index))
+                .transition(.opacity)
+            }
+        }
+        .animation(questionContentTransition, value: viewModel.currentIndex)
+        .animation(questionContentTransition, value: isQuestionContentVisible)
     }
 
     private var preparingQuizIndicator: some View {
@@ -380,7 +408,11 @@ private struct QuizModeSessionView: View {
         }
     }
 
-    private func questionFlow(for card: QuizPlayableCard, safeBottomInset: CGFloat) -> some View {
+    private func questionFlow(
+        for card: QuizPlayableCard,
+        safeBottomInset: CGFloat,
+        isCurrentCard: Bool
+    ) -> some View {
         GeometryReader { proxy in
             let screenWidth = max(proxy.size.width, 1)
             let screenHeight = max(proxy.size.height, 1)
@@ -406,8 +438,14 @@ private struct QuizModeSessionView: View {
                             textVerticalPadding: 0,
                             textHorizontalPaddingOverride: 0,
                             showsLayoutDebug: showsQuizLayoutDebug,
-                            onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots,
-                            onBlockBoundsChange: updateQuestionBlockDebugBounds
+                            onLeafDebugSnapshotsChange: { snapshots in
+                                guard isCurrentCard else { return }
+                                updateQuestionLeafDebugSnapshots(snapshots)
+                            },
+                            onBlockBoundsChange: { bounds in
+                                guard isCurrentCard else { return }
+                                updateQuestionBlockDebugBounds(bounds)
+                            }
                         )
                     }
 
@@ -439,12 +477,15 @@ private struct QuizModeSessionView: View {
                     showsLayoutDebug: showsQuizLayoutDebug,
                     selectChoice: { viewModel.selectChoice($0) },
                     onMeasuredWidthChange: { choiceID, width in
+                        guard isCurrentCard else { return }
                         updateMeasuredChoiceWidth(width, for: choiceID)
                     },
                     onLeafDebugSnapshotsChange: { choiceID, snapshots in
+                        guard isCurrentCard else { return }
                         updateChoiceLeafDebugSnapshots(snapshots, for: choiceID)
                     },
                     onBlockBoundsChange: { choiceID, bounds in
+                        guard isCurrentCard else { return }
                         updateChoiceBlockDebugBounds(bounds, for: choiceID)
                     }
                 )
@@ -1318,46 +1359,100 @@ private struct QuizModeSessionView: View {
         questionTransitionTask?.cancel()
         isQuestionTransitioning = true
         showsExplanationSheet = false
+        let wasShowingRetryPrompt = viewModel.isShowingRetryPrompt
         recordQuizTransitionEvent(
-            "transition begin card=\(currentQuizDebugCardID) fadeOut=220ms swapDelay=160ms"
+            "buffered transition begin card=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
         )
 
-        questionTransitionTask = Task { @MainActor in
-            withAnimation(questionContentTransition) {
-                isQuestionContentVisible = false
-            }
-            recordQuizTransitionEvent("fade-out state visible=false card=\(currentQuizDebugCardID)")
-            withBottomChromeAnimation {
-                areFloatingControlsVisible = false
-            }
+        if wasShowingRetryPrompt {
+            isQuestionContentVisible = false
+        }
 
-            try? await Task.sleep(nanoseconds: 160_000_000)
-            guard !Task.isCancelled else { return }
-
-            recordQuizTransitionEvent("advance executing after 160ms card=\(currentQuizDebugCardID)")
+        withAnimation(questionContentTransition) {
             viewModel.advance()
-            resetQuestionLayoutMeasurements(reason: "advance")
-            recordQuizTransitionEvent("advance applied nextCard=\(currentQuizDebugCardID)")
+        }
+        recordQuizTransitionEvent(
+            "buffered transition applied nextCard=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
+        )
 
-            if let nextCard = viewModel.currentCard {
-                await waitForStableQuestionLayout(for: nextCard)
-                guard !Task.isCancelled else { return }
+        if wasShowingRetryPrompt {
+            isQuestionTransitioning = false
+            showQuestionContentIfReady()
+            return
+        }
 
-                withAnimation(questionContentTransition) {
-                    isQuestionContentVisible = true
-                }
-                recordQuizTransitionEvent("fade-in state visible=true card=\(currentQuizDebugCardID)")
-                withBottomChromeAnimation {
-                    areFloatingControlsVisible = true
-                }
-            }
-
-            try? await Task.sleep(nanoseconds: 320_000_000)
+        questionTransitionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(240))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
             questionTransitionTask = nil
-            recordQuizTransitionEvent("transition complete card=\(currentQuizDebugCardID)")
+            recordQuizTransitionEvent("buffered transition complete card=\(currentQuizDebugCardID)")
+        }
+    }
+
+    private var bufferedQuizCardEntries: [QuizBufferedCardEntry] {
+        guard viewModel.loadState == .ready,
+              !viewModel.cards.isEmpty,
+              viewModel.currentIndex >= 0,
+              viewModel.currentIndex < viewModel.cards.count else {
+            return []
+        }
+
+        let lowerBound = viewModel.currentIndex
+        let upperBound = min(
+            max(preparedQuizCardUpperBound, lowerBound + 1),
+            viewModel.cards.count
+        )
+
+        return (lowerBound..<upperBound).map { index in
+            QuizBufferedCardEntry(index: index, card: viewModel.cards[index])
+        }
+    }
+
+    /// Keeps the current question and one future question mounted. The future
+    /// question resolves its rich text and intrinsic zone sizes while hidden,
+    /// so advancing only changes which already-laid-out surface is visible.
+    private func resetQuizCardPreloadWindow() {
+        quizCardPreloadTask?.cancel()
+
+        guard viewModel.loadState == .ready,
+              !viewModel.isShowingRetryPrompt,
+              !viewModel.isComplete,
+              viewModel.currentIndex >= 0,
+              viewModel.currentIndex < viewModel.cards.count else {
+            preparedQuizCardUpperBound = 0
+            return
+        }
+
+        let currentIndex = viewModel.currentIndex
+        let currentUpperBound = min(currentIndex + 1, viewModel.cards.count)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            preparedQuizCardUpperBound = currentUpperBound
+        }
+
+        guard currentUpperBound < viewModel.cards.count else { return }
+
+        quizCardPreloadTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled,
+                  viewModel.currentIndex == currentIndex,
+                  !viewModel.isShowingRetryPrompt,
+                  !viewModel.isComplete else {
+                return
+            }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                preparedQuizCardUpperBound = min(currentIndex + 2, viewModel.cards.count)
+            }
+            quizCardPreloadTask = nil
+            recordQuizTransitionEvent(
+                "preloaded next card current=\(currentIndex) upperBound=\(preparedQuizCardUpperBound)"
+            )
         }
     }
 
@@ -1367,8 +1462,12 @@ private struct QuizModeSessionView: View {
               viewModel.currentCard != nil else {
             return
         }
-        guard !isQuestionContentVisible || !areFloatingControlsVisible else { return }
+        guard !isQuestionContentVisible || !areFloatingControlsVisible else {
+            resetQuizCardPreloadWindow()
+            return
+        }
 
+        resetQuizCardPreloadWindow()
         questionTransitionTask?.cancel()
         questionTransitionTask = Task { @MainActor in
             guard let currentCard = viewModel.currentCard else { return }
@@ -1499,6 +1598,13 @@ private struct QuizModeSessionView: View {
         ["TRANSITION TIMELINE"] + transitionDebugTimeline.reportLines + [""]
     }
 #endif
+}
+
+private struct QuizBufferedCardEntry: Identifiable {
+    let index: Int
+    let card: QuizPlayableCard
+
+    var id: PersistentIdentifier { card.id }
 }
 
 private struct QuizQuestionLayoutSnapshot: Equatable {
