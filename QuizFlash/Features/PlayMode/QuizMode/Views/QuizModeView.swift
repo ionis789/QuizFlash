@@ -91,6 +91,9 @@ private struct QuizModeSessionView: View {
     @State private var areFloatingControlsVisible = false
     @State private var isQuestionTransitioning = false
     @State private var questionTransitionTask: Task<Void, Never>?
+#if DEBUG
+    @State private var transitionDebugTimeline = QuizTransitionDebugTimeline()
+#endif
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var tintColor: Color { Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color }
@@ -211,6 +214,9 @@ private struct QuizModeSessionView: View {
         .onChange(of: viewModel.currentCard?.id) { _, _ in
             showsExplanationSheet = false
             measuredExplanationSheetHeight = 0
+            recordQuizTransitionEvent(
+                "current-card changed card=\(currentQuizDebugCardID) visible=\(isQuestionContentVisible) transitioning=\(isQuestionTransitioning)"
+            )
         }
         .onChange(of: viewModel.loadState) { _, _ in
             showQuestionContentIfReady()
@@ -735,6 +741,10 @@ private struct QuizModeSessionView: View {
             "",
         ]
 
+#if DEBUG
+        lines += transitionDebugReportLines
+#endif
+
         guard let card = viewModel.currentCard else {
             lines.append("currentCard: <none>")
             return lines.joined(separator: "\n")
@@ -1025,6 +1035,9 @@ private struct QuizModeSessionView: View {
     }
 
     private func handlePrimaryAction() {
+        recordQuizTransitionEvent(
+            "primary-action card=\(currentQuizDebugCardID) evaluated=\(viewModel.isEvaluated) visible=\(isQuestionContentVisible)"
+        )
         if viewModel.isShowingRetryPrompt {
             advanceQuestionWithFade()
             return
@@ -1062,7 +1075,11 @@ private struct QuizModeSessionView: View {
         guard width > 0 else { return }
         let roundedWidth = ceil(width)
         if abs((measuredChoiceZoneWidths[choiceID] ?? 0) - roundedWidth) > 0.5 {
+            let previousWidth = measuredChoiceZoneWidths[choiceID] ?? 0
             measuredChoiceZoneWidths[choiceID] = roundedWidth
+            recordQuizTransitionEvent(
+                "choice-width id=\(choiceID.uuidString.prefix(8)) \(Self.metric(previousWidth))->\(Self.metric(roundedWidth))"
+            )
         }
     }
 
@@ -1083,7 +1100,9 @@ private struct QuizModeSessionView: View {
 
     private func updateQuestionBlockDebugBounds(_ bounds: [ZoneContentRenderBlockBounds]) {
         guard bounds != questionBlockDebugBounds else { return }
+        let previousCount = questionBlockDebugBounds.count
         questionBlockDebugBounds = bounds
+        recordQuizTransitionEvent("question-bounds \(previousCount)->\(bounds.count)")
     }
 
     private func updateChoiceBlockDebugBounds(
@@ -1091,7 +1110,11 @@ private struct QuizModeSessionView: View {
         for choiceID: UUID
     ) {
         guard choiceBlockDebugBounds[choiceID] != bounds else { return }
+        let previousCount = choiceBlockDebugBounds[choiceID]?.count ?? 0
         choiceBlockDebugBounds[choiceID] = bounds
+        recordQuizTransitionEvent(
+            "choice-bounds id=\(choiceID.uuidString.prefix(8)) \(previousCount)->\(bounds.count)"
+        )
     }
 
     private func updateExplanationBlockDebugBounds(_ bounds: [ZoneContentRenderBlockBounds]) {
@@ -1295,11 +1318,15 @@ private struct QuizModeSessionView: View {
         questionTransitionTask?.cancel()
         isQuestionTransitioning = true
         showsExplanationSheet = false
+        recordQuizTransitionEvent(
+            "transition begin card=\(currentQuizDebugCardID) fadeOut=220ms swapDelay=160ms"
+        )
 
         questionTransitionTask = Task { @MainActor in
             withAnimation(questionContentTransition) {
                 isQuestionContentVisible = false
             }
+            recordQuizTransitionEvent("fade-out state visible=false card=\(currentQuizDebugCardID)")
             withBottomChromeAnimation {
                 areFloatingControlsVisible = false
             }
@@ -1307,8 +1334,10 @@ private struct QuizModeSessionView: View {
             try? await Task.sleep(nanoseconds: 160_000_000)
             guard !Task.isCancelled else { return }
 
+            recordQuizTransitionEvent("advance executing after 160ms card=\(currentQuizDebugCardID)")
             viewModel.advance()
-            resetQuestionLayoutMeasurements()
+            resetQuestionLayoutMeasurements(reason: "advance")
+            recordQuizTransitionEvent("advance applied nextCard=\(currentQuizDebugCardID)")
 
             if let nextCard = viewModel.currentCard {
                 await waitForStableQuestionLayout(for: nextCard)
@@ -1317,6 +1346,7 @@ private struct QuizModeSessionView: View {
                 withAnimation(questionContentTransition) {
                     isQuestionContentVisible = true
                 }
+                recordQuizTransitionEvent("fade-in state visible=true card=\(currentQuizDebugCardID)")
                 withBottomChromeAnimation {
                     areFloatingControlsVisible = true
                 }
@@ -1327,6 +1357,7 @@ private struct QuizModeSessionView: View {
 
             isQuestionTransitioning = false
             questionTransitionTask = nil
+            recordQuizTransitionEvent("transition complete card=\(currentQuizDebugCardID)")
         }
     }
 
@@ -1341,12 +1372,14 @@ private struct QuizModeSessionView: View {
         questionTransitionTask?.cancel()
         questionTransitionTask = Task { @MainActor in
             guard let currentCard = viewModel.currentCard else { return }
+            recordQuizTransitionEvent("initial readiness wait card=\(currentQuizDebugCardID)")
             await waitForStableQuestionLayout(for: currentCard)
             guard !Task.isCancelled else { return }
 
             withAnimation(questionContentTransition) {
                 isQuestionContentVisible = true
             }
+            recordQuizTransitionEvent("initial fade-in visible=true card=\(currentQuizDebugCardID)")
             withBottomChromeAnimation {
                 areFloatingControlsVisible = true
             }
@@ -1363,6 +1396,11 @@ private struct QuizModeSessionView: View {
         let deadline = clock.now.advanced(by: .seconds(1.5))
         var previousSnapshot: QuizQuestionLayoutSnapshot?
         var stableSampleCount = 0
+        var lastReadyState: Bool?
+
+        recordQuizTransitionEvent(
+            "readiness begin card=\(Self.quizDebugID(card.id)) choices=\(card.choices.count)"
+        )
 
         while !Task.isCancelled && clock.now < deadline {
             let snapshot = QuizQuestionLayoutSnapshot(
@@ -1371,7 +1409,15 @@ private struct QuizModeSessionView: View {
                 choiceBounds: choiceBlockDebugBounds
             )
 
-            if isQuestionLayoutReady(snapshot, for: card) {
+            let isReady = isQuestionLayoutReady(snapshot, for: card)
+            if lastReadyState != isReady {
+                recordQuizTransitionEvent(
+                    "readiness changed card=\(Self.quizDebugID(card.id)) ready=\(isReady) widths=\(snapshot.measuredChoiceWidths.count)/\(card.choices.count) questionBounds=\(snapshot.questionBounds.count) choiceBounds=\(snapshot.choiceBounds.count)/\(card.choices.count)"
+                )
+                lastReadyState = isReady
+            }
+
+            if isReady {
                 if snapshot == previousSnapshot {
                     stableSampleCount += 1
                 } else {
@@ -1380,6 +1426,9 @@ private struct QuizModeSessionView: View {
                 }
 
                 if stableSampleCount >= 3 {
+                    recordQuizTransitionEvent(
+                        "readiness accepted card=\(Self.quizDebugID(card.id)) stableSamples=\(stableSampleCount)"
+                    )
                     return
                 }
             } else {
@@ -1389,6 +1438,10 @@ private struct QuizModeSessionView: View {
 
             try? await Task.sleep(for: .milliseconds(32))
         }
+
+        recordQuizTransitionEvent(
+            "readiness timeout card=\(Self.quizDebugID(card.id)) widths=\(measuredChoiceZoneWidths.count)/\(card.choices.count) questionBounds=\(questionBlockDebugBounds.count) choiceBounds=\(choiceBlockDebugBounds.count)/\(card.choices.count)"
+        )
     }
 
     private func isQuestionLayoutReady(
@@ -1406,7 +1459,10 @@ private struct QuizModeSessionView: View {
         }
     }
 
-    private func resetQuestionLayoutMeasurements() {
+    private func resetQuestionLayoutMeasurements(reason: String) {
+        recordQuizTransitionEvent(
+            "measurements reset reason=\(reason) widths=\(measuredChoiceZoneWidths.count) questionBounds=\(questionBlockDebugBounds.count) choiceBounds=\(choiceBlockDebugBounds.count)"
+        )
         measuredChoiceZoneWidths = [:]
         questionLeafDebugSnapshots = []
         choiceLeafDebugSnapshots = [:]
@@ -1422,6 +1478,27 @@ private struct QuizModeSessionView: View {
             && frame.width > 0
             && frame.height > 0
     }
+
+    private var currentQuizDebugCardID: String {
+        guard let cardID = viewModel.currentCard?.id else { return "none" }
+        return Self.quizDebugID(cardID)
+    }
+
+    nonisolated private static func quizDebugID(_ id: PersistentIdentifier) -> String {
+        String(describing: id)
+    }
+
+    private func recordQuizTransitionEvent(_ message: @autoclosure () -> String) {
+#if DEBUG
+        transitionDebugTimeline.record(message())
+#endif
+    }
+
+#if DEBUG
+    private var transitionDebugReportLines: [String] {
+        ["TRANSITION TIMELINE"] + transitionDebugTimeline.reportLines + [""]
+    }
+#endif
 }
 
 private struct QuizQuestionLayoutSnapshot: Equatable {
@@ -1429,6 +1506,32 @@ private struct QuizQuestionLayoutSnapshot: Equatable {
     let questionBounds: [ZoneContentRenderBlockBounds]
     let choiceBounds: [UUID: [ZoneContentRenderBlockBounds]]
 }
+
+#if DEBUG
+@MainActor
+private final class QuizTransitionDebugTimeline {
+    private let startedAt = Date()
+    private var nextSequence = 1
+    private var events: [String] = []
+    private let capacity = 30
+
+    var reportLines: [String] {
+        events.isEmpty ? ["<no events>"] : events
+    }
+
+    func record(_ message: String) {
+        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        events.append(
+            String(format: "%02d +%04dms %@", nextSequence, elapsedMilliseconds, message)
+        )
+        nextSequence += 1
+
+        if events.count > capacity {
+            events.removeFirst(events.count - capacity)
+        }
+    }
+}
+#endif
 
 // MARK: - Explanation Sheet
 
