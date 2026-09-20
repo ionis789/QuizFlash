@@ -106,9 +106,8 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
-    private var questionContentHiddenScale: CGFloat { 0.98 }
     private var questionContentTransition: Animation {
-        .easeInOut(duration: 0.22)
+        .easeOut(duration: 0.16)
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -373,11 +372,6 @@ private struct QuizModeSessionView: View {
                     isCurrentCard: isCurrentCard
                 )
                 .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
-                .scaleEffect(
-                    isQuestionContentVisible && isCurrentCard
-                        ? 1
-                        : questionContentHiddenScale
-                )
                 .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
                 .accessibilityHidden(!isCurrentCard)
                 .zIndex(isCurrentCard ? 10 : Double(-entry.index))
@@ -1382,7 +1376,7 @@ private struct QuizModeSessionView: View {
         }
 
         questionTransitionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(240))
+            try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
@@ -1462,100 +1456,18 @@ private struct QuizModeSessionView: View {
               viewModel.currentCard != nil else {
             return
         }
-        guard !isQuestionContentVisible || !areFloatingControlsVisible else {
-            resetQuizCardPreloadWindow()
-            return
-        }
 
         resetQuizCardPreloadWindow()
         questionTransitionTask?.cancel()
-        questionTransitionTask = Task { @MainActor in
-            guard let currentCard = viewModel.currentCard else { return }
-            recordQuizTransitionEvent("initial readiness wait card=\(currentQuizDebugCardID)")
-            await waitForStableQuestionLayout(for: currentCard)
-            guard !Task.isCancelled else { return }
-
-            withAnimation(questionContentTransition) {
-                isQuestionContentVisible = true
-            }
-            recordQuizTransitionEvent("initial fade-in visible=true card=\(currentQuizDebugCardID)")
-            withBottomChromeAnimation {
-                areFloatingControlsVisible = true
-            }
-
-            questionTransitionTask = nil
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isQuestionContentVisible = true
+            areFloatingControlsVisible = true
         }
-    }
-
-    /// Keeps a newly mounted question hidden until its rich-content geometry has
-    /// settled. This prevents the estimator's full-width surfaces and late text
-    /// measurements from becoming visible as several separate resize steps.
-    private func waitForStableQuestionLayout(for card: QuizPlayableCard) async {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(1.5))
-        var previousSnapshot: QuizQuestionLayoutSnapshot?
-        var stableSampleCount = 0
-        var lastReadyState: Bool?
-
         recordQuizTransitionEvent(
-            "readiness begin card=\(Self.quizDebugID(card.id)) choices=\(card.choices.count)"
+            "initial content visible immediately card=\(currentQuizDebugCardID)"
         )
-
-        while !Task.isCancelled && clock.now < deadline {
-            let snapshot = QuizQuestionLayoutSnapshot(
-                measuredChoiceWidths: measuredChoiceZoneWidths,
-                questionBounds: questionBlockDebugBounds,
-                choiceBounds: choiceBlockDebugBounds
-            )
-
-            let isReady = isQuestionLayoutReady(snapshot, for: card)
-            if lastReadyState != isReady {
-                recordQuizTransitionEvent(
-                    "readiness changed card=\(Self.quizDebugID(card.id)) ready=\(isReady) widths=\(snapshot.measuredChoiceWidths.count)/\(card.choices.count) questionBounds=\(snapshot.questionBounds.count) choiceBounds=\(snapshot.choiceBounds.count)/\(card.choices.count)"
-                )
-                lastReadyState = isReady
-            }
-
-            if isReady {
-                if snapshot == previousSnapshot {
-                    stableSampleCount += 1
-                } else {
-                    previousSnapshot = snapshot
-                    stableSampleCount = 1
-                }
-
-                if stableSampleCount >= 3 {
-                    recordQuizTransitionEvent(
-                        "readiness accepted card=\(Self.quizDebugID(card.id)) stableSamples=\(stableSampleCount)"
-                    )
-                    return
-                }
-            } else {
-                previousSnapshot = nil
-                stableSampleCount = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(32))
-        }
-
-        recordQuizTransitionEvent(
-            "readiness timeout card=\(Self.quizDebugID(card.id)) widths=\(measuredChoiceZoneWidths.count)/\(card.choices.count) questionBounds=\(questionBlockDebugBounds.count) choiceBounds=\(choiceBlockDebugBounds.count)/\(card.choices.count)"
-        )
-    }
-
-    private func isQuestionLayoutReady(
-        _ snapshot: QuizQuestionLayoutSnapshot,
-        for card: QuizPlayableCard
-    ) -> Bool {
-        guard viewModel.currentCard?.id == card.id,
-              snapshot.questionBounds.contains(where: Self.hasVisibleRenderBounds) else {
-            return false
-        }
-
-        return card.choices.allSatisfy { choice in
-            (snapshot.measuredChoiceWidths[choice.id] ?? 0) > 0
-                && snapshot.choiceBounds[choice.id]?.contains(where: Self.hasVisibleRenderBounds) == true
-        }
     }
 
     private func resetQuestionLayoutMeasurements(reason: String) {
@@ -1568,14 +1480,6 @@ private struct QuizModeSessionView: View {
         questionBlockDebugBounds = []
         choiceBlockDebugBounds = [:]
         explanationBlockDebugBounds = []
-    }
-
-    nonisolated private static func hasVisibleRenderBounds(_ bounds: ZoneContentRenderBlockBounds) -> Bool {
-        let frame = bounds.frame
-        return !frame.isNull
-            && !frame.isInfinite
-            && frame.width > 0
-            && frame.height > 0
     }
 
     private var currentQuizDebugCardID: String {
@@ -1605,12 +1509,6 @@ private struct QuizBufferedCardEntry: Identifiable {
     let card: QuizPlayableCard
 
     var id: PersistentIdentifier { card.id }
-}
-
-private struct QuizQuestionLayoutSnapshot: Equatable {
-    let measuredChoiceWidths: [UUID: CGFloat]
-    let questionBounds: [ZoneContentRenderBlockBounds]
-    let choiceBounds: [UUID: [ZoneContentRenderBlockBounds]]
 }
 
 #if DEBUG
