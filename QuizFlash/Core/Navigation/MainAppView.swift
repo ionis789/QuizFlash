@@ -461,6 +461,7 @@ struct MainAppView: View {
             ? min(max(availableWidth * 0.56, 560), 700)
             : availableWidth
         let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
+        let physicalBottomGap = UIConstants.Spacing.small
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
@@ -469,8 +470,8 @@ struct MainAppView: View {
                 anchor: .bottom
             )
             .animation(.bottomChromeSpring, value: isTabBarCompactedByScroll)
-            .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
-            .padding(.bottom, UIConstants.Spacing.small)
+            .padding(.bottom, physicalBottomGap)
+            .offset(y: proxy.safeAreaInsets.bottom)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
 
         if usesDetachedPadTabBar {
