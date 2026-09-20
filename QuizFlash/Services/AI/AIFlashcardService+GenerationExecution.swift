@@ -232,7 +232,7 @@ extension AIFlashcardService {
             ]
         )
 
-        var pendingPlans = plans
+        var pendingPlans = plans.map { (plan: $0, freshResponseAttempt: 0) }
         var coveredPrompts = Array(initialCoveredPrompts.prefix(64))
         var activeTaskCount = 0
         var activeSerializationKeys = Set<String>()
@@ -244,14 +244,17 @@ extension AIFlashcardService {
         var consecutiveSuccesses = 0
         var terminalFailures: [String] = []
 
-        try await withThrowingTaskGroup(of: (Plan, Result<GeneratedBatchExecutionResult, Error>).self) { group in
+        try await withThrowingTaskGroup(
+            of: (Plan, Int, Result<GeneratedBatchExecutionResult, Error>).self
+        ) { group in
             func scheduleAvailableTasks() {
                 while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
-                    guard let eligibleIndex = pendingPlans.firstIndex(where: { plan in
-                        guard let key = plan.serializationKey else { return true }
+                    guard let eligibleIndex = pendingPlans.firstIndex(where: { scheduled in
+                        guard let key = scheduled.plan.serializationKey else { return true }
                         return !activeSerializationKeys.contains(key)
                     }) else { break }
-                    let plan = pendingPlans.remove(at: eligibleIndex)
+                    let scheduled = pendingPlans.remove(at: eligibleIndex)
+                    let plan = scheduled.plan
                     let promptSnapshot = coveredPrompts
                     let scope = traceScope(for: plan, operation: "generation_batch")
                     activeTaskCount += 1
@@ -270,7 +273,7 @@ extension AIFlashcardService {
                             return try await withTraceScope(scope) {
                                 try Task.checkCancellation()
                                 let result = try await execute(plan, promptSnapshot)
-                                return (plan, .success(result))
+                                return (plan, scheduled.freshResponseAttempt, .success(result))
                             }
                         } catch {
                             await trace(
@@ -279,7 +282,7 @@ extension AIFlashcardService {
                                 scope: scope,
                                 metadata: ["error": String(describing: error)]
                             )
-                            return (plan, .failure(error))
+                            return (plan, scheduled.freshResponseAttempt, .failure(error))
                         }
                     }
                 }
@@ -290,7 +293,7 @@ extension AIFlashcardService {
             while activeTaskCount > 0 {
                 try Task.checkCancellation()
 
-                guard let (plan, result) = try await group.next() else {
+                guard let (plan, freshResponseAttempt, result) = try await group.next() else {
                     break
                 }
 
@@ -338,13 +341,29 @@ extension AIFlashcardService {
                     let scope = traceScope(for: plan, operation: "generation_batch")
 
                     if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
-                        pendingPlans.append(contentsOf: splitPlans)
+                        pendingPlans.append(contentsOf: splitPlans.map {
+                            (plan: $0, freshResponseAttempt: 0)
+                        })
                         await trace(
                             stage: .batchRecovered,
                             message: "Split failed generation batch for recovery.",
                             scope: scope,
                             metadata: [
                                 "split_plan_count": String(splitPlans.count),
+                                "error": String(describing: error)
+                            ]
+                        )
+                    } else if shouldRequestFreshProviderResponse(after: error),
+                              freshResponseAttempt < 2 {
+                        pendingPlans.append(
+                            (plan: plan, freshResponseAttempt: freshResponseAttempt + 1)
+                        )
+                        await trace(
+                            stage: .batchRecovered,
+                            message: "Scheduled a fresh provider response for an atomic batch.",
+                            scope: scope,
+                            metadata: [
+                                "fresh_response_attempt": String(freshResponseAttempt + 1),
                                 "error": String(describing: error)
                             ]
                         )

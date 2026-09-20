@@ -76,11 +76,7 @@ extension DeckWorkspaceViewModel {
             try Task.checkCancellation()
             await completeAIGeneration()
         } catch {
-            aiCardBatchStreamIsActive = false
-            aiDidFinishReceivingGeneratedCards = true
-            aiRevealTask?.cancel()
-            aiRevealTask = nil
-            pendingAIGeneratedCards.removeAll()
+            await preserveReceivedCardsAfterGenerationFailure()
             throw error
         }
     }
@@ -144,13 +140,21 @@ extension DeckWorkspaceViewModel {
             }
             await completeAIGeneration()
         } catch {
-            aiCardBatchStreamIsActive = false
-            aiDidFinishReceivingGeneratedCards = true
-            aiRevealTask?.cancel()
-            aiRevealTask = nil
-            pendingAIGeneratedCards.removeAll()
+            await preserveReceivedCardsAfterGenerationFailure()
             throw error
         }
+    }
+
+    /// Stops the paced reveal task and promotes every already-decoded card
+    /// before the caller handles a partial provider failure. Without this,
+    /// cards waiting only for their reveal animation are silently discarded.
+    func preserveReceivedCardsAfterGenerationFailure() async {
+        aiCardBatchStreamIsActive = false
+        aiDidFinishReceivingGeneratedCards = true
+        aiRevealTask?.cancel()
+        _ = try? await aiRevealTask?.value
+        aiRevealTask = nil
+        flushPendingGeneratedCards()
     }
 
     func drainGeneratedCardsContinuously() async throws {

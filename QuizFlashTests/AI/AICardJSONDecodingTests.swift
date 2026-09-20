@@ -7,6 +7,21 @@ import XCTest
 @testable import QuizFlash
 
 final class AICardJSONDecodingTests: XCTestCase {
+    func testParsingFailureRequiresFreshProviderResponse() {
+        let service = makeService()
+
+        XCTAssertTrue(
+            service.shouldRequestFreshProviderResponse(
+                after: AIServiceError.parsingFailed
+            )
+        )
+        XCTAssertFalse(
+            service.shouldRequestFreshProviderResponse(
+                after: AIServiceError.networkError
+            )
+        )
+    }
+
     func testDecodeFlashcardCardDTOBatch() async throws {
         let service = makeService()
         let json = """

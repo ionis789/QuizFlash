@@ -652,6 +652,25 @@ extension AIFlashcardService {
         return false
     }
 
+    /// A cloud retry with the same provider call ID returns the same malformed
+    /// idempotent payload. Atomic batches cannot be split further, so recovery
+    /// must start a new provider call instead.
+    func shouldRequestFreshProviderResponse(after error: Error) -> Bool {
+        if let retriable = error as? RetriableRequestError {
+            if case .parsingFailed = retriable.serviceError {
+                return true
+            }
+            return false
+        }
+        if let serviceError = error as? AIServiceError {
+            if case .parsingFailed = serviceError {
+                return true
+            }
+            return false
+        }
+        return false
+    }
+
     func mapURLSessionError(_ error: URLError) -> AIServiceError {
         switch error.code {
         case .timedOut:

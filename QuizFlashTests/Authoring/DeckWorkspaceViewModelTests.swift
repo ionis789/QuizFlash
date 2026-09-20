@@ -408,4 +408,24 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiSessionDraftCards.count, 2)
         XCTAssertEqual(viewModel.draftCards.count, 3)
     }
+
+    func testPartialGenerationFailurePreservesCardsWaitingForReveal() async {
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
+        viewModel.aiTargetCardCount = 2
+        viewModel.pendingAIGeneratedCards = [
+            AIFlashcard(question: "Q1", answer: "A1"),
+            AIFlashcard(question: "Q2", answer: "A2")
+        ]
+        viewModel.aiRevealTask = Task {
+            try await Task.sleep(for: .seconds(30))
+        }
+
+        await viewModel.preserveReceivedCardsAfterGenerationFailure()
+
+        XCTAssertNil(viewModel.aiRevealTask)
+        XCTAssertTrue(viewModel.pendingAIGeneratedCards.isEmpty)
+        XCTAssertEqual(viewModel.aiGeneratedCardCount, 2)
+        XCTAssertEqual(viewModel.aiSessionDraftCards.count, 2)
+        XCTAssertEqual(viewModel.draftCards.count, 2)
+    }
 }
