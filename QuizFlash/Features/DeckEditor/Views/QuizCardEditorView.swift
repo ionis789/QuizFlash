@@ -43,7 +43,7 @@ struct QuizCardEditorView: View {
     @State private var pendingDeleteTask: Task<Void, Never>?
     @State private var isExplanationDeletePending = false
     @State private var pendingExplanationDeleteTask: Task<Void, Never>?
-    @State private var editorDismissalTask: Task<Void, Never>?
+    @State private var keyboardSettlingTask: Task<Void, Never>?
     @State private var showUnsavedChangesDialog = false
     @State private var initialQuizContent: QuizCardContent
     @State private var floatingFormatBarKeyboardHeight: CGFloat = 0
@@ -466,8 +466,8 @@ struct QuizCardEditorView: View {
             pendingDeleteTask = nil
             pendingExplanationDeleteTask?.cancel()
             pendingExplanationDeleteTask = nil
-            editorDismissalTask?.cancel()
-            editorDismissalTask = nil
+            keyboardSettlingTask?.cancel()
+            keyboardSettlingTask = nil
             scheduledRenderToggleTask?.cancel()
             scheduledRenderToggleTask = nil
             renderedAlignmentWiggleTask?.cancel()
@@ -2877,12 +2877,9 @@ struct QuizCardEditorView: View {
 
     private func openPreview() {
         guard questionContent.hasContent || choices.contains(where: { $0.content.hasContent }) else { return }
-        focusManager.forceReleaseKeyboard()
-        zoneController.forceReleaseKeyboard()
-        zoneController.updateFocusedZone(nil)
-        currentSelectedPath = nil
-        previewDirection = nil
-        showPreview = true
+        performAfterKeyboardSettles {
+            showPreview = true
+        }
     }
 
     private func closeEditor() {
@@ -2895,7 +2892,7 @@ struct QuizCardEditorView: View {
 
     private func closeEditorDiscardingChanges() {
         beginQuizSheetDismissTrace("discard", details: "phase=start")
-        dismissEditorAfterKeyboardSettles {
+        performAfterKeyboardSettles {
             recordQuizSheetDismissTrace("quiz.discard.before-dismiss", details: "phase=completion")
             dismiss()
             scheduleQuizSheetDismissTraceSamples(action: "discard")
@@ -2909,7 +2906,7 @@ struct QuizCardEditorView: View {
         choices.forEach { $0.content.cleanup() }
         explanationContent?.cleanup()
         let contentToSave = currentQuizContent
-        dismissEditorAfterKeyboardSettles {
+        performAfterKeyboardSettles {
             recordQuizSheetDismissTrace("quiz.save.before-onsave", details: "phase=completion")
             onSave(contentToSave)
             recordQuizSheetDismissTrace("quiz.save.before-dismiss", details: "phase=completion")
@@ -2919,8 +2916,8 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func dismissEditorAfterKeyboardSettles(_ completion: @escaping @MainActor () -> Void) {
-        editorDismissalTask?.cancel()
+    private func performAfterKeyboardSettles(_ completion: @escaping @MainActor () -> Void) {
+        keyboardSettlingTask?.cancel()
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
         scheduledCaretScrollTask?.cancel()
@@ -2956,10 +2953,10 @@ struct QuizCardEditorView: View {
 
         zoneController.clearHeightCache()
 
-        editorDismissalTask = Task { @MainActor in
+        keyboardSettlingTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
-            editorDismissalTask = nil
+            keyboardSettlingTask = nil
             completion()
         }
     }
