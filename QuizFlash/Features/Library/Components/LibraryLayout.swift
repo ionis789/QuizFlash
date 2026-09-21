@@ -228,6 +228,7 @@ struct LibraryLayout: View {
                 title: title,
                 titleFallback: titleFallback,
                 deckCount: viewModel.cachedDeckCount,
+                canSelectDecks: !decks.isEmpty,
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
                 isCollapsedTitleVisible: isCollapsedTitleVisible,

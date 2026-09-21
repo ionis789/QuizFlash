@@ -84,7 +84,14 @@ extension LibraryLayout {
             compactChromeRecoverySectionHeaderID = nil
             viewModel.updateGroupedDecks(from: decks)
         }
-        .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
+        .onChange(of: decks) { _, newDecks in
+            if newDecks.isEmpty, viewModel.isSelecting {
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
+                }
+            }
+            viewModel.updateGroupedDecks(from: newDecks)
+        }
         .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
         .onChange(of: appPreferences.languageRefreshKey) { _, _ in
             viewModel.updateGroupedDecks(from: decks)
@@ -258,6 +265,7 @@ extension LibraryLayout {
             LibraryEmptyStateView {
                 router.activeTab = .create
             }
+                .allowsHitTesting(!viewModel.isSelecting)
                 .transition(.opacity)
         } else {
             LibraryFlatListView(
@@ -302,6 +310,7 @@ extension LibraryLayout {
             LibraryEmptyStateView {
                 router.activeTab = .create
             }
+                .allowsHitTesting(!viewModel.isSelecting)
                 .transition(.opacity)
         } else {
             LibraryListView(

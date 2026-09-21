@@ -17,6 +17,7 @@ struct LibraryTopBarView: View {
     let title: AppTextValue
     let titleFallback: String
     let deckCount: Int
+    let canSelectDecks: Bool
     @Bindable var viewModel: LibraryViewModel
     let coordinateSpaceName: String
     let isCollapsedTitleVisible: Bool

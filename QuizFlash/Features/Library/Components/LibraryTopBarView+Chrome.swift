@@ -117,8 +117,12 @@ extension LibraryTopBarView {
                     SelectionModeMenuElement.action(
                         title: AppLocalization.string("Select", locale: locale),
                         systemImage: "checkmark.circle",
-                        isEnabled: !viewModel.isSelecting && !viewModel.isSearching
+                        isEnabled: canSelectDecks && !viewModel.isSelecting && !viewModel.isSearching
                     ) {
+                        guard canSelectDecks else {
+                            finishMenuInteraction()
+                            return
+                        }
                         prepareSelectionVisual()
                         withBottomChromeAnimation {
                             viewModel.enterSelectionMode()
