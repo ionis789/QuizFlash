@@ -373,7 +373,6 @@ private struct QuizModeSessionView: View {
                     isCurrentCard: isCurrentCard
                 )
                 .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
-                .scaleEffect(isCurrentCard ? questionContentScale : 0.985)
                 .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
                 .accessibilityHidden(!isCurrentCard)
                 .zIndex(isCurrentCard ? 10 : Double(-entry.index))
@@ -468,6 +467,7 @@ private struct QuizModeSessionView: View {
                     topContentInset: UIConstants.Spacing.large,
                     bottomOverlayInset: answerBottomOverlayInset,
                     showsLayoutDebug: showsQuizLayoutDebug,
+                    zoneScale: isCurrentCard ? questionContentScale : 0.985,
                     selectChoice: { viewModel.selectChoice($0) },
                     onMeasuredWidthChange: { choiceID, width in
                         guard isCurrentCard else { return }
@@ -1640,6 +1640,7 @@ struct QuizAnswerList: View {
     let topContentInset: CGFloat
     let bottomOverlayInset: CGFloat
     let showsLayoutDebug: Bool
+    var zoneScale: CGFloat = 1
     let selectChoice: (UUID) -> Void
     let onMeasuredWidthChange: (UUID, CGFloat) -> Void
     let onLeafDebugSnapshotsChange: (UUID, [ZoneContentLeafLayoutDebugSnapshot]) -> Void
@@ -1675,6 +1676,7 @@ struct QuizAnswerList: View {
                             layoutWidth: layoutWidth,
                             alignmentDefaults: alignmentDefaults,
                             showsLayoutDebug: showsLayoutDebug,
+                            zoneScale: zoneScale,
                             action: { selectChoice(choice.id) },
                             onMeasuredWidthChange: { width in
                                 onMeasuredWidthChange(choice.id, width)
@@ -1750,6 +1752,7 @@ struct QuizChoiceRow: View {
     let layoutWidth: CGFloat
     let alignmentDefaults: ZoneAlignmentDefaults
     let showsLayoutDebug: Bool
+    let zoneScale: CGFloat
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
     let onLeafDebugSnapshotsChange: ([ZoneContentLeafLayoutDebugSnapshot]) -> Void
@@ -1783,6 +1786,7 @@ struct QuizChoiceRow: View {
                     onBlockBoundsChange(bounds)
                 }
             )
+            .scaleEffect(zoneScale, anchor: .center)
             .keyframeAnimator(
                 initialValue: CorrectAnswerFeedbackFrame(),
                 trigger: correctFeedbackAnimationTrigger
