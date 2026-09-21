@@ -40,10 +40,12 @@ struct HomeView: View {
 
     @State private var viewModel = HomeViewModel()
     @State private var calendarVM = CalendarViewModel()
+    @State private var recentDeckActionViewModel = LibraryViewModel()
     @State private var lastLoggedLayoutSignature = ""
     @State private var cachedFolderModels: [FolderModel] = []
     @State private var cachedFolderSnapshots: [HomeFolderSnapshot] = []
     @State private var cachedRecentlyOpenedDeckSnapshots: [LibraryDeckRowSnapshot] = []
+    @State private var cachedRecentlyOpenedDeckModels: [DeckModel] = []
     @State private var cachedAllDeckCount = 0
 
     private static let layoutLogger = Logger(
@@ -96,6 +98,9 @@ struct HomeView: View {
                             layoutContext: layoutContext,
                             allDeckCount: cachedAllDeckCount,
                             onOpenDeck: openDeck,
+                            onExportDeck: exportRecentDeck,
+                            onMoveDeck: moveRecentDeck,
+                            onDeleteDeck: deleteRecentDeck,
                             onOpenFolder: openFolder,
                             onCreateFolder: presentCreateFolder,
                             onCreateDeck: openCreateTab
@@ -205,6 +210,7 @@ struct HomeView: View {
                     folderModels: $cachedFolderModels,
                     folderSnapshots: $cachedFolderSnapshots,
                     recentDeckSnapshots: $cachedRecentlyOpenedDeckSnapshots,
+                    recentDeckModels: $cachedRecentlyOpenedDeckModels,
                     allDeckCount: $cachedAllDeckCount
                 )
                 .frame(width: 0, height: 0)
@@ -227,6 +233,13 @@ struct HomeView: View {
                 details: ["activeTab": String(describing: router.activeTab)]
             )
         }
+        .modifier(LibraryModalsAndDialogs(
+            viewModel: recentDeckActionViewModel,
+            context: modelContext,
+            decks: cachedRecentlyOpenedDeckModels,
+            folders: cachedFolderModels
+        ))
+        .modifier(LibraryAlerts(viewModel: recentDeckActionViewModel))
     }
 
     private var dashboardWeekStartDate: Date {
@@ -242,6 +255,21 @@ struct HomeView: View {
                 backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
             )
         )
+    }
+
+    private func exportRecentDeck(_ target: LibraryDeckActionTarget) {
+        recentDeckActionViewModel.exportSingleDeck(
+            target,
+            from: cachedRecentlyOpenedDeckModels
+        )
+    }
+
+    private func moveRecentDeck(_ target: LibraryDeckActionTarget) {
+        recentDeckActionViewModel.deckToMove = target
+    }
+
+    private func deleteRecentDeck(_ target: LibraryDeckActionTarget) {
+        recentDeckActionViewModel.deckToDelete = target
     }
 
     private func openFolder(_ folderID: PersistentIdentifier) {
@@ -434,6 +462,7 @@ private struct HomeDataCoordinator: View {
     @Binding var folderModels: [FolderModel]
     @Binding var folderSnapshots: [HomeFolderSnapshot]
     @Binding var recentDeckSnapshots: [LibraryDeckRowSnapshot]
+    @Binding var recentDeckModels: [DeckModel]
     @Binding var allDeckCount: Int
 
     @State private var homeDataSignatures = HomeDataSignatures()
@@ -611,6 +640,7 @@ private struct HomeDataCoordinator: View {
                     deck.title,
                     deck.colorHex,
                     "\(deck.cardCount)",
+                    "\(deck.editedAt.timeIntervalSince1970.bitPattern)",
                     "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)",
                 ].joined(separator: ":")
             }
@@ -618,9 +648,9 @@ private struct HomeDataCoordinator: View {
 
         guard recentDeckSignature != nextSignature else { return }
         recentDeckSignature = nextSignature
+        recentDeckModels = nextDecks
         recentDeckSnapshots = LibraryGrouping.makeDeckSnapshots(
-            from: nextDecks,
-            includeCardKindPresence: false
+            from: nextDecks
         )
     }
 }

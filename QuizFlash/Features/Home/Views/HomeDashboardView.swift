@@ -32,6 +32,9 @@ struct HomeDashboardView: View {
     let layoutContext: HomeAdaptiveLayoutContext
     let allDeckCount: Int
     let onOpenDeck: (PersistentIdentifier) -> Void
+    let onExportDeck: (LibraryDeckActionTarget) -> Void
+    let onMoveDeck: (LibraryDeckActionTarget) -> Void
+    let onDeleteDeck: (LibraryDeckActionTarget) -> Void
     let onOpenFolder: (PersistentIdentifier) -> Void
     let onCreateFolder: () -> Void
     let onCreateDeck: () -> Void
@@ -368,10 +371,12 @@ struct HomeDashboardView: View {
             ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
                 HomeDashboardRecentDeckRow(
                     snapshot: deck,
-                    showsSeparator: index < recentDeckSnapshots.count - 1
-                ) {
-                    onOpenDeck(deck.id)
-                }
+                    showsSeparator: index < recentDeckSnapshots.count - 1,
+                    action: { onOpenDeck(deck.id) },
+                    onExport: { onExportDeck($0) },
+                    onMoveToFolder: { onMoveDeck($0) },
+                    onDelete: { onDeleteDeck($0) }
+                )
             }
         }
         .modifier(HomeDashboardStudyCardModifier(
@@ -1462,6 +1467,9 @@ private struct HomeDashboardRecentDeckRow: View {
     let snapshot: LibraryDeckRowSnapshot
     let showsSeparator: Bool
     let action: @MainActor @Sendable () -> Void
+    let onExport: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -1477,33 +1485,70 @@ private struct HomeDashboardRecentDeckRow: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(verbatim: snapshot.title)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HomeDashboardDeckMetaLine(
-                        cardCountText: localizedCardCount,
-                        showsFlashcards: snapshot.hasFlashcards,
-                        showsQuizCards: snapshot.hasQuizCards
-                    )
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 13)
-
-                if showsSeparator {
-                    AppSectionSeparator()
-                }
+        rowContent
+            .onTapGesture {
+                action()
             }
-            .contentShape(Rectangle())
+            .customContextMenu(
+                id: snapshot.id,
+                actions: contextMenuActions
+            ) {
+                rowContent
+            }
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var actionTarget: LibraryDeckActionTarget {
+        LibraryDeckActionTarget(id: snapshot.id, title: snapshot.title)
+    }
+
+    private var contextMenuActions: [CustomContextMenuAction] {
+        [
+            CustomContextMenuAction(
+                title: AppLocalization.string("Export", locale: locale),
+                systemImage: "square.and.arrow.up",
+                role: .normal,
+                action: { onExport(actionTarget) }
+            ),
+            CustomContextMenuAction(
+                title: AppLocalization.string("Move to Folder", locale: locale),
+                systemImage: "folder",
+                role: .normal,
+                action: { onMoveToFolder(actionTarget) }
+            ),
+            CustomContextMenuAction(
+                title: AppLocalization.string("Delete", locale: locale),
+                systemImage: "trash",
+                role: .destructive,
+                action: { onDelete(actionTarget) }
+            ),
+        ]
+    }
+
+    private var rowContent: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(verbatim: snapshot.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HomeDashboardDeckMetaLine(
+                    cardCountText: localizedCardCount,
+                    showsFlashcards: snapshot.hasFlashcards,
+                    showsQuizCards: snapshot.hasQuizCards
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 13)
+
+            if showsSeparator {
+                AppSectionSeparator()
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isButton)
+        .contentShape(Rectangle())
     }
 }
 
