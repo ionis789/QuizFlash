@@ -131,7 +131,6 @@ struct HomeFolderEditSheet: View {
 
 struct MoveDecksToFolderSheet: View {
     @Environment(\.fullScreenSheetDismiss) private var dismissSheet
-    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AppPreferences.self) private var appPreferences
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var allDecks: [DeckModel]
@@ -163,6 +162,18 @@ struct MoveDecksToFolderSheet: View {
         Color(hex: target.colorHex) ?? themeManager.brandPrimary
     }
 
+    private var headerTopPadding: CGFloat {
+        safeAreaInsets.top + UIConstants.Spacing.medium
+    }
+
+    private var headerContentHeight: CGFloat {
+        UIConstants.Size.actionButton
+    }
+
+    private var headerContentBottom: CGFloat {
+        headerTopPadding + headerContentHeight + UIConstants.Spacing.standard
+    }
+
     private var moveTitle: AttributedString {
         let title = String(
             format: AppLocalization.string("Move to %@", locale: locale),
@@ -178,63 +189,68 @@ struct MoveDecksToFolderSheet: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             themeManager.screenBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Text(moveTitle)
-                    .font(.system(size: 25, weight: .black))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, max(topChromeClearance, safeAreaInsets.top) + UIConstants.Spacing.small)
-                .padding(.bottom, UIConstants.Spacing.large)
-
-                if deckSnapshots.isEmpty {
-                    ContentUnavailableView(
-                        AppLocalization.string("No decks available to move", locale: locale),
-                        systemImage: "rectangle.stack"
-                    )
-                    .foregroundStyle(themeManager.textSecondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            LibraryFlatListView(
-                                decks: deckSnapshots,
-                                showsContextMenus: false,
-                                isSelecting: true,
-                                selectedDeckIDs: viewModel.selectedDecks,
-                                onNavigate: viewModel.toggleSelection,
-                                onToggleSelection: viewModel.toggleSelection,
-                                onExport: { _ in },
-                                onMoveToFolder: { _ in },
-                                onDelete: { _ in }
-                            )
-                        }
-                        .padding(.bottom, 130)
+            if deckSnapshots.isEmpty {
+                ContentUnavailableView(
+                    AppLocalization.string("No decks available to move", locale: locale),
+                    systemImage: "rectangle.stack"
+                )
+                .foregroundStyle(themeManager.textSecondary)
+                .padding(.top, headerContentBottom)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        LibraryFlatListView(
+                            decks: deckSnapshots,
+                            showsContextMenus: false,
+                            isSelecting: true,
+                            selectedDeckIDs: viewModel.selectedDecks,
+                            onNavigate: viewModel.toggleSelection,
+                            onToggleSelection: viewModel.toggleSelection,
+                            onExport: { _ in },
+                            onMoveToFolder: { _ in },
+                            onDelete: { _ in }
+                        )
                     }
-                    .scrollIndicators(.hidden)
+                    .padding(.top, headerContentBottom)
+                    .padding(.bottom, 96 + safeAreaInsets.bottom)
                 }
+                .scrollIndicators(.hidden)
             }
 
+            TopProgressiveBlurOverlay(
+                topHeight: headerContentBottom,
+                revealProgress: 1,
+                tintColor: Color(ThemeColorToken.backgroundPrimary.assetName),
+                configuration: .quizFlashDefault,
+                revealAnimation: nil
+            )
+            .allowsHitTesting(false)
+
+            Text(moveTitle)
+                .font(.system(size: 25, weight: .black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: headerContentHeight)
+                .padding(.leading, UIConstants.Spacing.large)
+                .padding(.trailing, UIConstants.Size.actionButton + (UIConstants.Spacing.medium * 2))
+                .padding(.top, headerTopPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
             if !deckSnapshots.isEmpty {
-                BottomChromeContainer(
-                    kind: .selection,
-                    bottomPadding: BottomChromeInsets.selection(physicalSafeBottom: safeAreaInsets.bottom)
-                ) {
-                    SelectionActionToolbar(
-                        selectedCount: viewModel.selectedDecks.count,
-                        actions: [
-                            .text(
-                                id: "move",
-                                title: AppLocalization.string("Move", locale: locale),
-                                accessibilityLabel: AppLocalization.string("Move", locale: locale),
-                                isEnabled: !viewModel.selectedDecks.isEmpty && !isCommittingMove,
-                                action: moveSelectedDecks
-                            ),
-                        ]
-                    )
+                Button(action: moveSelectedDecks) {
+                    Text(AppLocalization.string("Move", locale: locale))
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(minWidth: 92)
                 }
+                .quizFlashButtonStyle(.primary, shape: .capsule, size: UIConstants.Size.actionButton)
+                .disabled(viewModel.selectedDecks.isEmpty || isCommittingMove)
+                .opacity(viewModel.selectedDecks.isEmpty || isCommittingMove ? 0.48 : 1)
+                .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.medium)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
         .task(id: deckQuerySignature) {

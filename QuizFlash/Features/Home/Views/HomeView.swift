@@ -213,7 +213,7 @@ struct HomeView: View {
                     item: $folderSheetDestination,
                     configuration: .sheet(
                         heightMode: .fullScreen,
-                        showsDefaultTopProgressiveBlur: true,
+                        showsDefaultTopProgressiveBlur: false,
                         showsCloseButton: true,
                         avoidsKeyboard: true
                     )
