@@ -57,8 +57,8 @@ key	en	ro	ru
 %d days hit goal	%d days hit goal	%d zile cu ținta atinsă	%d дней с выполненной целью
 %d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -218,8 +218,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -242,8 +242,8 @@ Choose a comfortable base size for QuizFlash interface text.	Choose a comfortabl
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
 Choose a pace that feels easy to keep.	Choose a pace that feels easy to keep.	Alege un ritm ușor de păstrat.	Выбери темп, которого легко придерживаться.
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -533,11 +533,10 @@ Move	Move	Mişcare	Двигаться
 Move %d deck	Move %d deck	Mută %d deck	Переместить %d колоду
 Move %d decks	Move %d decks	Mută %d deckuri	Переместить %d колод
 Move Decks Here	Move Decks Here	Mută deckuri aici	Переместить колоды сюда
-Move decks to %@	Move decks to %@	Mută deckuri în %@	Переместить колоды в %@
 Move Down	Move Down	Mută jos	Переместить вниз
 Move Error	Move Error	Eroare la mutare	Ошибка перемещения
-Move Here	Move Here	Mută aici	Переместить сюда
 Move selected decks	Move selected decks	Mută deckurile selectate	Переместить выбранные колоды
+Move to %@	Move to %@	Mută în %@	Переместить в %@
 Move to Folder	Move to Folder	Mută în folder	Переместить в папку
 Move Up	Move Up	Mută sus	Переместить вверх
 moves	moves	mutare	движений
@@ -708,8 +707,8 @@ Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зо
 Restore Purchases	Restore Purchases	Restaurează achizițiile	Восстановить покупки
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -867,9 +866,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
-this week	this week	săptămâna asta	эта неделя
 This week	This week	Săptămâna aceasta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@

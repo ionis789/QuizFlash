@@ -130,23 +130,51 @@ struct HomeFolderEditSheet: View {
 }
 
 struct MoveDecksToFolderSheet: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.fullScreenSheetDismiss) private var dismissSheet
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AppPreferences.self) private var appPreferences
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var allDecks: [DeckModel]
 
     let target: HomeFolderActionTarget
     let safeAreaInsets: UIEdgeInsets
+    let onMove: (Set<PersistentIdentifier>) -> Void
 
     @State private var viewModel = LibraryViewModel()
+    @State private var deckSnapshots: [LibraryDeckRowSnapshot] = []
+    @State private var isCommittingMove = false
 
     private var locale: Locale { appPreferences.resolvedLocale }
     private var candidateDecks: [DeckModel] {
         allDecks.filter { $0.folder?.persistentModelID != target.id }
     }
-    private var snapshots: [LibraryDeckRowSnapshot] {
-        LibraryGrouping.makeDeckSnapshots(from: candidateDecks)
+    private var deckQuerySignature: String {
+        allDecks.map { deck in
+            [
+                "\(deck.persistentModelID.hashValue)",
+                "\(deck.folder?.persistentModelID.hashValue ?? 0)",
+                "\(deck.editedAt.timeIntervalSince1970.bitPattern)",
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
+    }
+
+    private var folderColor: Color {
+        Color(hex: target.colorHex) ?? themeManager.brandPrimary
+    }
+
+    private var moveTitle: AttributedString {
+        let title = String(
+            format: AppLocalization.string("Move to %@", locale: locale),
+            locale: locale,
+            target.title
+        )
+        var attributed = AttributedString(title)
+        attributed.foregroundColor = themeManager.textPrimary
+        if let range = attributed.range(of: target.title) {
+            attributed[range].foregroundColor = folderColor
+        }
+        return attributed
     }
 
     var body: some View {
@@ -154,23 +182,14 @@ struct MoveDecksToFolderSheet: View {
             themeManager.screenBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Text(String(format: AppLocalization.string("Move decks to %@", locale: locale), locale: locale, target.title))
-                        .font(.system(size: 25, weight: .black))
-                        .foregroundStyle(themeManager.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    ChromeSoftCircleSymbolButton(
-                        systemName: "xmark",
-                        accessibilityLabel: AppLocalization.string("Close", locale: locale),
-                        action: { dismissSheet?() }
-                    )
-                }
+                Text(moveTitle)
+                    .font(.system(size: 25, weight: .black))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.medium)
-                .padding(.bottom, UIConstants.Spacing.standard)
+                .padding(.top, max(topChromeClearance, safeAreaInsets.top) + UIConstants.Spacing.small)
+                .padding(.bottom, UIConstants.Spacing.large)
 
-                if candidateDecks.isEmpty {
+                if deckSnapshots.isEmpty {
                     ContentUnavailableView(
                         AppLocalization.string("No decks available to move", locale: locale),
                         systemImage: "rectangle.stack"
@@ -181,7 +200,7 @@ struct MoveDecksToFolderSheet: View {
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             LibraryFlatListView(
-                                decks: snapshots,
+                                decks: deckSnapshots,
                                 showsContextMenus: false,
                                 isSelecting: true,
                                 selectedDeckIDs: viewModel.selectedDecks,
@@ -198,7 +217,7 @@ struct MoveDecksToFolderSheet: View {
                 }
             }
 
-            if !candidateDecks.isEmpty {
+            if !deckSnapshots.isEmpty {
                 BottomChromeContainer(
                     kind: .selection,
                     bottomPadding: BottomChromeInsets.selection(physicalSafeBottom: safeAreaInsets.bottom)
@@ -207,16 +226,10 @@ struct MoveDecksToFolderSheet: View {
                         selectedCount: viewModel.selectedDecks.count,
                         actions: [
                             .text(
-                                id: "select-all",
-                                title: AppLocalization.string("Select All", locale: locale),
-                                accessibilityLabel: AppLocalization.string("Select All", locale: locale),
-                                action: selectAll
-                            ),
-                            .text(
-                                id: "move-here",
-                                title: AppLocalization.string("Move Here", locale: locale),
-                                accessibilityLabel: AppLocalization.string("Move Here", locale: locale),
-                                isEnabled: !viewModel.selectedDecks.isEmpty,
+                                id: "move",
+                                title: AppLocalization.string("Move", locale: locale),
+                                accessibilityLabel: AppLocalization.string("Move", locale: locale),
+                                isEnabled: !viewModel.selectedDecks.isEmpty && !isCommittingMove,
                                 action: moveSelectedDecks
                             ),
                         ]
@@ -224,23 +237,28 @@ struct MoveDecksToFolderSheet: View {
                 }
             }
         }
-        .onAppear { viewModel.enterSelectionMode() }
-        .modifier(LibraryAlerts(viewModel: viewModel))
-    }
-
-    private func selectAll() {
-        if viewModel.areAllVisibleDecksSelected(in: candidateDecks) {
-            viewModel.selectedDecks.subtract(candidateDecks.map(\.persistentModelID))
-        } else {
-            viewModel.selectAllVisibleDecks(from: candidateDecks)
+        .task(id: deckQuerySignature) {
+            if !viewModel.isSelecting {
+                viewModel.enterSelectionMode()
+            }
+            deckSnapshots = LibraryGrouping.makeDeckSnapshots(
+                from: candidateDecks,
+                includeCardKindPresence: false
+            )
         }
     }
 
     private func moveSelectedDecks() {
-        guard let folder = context.safeModel(for: target.id, as: FolderModel.self) else { return }
-        viewModel.moveSelectedDecks(from: candidateDecks, to: folder, context: context)
-        if !viewModel.showMoveError, viewModel.selectedDecks.isEmpty {
-            dismissSheet?()
+        let selectedDeckIDs = viewModel.selectedDecks
+        guard !selectedDeckIDs.isEmpty, !isCommittingMove else { return }
+        isCommittingMove = true
+
+        if let dismissSheet {
+            dismissSheet {
+                onMove(selectedDeckIDs)
+            }
+        } else {
+            onMove(selectedDeckIDs)
         }
     }
 }

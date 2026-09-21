@@ -213,8 +213,8 @@ struct HomeView: View {
                     item: $folderSheetDestination,
                     configuration: .sheet(
                         heightMode: .fullScreen,
-                        showsDefaultTopProgressiveBlur: false,
-                        showsCloseButton: false,
+                        showsDefaultTopProgressiveBlur: true,
+                        showsCloseButton: true,
                         avoidsKeyboard: true
                     )
                 ) { destination, safeAreaInsets in
@@ -306,7 +306,13 @@ struct HomeView: View {
                 onSave: { _, colorHex in updateFolder(target, title: nil, colorHex: colorHex) }
             )
         case .moveDecks(let target):
-            MoveDecksToFolderSheet(target: target, safeAreaInsets: safeAreaInsets)
+            MoveDecksToFolderSheet(
+                target: target,
+                safeAreaInsets: safeAreaInsets,
+                onMove: { selectedDeckIDs in
+                    moveDecks(selectedDeckIDs, to: target)
+                }
+            )
         }
     }
 
@@ -376,6 +382,7 @@ struct HomeView: View {
         do {
             try modelContext.save()
             CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: modelContext)
+            refreshCachedFolderSnapshots()
             return true
         } catch {
             folder.title = oldTitle
@@ -405,6 +412,7 @@ struct HomeView: View {
         do {
             try modelContext.save()
             decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
+            refreshCachedFolderSnapshots()
             folderToDelete = nil
         } catch {
             modelContext.rollback()
@@ -416,6 +424,74 @@ struct HomeView: View {
     private func presentFolderActionError(_ error: Error) {
         folderActionErrorMessage = error.localizedDescription
         showsFolderActionError = true
+    }
+
+    private func moveDecks(
+        _ selectedDeckIDs: Set<PersistentIdentifier>,
+        to target: HomeFolderActionTarget
+    ) {
+        guard !selectedDeckIDs.isEmpty,
+              let destination = modelContext.safeModel(for: target.id, as: FolderModel.self) else {
+            return
+        }
+
+        let decks = selectedDeckIDs.compactMap {
+            modelContext.safeModel(for: $0, as: DeckModel.self)
+        }
+        guard !decks.isEmpty else { return }
+
+        let sourceFolders = decks.compactMap(\.folder)
+        let affectedFolders = Dictionary(
+            grouping: sourceFolders + [destination],
+            by: \.persistentModelID
+        ).compactMap(\.value.first)
+        let originalCounts = Dictionary(
+            uniqueKeysWithValues: affectedFolders.map { ($0.persistentModelID, $0.deckCount) }
+        )
+        let originalFolders = Dictionary(uniqueKeysWithValues: decks.map { ($0.persistentModelID, $0.folder) })
+        let originalEditedDates = Dictionary(uniqueKeysWithValues: decks.map { ($0.persistentModelID, $0.editedAt) })
+        let now = Date()
+
+        for deck in decks where deck.folder?.persistentModelID != destination.persistentModelID {
+            deck.folder?.deckCount -= 1
+            deck.folder?.editedAt = now
+            destination.deckCount += 1
+            destination.editedAt = now
+            deck.folder = destination
+            deck.editedAt = now
+        }
+
+        do {
+            try modelContext.save()
+            decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
+            affectedFolders.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
+            refreshCachedFolderSnapshots()
+        } catch {
+            for deck in decks {
+                deck.folder = originalFolders[deck.persistentModelID] ?? nil
+                if let editedAt = originalEditedDates[deck.persistentModelID] {
+                    deck.editedAt = editedAt
+                }
+            }
+            for folder in affectedFolders {
+                if let count = originalCounts[folder.persistentModelID] {
+                    folder.deckCount = count
+                }
+            }
+            presentFolderActionError(error)
+        }
+    }
+
+    private func refreshCachedFolderSnapshots() {
+        cachedFolderModels.removeAll { $0.isDeleted }
+        cachedFolderSnapshots = cachedFolderModels.map { folder in
+            HomeFolderSnapshot(
+                id: folder.persistentModelID,
+                title: folder.title,
+                colorHex: folder.colorHex,
+                deckCount: folder.deckCount
+            )
+        }
     }
 
     private func presentCreateFolder() {
@@ -652,6 +728,7 @@ private struct HomeDataCoordinator: View {
             "\(homeStudyAggregates.count)",
             "\(allDecks.count)",
             "\(folders.count)",
+            folderPreviewSignature,
             "\(recentlyOpenedQuery.count)",
             recentDecksPreviewSignature,
             userProfileDashboardSignature,
@@ -661,6 +738,18 @@ private struct HomeDataCoordinator: View {
 
     private var dailyCardsGoalSignature: String {
         appPreferences.dailyCardsGoal.map(String.init) ?? "no-goal"
+    }
+
+    private var folderPreviewSignature: String {
+        folders.map { folder in
+            [
+                "\(folder.persistentModelID.hashValue)",
+                folder.title,
+                folder.colorHex,
+                "\(folder.deckCount)",
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
     }
 
     private var recentDecksPreviewSignature: String {

@@ -940,8 +940,7 @@
 "Move Decks Here" = "Move Decks Here";
 "Rename Folder" = "Rename Folder";
 "Change Folder Color" = "Change Folder Color";
-"Move decks to %@" = "Move decks to %@";
-"Move Here" = "Move Here";
+"Move to %@" = "Move to %@";
 "No decks available to move" = "No decks available to move";
 "Delete Folder?" = "Delete Folder?";
 "Decks in this folder will remain in Library." = "Decks in this folder will remain in Library.";

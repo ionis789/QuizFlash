@@ -940,8 +940,7 @@
 "Move Decks Here" = "Переместить колоды сюда";
 "Rename Folder" = "Переименовать папку";
 "Change Folder Color" = "Изменить цвет папки";
-"Move decks to %@" = "Переместить колоды в %@";
-"Move Here" = "Переместить сюда";
+"Move to %@" = "Переместить в %@";
 "No decks available to move" = "Нет колод для перемещения";
 "Delete Folder?" = "Удалить папку?";
 "Decks in this folder will remain in Library." = "Колоды из этой папки останутся в Библиотеке.";

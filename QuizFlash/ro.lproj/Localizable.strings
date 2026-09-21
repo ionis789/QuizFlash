@@ -940,8 +940,7 @@
 "Move Decks Here" = "Mută deckuri aici";
 "Rename Folder" = "Redenumește folderul";
 "Change Folder Color" = "Schimbă culoarea folderului";
-"Move decks to %@" = "Mută deckuri în %@";
-"Move Here" = "Mută aici";
+"Move to %@" = "Mută în %@";
 "No decks available to move" = "Nu există deckuri disponibile pentru mutare";
 "Delete Folder?" = "Ștergi folderul?";
 "Decks in this folder will remain in Library." = "Deckurile din acest folder vor rămâne în Bibliotecă.";
