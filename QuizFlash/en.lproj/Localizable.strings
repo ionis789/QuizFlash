@@ -935,3 +935,13 @@
 "Not Now" = "Not Now";
 "Allow & Generate" = "Allow & Generate";
 "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it.";
+"Rename" = "Rename";
+"Change Color" = "Change Color";
+"Move Decks Here" = "Move Decks Here";
+"Rename Folder" = "Rename Folder";
+"Change Folder Color" = "Change Folder Color";
+"Move decks to %@" = "Move decks to %@";
+"Move Here" = "Move Here";
+"No decks available to move" = "No decks available to move";
+"Delete Folder?" = "Delete Folder?";
+"Decks in this folder will remain in Library." = "Decks in this folder will remain in Library.";

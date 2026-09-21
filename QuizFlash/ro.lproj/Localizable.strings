@@ -935,3 +935,13 @@
 "Not Now" = "Nu acum";
 "Allow & Generate" = "Permite și generează";
 "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "Pentru a genera carduri, QuizFlash trimite către DeepSeek, prin serviciul Cloudflare al QuizFlash, textul introdus sau extras din documente și imagini. Nu include informații personale sensibile. Nimic nu este trimis până când nu permiți.";
+"Rename" = "Redenumește";
+"Change Color" = "Schimbă culoarea";
+"Move Decks Here" = "Mută deckuri aici";
+"Rename Folder" = "Redenumește folderul";
+"Change Folder Color" = "Schimbă culoarea folderului";
+"Move decks to %@" = "Mută deckuri în %@";
+"Move Here" = "Mută aici";
+"No decks available to move" = "Nu există deckuri disponibile pentru mutare";
+"Delete Folder?" = "Ștergi folderul?";
+"Decks in this folder will remain in Library." = "Deckurile din acest folder vor rămâne în Bibliotecă.";

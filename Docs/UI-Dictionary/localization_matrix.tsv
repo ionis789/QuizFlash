@@ -186,8 +186,8 @@ Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
 Billed monthly	Billed monthly	Facturat lunar	Оплата ежемесячно
-Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blank	Blank	Gol	Пропуск
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -218,8 +218,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -228,6 +228,8 @@ CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
 CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
 Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
 Center	Center	Centru	Центр
+Change Color	Change Color	Schimbă culoarea	Изменить цвет
+Change Folder Color	Change Folder Color	Schimbă culoarea folderului	Изменить цвет папки
 Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
 Change these values once. Every preview below updates live.	Change these values once. Every preview below updates live.	Schimbă o dată valorile. Toate previzualizările de mai jos se actualizează live.	Измените значения один раз. Все предпросмотры ниже обновляются сразу.
 Changes the border color family.	Changes the border color family.	Schimbă familia de culoare a bordurii.	Меняет цветовую семью границы.
@@ -310,6 +312,7 @@ Deck grid guides	Deck grid guides	Ghidaje grid deck	Направляющие с�
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
+Decks in this folder will remain in Library.	Decks in this folder will remain in Library.	Deckurile din acest folder vor rămâne în Bibliotecă.	Колоды из этой папки останутся в Библиотеке.
 Deeper cards with structure, context, and key nuance.	Deeper cards with structure, context, and key nuance.	Carduri mai profunde, cu structură, context și nuanțe-cheie.	Более глубокие карточки со структурой, контекстом и ключевыми нюансами.
 DeepSeek endpoint with deepseek-flash defaults.	DeepSeek endpoint with deepseek-flash defaults.	Endpoint DeepSeek cu setările implicite deepseek-flash.	Конечная точка DeepSeek со значениями deepseek-flash по умолчанию.
 Default	Default	Implicit	По умолчанию
@@ -325,6 +328,7 @@ Delete %d selected deck	Delete %d selected deck	Șterge %d deck selectat	Уда�
 Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	Удалить %d выбранных колод
 Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
+Delete Folder?	Delete Folder?	Ștergi folderul?	Удалить папку?
 Delete?	Delete?	Ștergi?	Удалить?
 Depth	Depth	Intensitate	Глубина
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
@@ -370,8 +374,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
@@ -405,8 +409,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -528,8 +532,11 @@ Move	Move	Mişcare	Двигаться
 "Move ""%@"""	"Move ""%@"""	Mută „%@”	"Переместить ""%@"""
 Move %d deck	Move %d deck	Mută %d deck	Переместить %d колоду
 Move %d decks	Move %d decks	Mută %d deckuri	Переместить %d колод
+Move Decks Here	Move Decks Here	Mută deckuri aici	Переместить колоды сюда
+Move decks to %@	Move decks to %@	Mută deckuri în %@	Переместить колоды в %@
 Move Down	Move Down	Mută jos	Переместить вниз
 Move Error	Move Error	Eroare la mutare	Ошибка перемещения
+Move Here	Move Here	Mută aici	Переместить сюда
 Move selected decks	Move selected decks	Mută deckurile selectate	Переместить выбранные колоды
 Move to Folder	Move to Folder	Mută în folder	Переместить в папку
 Move Up	Move Up	Mută sus	Переместить вверх
@@ -560,9 +567,10 @@ No content added	No content added	Niciun conținut adăugat	Контент не 
 No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
+No decks available to move	No decks available to move	Nu există deckuri disponibile pentru mutare	Нет колод для перемещения
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
-No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
+No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
@@ -578,8 +586,8 @@ No trace sessions	No trace sessions	Nu există sesiuni trace	Нет trace-сес
 None	None	Fără	Нет
 Normal	Normal	Normal	Обычный
 Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
-Not Now	Not Now	Nu acum	Не сейчас
 Not now	Not now	Nu acum	Не сейчас
+Not Now	Not Now	Nu acum	Не сейчас
 Not signed in	Not signed in	Neautentificat	Не выполнен вход
 Nothing in the shared UI registry matches â%@â.	Nothing in the shared UI registry matches â%@â.	Nimic din registrul UI partajat nu se potrivește cu â%@â.	Ничто в реестре общего пользовательского интерфейса не соответствует %@â.
 Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ничего не попало
@@ -659,8 +667,8 @@ Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка �
 Provider	Provider	Furnizor	Провайдер
 Purchases could not be restored. Please try again.	Purchases could not be restored. Please try again.	Achizițiile nu au putut fi restaurate. Încearcă din nou.	Не удалось восстановить покупки. Повторите попытку.
 Purple	Purple	Mov	Фиолетовый
-QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -686,6 +694,8 @@ Refresh	Refresh	Reîmprospătează	Обновить
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
+Rename	Rename	Redenumește	Переименовать
+Rename Folder	Rename Folder	Redenumește folderul	Переименовать папку
 Render	Render	Randare	Рендер
 Renews %@	Renews %@	Se reînnoiește pe %@	Обновится %@
 Replace current zone?	Replace current zone?	Înlocuiești zona curentă?	Заменить текущую зону?
@@ -698,8 +708,8 @@ Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зо
 Restore Purchases	Restore Purchases	Restaurează achizițiile	Восстановить покупки
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry %d	Retry %d	Reîncearcă %d	Повтор %d
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
@@ -857,9 +867,9 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This week	This week	Săptămâna aceasta	Эта неделя
-this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
+This week	This week	Săptămâna aceasta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@

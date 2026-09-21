@@ -47,6 +47,10 @@ struct HomeView: View {
     @State private var cachedRecentlyOpenedDeckSnapshots: [LibraryDeckRowSnapshot] = []
     @State private var cachedRecentlyOpenedDeckModels: [DeckModel] = []
     @State private var cachedAllDeckCount = 0
+    @State private var folderSheetDestination: HomeFolderSheetDestination?
+    @State private var folderToDelete: HomeFolderActionTarget?
+    @State private var folderActionErrorMessage = ""
+    @State private var showsFolderActionError = false
 
     private static let layoutLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
@@ -102,6 +106,10 @@ struct HomeView: View {
                             onMoveDeck: moveRecentDeck,
                             onDeleteDeck: deleteRecentDeck,
                             onOpenFolder: openFolder,
+                            onRenameFolder: { folderSheetDestination = .rename($0) },
+                            onChangeFolderColor: { folderSheetDestination = .changeColor($0) },
+                            onMoveDecksToFolder: { folderSheetDestination = .moveDecks($0) },
+                            onDeleteFolder: { folderToDelete = $0 },
                             onCreateFolder: presentCreateFolder,
                             onCreateDeck: openCreateTab
                         )
@@ -201,6 +209,19 @@ struct HomeView: View {
                 } background: {
                     themeManager.screenBackground
                 }
+                .fullScreenSheet(
+                    item: $folderSheetDestination,
+                    configuration: .sheet(
+                        heightMode: .fullScreen,
+                        showsDefaultTopProgressiveBlur: false,
+                        showsCloseButton: false,
+                        avoidsKeyboard: true
+                    )
+                ) { destination, safeAreaInsets in
+                    folderActionSheet(destination, safeAreaInsets: safeAreaInsets)
+                } background: {
+                    themeManager.screenBackground
+                }
 
                 HomeDataCoordinator(
                     viewModel: viewModel,
@@ -240,6 +261,53 @@ struct HomeView: View {
             folders: cachedFolderModels
         ))
         .modifier(LibraryAlerts(viewModel: recentDeckActionViewModel))
+        .confirmationDialog(
+            AppLocalization.string("Delete Folder?", locale: appPreferences.resolvedLocale),
+            isPresented: Binding(
+                get: { folderToDelete != nil },
+                set: { if !$0 { folderToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(AppLocalization.string("Delete", locale: appPreferences.resolvedLocale), role: .destructive) {
+                deleteFolder()
+            }
+            Button(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale), role: .cancel) {
+                folderToDelete = nil
+            }
+        } message: {
+            Text(AppLocalization.string("Decks in this folder will remain in Library.", locale: appPreferences.resolvedLocale))
+        }
+        .alert(AppLocalization.string("Save Error", locale: appPreferences.resolvedLocale), isPresented: $showsFolderActionError) {
+            Button(AppLocalization.string("OK", locale: appPreferences.resolvedLocale), role: .cancel) {}
+        } message: {
+            Text(folderActionErrorMessage)
+        }
+    }
+
+    @ViewBuilder
+    private func folderActionSheet(
+        _ destination: HomeFolderSheetDestination,
+        safeAreaInsets: UIEdgeInsets
+    ) -> some View {
+        switch destination {
+        case .rename(let target):
+            HomeFolderEditSheet(
+                target: target,
+                mode: .rename,
+                safeAreaInsets: safeAreaInsets,
+                onSave: { title, _ in updateFolder(target, title: title, colorHex: nil) }
+            )
+        case .changeColor(let target):
+            HomeFolderEditSheet(
+                target: target,
+                mode: .changeColor,
+                safeAreaInsets: safeAreaInsets,
+                onSave: { _, colorHex in updateFolder(target, title: nil, colorHex: colorHex) }
+            )
+        case .moveDecks(let target):
+            MoveDecksToFolderSheet(target: target, safeAreaInsets: safeAreaInsets)
+        }
     }
 
     private var dashboardWeekStartDate: Date {
@@ -283,6 +351,71 @@ struct HomeView: View {
                 backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
             )
         )
+    }
+
+    private func updateFolder(
+        _ target: HomeFolderActionTarget,
+        title: String?,
+        colorHex: String?
+    ) -> Bool {
+        guard let folder = modelContext.safeModel(for: target.id, as: FolderModel.self) else {
+            return false
+        }
+
+        let oldTitle = folder.title
+        let oldColorHex = folder.colorHex
+        let oldEditedAt = folder.editedAt
+        if let title {
+            folder.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let colorHex {
+            folder.colorHex = colorHex
+        }
+        folder.editedAt = Date()
+
+        do {
+            try modelContext.save()
+            CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: modelContext)
+            return true
+        } catch {
+            folder.title = oldTitle
+            folder.colorHex = oldColorHex
+            folder.editedAt = oldEditedAt
+            presentFolderActionError(error)
+            return false
+        }
+    }
+
+    private func deleteFolder() {
+        guard let target = folderToDelete,
+              let folder = modelContext.safeModel(for: target.id, as: FolderModel.self) else {
+            folderToDelete = nil
+            return
+        }
+
+        let decks = folder.decks
+        let now = Date()
+        for deck in decks {
+            deck.folder = nil
+            deck.editedAt = now
+        }
+        CloudSyncCoordinator.shared.enqueueDelete(for: folder)
+        modelContext.delete(folder)
+
+        do {
+            try modelContext.save()
+            decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
+            folderToDelete = nil
+        } catch {
+            modelContext.rollback()
+            folderToDelete = nil
+            presentFolderActionError(error)
+        }
+    }
+
+    private func presentFolderActionError(_ error: Error) {
+        folderActionErrorMessage = error.localizedDescription
+        showsFolderActionError = true
     }
 
     private func presentCreateFolder() {

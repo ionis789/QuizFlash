@@ -935,3 +935,13 @@
 "Not Now" = "Не сейчас";
 "Allow & Generate" = "Разрешить и создать";
 "To generate cards, QuizFlash sends the text you enter or extract from documents and images to DeepSeek through QuizFlash's Cloudflare service. Do not include sensitive personal information. Nothing is sent until you allow it." = "Для создания карточек QuizFlash отправляет DeepSeek через сервис Cloudflare QuizFlash текст, который вы вводите или извлекаете из документов и изображений. Не добавляйте конфиденциальные персональные данные. До вашего разрешения ничего не отправляется.";
+"Rename" = "Переименовать";
+"Change Color" = "Изменить цвет";
+"Move Decks Here" = "Переместить колоды сюда";
+"Rename Folder" = "Переименовать папку";
+"Change Folder Color" = "Изменить цвет папки";
+"Move decks to %@" = "Переместить колоды в %@";
+"Move Here" = "Переместить сюда";
+"No decks available to move" = "Нет колод для перемещения";
+"Delete Folder?" = "Удалить папку?";
+"Decks in this folder will remain in Library." = "Колоды из этой папки останутся в Библиотеке.";

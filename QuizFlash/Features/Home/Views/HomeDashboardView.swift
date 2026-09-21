@@ -36,6 +36,10 @@ struct HomeDashboardView: View {
     let onMoveDeck: (LibraryDeckActionTarget) -> Void
     let onDeleteDeck: (LibraryDeckActionTarget) -> Void
     let onOpenFolder: (PersistentIdentifier) -> Void
+    let onRenameFolder: (HomeFolderActionTarget) -> Void
+    let onChangeFolderColor: (HomeFolderActionTarget) -> Void
+    let onMoveDecksToFolder: (HomeFolderActionTarget) -> Void
+    let onDeleteFolder: (HomeFolderActionTarget) -> Void
     let onCreateFolder: () -> Void
     let onCreateDeck: () -> Void
 
@@ -413,9 +417,15 @@ struct HomeDashboardView: View {
                 )
             } else {
                 ForEach(folderSnapshots) { folder in
-                    HomeDashboardFolderCard(snapshot: folder, usesRegularMetrics: usesRegularMetrics) {
-                        onOpenFolder(folder.id)
-                    }
+                    HomeDashboardFolderCard(
+                        snapshot: folder,
+                        usesRegularMetrics: usesRegularMetrics,
+                        onOpen: { onOpenFolder(folder.id) },
+                        onRename: onRenameFolder,
+                        onChangeColor: onChangeFolderColor,
+                        onMoveDecksHere: onMoveDecksToFolder,
+                        onDelete: onDeleteFolder
+                    )
                 }
             }
         }
@@ -462,6 +472,12 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
     let title: String
     let colorHex: String
     let deckCount: Int
+}
+
+struct HomeFolderActionTarget: Identifiable, Equatable {
+    let id: PersistentIdentifier
+    let title: String
+    let colorHex: String
 }
 
 private struct HomeDashboardStudyCardModifier: ViewModifier {
@@ -1587,7 +1603,11 @@ private struct HomeDashboardFolderCard: View {
 
     let snapshot: HomeFolderSnapshot
     let usesRegularMetrics: Bool
-    let action: () -> Void
+    let onOpen: () -> Void
+    let onRename: (HomeFolderActionTarget) -> Void
+    let onChangeColor: (HomeFolderActionTarget) -> Void
+    let onMoveDecksHere: (HomeFolderActionTarget) -> Void
+    let onDelete: (HomeFolderActionTarget) -> Void
 
     private var folderColor: Color {
         Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
@@ -1609,8 +1629,50 @@ private struct HomeDashboardFolderCard: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
+        cardContent
+            .onTapGesture(perform: onOpen)
+            .customContextMenu(id: snapshot.id, actions: contextMenuActions) {
+                cardContent
+            }
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var actionTarget: HomeFolderActionTarget {
+        HomeFolderActionTarget(id: snapshot.id, title: snapshot.title, colorHex: snapshot.colorHex)
+    }
+
+    private var contextMenuActions: [CustomContextMenuAction] {
+        let locale = appPreferences.resolvedLocale
+        return [
+            CustomContextMenuAction(
+                title: AppLocalization.string("Rename", locale: locale),
+                systemImage: "pencil",
+                role: .normal,
+                action: { onRename(actionTarget) }
+            ),
+            CustomContextMenuAction(
+                title: AppLocalization.string("Change Color", locale: locale),
+                systemImage: "paintpalette",
+                role: .normal,
+                action: { onChangeColor(actionTarget) }
+            ),
+            CustomContextMenuAction(
+                title: AppLocalization.string("Move Decks Here", locale: locale),
+                systemImage: "rectangle.stack.badge.plus",
+                role: .normal,
+                action: { onMoveDecksHere(actionTarget) }
+            ),
+            CustomContextMenuAction(
+                title: AppLocalization.string("Delete", locale: locale),
+                systemImage: "trash",
+                role: .destructive,
+                action: { onDelete(actionTarget) }
+            ),
+        ]
+    }
+
+    private var cardContent: some View {
+        HStack(spacing: 16) {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(folderColor.opacity(0.14))
                     .frame(width: usesRegularMetrics ? 54 : 48, height: usesRegularMetrics ? 54 : 48)
@@ -1636,20 +1698,19 @@ private struct HomeDashboardFolderCard: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(folderColor)
                     .frame(width: usesRegularMetrics ? 30 : 28, height: usesRegularMetrics ? 30 : 28)
-            }
-            .padding(.horizontal, usesRegularMetrics ? 18 : 16)
-            .padding(.vertical, usesRegularMetrics ? 18 : 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
-                            .strokeBorder(borderColor, lineWidth: borderLineWidth)
-                    }
-            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, usesRegularMetrics ? 18 : 16)
+        .padding(.vertical, usesRegularMetrics ? 18 : 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
+                .fill(themeManager.roleColor(.widgetSurfaceFill))
+                .overlay {
+                    RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
+                        .strokeBorder(borderColor, lineWidth: borderLineWidth)
+                }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous))
     }
 
     private var deckCountText: String {
