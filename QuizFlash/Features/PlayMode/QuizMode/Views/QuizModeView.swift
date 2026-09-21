@@ -107,7 +107,7 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
     private var questionContentTransition: Animation {
-        .easeOut(duration: 0.16)
+        .smooth(duration: 0.30, extraBounce: 0)
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -372,6 +372,8 @@ private struct QuizModeSessionView: View {
                     isCurrentCard: isCurrentCard
                 )
                 .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
+                .scaleEffect(isCurrentCard ? 1 : 0.985)
+                .offset(y: isCurrentCard ? 0 : 4)
                 .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
                 .accessibilityHidden(!isCurrentCard)
                 .zIndex(isCurrentCard ? 10 : Double(-entry.index))
@@ -1376,7 +1378,7 @@ private struct QuizModeSessionView: View {
         }
 
         questionTransitionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(320))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
