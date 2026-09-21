@@ -1055,10 +1055,7 @@ struct QuizCardEditorView: View {
                 alignmentFeedback: renderedAlignmentFeedback(for: target),
                 fontScale: editorTextScale,
                 availableWidth: availableWidth,
-                showsDebugGuides: false,
                 showsZoneSurfaces: false,
-                textVerticalPadding: 0,
-                textHorizontalPaddingOverride: 0,
                 alignLeftLabel: localized("Align Left"),
                 alignRightLabel: localized("Align Right"),
                 onSelect: {
