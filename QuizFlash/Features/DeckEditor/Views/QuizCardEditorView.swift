@@ -2877,7 +2877,7 @@ struct QuizCardEditorView: View {
 
     private func openPreview() {
         guard questionContent.hasContent || choices.contains(where: { $0.content.hasContent }) else { return }
-        performAfterKeyboardSettles {
+        performAfterKeyboardSettles(settlePadding: 0) {
             showPreview = true
         }
     }
@@ -2916,7 +2916,10 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func performAfterKeyboardSettles(_ completion: @escaping @MainActor () -> Void) {
+    private func performAfterKeyboardSettles(
+        settlePadding: TimeInterval = 0.08,
+        _ completion: @escaping @MainActor () -> Void
+    ) {
         keyboardSettlingTask?.cancel()
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
@@ -2925,8 +2928,8 @@ struct QuizCardEditorView: View {
 
         let wasKeyboardVisible = keyboardMonitor.isVisible
         let delay = wasKeyboardVisible
-            ? max(keyboardMonitor.animationDuration, 0.25) + 0.08
-            : 0.05
+            ? max(keyboardMonitor.animationDuration, 0.25) + settlePadding
+            : min(0.05, settlePadding)
 
         focusManager.suppressFocusRequests(for: delay + 0.45)
         zoneController.forceReleaseKeyboard()
