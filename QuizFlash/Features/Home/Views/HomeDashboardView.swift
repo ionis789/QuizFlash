@@ -28,6 +28,7 @@ struct HomeDashboardView: View {
 
     let viewModel: HomeViewModel
     let folderSnapshots: [HomeFolderSnapshot]
+    let folderMoveFeedback: HomeFolderMoveFeedback?
     let recentDeckSnapshots: [LibraryDeckRowSnapshot]
     let layoutContext: HomeAdaptiveLayoutContext
     let allDeckCount: Int
@@ -420,6 +421,9 @@ struct HomeDashboardView: View {
                     HomeDashboardFolderCard(
                         snapshot: folder,
                         usesRegularMetrics: usesRegularMetrics,
+                        moveFeedbackToken: folderMoveFeedback?.folderID == folder.id
+                            ? folderMoveFeedback?.token
+                            : nil,
                         onOpen: { onOpenFolder(folder.id) },
                         onRename: onRenameFolder,
                         onChangeColor: onChangeFolderColor,
@@ -472,6 +476,11 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
     let title: String
     let colorHex: String
     let deckCount: Int
+}
+
+struct HomeFolderMoveFeedback: Equatable {
+    let folderID: PersistentIdentifier
+    let token = UUID()
 }
 
 struct HomeFolderActionTarget: Identifiable, Equatable {
@@ -1598,11 +1607,13 @@ private struct HomeDashboardDeckMetaLine: View {
 
 private struct HomeDashboardFolderCard: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let snapshot: HomeFolderSnapshot
     let usesRegularMetrics: Bool
+    let moveFeedbackToken: UUID?
     let onOpen: () -> Void
     let onRename: (HomeFolderActionTarget) -> Void
     let onChangeColor: (HomeFolderActionTarget) -> Void
@@ -1629,7 +1640,38 @@ private struct HomeDashboardFolderCard: View {
     }
 
     var body: some View {
+        let moveGlowColor = folderColor
+
         cardContent
+            .keyframeAnimator(
+                initialValue: HomeFolderMoveGlowFrame(),
+                trigger: moveFeedbackToken
+            ) { content, frame in
+                content
+                    .overlay {
+                        RoundedRectangle(cornerRadius: usesRegularMetrics ? 28 : 24, style: .continuous)
+                            .stroke(moveGlowColor.opacity(frame.strokeOpacity), lineWidth: 1.5)
+                    }
+                    .shadow(
+                        color: moveGlowColor.opacity(frame.glowOpacity),
+                        radius: frame.glowRadius
+                    )
+            } keyframes: { _ in
+                KeyframeTrack(\.strokeOpacity) {
+                    CubicKeyframe(0.34, duration: moveFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                }
+
+                KeyframeTrack(\.glowOpacity) {
+                    CubicKeyframe(0.28, duration: moveFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                }
+
+                KeyframeTrack(\.glowRadius) {
+                    CubicKeyframe(16, duration: moveFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                }
+            }
             .onTapGesture(perform: onOpen)
             .customContextMenu(id: snapshot.id, actions: contextMenuActions) {
                 cardContent
@@ -1691,6 +1733,7 @@ private struct HomeDashboardFolderCard: View {
                     Text(deckCountText)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
+                        .statusTextMotion(trigger: snapshot.deckCount)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1725,6 +1768,16 @@ private struct HomeDashboardFolderCard: View {
             locale: appPreferences.resolvedLocale
         )
     }
+
+    private func moveFeedbackDuration(_ duration: TimeInterval) -> TimeInterval {
+        reduceMotion ? 0.01 : duration
+    }
+}
+
+private struct HomeFolderMoveGlowFrame {
+    var strokeOpacity: CGFloat = 0
+    var glowOpacity: CGFloat = 0
+    var glowRadius: CGFloat = 0
 }
 
 // MARK: - Scroll Motion

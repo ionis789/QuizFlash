@@ -51,6 +51,7 @@ struct HomeView: View {
     @State private var folderToDelete: HomeFolderActionTarget?
     @State private var folderActionErrorMessage = ""
     @State private var showsFolderActionError = false
+    @State private var folderMoveFeedback: HomeFolderMoveFeedback?
 
     private static let layoutLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
@@ -98,6 +99,7 @@ struct HomeView: View {
                         HomeDashboardView(
                             viewModel: viewModel,
                             folderSnapshots: cachedFolderSnapshots,
+                            folderMoveFeedback: folderMoveFeedback,
                             recentDeckSnapshots: cachedRecentlyOpenedDeckSnapshots,
                             layoutContext: layoutContext,
                             allDeckCount: cachedAllDeckCount,
@@ -466,6 +468,7 @@ struct HomeView: View {
             decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             affectedFolders.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             refreshCachedFolderSnapshots()
+            folderMoveFeedback = HomeFolderMoveFeedback(folderID: destination.persistentModelID)
         } catch {
             for deck in decks {
                 deck.folder = originalFolders[deck.persistentModelID] ?? nil
