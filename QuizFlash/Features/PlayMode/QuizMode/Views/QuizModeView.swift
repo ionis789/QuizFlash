@@ -106,8 +106,11 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
-    private var questionContentTransition: Animation {
-        .smooth(duration: 0.30, extraBounce: 0)
+    private var questionContentFadeOut: Animation {
+        .smooth(duration: 0.14, extraBounce: 0)
+    }
+    private var questionContentFadeIn: Animation {
+        .smooth(duration: 0.22, extraBounce: 0)
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -372,16 +375,13 @@ private struct QuizModeSessionView: View {
                     isCurrentCard: isCurrentCard
                 )
                 .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
-                .scaleEffect(isCurrentCard ? 1 : 0.985)
-                .offset(y: isCurrentCard ? 0 : 4)
+                .scaleEffect(isQuestionContentVisible && isCurrentCard ? 1 : 0.985)
+                .offset(y: isQuestionContentVisible && isCurrentCard ? 0 : 4)
                 .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
                 .accessibilityHidden(!isCurrentCard)
                 .zIndex(isCurrentCard ? 10 : Double(-entry.index))
-                .transition(.opacity)
             }
         }
-        .animation(questionContentTransition, value: viewModel.currentIndex)
-        .animation(questionContentTransition, value: isQuestionContentVisible)
     }
 
     private var preparingQuizIndicator: some View {
@@ -1361,24 +1361,46 @@ private struct QuizModeSessionView: View {
         )
 
         if wasShowingRetryPrompt {
-            isQuestionContentVisible = false
-        }
-
-        withAnimation(questionContentTransition) {
-            viewModel.advance()
-        }
-        recordQuizTransitionEvent(
-            "buffered transition applied nextCard=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
-        )
-
-        if wasShowingRetryPrompt {
-            isQuestionTransitioning = false
-            showQuestionContentIfReady()
-            return
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isQuestionContentVisible = false
+            }
+        } else {
+            withAnimation(questionContentFadeOut) {
+                isQuestionContentVisible = false
+            }
         }
 
         questionTransitionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(320))
+            if !wasShowingRetryPrompt {
+                try? await Task.sleep(for: .milliseconds(140))
+            }
+            guard !Task.isCancelled else { return }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                viewModel.advance()
+            }
+            recordQuizTransitionEvent(
+                "buffered transition swapped nextCard=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
+            )
+
+            guard !viewModel.isShowingRetryPrompt, !viewModel.isComplete else {
+                isQuestionTransitioning = false
+                questionTransitionTask = nil
+                recordQuizTransitionEvent("buffered transition completed without next question")
+                return
+            }
+
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            withAnimation(questionContentFadeIn) {
+                isQuestionContentVisible = true
+            }
+            try? await Task.sleep(for: .milliseconds(220))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
