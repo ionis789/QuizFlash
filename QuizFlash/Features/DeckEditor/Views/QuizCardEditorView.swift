@@ -3222,6 +3222,7 @@ private struct QuizRenderedZoneCard: View {
     let onAlign: (QuizRenderedAlignmentDirection) -> Void
 
     @State private var hitTargetHeight: CGFloat = 88
+    @State private var hasResolvedInitialLayout = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -3231,6 +3232,7 @@ private struct QuizRenderedZoneCard: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
                 alignmentDefaults: inheritedZoneAlignmentDefaults,
+                animatesLayoutChanges: hasResolvedInitialLayout,
                 showsDebugGuides: showsDebugGuides,
                 showsZoneSurfaces: showsZoneSurfaces,
                 debugGuideStyle: .editorRender,
@@ -3249,6 +3251,14 @@ private struct QuizRenderedZoneCard: View {
                 guard let rootFrame = bounds.first(where: { $0.zoneID == content.rootZone.id })?.frame else { return }
                 hitTargetHeight = max(88, rootFrame.maxY)
                 onRootFrameChange(rootFrame)
+                guard !hasResolvedInitialLayout,
+                      rootFrame.width > 0,
+                      rootFrame.height > 0 else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    hasResolvedInitialLayout = true
+                }
             }
             .transaction { transaction in
                 if alignmentMenuState == nil {
