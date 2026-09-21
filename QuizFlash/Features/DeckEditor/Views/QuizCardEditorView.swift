@@ -1304,21 +1304,19 @@ struct QuizCardEditorView: View {
                 if showsRenderedContent {
                     QuizRenderedZoneCard(
                         content: explanationContent,
-                        alignmentMenuState: renderedAlignmentMenuState?.target == target ? renderedAlignmentMenuState : nil,
-                        alignmentFeedback: renderedAlignmentFeedback(for: target),
+                        alignmentMenuState: nil,
+                        alignmentFeedback: .inactive,
                         fontScale: editorTextScale,
                         availableWidth: availableWidth,
+                        showsDebugGuides: false,
+                        allowsAlignment: false,
                         alignLeftLabel: localized("Align Left"),
                         alignRightLabel: localized("Align Right"),
-                        onSelect: {
-                            selectRenderedTarget(target)
-                        },
+                        onSelect: {},
                         onRootFrameChange: { frame in
                             updateRenderedFrame(frame, for: target, availableWidth: availableWidth)
                         },
-                        onAlign: { direction in
-                            alignRenderedTarget(target, direction: direction)
-                        }
+                        onAlign: { _ in }
                     )
                 } else {
                     QuizExplanationCard(
@@ -3214,6 +3212,7 @@ private struct QuizRenderedZoneCard: View {
     let availableWidth: CGFloat
     var showsDebugGuides = true
     var showsZoneSurfaces = true
+    var allowsAlignment = true
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     let alignLeftLabel: String
@@ -3232,6 +3231,7 @@ private struct QuizRenderedZoneCard: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
                 alignmentDefaults: inheritedZoneAlignmentDefaults,
+                animatesLayoutChanges: false,
                 showsDebugGuides: showsDebugGuides,
                 showsZoneSurfaces: showsZoneSurfaces,
                 debugGuideStyle: .editorRender,
@@ -3239,11 +3239,9 @@ private struct QuizRenderedZoneCard: View {
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: false,
-                leafTapBehavior: .all,
-                onTap: onSelect,
-                onZoneTap: { _ in
-                    onSelect()
-                }
+                leafTapBehavior: allowsAlignment ? .all : .none,
+                onTap: allowsAlignment ? onSelect : nil,
+                onZoneTap: allowsAlignment ? { _ in onSelect() } : nil
             )
             .frame(width: availableWidth, alignment: .topLeading)
             .frame(minHeight: 88, alignment: .top)
@@ -3254,17 +3252,17 @@ private struct QuizRenderedZoneCard: View {
                 onRootFrameChange(rootFrame)
             }
             .transaction { transaction in
-                if alignmentMenuState == nil {
-                    transaction.animation = nil
-                }
+                transaction.animation = nil
             }
             .zIndex(0)
 
-            Color.clear
-                .frame(width: availableWidth, height: hitTargetHeight, alignment: .topLeading)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onSelect)
-                .zIndex(1)
+            if allowsAlignment {
+                Color.clear
+                    .frame(width: availableWidth, height: hitTargetHeight, alignment: .topLeading)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onSelect)
+                    .zIndex(1)
+            }
 
             alignmentMenu
         }
@@ -3273,7 +3271,7 @@ private struct QuizRenderedZoneCard: View {
 
     @ViewBuilder
     private var alignmentMenu: some View {
-        if let menuState = alignmentMenuState {
+        if allowsAlignment, let menuState = alignmentMenuState {
             let position = alignmentMenuPosition(for: menuState)
             let transitionAnchor = UnitPoint(
                 x: min(max((menuState.anchor.x - position.x) / QuizRenderedAlignmentMenuStyle.size.width, 0), 1),
