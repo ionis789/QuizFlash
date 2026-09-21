@@ -108,7 +108,7 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
     private var questionContentMotion: Animation {
-        .smooth(duration: 0.18, extraBounce: 0)
+        .smooth(duration: 0.10, extraBounce: 0)
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -1383,7 +1383,7 @@ private struct QuizModeSessionView: View {
             withAnimation(questionContentMotion) {
                 questionContentScale = 1
             }
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
