@@ -106,11 +106,8 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
-    private var questionContentFadeOut: Animation {
-        .smooth(duration: 0.14, extraBounce: 0)
-    }
-    private var questionContentFadeIn: Animation {
-        .smooth(duration: 0.22, extraBounce: 0)
+    private var questionContentMotion: Animation {
+        .selectionToolbarSpring
     }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
@@ -366,20 +363,29 @@ private struct QuizModeSessionView: View {
 
     private func bufferedQuestionFlow(safeBottomInset: CGFloat) -> some View {
         ZStack {
-            ForEach(bufferedQuizCardEntries) { entry in
-                let isCurrentCard = entry.index == viewModel.currentIndex
-
+            if let currentCard = viewModel.currentCard {
                 questionFlow(
-                    for: entry.card,
+                    for: currentCard,
                     safeBottomInset: safeBottomInset,
-                    isCurrentCard: isCurrentCard
+                    isCurrentCard: true
                 )
-                .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
-                .scaleEffect(isQuestionContentVisible && isCurrentCard ? 1 : 0.985)
-                .offset(y: isQuestionContentVisible && isCurrentCard ? 0 : 4)
-                .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
-                .accessibilityHidden(!isCurrentCard)
-                .zIndex(isCurrentCard ? 10 : Double(-entry.index))
+                .contentTransition(.interpolate)
+                .animation(questionContentMotion, value: currentCard.id)
+                .opacity(isQuestionContentVisible ? 1 : 0)
+                .allowsHitTesting(isQuestionContentVisible && !isQuestionTransitioning)
+                .zIndex(10)
+            }
+
+            if let nextEntry = bufferedQuizCardEntries.first(where: { $0.index > viewModel.currentIndex }) {
+                questionFlow(
+                    for: nextEntry.card,
+                    safeBottomInset: safeBottomInset,
+                    isCurrentCard: false
+                )
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .zIndex(-1)
             }
         }
     }
@@ -433,6 +439,7 @@ private struct QuizModeSessionView: View {
                             showsZoneSurfaces: false,
                             textVerticalPadding: 0,
                             textHorizontalPaddingOverride: 0,
+                            animatesContentChanges: isCurrentCard,
                             showsLayoutDebug: showsQuizLayoutDebug,
                             onLeafDebugSnapshotsChange: { snapshots in
                                 guard isCurrentCard else { return }
@@ -462,6 +469,7 @@ private struct QuizModeSessionView: View {
                     wrongFeedbackTrigger: viewModel.wrongFeedbackTrigger,
                     isEvaluated: viewModel.isEvaluated,
                     allowsSelection: allowsChoiceSelection,
+                    animatesContentChanges: isCurrentCard,
                     fontScale: playModeTextScale,
                     groupWidth: answerGroupWidth,
                     layoutWidth: contentWidth,
@@ -926,7 +934,7 @@ private struct QuizModeSessionView: View {
             xpEarned: viewModel.sessionXP,
             stats: completionStats,
             primaryActionTitle: "Retry Wrong Questions",
-            primaryAction: advanceQuestionWithFade,
+            primaryAction: advanceQuestionWithMotion,
             secondaryActionTitle: "Continue",
             secondaryAction: dismissSheet
         )
@@ -1076,7 +1084,7 @@ private struct QuizModeSessionView: View {
             "primary-action card=\(currentQuizDebugCardID) evaluated=\(viewModel.isEvaluated) visible=\(isQuestionContentVisible)"
         )
         if viewModel.isShowingRetryPrompt {
-            advanceQuestionWithFade()
+            advanceQuestionWithMotion()
             return
         }
 
@@ -1085,7 +1093,7 @@ private struct QuizModeSessionView: View {
         if !viewModel.isEvaluated {
             viewModel.submitAnswer()
         } else {
-            advanceQuestionWithFade()
+            advanceQuestionWithMotion()
         }
     }
 
@@ -1349,7 +1357,7 @@ private struct QuizModeSessionView: View {
         generator.notificationOccurred(isCorrect ? .success : .error)
     }
 
-    private func advanceQuestionWithFade() {
+    private func advanceQuestionWithMotion() {
         guard !isQuestionTransitioning else { return }
 
         questionTransitionTask?.cancel()
@@ -1366,41 +1374,32 @@ private struct QuizModeSessionView: View {
             withTransaction(transaction) {
                 isQuestionContentVisible = false
             }
-        } else {
-            withAnimation(questionContentFadeOut) {
-                isQuestionContentVisible = false
-            }
         }
 
-        questionTransitionTask = Task { @MainActor in
-            if !wasShowingRetryPrompt {
-                try? await Task.sleep(for: .milliseconds(140))
-            }
-            guard !Task.isCancelled else { return }
-
+        if wasShowingRetryPrompt {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 viewModel.advance()
             }
-            recordQuizTransitionEvent(
-                "buffered transition swapped nextCard=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
-            )
-
-            guard !viewModel.isShowingRetryPrompt, !viewModel.isComplete else {
-                isQuestionTransitioning = false
-                questionTransitionTask = nil
-                recordQuizTransitionEvent("buffered transition completed without next question")
-                return
+            isQuestionContentVisible = true
+        } else {
+            withAnimation(questionContentMotion) {
+                viewModel.advance()
             }
+        }
+        recordQuizTransitionEvent(
+            "buffered transition swapped nextCard=\(currentQuizDebugCardID) preparedUpperBound=\(preparedQuizCardUpperBound)"
+        )
 
-            await Task.yield()
-            guard !Task.isCancelled else { return }
+        guard !viewModel.isShowingRetryPrompt, !viewModel.isComplete else {
+            isQuestionTransitioning = false
+            recordQuizTransitionEvent("buffered transition completed without next question")
+            return
+        }
 
-            withAnimation(questionContentFadeIn) {
-                isQuestionContentVisible = true
-            }
-            try? await Task.sleep(for: .milliseconds(220))
+        questionTransitionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
             isQuestionTransitioning = false
@@ -1649,6 +1648,7 @@ struct QuizAnswerList: View {
     let wrongFeedbackTrigger: Int
     let isEvaluated: Bool
     let allowsSelection: Bool
+    var animatesContentChanges: Bool = false
     let fontScale: CGFloat
     let groupWidth: CGFloat
     let layoutWidth: CGFloat
@@ -1676,7 +1676,7 @@ struct QuizAnswerList: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.extraLarge) {
-                    ForEach(choices) { choice in
+                    ForEach(Array(choices.enumerated()), id: \.offset) { _, choice in
                         QuizChoiceRow(
                             choice: choice,
                             isSelected: selectedChoiceIDs.contains(choice.id),
@@ -1686,6 +1686,7 @@ struct QuizAnswerList: View {
                             isEvaluated: isEvaluated,
                             isCorrect: choice.isCorrect,
                             allowsSelection: allowsSelection,
+                            animatesContentChanges: animatesContentChanges,
                             fontScale: fontScale,
                             groupWidth: groupWidth,
                             layoutWidth: layoutWidth,
@@ -1722,6 +1723,7 @@ struct QuizAnswerList: View {
                     color: .pink,
                     label: "ANSWER CONTENT h=\(Self.metric(contentHeight)) bottom=\(Self.metric(centeredContentBottom)) effective=\(Self.metric(effectiveViewportHeight)) covered=\(contentWouldBeCovered.description) scroll=\(needsScroll.description)"
                 )
+                .animation(.selectionToolbarSpring, value: contentHeight)
             }
             .scrollDisabled(!needsScroll)
             .quizDebugOutline(
@@ -1761,6 +1763,7 @@ struct QuizChoiceRow: View {
     let isEvaluated: Bool
     let isCorrect: Bool
     let allowsSelection: Bool
+    let animatesContentChanges: Bool
     let fontScale: CGFloat
     let groupWidth: CGFloat
     let layoutWidth: CGFloat
@@ -1790,6 +1793,7 @@ struct QuizChoiceRow: View {
                 zoneHighlightStrokeStyle: missedCorrectFeedback
                     ? StrokeStyle(lineWidth: 2.5, dash: [8, 5], dashPhase: 0)
                     : StrokeStyle(lineWidth: 2),
+                animatesContentChanges: animatesContentChanges,
                 showsLayoutDebug: showsLayoutDebug,
                 onTap: handleTap,
                 onMeasuredWidthChange: updateMeasuredContentWidth,
@@ -2052,6 +2056,7 @@ struct QuizQuestionScrollViewport<Content: View>: View {
         .scrollIndicators(contentOverflows ? .visible : .hidden)
         .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         .frame(height: viewportHeight, alignment: .top)
+        .animation(.selectionToolbarSpring, value: viewportHeight)
     }
 }
 
@@ -2068,6 +2073,7 @@ struct QuizPlaybackZoneContent: View {
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
+    var animatesContentChanges: Bool = false
     var showsLayoutDebug: Bool = false
     var onTap: (() -> Void)?
     var onMeasuredWidthChange: ((CGFloat) -> Void)?
@@ -2080,7 +2086,7 @@ struct QuizPlaybackZoneContent: View {
             centersLeafBlocks: centersLeafBlocks,
             alignmentDefaults: alignmentDefaults,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
-            animatesLayoutChanges: false,
+            animatesLayoutChanges: animatesContentChanges,
             showsDebugGuides: showsLayoutDebug,
             showsZoneSurfaces: showsZoneSurfaces,
             showsCodeBlockZoneSurfaces: true,
@@ -2106,8 +2112,11 @@ struct QuizPlaybackZoneContent: View {
             onBlockBoundsChange: onBlockBoundsChange,
             onDiagnosticsChange: diagnosticsHandler
         )
+        .contentTransition(.interpolate)
         .transaction { transaction in
-            transaction.animation = nil
+            if !animatesContentChanges {
+                transaction.animation = nil
+            }
         }
         .background(alignment: .topLeading) {
             if showsLayoutDebug {
