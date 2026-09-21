@@ -1055,6 +1055,8 @@ struct QuizCardEditorView: View {
                 alignmentFeedback: renderedAlignmentFeedback(for: target),
                 fontScale: editorTextScale,
                 availableWidth: availableWidth,
+                showsDebugGuides: false,
+                showsZoneSurfaces: false,
                 textVerticalPadding: 0,
                 textHorizontalPaddingOverride: 0,
                 alignLeftLabel: localized("Align Left"),
@@ -3213,6 +3215,8 @@ private struct QuizRenderedZoneCard: View {
     let alignmentFeedback: ZoneAlignmentFeedback
     let fontScale: CGFloat
     let availableWidth: CGFloat
+    var showsDebugGuides = true
+    var showsZoneSurfaces = true
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     let alignLeftLabel: String
@@ -3231,7 +3235,8 @@ private struct QuizRenderedZoneCard: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
                 alignmentDefaults: inheritedZoneAlignmentDefaults,
-                showsDebugGuides: true,
+                showsDebugGuides: showsDebugGuides,
+                showsZoneSurfaces: showsZoneSurfaces,
                 debugGuideStyle: .editorRender,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride,
