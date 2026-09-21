@@ -3231,7 +3231,6 @@ private struct QuizRenderedZoneCard: View {
                 availableWidth: availableWidth,
                 centersLeafBlocks: true,
                 alignmentDefaults: inheritedZoneAlignmentDefaults,
-                animatesLayoutChanges: false,
                 showsDebugGuides: showsDebugGuides,
                 showsZoneSurfaces: showsZoneSurfaces,
                 debugGuideStyle: .editorRender,
@@ -3252,7 +3251,9 @@ private struct QuizRenderedZoneCard: View {
                 onRootFrameChange(rootFrame)
             }
             .transaction { transaction in
-                transaction.animation = nil
+                if alignmentMenuState == nil {
+                    transaction.animation = nil
+                }
             }
             .zIndex(0)
 
