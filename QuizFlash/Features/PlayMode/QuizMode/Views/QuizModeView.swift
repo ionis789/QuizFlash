@@ -89,9 +89,6 @@ private struct QuizModeSessionView: View {
     @State private var measuredQuizDebugControlsHeight: CGFloat = 0
     @State private var isQuestionContentVisible = false
     @State private var areFloatingControlsVisible = false
-    @State private var isQuestionTransitioning = false
-    @State private var questionContentScale: CGFloat = 1
-    @State private var questionTransitionTask: Task<Void, Never>?
     @State private var preparedQuizCardUpperBound = 0
     @State private var quizCardPreloadTask: Task<Void, Never>?
 #if DEBUG
@@ -107,9 +104,6 @@ private struct QuizModeSessionView: View {
     private var quizSecondaryFloatingIconFrame: CGFloat { 34 }
     private var quizSecondaryFloatingIconFontSize: CGFloat { 20 }
     private var quizPrimaryFloatingButtonHeight: CGFloat { 48 }
-    private var questionContentMotion: Animation {
-        .smooth(duration: 0.10, extraBounce: 0)
-    }
     private var playModeTextScale: CGFloat {
         CGFloat(viewModel.settings.textSize.playModeScale)
     }
@@ -219,7 +213,7 @@ private struct QuizModeSessionView: View {
             resetQuestionLayoutMeasurements(reason: "current-card")
             resetQuizCardPreloadWindow()
             recordQuizTransitionEvent(
-                "current-card changed card=\(currentQuizDebugCardID) visible=\(isQuestionContentVisible) transitioning=\(isQuestionTransitioning)"
+                "current-card changed card=\(currentQuizDebugCardID) visible=\(isQuestionContentVisible)"
             )
         }
         .onChange(of: viewModel.loadState) { _, _ in
@@ -235,7 +229,6 @@ private struct QuizModeSessionView: View {
             emitQuizEvaluationHaptic(isCorrect: result)
         }
         .onDisappear {
-            questionTransitionTask?.cancel()
             quizCardPreloadTask?.cancel()
             viewModel.tearDown()
         }
@@ -373,7 +366,7 @@ private struct QuizModeSessionView: View {
                     isCurrentCard: isCurrentCard
                 )
                 .opacity(isQuestionContentVisible && isCurrentCard ? 1 : 0)
-                .allowsHitTesting(isQuestionContentVisible && isCurrentCard && !isQuestionTransitioning)
+                .allowsHitTesting(isQuestionContentVisible && isCurrentCard)
                 .accessibilityHidden(!isCurrentCard)
                 .zIndex(isCurrentCard ? 10 : Double(-entry.index))
             }
@@ -467,7 +460,6 @@ private struct QuizModeSessionView: View {
                     topContentInset: UIConstants.Spacing.large,
                     bottomOverlayInset: answerBottomOverlayInset,
                     showsLayoutDebug: showsQuizLayoutDebug,
-                    zoneScale: isCurrentCard ? questionContentScale : 0.985,
                     selectChoice: { viewModel.selectChoice($0) },
                     onMeasuredWidthChange: { choiceID, width in
                         guard isCurrentCard else { return }
@@ -923,7 +915,7 @@ private struct QuizModeSessionView: View {
             xpEarned: viewModel.sessionXP,
             stats: completionStats,
             primaryActionTitle: "Retry Wrong Questions",
-            primaryAction: advanceQuestionWithMotion,
+            primaryAction: advanceQuestion,
             secondaryActionTitle: "Continue",
             secondaryAction: dismissSheet
         )
@@ -1002,7 +994,6 @@ private struct QuizModeSessionView: View {
     }
 
     private var isPrimaryActionDisabled: Bool {
-        if isQuestionTransitioning { return true }
         if viewModel.isShowingRetryPrompt { return false }
         if viewModel.isEvaluated { return false }
         return !viewModel.canSubmitAnswer
@@ -1073,7 +1064,7 @@ private struct QuizModeSessionView: View {
             "primary-action card=\(currentQuizDebugCardID) evaluated=\(viewModel.isEvaluated) visible=\(isQuestionContentVisible)"
         )
         if viewModel.isShowingRetryPrompt {
-            advanceQuestionWithMotion()
+            advanceQuestion()
             return
         }
 
@@ -1082,7 +1073,7 @@ private struct QuizModeSessionView: View {
         if !viewModel.isEvaluated {
             viewModel.submitAnswer()
         } else {
-            advanceQuestionWithMotion()
+            advanceQuestion()
         }
     }
 
@@ -1346,11 +1337,7 @@ private struct QuizModeSessionView: View {
         generator.notificationOccurred(isCorrect ? .success : .error)
     }
 
-    private func advanceQuestionWithMotion() {
-        guard !isQuestionTransitioning else { return }
-
-        questionTransitionTask?.cancel()
-        isQuestionTransitioning = true
+    private func advanceQuestion() {
         showsExplanationSheet = false
         let wasShowingRetryPrompt = viewModel.isShowingRetryPrompt
         recordQuizTransitionEvent(
@@ -1360,7 +1347,6 @@ private struct QuizModeSessionView: View {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            questionContentScale = 0.985
             viewModel.advance()
             if wasShowingRetryPrompt {
                 isQuestionContentVisible = true
@@ -1371,25 +1357,10 @@ private struct QuizModeSessionView: View {
         )
 
         guard !viewModel.isShowingRetryPrompt, !viewModel.isComplete else {
-            isQuestionTransitioning = false
             recordQuizTransitionEvent("buffered transition completed without next question")
             return
         }
-
-        questionTransitionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(16))
-            guard !Task.isCancelled else { return }
-
-            withAnimation(questionContentMotion) {
-                questionContentScale = 1
-            }
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-
-            isQuestionTransitioning = false
-            questionTransitionTask = nil
-            recordQuizTransitionEvent("buffered transition complete card=\(currentQuizDebugCardID)")
-        }
+        recordQuizTransitionEvent("buffered transition complete card=\(currentQuizDebugCardID)")
     }
 
     private var bufferedQuizCardEntries: [QuizBufferedCardEntry] {
@@ -1465,12 +1436,10 @@ private struct QuizModeSessionView: View {
         }
 
         resetQuizCardPreloadWindow()
-        questionTransitionTask?.cancel()
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             isQuestionContentVisible = true
-            questionContentScale = 1
             areFloatingControlsVisible = true
         }
         recordQuizTransitionEvent(
@@ -1640,7 +1609,6 @@ struct QuizAnswerList: View {
     let topContentInset: CGFloat
     let bottomOverlayInset: CGFloat
     let showsLayoutDebug: Bool
-    var zoneScale: CGFloat = 1
     let selectChoice: (UUID) -> Void
     let onMeasuredWidthChange: (UUID, CGFloat) -> Void
     let onLeafDebugSnapshotsChange: (UUID, [ZoneContentLeafLayoutDebugSnapshot]) -> Void
@@ -1676,7 +1644,6 @@ struct QuizAnswerList: View {
                             layoutWidth: layoutWidth,
                             alignmentDefaults: alignmentDefaults,
                             showsLayoutDebug: showsLayoutDebug,
-                            zoneScale: zoneScale,
                             action: { selectChoice(choice.id) },
                             onMeasuredWidthChange: { width in
                                 onMeasuredWidthChange(choice.id, width)
@@ -1752,7 +1719,6 @@ struct QuizChoiceRow: View {
     let layoutWidth: CGFloat
     let alignmentDefaults: ZoneAlignmentDefaults
     let showsLayoutDebug: Bool
-    let zoneScale: CGFloat
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
     let onLeafDebugSnapshotsChange: ([ZoneContentLeafLayoutDebugSnapshot]) -> Void
@@ -1786,7 +1752,6 @@ struct QuizChoiceRow: View {
                     onBlockBoundsChange(bounds)
                 }
             )
-            .scaleEffect(zoneScale, anchor: .center)
             .keyframeAnimator(
                 initialValue: CorrectAnswerFeedbackFrame(),
                 trigger: correctFeedbackAnimationTrigger
