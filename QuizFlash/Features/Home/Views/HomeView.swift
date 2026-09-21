@@ -51,7 +51,7 @@ struct HomeView: View {
     @State private var folderToDelete: HomeFolderActionTarget?
     @State private var folderActionErrorMessage = ""
     @State private var showsFolderActionError = false
-    @State private var folderMoveFeedback: HomeFolderMoveFeedback?
+    @State private var folderActionFeedback: HomeFolderActionFeedback?
 
     private static let layoutLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
@@ -99,7 +99,7 @@ struct HomeView: View {
                         HomeDashboardView(
                             viewModel: viewModel,
                             folderSnapshots: cachedFolderSnapshots,
-                            folderMoveFeedback: folderMoveFeedback,
+                            folderActionFeedback: folderActionFeedback,
                             recentDeckSnapshots: cachedRecentlyOpenedDeckSnapshots,
                             layoutContext: layoutContext,
                             allDeckCount: cachedAllDeckCount,
@@ -298,14 +298,16 @@ struct HomeView: View {
                 target: target,
                 mode: .rename,
                 safeAreaInsets: safeAreaInsets,
-                onSave: { title, _ in updateFolder(target, title: title, colorHex: nil) }
+                onSave: { title, _ in updateFolder(target, title: title, colorHex: nil) },
+                onSaved: { completeFolderEditFeedback(for: target.id) }
             )
         case .changeColor(let target):
             HomeFolderEditSheet(
                 target: target,
                 mode: .changeColor,
                 safeAreaInsets: safeAreaInsets,
-                onSave: { _, colorHex in updateFolder(target, title: nil, colorHex: colorHex) }
+                onSave: { _, colorHex in updateFolder(target, title: nil, colorHex: colorHex) },
+                onSaved: { completeFolderEditFeedback(for: target.id) }
             )
         case .moveDecks(let target):
             MoveDecksToFolderSheet(
@@ -384,7 +386,6 @@ struct HomeView: View {
         do {
             try modelContext.save()
             CloudSyncCoordinator.shared.enqueueUpsert(for: folder, context: modelContext)
-            refreshCachedFolderSnapshots()
             return true
         } catch {
             folder.title = oldTitle
@@ -468,7 +469,7 @@ struct HomeView: View {
             decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             affectedFolders.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             refreshCachedFolderSnapshots()
-            folderMoveFeedback = HomeFolderMoveFeedback(folderID: destination.persistentModelID)
+            showFolderActionFeedback(for: destination.persistentModelID)
         } catch {
             for deck in decks {
                 deck.folder = originalFolders[deck.persistentModelID] ?? nil
@@ -494,6 +495,22 @@ struct HomeView: View {
                 colorHex: folder.colorHex,
                 deckCount: folder.deckCount
             )
+        }
+    }
+
+    private func completeFolderEditFeedback(for folderID: PersistentIdentifier) {
+        refreshCachedFolderSnapshots()
+        showFolderActionFeedback(for: folderID)
+    }
+
+    private func showFolderActionFeedback(for folderID: PersistentIdentifier) {
+        let feedback = HomeFolderActionFeedback(folderID: folderID)
+        folderActionFeedback = feedback
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            guard folderActionFeedback?.token == feedback.token else { return }
+            folderActionFeedback = nil
         }
     }
 

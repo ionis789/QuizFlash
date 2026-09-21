@@ -31,6 +31,7 @@ struct HomeFolderEditSheet: View {
     let mode: Mode
     let safeAreaInsets: UIEdgeInsets
     let onSave: (String, String) -> Bool
+    let onSaved: () -> Void
 
     @State private var title: String
     @State private var colorHex: String
@@ -41,12 +42,14 @@ struct HomeFolderEditSheet: View {
         target: HomeFolderActionTarget,
         mode: Mode,
         safeAreaInsets: UIEdgeInsets,
-        onSave: @escaping (String, String) -> Bool
+        onSave: @escaping (String, String) -> Bool,
+        onSaved: @escaping () -> Void
     ) {
         self.target = target
         self.mode = mode
         self.safeAreaInsets = safeAreaInsets
         self.onSave = onSave
+        self.onSaved = onSaved
         _title = State(initialValue: target.title)
         _colorHex = State(initialValue: target.colorHex)
     }
@@ -88,7 +91,11 @@ struct HomeFolderEditSheet: View {
 
             Button {
                 if onSave(title, colorHex) {
-                    dismissSheet?()
+                    if let dismissSheet {
+                        dismissSheet(completion: onSaved)
+                    } else {
+                        onSaved()
+                    }
                 }
             } label: {
                 Text(AppLocalization.string("Save", locale: locale))

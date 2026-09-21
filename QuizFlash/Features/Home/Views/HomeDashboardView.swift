@@ -28,7 +28,7 @@ struct HomeDashboardView: View {
 
     let viewModel: HomeViewModel
     let folderSnapshots: [HomeFolderSnapshot]
-    let folderMoveFeedback: HomeFolderMoveFeedback?
+    let folderActionFeedback: HomeFolderActionFeedback?
     let recentDeckSnapshots: [LibraryDeckRowSnapshot]
     let layoutContext: HomeAdaptiveLayoutContext
     let allDeckCount: Int
@@ -421,8 +421,8 @@ struct HomeDashboardView: View {
                     HomeDashboardFolderCard(
                         snapshot: folder,
                         usesRegularMetrics: usesRegularMetrics,
-                        moveFeedbackToken: folderMoveFeedback?.folderID == folder.id
-                            ? folderMoveFeedback?.token
+                        actionFeedbackToken: folderActionFeedback?.folderID == folder.id
+                            ? folderActionFeedback?.token
                             : nil,
                         onOpen: { onOpenFolder(folder.id) },
                         onRename: onRenameFolder,
@@ -478,7 +478,7 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
     let deckCount: Int
 }
 
-struct HomeFolderMoveFeedback: Equatable {
+struct HomeFolderActionFeedback: Equatable {
     let folderID: PersistentIdentifier
     let token = UUID()
 }
@@ -1613,12 +1613,14 @@ private struct HomeDashboardFolderCard: View {
 
     let snapshot: HomeFolderSnapshot
     let usesRegularMetrics: Bool
-    let moveFeedbackToken: UUID?
+    let actionFeedbackToken: UUID?
     let onOpen: () -> Void
     let onRename: (HomeFolderActionTarget) -> Void
     let onChangeColor: (HomeFolderActionTarget) -> Void
     let onMoveDecksHere: (HomeFolderActionTarget) -> Void
     let onDelete: (HomeFolderActionTarget) -> Void
+
+    @State private var activeFeedbackToken: UUID?
 
     private var folderColor: Color {
         Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
@@ -1644,8 +1646,8 @@ private struct HomeDashboardFolderCard: View {
 
         cardContent
             .keyframeAnimator(
-                initialValue: HomeFolderMoveGlowFrame(),
-                trigger: moveFeedbackToken
+                initialValue: HomeFolderActionGlowFrame(),
+                trigger: activeFeedbackToken
             ) { content, frame in
                 content
                     .overlay {
@@ -1658,19 +1660,23 @@ private struct HomeDashboardFolderCard: View {
                     )
             } keyframes: { _ in
                 KeyframeTrack(\.strokeOpacity) {
-                    CubicKeyframe(0.34, duration: moveFeedbackDuration(0.14))
-                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                    CubicKeyframe(0.34, duration: actionFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: actionFeedbackDuration(0.52))
                 }
 
                 KeyframeTrack(\.glowOpacity) {
-                    CubicKeyframe(0.28, duration: moveFeedbackDuration(0.14))
-                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                    CubicKeyframe(0.28, duration: actionFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: actionFeedbackDuration(0.52))
                 }
 
                 KeyframeTrack(\.glowRadius) {
-                    CubicKeyframe(16, duration: moveFeedbackDuration(0.14))
-                    CubicKeyframe(0, duration: moveFeedbackDuration(0.52))
+                    CubicKeyframe(16, duration: actionFeedbackDuration(0.14))
+                    CubicKeyframe(0, duration: actionFeedbackDuration(0.52))
                 }
+            }
+            .onChange(of: actionFeedbackToken, initial: true) { _, newToken in
+                guard let newToken else { return }
+                activeFeedbackToken = newToken
             }
             .onTapGesture(perform: onOpen)
             .customContextMenu(id: snapshot.id, actions: contextMenuActions) {
@@ -1729,6 +1735,7 @@ private struct HomeDashboardFolderCard: View {
                         .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
+                        .statusTextMotion(trigger: snapshot.title)
 
                     Text(deckCountText)
                         .font(.system(size: 14, weight: .semibold))
@@ -1769,12 +1776,12 @@ private struct HomeDashboardFolderCard: View {
         )
     }
 
-    private func moveFeedbackDuration(_ duration: TimeInterval) -> TimeInterval {
+    private func actionFeedbackDuration(_ duration: TimeInterval) -> TimeInterval {
         reduceMotion ? 0.01 : duration
     }
 }
 
-private struct HomeFolderMoveGlowFrame {
+private struct HomeFolderActionGlowFrame {
     var strokeOpacity: CGFloat = 0
     var glowOpacity: CGFloat = 0
     var glowRadius: CGFloat = 0
