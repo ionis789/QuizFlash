@@ -37,6 +37,8 @@ struct SettingsView: View {
     @State private var selectedProfilePhoto: PhotosPickerItem?
     @State private var displayNameDraft = ""
     @State private var isEditingDisplayName = false
+    @State private var displayedProfileName: String?
+    @State private var pendingDisplayNameFeedback: String?
     @State private var displayNameFeedbackToken: UUID?
     @State private var isPremiumSheetPresented = false
     @State private var showDeleteAccountConfirmation = false
@@ -116,10 +118,18 @@ struct SettingsView: View {
             syncGoalDraftFromPreferences()
         }
         .onChange(of: profileName) { oldValue, newValue in
+            let shouldAnimate = pendingDisplayNameFeedback == newValue
             settingsNameTrace(
                 "profileName.changed",
-                details: "oldCount=\(oldValue.count) newCount=\(newValue.count) equal=\(oldValue == newValue)"
+                details: "oldCount=\(oldValue.count) newCount=\(newValue.count) equal=\(oldValue == newValue) pendingMatch=\(shouldAnimate)"
             )
+            displayedProfileName = newValue
+            guard shouldAnimate else { return }
+
+            pendingDisplayNameFeedback = nil
+            let nextToken = UUID()
+            settingsNameTrace("feedback.triggered", details: "token=\(nextToken.uuidString) source=profileNameChange")
+            displayNameFeedbackToken = nextToken
         }
         .onChange(of: displayNameFeedbackToken) { oldValue, newValue in
             settingsNameTrace(
@@ -131,6 +141,9 @@ struct SettingsView: View {
             settingsNameTrace("sheet.presentation.changed", details: "old=\(oldValue) new=\(newValue)")
         }
         .task {
+            if displayedProfileName == nil {
+                displayedProfileName = profileName
+            }
             cachedDeckCount = decks.count
             syncGoalDraftFromPreferences()
             refreshCachedProfileImage()
@@ -189,7 +202,7 @@ struct SettingsView: View {
         .fullScreenSheet(
             isPresented: $isEditingDisplayName,
             configuration: .sheet(
-                heightMode: .custom(0.70),
+                heightMode: .safeAreaAbsolute(265, maxFraction: 0.60),
                 showsDefaultTopProgressiveBlur: false,
                 showsCloseButton: true,
                 avoidsKeyboard: true
@@ -418,7 +431,7 @@ struct SettingsView: View {
                     .opacity(0)
                     .accessibilityHidden(true)
 
-                Text(profileName)
+                Text(displayedProfileName ?? profileName)
                     .font(.system(size: 30, weight: .black))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -865,6 +878,9 @@ struct SettingsView: View {
             "update.requested",
             details: "previousCount=\(previousDisplayName?.count ?? 0) submittedCount=\(normalizedDisplayName.count) equal=\(previousDisplayName == normalizedDisplayName)"
         )
+        if previousDisplayName != normalizedDisplayName {
+            pendingDisplayNameFeedback = normalizedDisplayName
+        }
         Task { @MainActor in
             do {
                 try await authManager.updateDisplayName(normalizedDisplayName)
@@ -878,10 +894,10 @@ struct SettingsView: View {
                     settingsNameTrace("feedback.skipped", details: "reason=unchanged")
                     return
                 }
-                let nextToken = UUID()
-                settingsNameTrace("feedback.triggered", details: "token=\(nextToken.uuidString)")
-                displayNameFeedbackToken = nextToken
             } catch {
+                if pendingDisplayNameFeedback == normalizedDisplayName {
+                    pendingDisplayNameFeedback = nil
+                }
                 settingsNameTrace("update.failed", details: "errorType=\(String(describing: type(of: error)))")
                 presentAuthError(error)
             }
