@@ -268,7 +268,8 @@ struct DeckWorkspaceView: View {
         scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
     }
     var swipeBackEnabled: Bool {
-        viewModel.aiSheetDestination == nil
+        viewModel.isEditingExistingDeck
+            && viewModel.aiSheetDestination == nil
             && !viewModel.showAIPickerOptions
             && !viewModel.showSuccessOverlay
             && !isTitleFocused

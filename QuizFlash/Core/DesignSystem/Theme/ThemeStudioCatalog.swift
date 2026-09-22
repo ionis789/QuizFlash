@@ -124,7 +124,8 @@ enum ThemeStudioCatalog {
                     slot("dangerTint", .token(.dangerPrimary), true, "Used by the delete action.")
                 ]),
                 component("LibraryEmptyStateView", note: "No deck / no results state", kind: "empty.state.standard", slots: [
-                    slot("accentTint", .token(.brandPrimary), true, "Used by the icon chip accent."),
+                    slot("iconBase", .token(.textSecondary), true, "Main neutral tint of AppEmptyStateSymbol."),
+                    slot("iconAccent", .token(.brandPrimary), true, "Subtle trailing accent of AppEmptyStateSymbol."),
                     slot("bodyForeground", .token(.textSecondary), true, "Used by helper copy.")
                 ])
             ]

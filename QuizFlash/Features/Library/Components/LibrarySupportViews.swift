@@ -28,29 +28,30 @@ struct LibraryEmptyStateView: View {
     }
 
     var body: some View {
-        Button(action: onCreate) {
-            VStack(spacing: 20) {
-                Image(systemName: "rectangle.stack.slash.fill")
-                    .font(.system(size: 42, weight: .semibold))
-                    .foregroundStyle(themeManager.textSecondary.opacity(0.72))
-                    .frame(width: 80, height: 80)
+        HStack {
+            Spacer(minLength: UIConstants.Layout.screenEdgeInset)
 
-                VStack(spacing: 8) {
-                    Text(localized("No Decks Yet"))
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(themeManager.textPrimary)
-                    Text(localized("Create your first deck and start learning."))
-                        .font(.subheadline)
-                        .foregroundStyle(themeManager.textSecondary)
-                        .multilineTextAlignment(.center)
+            Button(action: onCreate) {
+                VStack(spacing: 20) {
+                    AppEmptyStateSymbol(systemName: "rectangle.stack.slash.fill")
+
+                    VStack(spacing: 8) {
+                        Text(localized("No Decks Yet"))
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(themeManager.textPrimary)
+                        Text(localized("Create your first deck and start learning."))
+                            .font(.subheadline)
+                            .foregroundStyle(themeManager.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 90)
-            .padding(.horizontal, 40)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            Spacer(minLength: UIConstants.Layout.screenEdgeInset)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 90)
     }
 }
 

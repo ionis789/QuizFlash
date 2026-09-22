@@ -36,7 +36,8 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 
 | Componentă | Fișier | Parametri cheie | Când se folosește |
 |---|---|---|---|
-| `LibraryEmptyStateView` | `QuizFlash/Features/Library/Components/LibraryContentViews.swift` | none | Empty library root when there are no decks yet |
+| `AppEmptyStateSymbol` | `QuizFlash/Core/DesignSystem/Components/AppEmptyStateSymbol.swift` | `systemName`, `symbolSize`, `frameSize` | Standard decorative empty-state symbol with a neutral gray base and subtle brand tint |
+| `LibraryEmptyStateView` | `QuizFlash/Features/Library/Components/LibrarySupportViews.swift` | `onCreate` | Empty library root when there are no decks yet |
 | `LibraryLoadingOverlay` | `QuizFlash/Features/Library/Components/LibraryContentViews.swift` | `message` | Modal loading layer for import/export/search work in Library |
 | `AILoadingOverlay` | `QuizFlash/Features/DeckEditor/Components/AILoadingOverlay.swift` | `state`, `onDismiss` | Full-screen AI generation progress and error overlay |
 | `ProgressActivityDots` | `QuizFlash/Core/DesignSystem/Components/ProgressActivityDots.swift` | `color` | Shared indeterminate loading dots used instead of circular spinners |
