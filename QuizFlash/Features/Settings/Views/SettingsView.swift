@@ -9,6 +9,15 @@ import SwiftData
 import SwiftUI
 import PhotosUI
 import UIKit
+
+private func settingsNameTrace(_ event: String, details: @autoclosure () -> String = "") {
+#if DEBUG
+    let resolvedDetails = details()
+    let suffix = resolvedDetails.isEmpty ? "" : " \(resolvedDetails)"
+    print("SETTINGS_NAME_TRACE \(Date().timeIntervalSinceReferenceDate) \(event)\(suffix)")
+#endif
+}
+
 // MARK: - Settings View
 
 struct SettingsView: View {
@@ -106,6 +115,21 @@ struct SettingsView: View {
         .onChange(of: appPreferences.dailyCardsGoal) { _, _ in
             syncGoalDraftFromPreferences()
         }
+        .onChange(of: profileName) { oldValue, newValue in
+            settingsNameTrace(
+                "profileName.changed",
+                details: "oldCount=\(oldValue.count) newCount=\(newValue.count) equal=\(oldValue == newValue)"
+            )
+        }
+        .onChange(of: displayNameFeedbackToken) { oldValue, newValue in
+            settingsNameTrace(
+                "feedbackToken.changed",
+                details: "old=\(oldValue?.uuidString ?? "nil") new=\(newValue?.uuidString ?? "nil")"
+            )
+        }
+        .onChange(of: isEditingDisplayName) { oldValue, newValue in
+            settingsNameTrace("sheet.presentation.changed", details: "old=\(oldValue) new=\(newValue)")
+        }
         .task {
             cachedDeckCount = decks.count
             syncGoalDraftFromPreferences()
@@ -165,7 +189,7 @@ struct SettingsView: View {
         .fullScreenSheet(
             isPresented: $isEditingDisplayName,
             configuration: .sheet(
-                heightMode: .fullScreen,
+                heightMode: .custom(0.70),
                 showsDefaultTopProgressiveBlur: false,
                 showsCloseButton: true,
                 avoidsKeyboard: true
@@ -381,6 +405,10 @@ struct SettingsView: View {
     private var profileNameButton: some View {
         Button {
             displayNameDraft = authManager.currentUser?.displayName ?? ""
+            settingsNameTrace(
+                "open.tapped",
+                details: "profileCount=\(profileName.count) authDisplayCount=\(displayNameDraft.count)"
+            )
             isEditingDisplayName = true
         } label: {
             HStack(spacing: UIConstants.Spacing.small) {
@@ -833,12 +861,28 @@ struct SettingsView: View {
     private func updateDisplayName(_ normalizedDisplayName: String) {
         let previousDisplayName = authManager.currentUser?.displayName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        settingsNameTrace(
+            "update.requested",
+            details: "previousCount=\(previousDisplayName?.count ?? 0) submittedCount=\(normalizedDisplayName.count) equal=\(previousDisplayName == normalizedDisplayName)"
+        )
         Task { @MainActor in
             do {
                 try await authManager.updateDisplayName(normalizedDisplayName)
-                guard previousDisplayName != normalizedDisplayName else { return }
-                displayNameFeedbackToken = UUID()
+                let authDisplayName = authManager.currentUser?.displayName?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                settingsNameTrace(
+                    "update.succeeded",
+                    details: "authCount=\(authDisplayName?.count ?? 0) profileCount=\(profileName.count) authMatchesSubmitted=\(authDisplayName == normalizedDisplayName) profileMatchesSubmitted=\(profileName == normalizedDisplayName)"
+                )
+                guard previousDisplayName != normalizedDisplayName else {
+                    settingsNameTrace("feedback.skipped", details: "reason=unchanged")
+                    return
+                }
+                let nextToken = UUID()
+                settingsNameTrace("feedback.triggered", details: "token=\(nextToken.uuidString)")
+                displayNameFeedbackToken = nextToken
             } catch {
+                settingsNameTrace("update.failed", details: "errorType=\(String(describing: type(of: error)))")
                 presentAuthError(error)
             }
         }
@@ -1314,7 +1358,17 @@ private struct SettingsDisplayNameEditSheet: View {
         .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.standard))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            settingsNameTrace(
+                "editor.appeared",
+                details: "initialCount=\(initialNormalizedName.count) currentCount=\(normalizedName.count)"
+            )
             isNameFocused = true
+        }
+        .onDisappear {
+            settingsNameTrace(
+                "editor.disappeared",
+                details: "currentCount=\(normalizedName.count) submitting=\(isSubmitting)"
+            )
         }
     }
 
@@ -1322,9 +1376,14 @@ private struct SettingsDisplayNameEditSheet: View {
         guard canSave else { return }
         isSubmitting = true
         let submittedName = normalizedName
+        settingsNameTrace(
+            "save.tapped",
+            details: "initialCount=\(initialNormalizedName.count) submittedCount=\(submittedName.count) focused=\(isNameFocused) keyboardVisible=\(keyboardMonitor.isVisible)"
+        )
 
         Task { @MainActor in
             let shouldWaitForKeyboard = isNameFocused || keyboardMonitor.isVisible
+            settingsNameTrace("keyboard.dismiss.decision", details: "shouldWait=\(shouldWaitForKeyboard)")
             if shouldWaitForKeyboard {
                 isNameFocused = false
                 UIApplication.shared.sendAction(
@@ -1334,13 +1393,20 @@ private struct SettingsDisplayNameEditSheet: View {
                     for: nil
                 )
                 try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
+                settingsNameTrace(
+                    "keyboard.dismiss.waitFinished",
+                    details: "keyboardVisible=\(keyboardMonitor.isVisible)"
+                )
             }
 
             if let dismissSheet {
+                settingsNameTrace("sheet.dismiss.requested", details: "path=environment")
                 dismissSheet {
+                    settingsNameTrace("sheet.dismiss.completed", details: "path=environment")
                     onSave(submittedName)
                 }
             } else {
+                settingsNameTrace("sheet.dismiss.unavailable", details: "savingImmediately=true")
                 onSave(submittedName)
             }
         }
