@@ -230,6 +230,7 @@ struct HomeView: View {
                     selectedDate: selectedDate,
                     weekStartDate: weekStartDate,
                     container: modelContext.container,
+                    suspendsFolderCacheRefresh: suspendsFolderCacheRefresh,
                     folderModels: $cachedFolderModels,
                     folderSnapshots: $cachedFolderSnapshots,
                     recentDeckSnapshots: $cachedRecentlyOpenedDeckSnapshots,
@@ -324,6 +325,15 @@ struct HomeView: View {
         let calendar = appPreferences.resolvedCalendar
         let selectedDay = calendar.startOfDay(for: calendarVM.selectedDate)
         return calendar.dateInterval(of: .weekOfYear, for: selectedDay)?.start ?? selectedDay
+    }
+
+    private var suspendsFolderCacheRefresh: Bool {
+        switch folderSheetDestination {
+        case .rename, .changeColor:
+            true
+        case .moveDecks, nil:
+            false
+        }
     }
 
     private func openDeck(_ deckID: PersistentIdentifier) {
@@ -689,6 +699,7 @@ private struct HomeDataCoordinator: View {
     let selectedDate: Date
     let weekStartDate: Date
     let container: ModelContainer
+    let suspendsFolderCacheRefresh: Bool
 
     @Binding var folderModels: [FolderModel]
     @Binding var folderSnapshots: [HomeFolderSnapshot]
@@ -851,6 +862,8 @@ private struct HomeDataCoordinator: View {
     }
 
     private func refreshFolderCache() {
+        guard !suspendsFolderCacheRefresh else { return }
+
         let nextSignature = folders
             .map { folder in
                 [
