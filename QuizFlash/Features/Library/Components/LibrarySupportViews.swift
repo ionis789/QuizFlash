@@ -19,8 +19,6 @@ struct LibraryEmptyStateView: View {
 
     let onCreate: () -> Void
 
-    private var accent: Color { themeManager.accentColor.color }
-
     private var locale: Locale {
         appPreferences.resolvedLocale
     }
@@ -32,14 +30,10 @@ struct LibraryEmptyStateView: View {
     var body: some View {
         Button(action: onCreate) {
             VStack(spacing: 20) {
-                ZStack {
-                    Circle()
-                        .fill(accent.opacity(0.1))
-                        .frame(width: 80, height: 80)
-                    Image(systemName: "rectangle.stack.fill")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(accent.opacity(0.9))
-                }
+                Image(systemName: "rectangle.stack.slash.fill")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(themeManager.textSecondary.opacity(0.72))
+                    .frame(width: 80, height: 80)
 
                 VStack(spacing: 8) {
                     Text(localized("No Decks Yet"))

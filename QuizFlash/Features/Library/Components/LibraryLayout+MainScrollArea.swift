@@ -29,10 +29,6 @@ extension LibraryLayout {
                 )
                 .frame(width: 0, height: 0)
 
-                if viewModel.cachedDeckCount == 0 && viewModel.cachedGroupedDecks.isEmpty {
-                    Spacer().frame(height: 40)
-                }
-
                 stackContent
                     .allowsHitTesting(!viewModel.isSearching)
             }
