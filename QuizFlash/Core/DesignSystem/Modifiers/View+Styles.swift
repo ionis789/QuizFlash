@@ -650,13 +650,14 @@ private struct TopNavigationChromeModifier: ViewModifier {
 
 // MARK: - StatusTextMotionModifier
 
-/// Applies the shared springy numeric text transition used by live status and counter labels.
+/// Applies the shared springy content transition used by live status and counter labels.
 private struct StatusTextMotionModifier<Trigger: Equatable>: ViewModifier {
     let trigger: Trigger
+    let transition: ContentTransition
 
     func body(content: Content) -> some View {
         content
-            .contentTransition(.numericText())
+            .contentTransition(transition)
             .animation(.selectionToolbarSpring, value: trigger)
     }
 }
@@ -877,8 +878,11 @@ extension View {
     }
 
     /// Applies the shared animated status-label treatment for counters and short live state text.
-    func statusTextMotion<Trigger: Equatable>(trigger: Trigger) -> some View {
-        modifier(StatusTextMotionModifier(trigger: trigger))
+    func statusTextMotion<Trigger: Equatable>(
+        trigger: Trigger,
+        transition: ContentTransition = .numericText()
+    ) -> some View {
+        modifier(StatusTextMotionModifier(trigger: trigger, transition: transition))
     }
 
     /// Applies Scale Reveal, the standard QuizFlash motion for compact content swaps.

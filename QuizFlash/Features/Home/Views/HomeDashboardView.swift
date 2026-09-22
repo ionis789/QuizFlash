@@ -1754,7 +1754,10 @@ private struct HomeDashboardFolderCard: View {
                         .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .statusTextMotion(trigger: actionFeedback?.renameToken)
+                        .statusTextMotion(
+                            trigger: actionFeedback?.renameToken,
+                            transition: .opacity
+                        )
 
                     Text(deckCountText)
                         .font(.system(size: 14, weight: .semibold))
