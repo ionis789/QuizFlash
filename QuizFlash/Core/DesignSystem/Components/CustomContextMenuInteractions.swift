@@ -218,7 +218,6 @@ private final class CustomContextMenuGlobalTouchRecognizer: UIGestureRecognizer 
                 "context-menu.rejected-by-active-sheet",
                 details: "target=\(debugViewPath(touch.view))"
             )
-            FullScreenSheetTouchDiagnostics.shared.copyReportToPasteboard()
 #endif
             state = .failed
             return
@@ -246,7 +245,6 @@ private final class CustomContextMenuGlobalTouchRecognizer: UIGestureRecognizer 
                 "context-menu.source-resolved-while-sheet-active",
                 details: "source=\(resolvedSource.sourceDescription) frame=(x=\(fmt(resolvedSource.frame.minX)) y=\(fmt(resolvedSource.frame.minY)) w=\(fmt(resolvedSource.frame.width)) h=\(fmt(resolvedSource.frame.height)))"
             )
-            diagnostics.copyReportToPasteboard()
         }
 #endif
 

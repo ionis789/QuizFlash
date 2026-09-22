@@ -51,7 +51,7 @@ struct HomeView: View {
     @State private var folderToDelete: HomeFolderActionTarget?
     @State private var folderActionErrorMessage = ""
     @State private var showsFolderActionError = false
-    @State private var folderActionFeedback: HomeFolderActionFeedback?
+    @State private var folderActionFeedbacks: [PersistentIdentifier: HomeFolderActionFeedback] = [:]
 
     private static let layoutLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
@@ -99,7 +99,7 @@ struct HomeView: View {
                         HomeDashboardView(
                             viewModel: viewModel,
                             folderSnapshots: cachedFolderSnapshots,
-                            folderActionFeedback: folderActionFeedback,
+                            folderActionFeedbacks: folderActionFeedbacks,
                             recentDeckSnapshots: cachedRecentlyOpenedDeckSnapshots,
                             layoutContext: layoutContext,
                             allDeckCount: cachedAllDeckCount,
@@ -493,7 +493,8 @@ struct HomeView: View {
                 id: folder.persistentModelID,
                 title: folder.title,
                 colorHex: folder.colorHex,
-                deckCount: folder.deckCount
+                deckCount: folder.deckCount,
+                deckIDs: Set(folder.decks.map(\.persistentModelID))
             )
         }
     }
@@ -510,14 +511,9 @@ struct HomeView: View {
         for folderID: PersistentIdentifier,
         kind: HomeFolderActionFeedback.Kind
     ) {
-        let feedback = HomeFolderActionFeedback(folderID: folderID, kind: kind)
-        folderActionFeedback = feedback
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(800))
-            guard folderActionFeedback?.token == feedback.token else { return }
-            folderActionFeedback = nil
-        }
+        var feedback = folderActionFeedbacks[folderID] ?? HomeFolderActionFeedback()
+        feedback.register(kind)
+        folderActionFeedbacks[folderID] = feedback
     }
 
     private func presentCreateFolder() {
@@ -874,7 +870,8 @@ private struct HomeDataCoordinator: View {
                 id: folder.persistentModelID,
                 title: folder.title,
                 colorHex: folder.colorHex,
-                deckCount: folder.deckCount
+                deckCount: folder.deckCount,
+                deckIDs: Set(folder.decks.map(\.persistentModelID))
             )
         }
     }

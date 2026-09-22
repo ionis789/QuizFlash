@@ -183,7 +183,10 @@ struct MoveDecksToFolderSheet: View {
 
     private var locale: Locale { appPreferences.resolvedLocale }
     private var candidateDecks: [DeckModel] {
-        allDecks.filter { $0.folder?.persistentModelID != target.id }
+        allDecks.filter { deck in
+            !target.deckIDs.contains(deck.persistentModelID)
+                && deck.folder?.persistentModelID != target.id
+        }
     }
     private var deckQuerySignature: String {
         allDecks.map { deck in
@@ -212,6 +215,10 @@ struct MoveDecksToFolderSheet: View {
         headerTopPadding + headerContentHeight + UIConstants.Spacing.standard
     }
 
+    private var listContentTopPadding: CGFloat {
+        headerContentBottom + ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
+    }
+
     private var moveTitle: AttributedString {
         let title = String(
             format: AppLocalization.string("Move to %@", locale: locale),
@@ -236,7 +243,7 @@ struct MoveDecksToFolderSheet: View {
                     systemImage: "rectangle.stack"
                 )
                 .foregroundStyle(themeManager.textSecondary)
-                .padding(.top, headerContentBottom)
+                .padding(.top, listContentTopPadding)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -252,7 +259,7 @@ struct MoveDecksToFolderSheet: View {
                             onDelete: { _ in }
                         )
                     }
-                    .padding(.top, headerContentBottom)
+                    .padding(.top, listContentTopPadding)
                     .padding(.bottom, 96 + safeAreaInsets.bottom)
                 }
                 .scrollIndicators(.hidden)
