@@ -49,6 +49,7 @@ struct FolderView: View {
 
     /// The folder whose decks are displayed.
     let folder: FolderModel
+    let accountScope: AccountDataScope
 
     /// The label shown in the back button (e.g. "Home" or "Library").
     ///
@@ -75,12 +76,17 @@ struct FolderView: View {
 
     // MARK: - Init
 
-    init(folder: FolderModel, backLabel: String) {
+    init(folder: FolderModel, accountScope: AccountDataScope, backLabel: String) {
         self.folder = folder
+        self.accountScope = accountScope
         self.backLabel = backLabel
         let folderID = folder.persistentModelID
-        let filter = #Predicate<DeckModel> { $0.folder?.persistentModelID == folderID }
+        let uid = accountScope.uid
+        let filter = #Predicate<DeckModel> {
+            $0.ownerUID == uid && $0.folder?.persistentModelID == folderID
+        }
         _decks = Query(filter: filter, sort: \DeckModel.createdAt, order: .reverse)
+        _folders = Query(filter: #Predicate<FolderModel> { $0.ownerUID == uid }, sort: \FolderModel.createdAt, order: .reverse)
     }
 
     // MARK: - Tab Bar Visibility
@@ -116,6 +122,7 @@ struct FolderView: View {
                 context: context,
                 decks: decks,
                 folders: folders,
+                ownerUID: accountScope.uid,
                 currentFolder: folder
             ))
             .modifier(LibraryAlerts(viewModel: viewModel))

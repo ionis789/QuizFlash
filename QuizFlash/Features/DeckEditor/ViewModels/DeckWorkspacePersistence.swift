@@ -181,6 +181,7 @@ extension DeckWorkspaceViewModel {
     /// Shows a brief success overlay before navigating away.
     func saveDeck(
         context: ModelContext,
+        ownerUID: String,
         onSuccessfulSave: (() -> Void)? = nil
     ) -> Bool {
         saveOverlayTask?.cancel()
@@ -199,6 +200,7 @@ extension DeckWorkspaceViewModel {
         let savedDeck: DeckModel
         var changedFolders: [FolderModel] = []
         if let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) {
+            guard deck.ownerUID == ownerUID else { return false }
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
             var folderChanged = false
@@ -275,12 +277,15 @@ extension DeckWorkspaceViewModel {
         } else {
             // ── CREATE NEW DECK ───────────────────────────────────────────────
             let newDeck = DeckModel(title: trimmedTitle, colorHex: "#FFFFFF")
+            newDeck.ownerUID = ownerUID
+            newDeck.cloudID = UUID().uuidString
             context.insert(newDeck)
-            newDeck.folder = selectedFolder
-            selectedFolder?.deckCount += 1
-            selectedFolder?.editedAt = Date()
-            if let selectedFolder {
-                changedFolders.append(selectedFolder)
+            let resolvedFolder = selectedFolder?.ownerUID == ownerUID ? selectedFolder : nil
+            newDeck.folder = resolvedFolder
+            resolvedFolder?.deckCount += 1
+            resolvedFolder?.editedAt = Date()
+            if let resolvedFolder {
+                changedFolders.append(resolvedFolder)
             }
 
             for draft in draftCards {
@@ -290,6 +295,8 @@ extension DeckWorkspaceViewModel {
                     isPinned: draft.isPinned,
                     creationSource: draft.creationSource
                 )
+                newCard.ownerUID = ownerUID
+                newCard.cloudID = UUID().uuidString
                 if let createdAt = draft.createdAt {
                     newCard.createdAt = createdAt
                 }

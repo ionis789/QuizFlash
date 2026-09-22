@@ -13,6 +13,7 @@ import SwiftUI
 
 @MainActor
 final class AIWorkspaceCoordinatorTests: XCTestCase {
+    private let ownerUID = "test-user"
     func testRestorePersistedGenerationSessionExposesPausedFloatingStatus() async throws {
         let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIWorkspaceCoordinatorTests")
         defer { try? FileManager.default.removeItem(at: directoryURL) }
@@ -21,8 +22,8 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
         let context = try TestModelContainerFactory.makeContext()
 
-        try await store.saveSession(.generation(makeGenerationSession()))
-        await coordinator.restorePersistedJobIfNeeded(context: context)
+        try await store.saveSession(.generation(makeGenerationSession()), ownerUID: ownerUID)
+        await coordinator.restorePersistedJobIfNeeded(context: context, ownerUID: ownerUID)
 
         XCTAssertEqual(coordinator.generationStatus?.phase, .paused)
         XCTAssertEqual(coordinator.floatingStatus?.kind, .generation)
@@ -102,6 +103,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
 
     private func makeGenerationSession() -> AIPausedSession {
         AIPausedSession(
+            ownerUID: ownerUID,
             sessionID: UUID(),
             deckTitle: "Graph Theory",
             folderID: nil,

@@ -112,7 +112,11 @@ final class LibraryViewModelMutationTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: invalidURL) }
 
         let viewModel = LibraryViewModel()
-        viewModel.handleFileImport(.success([invalidURL]), context: context)
+        viewModel.handleFileImport(
+            .success([invalidURL]),
+            context: context,
+            ownerUID: "test-user"
+        )
 
         XCTAssertTrue(viewModel.showImportError)
         XCTAssertEqual(viewModel.importErrorMessage, "Please select .json files")
@@ -138,7 +142,11 @@ final class LibraryViewModelMutationTests: XCTestCase {
 
         let importContext = try TestModelContainerFactory.makeContext()
         let viewModel = LibraryViewModel()
-        viewModel.handleFileImport(.success([fileURL]), context: importContext)
+        viewModel.handleFileImport(
+            .success([fileURL]),
+            context: importContext,
+            ownerUID: "test-user"
+        )
 
         await TestAsyncHelpers.waitUntil {
             !viewModel.isImporting && viewModel.showImportSuccess
@@ -147,6 +155,8 @@ final class LibraryViewModelMutationTests: XCTestCase {
         let decks = try importContext.fetchAll(DeckModel.self)
         XCTAssertEqual(decks.count, 1)
         XCTAssertEqual(decks.first?.title, "Import Me")
+        XCTAssertEqual(decks.first?.ownerUID, "test-user")
+        XCTAssertTrue(decks.first?.cards.allSatisfy { $0.ownerUID == "test-user" } == true)
         XCTAssertEqual(viewModel.importedDeckName, "Import Me")
         XCTAssertTrue(viewModel.showImportSuccess)
         XCTAssertFalse(viewModel.showImportError)

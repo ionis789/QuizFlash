@@ -11,6 +11,7 @@ import SwiftData
 
 /// Represents a paused AI generation session mapped to Codable primitives.
 nonisolated struct AIPausedSession: Codable, Equatable {
+    public let ownerUID: String
     public let sessionID: UUID
     public let deckTitle: String
     public let folderID: String? // Stringified PersistentIdentifier if needed, or simply none since deck is drafted
@@ -44,6 +45,7 @@ nonisolated struct AIPausedSession: Codable, Equatable {
     public let timestamp: Date
     
     init(
+        ownerUID: String,
         sessionID: UUID,
         deckTitle: String,
         folderID: String?,
@@ -62,6 +64,7 @@ nonisolated struct AIPausedSession: Codable, Equatable {
         promptVersion: String? = nil,
         timestamp: Date = Date()
     ) {
+        self.ownerUID = ownerUID
         self.sessionID = sessionID
         self.deckTitle = deckTitle
         self.folderID = folderID
@@ -124,26 +127,27 @@ actor AIGenerationSessionStore {
 
     /// Persists the active session to disk securely.
     func saveSession(_ session: AIPausedSession) async throws {
-        try await jobStore.saveSession(.generation(session))
+        try await jobStore.saveSession(.generation(session), ownerUID: session.ownerUID)
     }
 
     /// Loads the persisted session from disk, if one exists and is valid.
-    func loadSession() async -> AIPausedSession? {
-        guard let session = await jobStore.loadSession() else { return nil }
+    func loadSession(ownerUID: String) async -> AIPausedSession? {
+        guard let session = await jobStore.loadSession(ownerUID: ownerUID) else { return nil }
         guard case .generation(let generationSession) = session else {
             return nil
         }
+        guard generationSession.ownerUID == ownerUID else { return nil }
         return generationSession
     }
 
     /// Deletes the session state and any temporary files associated with it.
-    func clearSession() async throws {
-        try await jobStore.clearSession()
+    func clearSession(ownerUID: String) async throws {
+        try await jobStore.clearSession(ownerUID: ownerUID)
     }
 
     /// Helper to save array of `UIImage` into the application support directory and return their new URLs.
-    func saveImagesToDisk(_ images: [UIImage]) async throws -> [URL] {
-        try await jobStore.saveImagesToDisk(images)
+    func saveImagesToDisk(_ images: [UIImage], ownerUID: String) async throws -> [URL] {
+        try await jobStore.saveImagesToDisk(images, ownerUID: ownerUID)
     }
 
     /// Helper to load saved image URLs back into `UIImage` instances.
@@ -152,8 +156,8 @@ actor AIGenerationSessionStore {
     }
 
     /// Helper to copy a selected PDF into app-owned storage before analysis/generation.
-    func importPDFToDisk(from sourceURL: URL) async throws -> URL {
-        try await jobStore.importPDFToDisk(from: sourceURL)
+    func importPDFToDisk(from sourceURL: URL, ownerUID: String) async throws -> URL {
+        try await jobStore.importPDFToDisk(from: sourceURL, ownerUID: ownerUID)
     }
 
     /// Helper to create a Security-Scoped Bookmark for a PDF URL so it can be re-accessed later.

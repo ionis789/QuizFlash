@@ -121,13 +121,14 @@ final class AIWorkspaceCoordinator {
         router.showCreateRoot()
     }
 
-    func restorePersistedJobIfNeeded(context: ModelContext) async {
+    func restorePersistedJobIfNeeded(context: ModelContext, ownerUID: String) async {
         guard !hasRestoredPersistedJob else { return }
         hasRestoredPersistedJob = true
 
-        guard let session = await jobSessionStore.loadSession() else { return }
+        guard let session = await jobSessionStore.loadSession(ownerUID: ownerUID) else { return }
         switch session {
         case .generation(let pausedSession):
+            guard pausedSession.ownerUID == ownerUID else { return }
             generationStatus = AIWorkspaceGenerationStatus(
                 phase: .paused,
                 title: "AI generation paused",

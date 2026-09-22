@@ -128,6 +128,10 @@ final class CloudSyncCoordinator {
         syncProgress = nil
     }
 
+    func discardPendingOperations(for ownerUID: String) async throws {
+        try await outbox.removeAll(for: ownerUID)
+    }
+
     // MARK: - Local Mutations
 
     /// Defers expensive SwiftData serialization and Firestore work while a
@@ -150,18 +154,23 @@ final class CloudSyncCoordinator {
     /// Assigns stable cloud IDs before a newly created deck is first saved.
     func assignCloudIdentityIfPossible(to deck: DeckModel) {
         guard let uid = currentUserID() else { return }
+        guard deck.ownerUID == nil || deck.ownerUID == uid else { return }
+        guard deck.cards.allSatisfy({ $0.ownerUID == nil || $0.ownerUID == uid }) else { return }
         assignCloudIdentity(to: deck, uid: uid)
     }
 
     /// Assigns stable cloud IDs before a newly created folder is first saved.
     func assignCloudIdentityIfPossible(to folder: FolderModel) {
         guard let uid = currentUserID() else { return }
+        guard folder.ownerUID == nil || folder.ownerUID == uid else { return }
         assignCloudIdentity(to: folder, uid: uid)
     }
 
     /// Queues an upsert after local persistence has completed successfully.
     func enqueueUpsert(for deck: DeckModel, context: ModelContext) {
         guard let uid = currentUserID() else { return }
+        guard deck.ownerUID == nil || deck.ownerUID == uid else { return }
+        guard deck.cards.allSatisfy({ $0.ownerUID == nil || $0.ownerUID == uid }) else { return }
         assignCloudIdentity(to: deck, uid: uid)
 
         do {
@@ -199,6 +208,7 @@ final class CloudSyncCoordinator {
     /// Queues a folder upsert after local persistence has completed successfully.
     func enqueueUpsert(for folder: FolderModel, context: ModelContext) {
         guard let uid = currentUserID() else { return }
+        guard folder.ownerUID == nil || folder.ownerUID == uid else { return }
         assignCloudIdentity(to: folder, uid: uid)
 
         do {
@@ -303,9 +313,10 @@ final class CloudSyncCoordinator {
                     switch operation.kind {
                     case .upsertDeck:
                         // Cloud IDs are optional in the SwiftData schema, but required for synced decks.
-                        guard let deck = try context.fetch(FetchDescriptor<DeckModel>()).first(where: {
-                            $0.ownerUID == uid && $0.cloudID == operation.deckID
-                        }) else {
+                        let deckID = operation.deckID
+                        guard let deck = try context.fetch(FetchDescriptor<DeckModel>(
+                            predicate: #Predicate { $0.ownerUID == uid && $0.cloudID == deckID }
+                        )).first else {
                             trace(
                                 "outbox-deck-missing-local",
                                 details: ["deck": backendTraceSafeID(operation.deckID)]
@@ -313,9 +324,15 @@ final class CloudSyncCoordinator {
                             try await outbox.remove(operation)
                             continue
                         }
-                        let dailyStudyAggregates = try context.fetch(FetchDescriptor<HomeDailyStudyAggregate>())
-                        let dailyDeckAggregates = try context.fetch(FetchDescriptor<HomeDailyDeckAggregate>())
-                        let dailyCardAggregates = try context.fetch(FetchDescriptor<HomeDailyCardAggregate>())
+                        let dailyStudyAggregates = try context.fetch(FetchDescriptor<HomeDailyStudyAggregate>(
+                            predicate: #Predicate { $0.ownerUID == uid }
+                        ))
+                        let dailyDeckAggregates = try context.fetch(FetchDescriptor<HomeDailyDeckAggregate>(
+                            predicate: #Predicate { $0.ownerUID == uid }
+                        ))
+                        let dailyCardAggregates = try context.fetch(FetchDescriptor<HomeDailyCardAggregate>(
+                            predicate: #Predicate { $0.ownerUID == uid }
+                        ))
                         trace(
                             "outbox-upsert-deck-upload",
                             details: [
@@ -342,9 +359,10 @@ final class CloudSyncCoordinator {
                         )
                         try await service.softDeleteDeck(deckID: operation.deckID, uid: uid)
                     case .upsertFolder:
-                        guard let folder = try context.fetch(FetchDescriptor<FolderModel>()).first(where: {
-                            $0.ownerUID == uid && $0.cloudID == operation.entityID
-                        }) else {
+                        let folderID = operation.entityID
+                        guard let folder = try context.fetch(FetchDescriptor<FolderModel>(
+                            predicate: #Predicate { $0.ownerUID == uid && $0.cloudID == folderID }
+                        )).first else {
                             trace(
                                 "outbox-folder-missing-local",
                                 details: ["folder": backendTraceSafeID(operation.entityID)]
@@ -640,12 +658,10 @@ final class CloudSyncCoordinator {
 
         let context = ModelContext(modelContainer)
         do {
-            let localDecks = try context.fetch(FetchDescriptor<DeckModel>())
-            let localCloudIDs = Set(
-                localDecks.lazy
-                    .filter { $0.ownerUID == uid }
-                    .compactMap(\.cloudID)
-            )
+            let localDecks = try context.fetch(FetchDescriptor<DeckModel>(
+                predicate: #Predicate { $0.ownerUID == uid }
+            ))
+            let localCloudIDs = Set(localDecks.lazy.compactMap(\.cloudID))
             return candidateIDs.subtracting(localCloudIDs)
         } catch {
             trace(
@@ -666,7 +682,11 @@ final class CloudSyncCoordinator {
         deck.ownerUID = uid
         if deck.cloudID == nil { deck.cloudID = UUID().uuidString }
         if let folder = deck.folder {
-            assignCloudIdentity(to: folder, uid: uid)
+            if folder.ownerUID == nil || folder.ownerUID == uid {
+                assignCloudIdentity(to: folder, uid: uid)
+            } else {
+                deck.folder = nil
+            }
         }
 
         for card in deck.cards {
@@ -992,9 +1012,10 @@ actor CloudSyncRemoteImportActor {
 
         defer { flushContext() }
 
-        let localFolder = try activeContext.fetch(FetchDescriptor<FolderModel>()).first(where: {
-            $0.ownerUID == uid && $0.cloudID == header.folderID
-        })
+        let folderID = header.folderID
+        let localFolder = try activeContext.fetch(FetchDescriptor<FolderModel>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.cloudID == folderID }
+        )).first
 
         if header.isDeleted {
             guard let localFolder else {
@@ -1146,9 +1167,10 @@ actor CloudSyncRemoteImportActor {
         defer { flushContext() }
 
         let header = snapshot.header
-        let localDeck = try activeContext.fetch(FetchDescriptor<DeckModel>()).first(where: {
-            $0.ownerUID == uid && $0.cloudID == header.deckID
-        })
+        let deckID = header.deckID
+        let localDeck = try activeContext.fetch(FetchDescriptor<DeckModel>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.cloudID == deckID }
+        )).first
 
         if header.isDeleted {
             guard let localDeck else {
@@ -1396,9 +1418,9 @@ actor CloudSyncRemoteImportActor {
     private func resolveRemoteFolder(id folderID: String?, uid: String) throws -> FolderModel? {
         guard let folderID else { return nil }
 
-        if let folder = try activeContext.fetch(FetchDescriptor<FolderModel>()).first(where: {
-            $0.ownerUID == uid && $0.cloudID == folderID
-        }) {
+        if let folder = try activeContext.fetch(FetchDescriptor<FolderModel>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.cloudID == folderID }
+        )).first {
             return folder
         }
 
@@ -1455,16 +1477,16 @@ actor CloudSyncRemoteImportActor {
             ]
         )
 
-        try applyRemoteDailyStudy(dailyStudy)
-        try applyRemoteDailyDecks(dailyDecks)
-        try applyRemoteDailyCards(dailyCards)
+        try applyRemoteDailyStudy(dailyStudy, uid: uid)
+        try applyRemoteDailyDecks(dailyDecks, uid: uid)
+        try applyRemoteDailyCards(dailyCards, uid: uid)
     }
 
-    private func applyRemoteDailyStudy(_ documents: [QueryDocumentSnapshot]) throws {
+    private func applyRemoteDailyStudy(_ documents: [QueryDocumentSnapshot], uid: String) throws {
         for document in documents {
             let data = document.data()
             let dayKey = data["dayKey"] as? String ?? document.documentID
-            let aggregate = try fetchOrCreateDailyStudy(dayKey: dayKey, data: data)
+            let aggregate = try fetchOrCreateDailyStudy(dayKey: dayKey, data: data, uid: uid)
             aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
             aggregate.uniqueCardCount = data["uniqueCardCount"] as? Int ?? aggregate.uniqueCardCount
             aggregate.rawReviewCount = data["rawReviewCount"] as? Int ?? aggregate.rawReviewCount
@@ -1476,11 +1498,11 @@ actor CloudSyncRemoteImportActor {
         }
     }
 
-    private func applyRemoteDailyDecks(_ documents: [QueryDocumentSnapshot]) throws {
+    private func applyRemoteDailyDecks(_ documents: [QueryDocumentSnapshot], uid: String) throws {
         for document in documents {
             let data = document.data()
             let aggregateKey = data["aggregateKey"] as? String ?? document.documentID
-            let aggregate = try fetchOrCreateDailyDeck(aggregateKey: aggregateKey, data: data)
+            let aggregate = try fetchOrCreateDailyDeck(aggregateKey: aggregateKey, data: data, uid: uid)
             aggregate.dayKey = data["dayKey"] as? String ?? aggregate.dayKey
             aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
             aggregate.deckIdentifier = data["deckIdentifier"] as? String ?? aggregate.deckIdentifier
@@ -1492,11 +1514,11 @@ actor CloudSyncRemoteImportActor {
         }
     }
 
-    private func applyRemoteDailyCards(_ documents: [QueryDocumentSnapshot]) throws {
+    private func applyRemoteDailyCards(_ documents: [QueryDocumentSnapshot], uid: String) throws {
         for document in documents {
             let data = document.data()
             let aggregateKey = data["aggregateKey"] as? String ?? document.documentID
-            let aggregate = try fetchOrCreateDailyCard(aggregateKey: aggregateKey, data: data)
+            let aggregate = try fetchOrCreateDailyCard(aggregateKey: aggregateKey, data: data, uid: uid)
             aggregate.dayKey = data["dayKey"] as? String ?? aggregate.dayKey
             aggregate.dayDate = date(in: data, key: "dayDate") ?? aggregate.dayDate
             aggregate.cardIdentifier = data["cardIdentifier"] as? String ?? aggregate.cardIdentifier
@@ -1511,21 +1533,27 @@ actor CloudSyncRemoteImportActor {
         }
     }
 
-    private func fetchOrCreateDailyStudy(dayKey: String, data: [String: Any]) throws -> HomeDailyStudyAggregate {
-        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>()).first(where: { $0.dayKey == dayKey }) {
+    private func fetchOrCreateDailyStudy(dayKey: String, data: [String: Any], uid: String) throws -> HomeDailyStudyAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.dayKey == dayKey }
+        )).first {
             return existing
         }
-        let aggregate = HomeDailyStudyAggregate(dayDate: date(in: data, key: "dayDate") ?? Date())
+        let aggregate = HomeDailyStudyAggregate(ownerUID: uid, dayDate: date(in: data, key: "dayDate") ?? Date())
         aggregate.dayKey = dayKey
+        aggregate.accountAggregateKey = "\(uid)|\(dayKey)"
         activeContext.insert(aggregate)
         return aggregate
     }
 
-    private func fetchOrCreateDailyDeck(aggregateKey: String, data: [String: Any]) throws -> HomeDailyDeckAggregate {
-        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>()).first(where: { $0.aggregateKey == aggregateKey }) {
+    private func fetchOrCreateDailyDeck(aggregateKey: String, data: [String: Any], uid: String) throws -> HomeDailyDeckAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.aggregateKey == aggregateKey }
+        )).first {
             return existing
         }
         let aggregate = HomeDailyDeckAggregate(
+            ownerUID: uid,
             dayDate: date(in: data, key: "dayDate") ?? Date(),
             deckIdentifier: data["deckIdentifier"] as? String ?? "unassigned",
             deck: nil,
@@ -1533,15 +1561,19 @@ actor CloudSyncRemoteImportActor {
             deckColorHexSnapshot: data["deckColorHexSnapshot"] as? String ?? "#70707A"
         )
         aggregate.aggregateKey = aggregateKey
+        aggregate.accountAggregateKey = "\(uid)|\(aggregateKey)"
         activeContext.insert(aggregate)
         return aggregate
     }
 
-    private func fetchOrCreateDailyCard(aggregateKey: String, data: [String: Any]) throws -> HomeDailyCardAggregate {
-        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyCardAggregate>()).first(where: { $0.aggregateKey == aggregateKey }) {
+    private func fetchOrCreateDailyCard(aggregateKey: String, data: [String: Any], uid: String) throws -> HomeDailyCardAggregate {
+        if let existing = try activeContext.fetch(FetchDescriptor<HomeDailyCardAggregate>(
+            predicate: #Predicate { $0.ownerUID == uid && $0.aggregateKey == aggregateKey }
+        )).first {
             return existing
         }
         let aggregate = HomeDailyCardAggregate(
+            ownerUID: uid,
             dayDate: date(in: data, key: "dayDate") ?? Date(),
             cardIdentifier: data["cardIdentifier"] as? String ?? "unassigned",
             deckIdentifier: data["deckIdentifier"] as? String ?? "unassigned",
@@ -1555,6 +1587,7 @@ actor CloudSyncRemoteImportActor {
             lastReviewedAt: date(in: data, key: "lastReviewedAt") ?? Date()
         )
         aggregate.aggregateKey = aggregateKey
+        aggregate.accountAggregateKey = "\(uid)|\(aggregateKey)"
         activeContext.insert(aggregate)
         return aggregate
     }

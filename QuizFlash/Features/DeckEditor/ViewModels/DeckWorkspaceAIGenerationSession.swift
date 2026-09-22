@@ -343,7 +343,9 @@ extension DeckWorkspaceViewModel {
         integrateAllDraftCardsIntoBaseline()
         
         Task {
-            try? await AIGenerationSessionStore.shared.clearSession()
+            if let accountOwnerUID {
+                try? await AIGenerationSessionStore.shared.clearSession(ownerUID: accountOwnerUID)
+            }
         }
         preparedAISource = nil
         manualAISourceAllocations = []
@@ -475,7 +477,9 @@ extension DeckWorkspaceViewModel {
         // Ensure any persisted paused session is removed so it won't be
         // resurrected after app relaunch / rebuild.
         Task {
-            try? await AIGenerationSessionStore.shared.clearSession()
+            if let accountOwnerUID {
+                try? await AIGenerationSessionStore.shared.clearSession(ownerUID: accountOwnerUID)
+            }
         }
     }
 
@@ -516,6 +520,7 @@ extension DeckWorkspaceViewModel {
     // MARK: - Paused Session Disk Persistence
     
     func persistAIPausedSession() async {
+        guard let accountOwnerUID else { return }
         guard hasPausedAIGeneration else {
             return
         }
@@ -534,7 +539,10 @@ extension DeckWorkspaceViewModel {
                 let bookmark = try await AIGenerationSessionStore.shared.createBookmark(for: url)
                 sourceMode = .pdf(bookmarkData: bookmark, analysis: pdfAnalysis)
             } else {
-                let fileURLs = try await AIGenerationSessionStore.shared.saveImagesToDisk(source.images)
+                let fileURLs = try await AIGenerationSessionStore.shared.saveImagesToDisk(
+                    source.images,
+                    ownerUID: accountOwnerUID
+                )
                 sourceMode = .photos(fileURLs: fileURLs)
             }
         } catch {
@@ -542,6 +550,7 @@ extension DeckWorkspaceViewModel {
         }
 
         let session = AIPausedSession(
+            ownerUID: accountOwnerUID,
             sessionID: UUID(),
             deckTitle: deckTitle,
             folderID: selectedFolder?.persistentModelID.hashValue.description, // Can be improved
@@ -564,7 +573,8 @@ extension DeckWorkspaceViewModel {
     }
     
     func checkForPausedSession() async {
-        guard let session = await AIGenerationSessionStore.shared.loadSession() else {
+        guard let accountOwnerUID,
+              let session = await AIGenerationSessionStore.shared.loadSession(ownerUID: accountOwnerUID) else {
             return
         }
 
@@ -593,13 +603,13 @@ extension DeckWorkspaceViewModel {
                 await preparePDFSource(from: url)
                 self.pdfAnalysis = analysis
             } catch {
-                try? await AIGenerationSessionStore.shared.clearSession()
+                try? await AIGenerationSessionStore.shared.clearSession(ownerUID: accountOwnerUID)
                 return
             }
         case .photos(let fileURLs):
             let images = await AIGenerationSessionStore.shared.loadImagesFromDisk(at: fileURLs)
             guard !images.isEmpty else {
-                try? await AIGenerationSessionStore.shared.clearSession()
+                try? await AIGenerationSessionStore.shared.clearSession(ownerUID: accountOwnerUID)
                 return
             }
             
@@ -607,7 +617,7 @@ extension DeckWorkspaceViewModel {
             do {
                 source = try await AISourcePreparationService.preparePhotos(images)
             } catch {
-                try? await AIGenerationSessionStore.shared.clearSession()
+                try? await AIGenerationSessionStore.shared.clearSession(ownerUID: accountOwnerUID)
                 aiState = .error(localizedTextExtractionFailureMessage)
                 return
             }

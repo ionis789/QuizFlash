@@ -26,6 +26,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
     var context: ModelContext
     var decks: [DeckModel]
     var folders: [FolderModel]
+    let ownerUID: String
     var currentFolder: FolderModel? = nil
 
     private var locale: Locale {
@@ -52,7 +53,8 @@ struct LibraryModalsAndDialogs: ViewModifier {
                     ) { content in
                         guard case .edit(let draftCard) = destination,
                               let cardID = draftCard.originalCardID,
-                              let card = context.model(for: cardID) as? CardModel else {
+                              let card = context.model(for: cardID) as? CardModel,
+                              card.ownerUID == ownerUID else {
                             viewModel.editingCardFromSearch = nil
                             return
                         }
@@ -77,7 +79,12 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 allowedContentTypes: [.json],
                 allowsMultipleSelection: true
             ) { result in
-                viewModel.handleFileImport(result, into: currentFolder, context: context)
+                viewModel.handleFileImport(
+                    result,
+                    into: currentFolder,
+                    context: context,
+                    ownerUID: ownerUID
+                )
             }
             .confirmationDialog(
                 viewModel.selectedDecks.count == 1

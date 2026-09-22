@@ -53,6 +53,7 @@ struct RootView: View {
     @State private var hasStartedAuthBoltTransfer = false
     @State private var isAuthWalkthroughBoltVisible = false
     @State private var isAuthSheetPresentationReleased = false
+    @State private var isMainAppPrepared = false
     @State private var authenticatedHandoffAttemptID: UUID?
     @Namespace private var authLaunchBoltNamespace
 
@@ -63,7 +64,7 @@ struct RootView: View {
 
             Group {
                 if case .checking = authManager.sessionState {
-                    ProgressActivityDots(color: themeManager.accentColor.color)
+                    Color.clear
                 } else if showsAuthenticationRoot {
                     authView
                 } else if holdsMainAppBehindRequiredOnboarding {
@@ -114,6 +115,9 @@ struct RootView: View {
             presentOnboardingIfNeeded()
         }
         .onChange(of: authManager.sessionState) { oldState, newState in
+            if authenticatedUID(in: oldState) != authenticatedUID(in: newState) {
+                isMainAppPrepared = false
+            }
             AuthFlowDebugTrace.recordWindowCheckpoint(
                 "state.changed.\(oldState.debugName)-to-\(newState.debugName)",
                 layer: "root-view",
@@ -152,7 +156,13 @@ struct RootView: View {
     }
 
     private var mainAppView: some View {
-        MainAppView()
+        Group {
+            if let scope = authenticatedAccountScope {
+                MainAppView(accountScope: scope) {
+                    isMainAppPrepared = true
+                }
+            }
+        }
             .authHandoffRenderProbe("root-main")
             .onAppear {
                 AuthFlowDebugTrace.recordWindowCheckpoint(
@@ -336,17 +346,27 @@ struct RootView: View {
         switch authManager.sessionState {
         case .checking:
             "checking"
-        case .signedIn:
+        case .signedIn(let user):
             if showsAuthenticationRoot {
                 "auth"
             } else if holdsMainAppBehindRequiredOnboarding {
-                "onboarding"
+                "onboarding-\(user.uid)"
             } else {
-                "main"
+                "main-\(user.uid)"
             }
         case .signedOut, .emailVerificationRequired, .emailVerificationSucceeded:
             "auth"
         }
+    }
+
+    private var authenticatedAccountScope: AccountDataScope? {
+        guard case .signedIn(let user) = authManager.sessionState else { return nil }
+        return AccountDataScope(uid: user.uid)
+    }
+
+    private func authenticatedUID(in state: AuthSessionState) -> String? {
+        guard case .signedIn(let user) = state else { return nil }
+        return user.uid
     }
 
     private var showsAuthenticationRoot: Bool {
@@ -439,22 +459,30 @@ struct RootView: View {
 
     @MainActor
     private func dismissLaunchBoltIntoMainApp() async {
-        let exitAnimation: Animation = reduceMotion
-            ? .easeOut(duration: 0.16)
-            : .easeInOut(duration: 0.24)
-        let exitDelay: Duration = reduceMotion ? .milliseconds(160) : .milliseconds(240)
-
-#if DEBUG
-        authLaunchDebugLog("signed-in startup exits without auth handoff")
-#endif
-        withAnimation(exitAnimation) {
-            isLaunchSymbolPresented = false
+        while case .signedIn = authManager.sessionState,
+              !isMainAppPrepared,
+              !holdsMainAppBehindRequiredOnboarding {
+            try? await Task.sleep(for: .milliseconds(25))
+            guard !Task.isCancelled else { return }
         }
 
-        try? await Task.sleep(for: exitDelay)
+        guard case .signedIn = authManager.sessionState else {
+            await handOffLaunchBoltToAuth()
+            return
+        }
+
+        await Task.yield()
         guard !Task.isCancelled else { return }
 
-        isLaunchAnimationVisible = false
+#if DEBUG
+        authLaunchDebugLog("signed-in startup reveals prepared home")
+#endif
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isLaunchAnimationVisible = false
+        }
     }
 
     @MainActor
@@ -560,25 +588,30 @@ private struct QuizFlashLaunchAnimationView: View {
     let boltNamespace: Namespace.ID
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            let symbolScale: CGFloat = isHandedOff ? 1 : 58 / 38
-            let symbolPosition = CGPoint(
-                x: size.width / 2,
-                y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
-            )
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
 
-            boltSymbol
-                .frame(width: 38, height: 38)
-                .modifier(
-                    AuthLaunchBoltGeometryModifier(
-                        namespace: boltNamespace,
-                        isSource: true
-                    )
+            GeometryReader { proxy in
+                let size = proxy.size
+                let symbolScale: CGFloat = isHandedOff ? 1 : 58 / 38
+                let symbolPosition = CGPoint(
+                    x: size.width / 2,
+                    y: isHandedOff ? authWalkthroughSymbolCenterY(in: size.height) : size.height / 2
                 )
-                .scaleEffect(symbolScale)
-                .position(symbolPosition)
-                .opacity(isPresented ? 1.0 : 0.0)
+
+                boltSymbol
+                    .frame(width: 38, height: 38)
+                    .modifier(
+                        AuthLaunchBoltGeometryModifier(
+                            namespace: boltNamespace,
+                            isSource: true
+                        )
+                    )
+                    .scaleEffect(symbolScale)
+                    .position(symbolPosition)
+                    .opacity(isPresented ? 1.0 : 0.0)
+            }
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)

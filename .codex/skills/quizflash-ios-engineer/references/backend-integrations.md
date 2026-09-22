@@ -27,6 +27,8 @@ Read this reference before changing Firebase, cloud AI, quotas, provider credent
 3. SwiftData remains the immediate local store. Queue cloud upload after the local save succeeds; persist the outbox and retry after a network error or app relaunch without blocking the editor or showing a manual Sync control.
 4. On login, subscribe to `users/{uid}/decks` and download only that UID's data. Do not read another user path, reuse the previous user's listener, or merge content across UIDs.
 5. Resolve simultaneous edits with `editedAt`: the later value wins. Decks and cards are soft-deleted in Firestore, and a client must not use direct Firestore deletes.
+6. Keep the shared SwiftData cache strictly scoped by the active Firebase UID. Every user-owned query and background fetch must include the UID, account switching must discard UI/navigation caches from the previous session, and logout must stop listeners without deleting another account's retained local cache.
+7. Resumable AI jobs, local gamification/profile rows, daily activity, and Home aggregates are part of the same account boundary. Never restore or mutate them for a different UID.
 
 ## Firestore Contract
 

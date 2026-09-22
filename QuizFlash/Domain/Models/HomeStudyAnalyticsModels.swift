@@ -51,7 +51,9 @@ nonisolated enum HomeAnalyticsIdentifierCodec {
 /// Day-level Home analytics used by the weekly chart and hero summary.
 @Model
 final class HomeDailyStudyAggregate {
-    @Attribute(.unique) var dayKey: String
+    var dayKey: String
+    var ownerUID: String?
+    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
     var dayDate: Date
     var uniqueCardCount: Int
     var rawReviewCount: Int
@@ -62,6 +64,7 @@ final class HomeDailyStudyAggregate {
     var dailyGoal: Int
 
     init(
+        ownerUID: String? = nil,
         dayDate: Date,
         uniqueCardCount: Int = 0,
         rawReviewCount: Int = 0,
@@ -72,7 +75,12 @@ final class HomeDailyStudyAggregate {
         dailyGoal: Int = 50
     ) {
         let normalizedDay = HomeAnalyticsDayKey.normalizedDay(for: dayDate)
-        self.dayKey = HomeAnalyticsDayKey.make(from: normalizedDay)
+        let resolvedDayKey = HomeAnalyticsDayKey.make(from: normalizedDay)
+        self.dayKey = resolvedDayKey
+        self.ownerUID = ownerUID
+        if let ownerUID {
+            self.accountAggregateKey = "\(ownerUID)|\(resolvedDayKey)"
+        }
         self.dayDate = normalizedDay
         self.uniqueCardCount = uniqueCardCount
         self.rawReviewCount = rawReviewCount
@@ -89,7 +97,9 @@ final class HomeDailyStudyAggregate {
 /// Selected-day deck breakdown snapshot used by the Home detail card.
 @Model
 final class HomeDailyDeckAggregate {
-    @Attribute(.unique) var aggregateKey: String
+    var aggregateKey: String
+    var ownerUID: String?
+    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
     var dayKey: String
     var dayDate: Date
     var deckIdentifier: String
@@ -102,6 +112,7 @@ final class HomeDailyDeckAggregate {
     @Relationship(deleteRule: .nullify) var deck: DeckModel?
 
     init(
+        ownerUID: String? = nil,
         dayDate: Date,
         deckIdentifier: String,
         deck: DeckModel?,
@@ -113,7 +124,12 @@ final class HomeDailyDeckAggregate {
     ) {
         let normalizedDay = HomeAnalyticsDayKey.normalizedDay(for: dayDate)
         let dayKey = HomeAnalyticsDayKey.make(from: normalizedDay)
-        self.aggregateKey = "\(dayKey)|\(deckIdentifier)"
+        let resolvedAggregateKey = "\(dayKey)|\(deckIdentifier)"
+        self.aggregateKey = resolvedAggregateKey
+        self.ownerUID = ownerUID
+        if let ownerUID {
+            self.accountAggregateKey = "\(ownerUID)|\(resolvedAggregateKey)"
+        }
         self.dayKey = dayKey
         self.dayDate = normalizedDay
         self.deckIdentifier = deckIdentifier
@@ -131,7 +147,9 @@ final class HomeDailyDeckAggregate {
 /// Lightweight selected-day card history row used inside the Home breakdown viewport.
 @Model
 final class HomeDailyCardAggregate {
-    @Attribute(.unique) var aggregateKey: String
+    var aggregateKey: String
+    var ownerUID: String?
+    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
     var dayKey: String
     var dayDate: Date
     var cardIdentifier: String
@@ -153,6 +171,7 @@ final class HomeDailyCardAggregate {
     }
 
     init(
+        ownerUID: String? = nil,
         dayDate: Date,
         cardIdentifier: String,
         deckIdentifier: String,
@@ -167,7 +186,12 @@ final class HomeDailyCardAggregate {
     ) {
         let normalizedDay = HomeAnalyticsDayKey.normalizedDay(for: dayDate)
         let dayKey = HomeAnalyticsDayKey.make(from: normalizedDay)
-        self.aggregateKey = "\(dayKey)|\(cardIdentifier)"
+        let resolvedAggregateKey = "\(dayKey)|\(cardIdentifier)"
+        self.aggregateKey = resolvedAggregateKey
+        self.ownerUID = ownerUID
+        if let ownerUID {
+            self.accountAggregateKey = "\(ownerUID)|\(resolvedAggregateKey)"
+        }
         self.dayKey = dayKey
         self.dayDate = normalizedDay
         self.cardIdentifier = cardIdentifier

@@ -52,6 +52,20 @@ final class CloudSyncOutboxTests: XCTestCase {
         XCTAssertEqual(remainingOperations.map(\.deckID), ["deck-2"])
     }
 
+    func testRemovingOneUsersOperationsPreservesOtherUser() async throws {
+        let fileURL = try makeOutboxFileURL()
+        let outbox = CloudSyncOutbox(fileURL: fileURL)
+        try await outbox.enqueue(ownerUID: "user-a", deckID: "deck-a", kind: .upsertDeck)
+        try await outbox.enqueue(ownerUID: "user-b", deckID: "deck-b", kind: .upsertDeck)
+
+        try await outbox.removeAll(for: "user-a")
+
+        let userAOperations = try await outbox.operations(for: "user-a")
+        let userBOperations = try await outbox.operations(for: "user-b")
+        XCTAssertTrue(userAOperations.isEmpty)
+        XCTAssertEqual(userBOperations.map(\.deckID), ["deck-b"])
+    }
+
     private func makeOutboxFileURL() throws -> URL {
         let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "CloudSyncOutboxTests")
         addTeardownBlock {

@@ -26,6 +26,7 @@ enum GenerationCompletionDisplayState: Equatable {
 }
 
 struct DeckWorkspaceView: View {
+    let accountScope: AccountDataScope
     // MARK: - Environment
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
@@ -355,15 +356,23 @@ struct DeckWorkspaceView: View {
 
     // MARK: - Initialization
     init(
+        accountScope: AccountDataScope,
         deckToEdit: DeckModel? = nil,
         launchAction: DeckWorkspaceLaunchAction? = nil,
         sheetSafeAreaInsets: UIEdgeInsets? = nil,
         onSuccessfulSave: (() -> Void)? = nil
     ) {
+        self.accountScope = accountScope
         self.launchAction = launchAction
         self.sheetSafeAreaInsets = sheetSafeAreaInsets
         self.onSuccessfulSave = onSuccessfulSave
-        _viewModel = State(initialValue: DeckWorkspaceViewModel(deckToEdit: deckToEdit))
+        let uid = accountScope.uid
+        _folders = Query(filter: #Predicate<FolderModel> { $0.ownerUID == uid }, sort: \FolderModel.createdAt, order: .reverse)
+        _sourceDecks = Query(filter: #Predicate<DeckModel> { $0.ownerUID == uid }, sort: \DeckModel.editedAt, order: .reverse)
+        _viewModel = State(initialValue: DeckWorkspaceViewModel(
+            deckToEdit: deckToEdit,
+            accountOwnerUID: accountScope.uid
+        ))
     }
 
     var body: some View {

@@ -28,6 +28,7 @@ import SwiftData
 /// The root view for the Library tab. Displays all available decks globally.
 /// Strictly follows MVVM; all state is managed by `LibraryViewModel`.
 struct LibraryView: View {
+    let accountScope: AccountDataScope
 
     // MARK: - Environment
 
@@ -40,6 +41,13 @@ struct LibraryView: View {
 
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
     @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
+
+    init(accountScope: AccountDataScope) {
+        self.accountScope = accountScope
+        let uid = accountScope.uid
+        _decks = Query(filter: #Predicate<DeckModel> { $0.ownerUID == uid }, sort: \DeckModel.createdAt, order: .reverse)
+        _folders = Query(filter: #Predicate<FolderModel> { $0.ownerUID == uid }, sort: \FolderModel.createdAt, order: .reverse)
+    }
 
     // MARK: - Tab Bar Visibility
 
@@ -65,7 +73,8 @@ struct LibraryView: View {
                 viewModel: sharedViewModel,
                 context: context,
                 decks: decks,
-                folders: folders
+                folders: folders,
+                ownerUID: accountScope.uid
             ))
             .modifier(LibraryAlerts(viewModel: sharedViewModel))
     }

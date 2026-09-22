@@ -199,6 +199,7 @@ final class HomeViewModel {
         weekStart: Date,
         userProfile: UserProfile?,
         container: ModelContainer,
+        ownerUID: String? = nil,
         analyticsRevision: Int,
         deckRevision: Int,
         dailyCardsGoal: Int? = nil,
@@ -213,7 +214,7 @@ final class HomeViewModel {
         )
         guard dashboardSnapshotSignature != signature else { return }
 
-        let repository = HomeAnalyticsRepository(container: container)
+        let repository = HomeAnalyticsRepository(container: container, ownerUID: ownerUID)
         let analyticsSnapshot = await repository.loadDashboardSnapshot(
             selectedDate: selectedDate,
             weekStart: weekStart,

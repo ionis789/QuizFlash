@@ -16,6 +16,9 @@ import SwiftData
 @Model
 class UserProfile {
 
+    /// Firebase Auth UID that owns this local profile cache.
+    var ownerUID: String?
+
     // MARK: - Stored Properties
 
     /// Cumulative XP earned across all study sessions.
@@ -36,12 +39,14 @@ class UserProfile {
     // MARK: - Init
 
     init(
+        ownerUID: String? = nil,
         totalXP: Int = 0,
         currentStreak: Int = 0,
         longestStreak: Int = 0,
         lastActiveDate: Date? = nil,
         profileImageData: Data? = nil
     ) {
+        self.ownerUID      = ownerUID
         self.totalXP       = totalXP
         self.currentStreak = currentStreak
         self.longestStreak = longestStreak
@@ -69,7 +74,13 @@ class DailyActivityLog {
     // MARK: - Stored Properties
 
     /// Date key in `"yyyy-MM-dd"` format. Marked unique to prevent duplicate entries.
-    @Attribute(.unique) var dateString: String
+    var dateString: String
+
+    /// Firebase Auth UID that owns this activity row.
+    var ownerUID: String?
+
+    /// Store-wide unique key. Firestore still uses `dateString` inside the UID path.
+    @Attribute(.unique) var accountDateKey: String = UUID().uuidString
 
     /// The actual `Date` value for the day this log represents.
     var date: Date
@@ -102,10 +113,15 @@ class DailyActivityLog {
     /// - Parameters:
     ///   - date: The calendar day this log represents. Defaults to today.
     ///   - dailyGoal: The review target for the day. Defaults to 50 cards.
-    init(date: Date = Date(), dailyGoal: Int = 50) {
+    init(ownerUID: String? = nil, date: Date = Date(), dailyGoal: Int = 50) {
         self.date      = date
         self.dailyGoal = dailyGoal
+        self.ownerUID = ownerUID
         // Build the unique string key once at insertion time.
-        self.dateString = Self.dateStringFormatter.string(from: date)
+        let resolvedDateString = Self.dateStringFormatter.string(from: date)
+        self.dateString = resolvedDateString
+        if let ownerUID {
+            self.accountDateKey = "\(ownerUID)|\(resolvedDateString)"
+        }
     }
 }

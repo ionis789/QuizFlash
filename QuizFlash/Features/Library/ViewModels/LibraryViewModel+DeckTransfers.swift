@@ -95,8 +95,9 @@ extension LibraryViewModel {
 
     func handleFileImport(
         _ result: Result<[URL], Error>,
-        into destinationFolder: FolderModel?,
-        context: ModelContext
+        into destinationFolder: FolderModel? = nil,
+        context: ModelContext,
+        ownerUID: String
     ) {
         switch result {
         case .success(let urls):
@@ -121,7 +122,8 @@ extension LibraryViewModel {
                         let deck = try await DeckSharingManager.shared.importDeck(
                             from: url,
                             into: context,
-                            destinationFolder: destinationFolder
+                            destinationFolder: destinationFolder,
+                            ownerUID: ownerUID
                         )
                         CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
                         importedCount += 1

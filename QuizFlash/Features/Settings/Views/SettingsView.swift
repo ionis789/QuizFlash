@@ -13,6 +13,7 @@ import UIKit
 // MARK: - Settings View
 
 struct SettingsView: View {
+    let accountScope: AccountDataScope
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
@@ -52,8 +53,12 @@ struct SettingsView: View {
 
     let allowsSwipeBack: Bool
 
-    init(allowsSwipeBack: Bool = false) {
+    init(accountScope: AccountDataScope, allowsSwipeBack: Bool = false) {
+        self.accountScope = accountScope
         self.allowsSwipeBack = allowsSwipeBack
+        let uid = accountScope.uid
+        _decks = Query(filter: #Predicate<DeckModel> { $0.ownerUID == uid })
+        _userProfiles = Query(filter: #Predicate<UserProfile> { $0.ownerUID == uid })
     }
 
     var body: some View {
@@ -754,7 +759,8 @@ struct SettingsView: View {
 
         do {
             try await cloudUserProfileService.deleteUserData()
-            try deleteLocalAccountData()
+            try await deleteLocalAccountData()
+            try await AIJobSessionStore.shared.clearSession(ownerUID: accountScope.uid)
             try await authManager.deleteReauthenticatedAccount()
         } catch {
             cloudSyncCoordinator.configure(
@@ -765,18 +771,37 @@ struct SettingsView: View {
         }
     }
 
-    private func deleteLocalAccountData() throws {
-        try modelContext.delete(model: ReviewEvent.self)
-        try modelContext.delete(model: DailyActivityLog.self)
-        try modelContext.delete(model: HomeDailyCardAggregate.self)
-        try modelContext.delete(model: HomeDailyDeckAggregate.self)
-        try modelContext.delete(model: HomeDailyStudyAggregate.self)
-        try modelContext.delete(model: DeckPlayModeSettingsModel.self)
-        try modelContext.delete(model: CardModel.self)
-        try modelContext.delete(model: DeckModel.self)
-        try modelContext.delete(model: FolderModel.self)
-        try modelContext.delete(model: UserProfile.self)
+    private func deleteLocalAccountData() async throws {
+        let uid = accountScope.uid
+        for model in try modelContext.fetch(FetchDescriptor<ReviewEvent>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<DailyActivityLog>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<HomeDailyCardAggregate>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<CardModel>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<DeckModel>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<FolderModel>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
+        for model in try modelContext.fetch(FetchDescriptor<UserProfile>(predicate: #Predicate { $0.ownerUID == uid })) {
+            modelContext.delete(model)
+        }
         try modelContext.save()
+        try await cloudSyncCoordinator.discardPendingOperations(for: uid)
     }
 
     private func presentAuthError(_ error: Error) {
@@ -798,7 +823,7 @@ struct SettingsView: View {
             if let profile {
                 resolvedProfile = profile
             } else {
-                let newProfile = UserProfile()
+                let newProfile = UserProfile(ownerUID: accountScope.uid)
                 modelContext.insert(newProfile)
                 resolvedProfile = newProfile
             }
@@ -1398,7 +1423,7 @@ private struct SettingsDisplayNameEditSheet: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(accountScope: AccountDataScope(uid: "preview-user")!)
         .environment(AuthManager.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)

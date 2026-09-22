@@ -462,6 +462,7 @@ extension DeckWorkspaceView {
         allowDismissWithoutConfirmation = true
         let didStartDismissFlow = viewModel.saveDeck(
             context: context,
+            ownerUID: accountScope.uid,
             onSuccessfulSave: onSuccessfulSave
         )
         if !didStartDismissFlow {

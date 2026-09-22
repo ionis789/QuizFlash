@@ -12,6 +12,7 @@ import XCTest
 
 @MainActor
 final class AIGenerationSessionStoreTests: XCTestCase {
+    private let ownerUID = "test-user"
     func testSaveAndLoadSessionRoundTripPreservesDraftState() async throws {
         let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIGenerationSessionStoreTests")
         defer { try? FileManager.default.removeItem(at: directoryURL) }
@@ -24,7 +25,7 @@ final class AIGenerationSessionStoreTests: XCTestCase {
         let session = makePausedSession(timestamp: Date(timeIntervalSince1970: 100))
 
         try await store.saveSession(session)
-        let loadedSession = await store.loadSession()
+        let loadedSession = await store.loadSession(ownerUID: ownerUID)
 
         XCTAssertEqual(loadedSession, session)
     }
@@ -41,7 +42,7 @@ final class AIGenerationSessionStoreTests: XCTestCase {
         let session = makePausedSession(timestamp: Date(timeIntervalSince1970: 0))
 
         try await store.saveSession(session)
-        let loadedSession = await store.loadSession()
+        let loadedSession = await store.loadSession(ownerUID: ownerUID)
 
         XCTAssertNil(loadedSession)
         XCTAssertFalse(
@@ -59,13 +60,16 @@ final class AIGenerationSessionStoreTests: XCTestCase {
         let session = makePausedSession()
 
         try await store.saveSession(session)
-        let savedURLs = try await store.saveImagesToDisk([makeImage(color: .red), makeImage(color: .blue)])
+        let savedURLs = try await store.saveImagesToDisk(
+            [makeImage(color: .red), makeImage(color: .blue)],
+            ownerUID: ownerUID
+        )
         XCTAssertEqual(savedURLs.count, 2)
 
-        try await store.clearSession()
+        try await store.clearSession(ownerUID: ownerUID)
 
-        let loadedSession = await store.loadSession()
-        let imagesDirectoryURL = directoryURL.appendingPathComponent("ai_session_images", isDirectory: true)
+        let loadedSession = await store.loadSession(ownerUID: ownerUID)
+        let imagesDirectoryURL = try XCTUnwrap(savedURLs.first?.deletingLastPathComponent())
         let remainingImageFiles = try FileManager.default.contentsOfDirectory(
             at: imagesDirectoryURL,
             includingPropertiesForKeys: nil
@@ -82,7 +86,7 @@ final class AIGenerationSessionStoreTests: XCTestCase {
         let store = AIGenerationSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
         let sourceImages = [makeImage(color: .green), makeImage(color: .orange)]
 
-        let savedURLs = try await store.saveImagesToDisk(sourceImages)
+        let savedURLs = try await store.saveImagesToDisk(sourceImages, ownerUID: ownerUID)
         let reloadedImages = await store.loadImagesFromDisk(at: savedURLs)
 
         XCTAssertEqual(savedURLs.count, 2)
@@ -110,6 +114,7 @@ final class AIGenerationSessionStoreTests: XCTestCase {
         ]
 
         return AIPausedSession(
+            ownerUID: ownerUID,
             sessionID: UUID(),
             deckTitle: "Paused Deck",
             folderID: nil,

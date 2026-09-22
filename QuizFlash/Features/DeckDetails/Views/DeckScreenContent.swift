@@ -142,8 +142,11 @@ extension DeckContentView {
                 hidesTabBar: true
             )
         ) { presentation, safeArea in
-            if let editingDeck = context.safeModel(for: presentation.id, as: DeckModel.self) {
+            if let editingDeck = context.safeModel(for: presentation.id, as: DeckModel.self),
+               let ownerUID = editingDeck.ownerUID,
+               let accountScope = AccountDataScope(uid: ownerUID) {
                 DeckWorkspaceView(
+                    accountScope: accountScope,
                     deckToEdit: editingDeck,
                     sheetSafeAreaInsets: safeArea
                 ) {

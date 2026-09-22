@@ -34,6 +34,7 @@ struct HomeAnalyticsSelectedDayStats: Sendable {
 
 /// Background repository that serves Home from lightweight persisted aggregates.
 actor HomeAnalyticsRepository {
+    private let ownerUID: String?
     // MARK: - Accumulators
 
     private struct DailyAccumulator {
@@ -125,8 +126,9 @@ actor HomeAnalyticsRepository {
 
     // MARK: - Init
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, ownerUID: String? = nil) {
         self.container = container
+        self.ownerUID = ownerUID
         let context = ModelContext(container)
         context.autosaveEnabled = false
         self.activeContext = context
@@ -219,8 +221,13 @@ actor HomeAnalyticsRepository {
 
     /// Rebuilds all Home analytics aggregates from persisted card review history.
     func rebuildAnalyticsFromReviewHistory() throws {
-        let cards = try activeContext.fetch(FetchDescriptor<CardModel>())
-        let dailyLogs = try activeContext.fetch(FetchDescriptor<DailyActivityLog>())
+        let ownerUID = ownerUID
+        let cards = try activeContext.fetch(FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        ))
+        let dailyLogs = try activeContext.fetch(FetchDescriptor<DailyActivityLog>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        ))
         let dailyGoalsByKey = Dictionary(uniqueKeysWithValues: dailyLogs.map {
             ($0.dateString, max($0.dailyGoal, 1))
         })
@@ -321,6 +328,7 @@ actor HomeAnalyticsRepository {
         for accumulator in dailyAccumulators.values {
             activeContext.insert(
                 HomeDailyStudyAggregate(
+                    ownerUID: ownerUID,
                     dayDate: accumulator.dayDate,
                     uniqueCardCount: accumulator.uniqueCardCount,
                     rawReviewCount: accumulator.rawReviewCount,
@@ -336,6 +344,7 @@ actor HomeAnalyticsRepository {
         for accumulator in deckAccumulators.values {
             activeContext.insert(
                 HomeDailyDeckAggregate(
+                    ownerUID: ownerUID,
                     dayDate: accumulator.dayDate,
                     deckIdentifier: accumulator.deckIdentifier,
                     deck: accumulator.deck,
@@ -351,6 +360,7 @@ actor HomeAnalyticsRepository {
         for accumulator in cardAccumulators.values {
             activeContext.insert(
                 HomeDailyCardAggregate(
+                    ownerUID: ownerUID,
                     dayDate: accumulator.dayDate,
                     cardIdentifier: accumulator.cardIdentifier,
                     deckIdentifier: accumulator.deckIdentifier,
@@ -378,31 +388,35 @@ actor HomeAnalyticsRepository {
     // MARK: - Fetches
 
     private func fetchDailyStudyAggregate(dayKey: String) -> HomeDailyStudyAggregate? {
+        let ownerUID = ownerUID
         let descriptor = FetchDescriptor<HomeDailyStudyAggregate>(
-            predicate: #Predicate { $0.dayKey == dayKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.dayKey == dayKey }
         )
         return (try? activeContext.fetch(descriptor))?.first
     }
 
     private func fetchDailyStudyAggregates(start: Date, end: Date) -> [HomeDailyStudyAggregate] {
+        let ownerUID = ownerUID
         let descriptor = FetchDescriptor<HomeDailyStudyAggregate>(
             predicate: #Predicate {
-                $0.dayDate >= start && $0.dayDate < end
+                $0.ownerUID == ownerUID && $0.dayDate >= start && $0.dayDate < end
             }
         )
         return (try? activeContext.fetch(descriptor)) ?? []
     }
 
     private func fetchDailyDeckAggregates(dayKey: String) -> [HomeDailyDeckAggregate] {
+        let ownerUID = ownerUID
         let descriptor = FetchDescriptor<HomeDailyDeckAggregate>(
-            predicate: #Predicate { $0.dayKey == dayKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.dayKey == dayKey }
         )
         return (try? activeContext.fetch(descriptor)) ?? []
     }
 
     private func fetchDailyCardAggregates(dayKey: String) -> [HomeDailyCardAggregate] {
+        let ownerUID = ownerUID
         let descriptor = FetchDescriptor<HomeDailyCardAggregate>(
-            predicate: #Predicate { $0.dayKey == dayKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.dayKey == dayKey }
         )
         return (try? activeContext.fetch(descriptor)) ?? []
     }
@@ -840,13 +854,20 @@ actor HomeAnalyticsRepository {
     // MARK: - Storage Helpers
 
     private func deleteAllAggregates() throws {
-        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyCardAggregate>()) {
+        let ownerUID = ownerUID
+        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyCardAggregate>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        )) {
             activeContext.delete(aggregate)
         }
-        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>()) {
+        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyDeckAggregate>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        )) {
             activeContext.delete(aggregate)
         }
-        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>()) {
+        for aggregate in try activeContext.fetch(FetchDescriptor<HomeDailyStudyAggregate>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        )) {
             activeContext.delete(aggregate)
         }
     }

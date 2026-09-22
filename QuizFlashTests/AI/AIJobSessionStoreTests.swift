@@ -12,6 +12,7 @@ import XCTest
 
 @MainActor
 final class AIJobSessionStoreTests: XCTestCase {
+    private let ownerUID = "test-user"
     func testSaveAndLoadGenerationSessionRoundTrip() async throws {
         let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIJobSessionStoreTests")
         defer { try? FileManager.default.removeItem(at: directoryURL) }
@@ -23,13 +24,13 @@ final class AIJobSessionStoreTests: XCTestCase {
         )
         let session = makeGenerationSession(timestamp: Date(timeIntervalSince1970: 100))
 
-        try await store.saveSession(.generation(session))
-        let loadedSession = await store.loadSession()
+        try await store.saveSession(.generation(session), ownerUID: ownerUID)
+        let loadedSession = await store.loadSession(ownerUID: ownerUID)
 
         XCTAssertEqual(loadedSession, .generation(session))
     }
 
-    func testLoadLegacyGenerationPayloadMigratesToUnifiedEnvelope() async throws {
+    func testLegacyUnscopedGenerationPayloadIsNotLoaded() async throws {
         let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIJobSessionStoreTests")
         defer { try? FileManager.default.removeItem(at: directoryURL) }
 
@@ -41,9 +42,10 @@ final class AIJobSessionStoreTests: XCTestCase {
             options: [.atomic]
         )
 
-        let loadedSession = await store.loadSession()
+        try await store.removeLegacyUnscopedDataIfNeeded()
+        let loadedSession = await store.loadSession(ownerUID: ownerUID)
 
-        XCTAssertEqual(loadedSession, .generation(legacySession))
+        XCTAssertNil(loadedSession)
     }
 
     func testSavingSessionDoesNotDeleteStoredGenerationImages() async throws {
@@ -54,8 +56,9 @@ final class AIJobSessionStoreTests: XCTestCase {
         let savedURLs = try await store.saveImagesToDisk([
             makeImage(color: .red),
             makeImage(color: .blue)
-        ])
+        ], ownerUID: ownerUID)
         let session = AIPausedSession(
+            ownerUID: ownerUID,
             sessionID: UUID(),
             deckTitle: "Photos",
             folderID: nil,
@@ -70,15 +73,30 @@ final class AIJobSessionStoreTests: XCTestCase {
             providerProfileID: UUID()
         )
 
-        try await store.saveSession(.generation(session))
+        try await store.saveSession(.generation(session), ownerUID: ownerUID)
 
         XCTAssertTrue(savedURLs.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
         let reloadedImages = await store.loadImagesFromDisk(at: savedURLs)
         XCTAssertEqual(reloadedImages.count, 2)
     }
 
+    func testSessionsAreIsolatedByOwnerUID() async throws {
+        let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIJobSessionStoreTests")
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
+        let session = makeGenerationSession()
+
+        try await store.saveSession(.generation(session), ownerUID: ownerUID)
+
+        let matchingSession = await store.loadSession(ownerUID: ownerUID)
+        let otherSession = await store.loadSession(ownerUID: "different-user")
+        XCTAssertEqual(matchingSession, .generation(session))
+        XCTAssertNil(otherSession)
+    }
+
     private func makeGenerationSession(timestamp: Date = Date()) -> AIPausedSession {
         AIPausedSession(
+            ownerUID: ownerUID,
             sessionID: UUID(),
             deckTitle: "Paused Deck",
             folderID: nil,

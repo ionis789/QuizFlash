@@ -72,6 +72,7 @@ actor PlaySessionPersistenceService {
         var newCardsLearnedCount = 0
         var analyticsCache = HomeAnalyticsMutationCache()
         var affectedCloudDecks = Set<CloudDeckSyncKey>()
+        var sessionOwnerUID: String?
 
         for review in reviews {
             guard let card = fetchCard(id: review.cardID, in: bgContext) else {
@@ -80,12 +81,15 @@ actor PlaySessionPersistenceService {
 
             let wasNewCard = card.reviewHistory.isEmpty
             let deck = card.deck
+            guard let ownerUID = deck?.ownerUID ?? card.ownerUID else { continue }
+            if let sessionOwnerUID, sessionOwnerUID != ownerUID { continue }
+            sessionOwnerUID = ownerUID
             let reviewEvent = ReviewEvent(
                 timeSpent: review.timeSpent,
                 difficulty: review.difficulty,
                 xpAwarded: review.xpAwarded
             )
-            reviewEvent.ownerUID = deck?.ownerUID ?? card.ownerUID
+            reviewEvent.ownerUID = ownerUID
             reviewEvent.cloudID = UUID().uuidString
             card.reviewHistory.append(reviewEvent)
             applySpacedRepetition(review.difficulty, to: card)
@@ -111,13 +115,14 @@ actor PlaySessionPersistenceService {
             }
         }
 
-        guard savedReviewCount > 0 else { return }
+        guard savedReviewCount > 0, let sessionOwnerUID else { return }
 
         let dailyLog = updateDailyActivityLog(
             reviewCount: savedReviewCount,
             totalXP: totalXP,
             newCardsLearned: newCardsLearnedCount,
             activityDate: activityDate,
+            ownerUID: sessionOwnerUID,
             in: bgContext
         )
         updateHomeAnalyticsDailyGoal(
@@ -125,7 +130,12 @@ actor PlaySessionPersistenceService {
             in: bgContext,
             cache: &analyticsCache
         )
-        updateUserProfile(totalXP: totalXP, activityDate: activityDate, in: bgContext)
+        updateUserProfile(
+            totalXP: totalXP,
+            activityDate: activityDate,
+            ownerUID: sessionOwnerUID,
+            in: bgContext
+        )
 
         do {
             try bgContext.save()
@@ -182,18 +192,19 @@ actor PlaySessionPersistenceService {
         totalXP: Int,
         newCardsLearned: Int,
         activityDate: Date,
+        ownerUID: String,
         in context: ModelContext
     ) -> DailyActivityLog {
         let todayString = Self.dayFormatter.string(from: activityDate)
         let descriptor = FetchDescriptor<DailyActivityLog>(
-            predicate: #Predicate { $0.dateString == todayString }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.dateString == todayString }
         )
 
         let log: DailyActivityLog
         if let existing = (try? context.fetch(descriptor))?.first {
             log = existing
         } else {
-            log = DailyActivityLog(date: activityDate)
+            log = DailyActivityLog(ownerUID: ownerUID, date: activityDate)
             context.insert(log)
         }
 
@@ -203,14 +214,21 @@ actor PlaySessionPersistenceService {
         return log
     }
 
-    private func updateUserProfile(totalXP: Int, activityDate: Date, in context: ModelContext) {
-        let descriptor = FetchDescriptor<UserProfile>()
+    private func updateUserProfile(
+        totalXP: Int,
+        activityDate: Date,
+        ownerUID: String,
+        in context: ModelContext
+    ) {
+        let descriptor = FetchDescriptor<UserProfile>(
+            predicate: #Predicate { $0.ownerUID == ownerUID }
+        )
 
         let profile: UserProfile
         if let existing = (try? context.fetch(descriptor))?.first {
             profile = existing
         } else {
-            profile = UserProfile()
+            profile = UserProfile(ownerUID: ownerUID)
             context.insert(profile)
         }
 
@@ -259,7 +277,9 @@ actor PlaySessionPersistenceService {
         )
         let deckIdentifier = deck?.cloudID ?? encode(deck?.persistentModelID)
         let cardIdentifier = card.cloudID ?? encode(card.persistentModelID)
+        let ownerUID = reviewEvent.ownerUID
         let deckAggregate = fetchOrCreateDailyDeckAggregate(
+            ownerUID: ownerUID,
             dayDate: dayDate,
             dayKey: dayKey,
             deckCacheKey: deckCacheKey,
@@ -269,6 +289,7 @@ actor PlaySessionPersistenceService {
             cache: &cache
         )
         let existingCardAggregate = fetchDailyCardAggregate(
+            ownerUID: ownerUID,
             cardCacheKey: cardCacheKey,
             aggregateKey: "\(dayKey)|\(cardIdentifier)",
             in: context,
@@ -277,6 +298,7 @@ actor PlaySessionPersistenceService {
         let finalWasCorrect = reviewEvent.difficulty != .again
 
         let dayAggregate = fetchOrCreateDailyStudyAggregate(
+            ownerUID: ownerUID,
             dayDate: dayDate,
             dayKey: dayKey,
             in: context,
@@ -327,6 +349,7 @@ actor PlaySessionPersistenceService {
         }
 
         let cardAggregate = HomeDailyCardAggregate(
+            ownerUID: reviewEvent.ownerUID,
             dayDate: dayDate,
             cardIdentifier: cardIdentifier,
             deckIdentifier: deckIdentifier,
@@ -350,6 +373,7 @@ actor PlaySessionPersistenceService {
     ) {
         let dayKey = dailyLog.dateString
         guard let aggregate = fetchDailyStudyAggregate(
+            ownerUID: dailyLog.ownerUID,
             dayKey: dayKey,
             in: context,
             cache: &cache
@@ -360,12 +384,14 @@ actor PlaySessionPersistenceService {
     }
 
     private func fetchOrCreateDailyStudyAggregate(
+        ownerUID: String?,
         dayDate: Date,
         dayKey: String,
         in context: ModelContext,
         cache: inout HomeAnalyticsMutationCache
     ) -> HomeDailyStudyAggregate {
         if let existing = fetchDailyStudyAggregate(
+            ownerUID: ownerUID,
             dayKey: dayKey,
             in: context,
             cache: &cache
@@ -373,13 +399,14 @@ actor PlaySessionPersistenceService {
             return existing
         }
 
-        let aggregate = HomeDailyStudyAggregate(dayDate: dayDate)
+        let aggregate = HomeDailyStudyAggregate(ownerUID: ownerUID, dayDate: dayDate)
         context.insert(aggregate)
         cache.dayAggregates[dayKey] = aggregate
         return aggregate
     }
 
     private func fetchDailyStudyAggregate(
+        ownerUID: String?,
         dayKey: String,
         in context: ModelContext,
         cache: inout HomeAnalyticsMutationCache
@@ -389,7 +416,7 @@ actor PlaySessionPersistenceService {
         }
 
         let descriptor = FetchDescriptor<HomeDailyStudyAggregate>(
-            predicate: #Predicate { $0.dayKey == dayKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.dayKey == dayKey }
         )
         let aggregate = (try? context.fetch(descriptor))?.first
         if let aggregate {
@@ -399,6 +426,7 @@ actor PlaySessionPersistenceService {
     }
 
     private func fetchOrCreateDailyDeckAggregate(
+        ownerUID: String?,
         dayDate: Date,
         dayKey: String,
         deckCacheKey: DeckAggregateCacheKey,
@@ -409,6 +437,7 @@ actor PlaySessionPersistenceService {
     ) -> HomeDailyDeckAggregate {
         let aggregateKey = "\(dayKey)|\(deckIdentifier)"
         if let existing = fetchDailyDeckAggregate(
+            ownerUID: ownerUID,
             deckCacheKey: deckCacheKey,
             aggregateKey: aggregateKey,
             in: context,
@@ -421,6 +450,7 @@ actor PlaySessionPersistenceService {
         }
 
         let aggregate = HomeDailyDeckAggregate(
+            ownerUID: ownerUID,
             dayDate: dayDate,
             deckIdentifier: deckIdentifier,
             deck: deck,
@@ -433,6 +463,7 @@ actor PlaySessionPersistenceService {
     }
 
     private func fetchDailyDeckAggregate(
+        ownerUID: String?,
         deckCacheKey: DeckAggregateCacheKey,
         aggregateKey: String,
         in context: ModelContext,
@@ -443,7 +474,7 @@ actor PlaySessionPersistenceService {
         }
 
         let descriptor = FetchDescriptor<HomeDailyDeckAggregate>(
-            predicate: #Predicate { $0.aggregateKey == aggregateKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.aggregateKey == aggregateKey }
         )
         let aggregate = (try? context.fetch(descriptor))?.first
         if let aggregate {
@@ -453,6 +484,7 @@ actor PlaySessionPersistenceService {
     }
 
     private func fetchDailyCardAggregate(
+        ownerUID: String?,
         cardCacheKey: CardAggregateCacheKey,
         aggregateKey: String,
         in context: ModelContext,
@@ -463,7 +495,7 @@ actor PlaySessionPersistenceService {
         }
 
         let descriptor = FetchDescriptor<HomeDailyCardAggregate>(
-            predicate: #Predicate { $0.aggregateKey == aggregateKey }
+            predicate: #Predicate { $0.ownerUID == ownerUID && $0.aggregateKey == aggregateKey }
         )
         let aggregate = (try? context.fetch(descriptor))?.first
         if let aggregate {

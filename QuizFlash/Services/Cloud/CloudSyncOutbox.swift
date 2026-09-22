@@ -85,6 +85,12 @@ actor CloudSyncOutbox {
         try persist(operations)
     }
 
+    func removeAll(for ownerUID: String) throws {
+        var operations = try load()
+        operations.removeAll { $0.ownerUID == ownerUID }
+        try persist(operations)
+    }
+
     private func load() throws -> [CloudSyncOperation] {
         guard fileManager.fileExists(atPath: fileURL.path) else { return [] }
         return try decoder.decode([CloudSyncOperation].self, from: Data(contentsOf: fileURL))

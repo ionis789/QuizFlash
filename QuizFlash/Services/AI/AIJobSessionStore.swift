@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import CryptoKit
 
 // MARK: - Persisted AI Job Types
 
@@ -71,20 +72,33 @@ actor AIJobSessionStore {
         return dir
     }
 
-    private var sessionFileURL: URL {
-        applicationSupportDirectory.appendingPathComponent("paused_ai_session.json")
+    private func accountDirectoryURL(for ownerUID: String) -> URL {
+        let digest = SHA256.hash(data: Data(ownerUID.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let directory = applicationSupportDirectory
+            .appendingPathComponent("ai_accounts", isDirectory: true)
+            .appendingPathComponent(digest, isDirectory: true)
+        if !fileManager.fileExists(atPath: directory.path) {
+            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        }
+        return directory
     }
 
-    private var imagesDirectoryURL: URL {
-        let dir = applicationSupportDirectory.appendingPathComponent("ai_session_images", isDirectory: true)
+    private func sessionFileURL(for ownerUID: String) -> URL {
+        accountDirectoryURL(for: ownerUID).appendingPathComponent("paused_ai_session.json")
+    }
+
+    private func imagesDirectoryURL(for ownerUID: String) -> URL {
+        let dir = accountDirectoryURL(for: ownerUID).appendingPathComponent("ai_session_images", isDirectory: true)
         if !fileManager.fileExists(atPath: dir.path) {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         }
         return dir
     }
 
-    private var pdfsDirectoryURL: URL {
-        let dir = applicationSupportDirectory.appendingPathComponent("ai_session_pdfs", isDirectory: true)
+    private func pdfsDirectoryURL(for ownerUID: String) -> URL {
+        let dir = accountDirectoryURL(for: ownerUID).appendingPathComponent("ai_session_pdfs", isDirectory: true)
         if !fileManager.fileExists(atPath: dir.path) {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         }
@@ -107,15 +121,29 @@ actor AIJobSessionStore {
         }
     }
 
+    /// Removes the pre-account-scoping session and temporary assets. Their owner
+    /// cannot be proven, so they must never be adopted by the next signed-in user.
+    func removeLegacyUnscopedDataIfNeeded() throws {
+        let legacyURLs = [
+            applicationSupportDirectory.appendingPathComponent("paused_ai_session.json"),
+            applicationSupportDirectory.appendingPathComponent("ai_session_images", isDirectory: true),
+            applicationSupportDirectory.appendingPathComponent("ai_session_pdfs", isDirectory: true),
+        ]
+        for url in legacyURLs where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
     /// Persists the current AI workspace job atomically.
-    func saveSession(_ session: AIJobSession) throws {
-        try removeSessionFileIfNeeded()
+    func saveSession(_ session: AIJobSession, ownerUID: String) throws {
+        try removeSessionFileIfNeeded(ownerUID: ownerUID)
         let data = try encoder.encode(session)
-        try data.write(to: sessionFileURL, options: [.atomic, .completeFileProtection])
+        try data.write(to: sessionFileURL(for: ownerUID), options: [.atomic, .completeFileProtection])
     }
 
     /// Loads the persisted job, transparently migrating legacy generation payloads.
-    func loadSession() -> AIJobSession? {
+    func loadSession(ownerUID: String) -> AIJobSession? {
+        let sessionFileURL = sessionFileURL(for: ownerUID)
         guard fileManager.fileExists(atPath: sessionFileURL.path) else { return nil }
 
         do {
@@ -136,20 +164,23 @@ actor AIJobSessionStore {
 
             let age = currentDate().timeIntervalSince(session.timestamp)
             guard age < 86400 * 7 else {
-                try? clearSession()
+                try? clearSession(ownerUID: ownerUID)
                 return nil
             }
 
             return session
         } catch {
-            try? clearSession()
+            try? clearSession(ownerUID: ownerUID)
             return nil
         }
     }
 
     /// Clears the active session file and any temporary assets linked to it.
-    func clearSession() throws {
-        try removeSessionFileIfNeeded()
+    func clearSession(ownerUID: String) throws {
+        try removeSessionFileIfNeeded(ownerUID: ownerUID)
+
+        let imagesDirectoryURL = imagesDirectoryURL(for: ownerUID)
+        let pdfsDirectoryURL = pdfsDirectoryURL(for: ownerUID)
 
         if fileManager.fileExists(atPath: imagesDirectoryURL.path) {
             try fileManager.removeItem(at: imagesDirectoryURL)
@@ -163,7 +194,8 @@ actor AIJobSessionStore {
     }
 
     /// Saves temporary AI source photos to disk.
-    func saveImagesToDisk(_ images: [UIImage]) throws -> [URL] {
+    func saveImagesToDisk(_ images: [UIImage], ownerUID: String) throws -> [URL] {
+        let imagesDirectoryURL = imagesDirectoryURL(for: ownerUID)
         var fileURLs: [URL] = []
         for (index, image) in images.enumerated() {
             guard let data = image.jpegData(compressionQuality: 0.8) else { continue }
@@ -187,7 +219,7 @@ actor AIJobSessionStore {
     }
 
     /// Copies an externally selected PDF into the app sandbox for stable access during generation.
-    func importPDFToDisk(from sourceURL: URL) throws -> URL {
+    func importPDFToDisk(from sourceURL: URL, ownerUID: String) throws -> URL {
         let didAccess = sourceURL.startAccessingSecurityScopedResource()
         PDFImportDebugStore.record(
             "importPDFToDisk start",
@@ -207,7 +239,7 @@ actor AIJobSessionStore {
         }
 
         let sourceExtension = sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
-        let destinationURL = pdfsDirectoryURL
+        let destinationURL = pdfsDirectoryURL(for: ownerUID)
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension(sourceExtension)
 
@@ -277,7 +309,8 @@ actor AIJobSessionStore {
         )
     }
 
-    private func removeSessionFileIfNeeded() throws {
+    private func removeSessionFileIfNeeded(ownerUID: String) throws {
+        let sessionFileURL = sessionFileURL(for: ownerUID)
         if fileManager.fileExists(atPath: sessionFileURL.path) {
             try fileManager.removeItem(at: sessionFileURL)
         }

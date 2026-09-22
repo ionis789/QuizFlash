@@ -356,7 +356,11 @@ extension DeckWorkspaceViewModel {
         )
         let localURL: URL
         do {
-            localURL = try await AIGenerationSessionStore.shared.importPDFToDisk(from: url)
+            guard let accountOwnerUID else { return }
+            localURL = try await AIGenerationSessionStore.shared.importPDFToDisk(
+                from: url,
+                ownerUID: accountOwnerUID
+            )
         } catch {
             clearAISourcePreparation()
             PDFImportDebugStore.record(

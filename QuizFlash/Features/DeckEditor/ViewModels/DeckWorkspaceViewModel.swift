@@ -102,6 +102,7 @@ struct DeckWorkspaceStateSnapshot: Equatable {
 @Observable
 @MainActor
 final class DeckWorkspaceViewModel {
+    let accountOwnerUID: String?
 
     var maximumAICardsPerGeneration = SubscriptionManager.freeMaxCardsPerGeneration
 
@@ -399,9 +400,10 @@ final class DeckWorkspaceViewModel {
         deckToEdit != nil && !isGenerating
     }
 
-    convenience init(deckToEdit: DeckModel? = nil) {
+    convenience init(deckToEdit: DeckModel? = nil, accountOwnerUID: String? = nil) {
         self.init(
             deckToEdit: deckToEdit,
+            accountOwnerUID: accountOwnerUID,
             aiProviderStore: AIProviderStore.shared,
             aiBackgroundCoordinator: .shared
         )
@@ -409,9 +411,11 @@ final class DeckWorkspaceViewModel {
 
     init(
         deckToEdit: DeckModel?,
+        accountOwnerUID: String? = nil,
         aiProviderStore: AIProviderStore,
         aiBackgroundCoordinator: AIGenerationBackgroundCoordinator
     ) {
+        self.accountOwnerUID = accountOwnerUID ?? deckToEdit?.ownerUID
         self.aiProviderStore = aiProviderStore
         self.aiBackgroundCoordinator = aiBackgroundCoordinator
         self.deckToEdit = deckToEdit

@@ -33,6 +33,10 @@ import SwiftData
 struct MainAppView: View {
     // MARK: - State
 
+    /// Called once the local startup work and the first complete Home snapshot are ready.
+    let onStartupPrepared: @MainActor () -> Void
+    let accountScope: AccountDataScope
+
     @Environment(\.modelContext) private var modelContext
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
@@ -52,6 +56,10 @@ struct MainAppView: View {
     @State private var libraryViewModel = LibraryViewModel()
     @State private var showMigrationError = false
     @State private var migrationErrorMessage = ""
+    @State private var startupPreparationRevision = 0
+    @State private var preparedHomeRevision: Int?
+    @State private var hasFinishedLocalStartupWork = false
+    @State private var hasReleasedStartup = false
 
     /// The visibility rule currently reported by the frontmost child view.
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
@@ -64,7 +72,13 @@ struct MainAppView: View {
 
     // MARK: - Init
 
-    init() {
+    init(
+        accountScope: AccountDataScope,
+        onStartupPrepared: @escaping @MainActor () -> Void = {}
+    ) {
+        self.accountScope = accountScope
+        self.onStartupPrepared = onStartupPrepared
+
         AuthFlowDebugTrace.record(
             "main-app.init.begin",
             layer: "main-app"
@@ -315,7 +329,11 @@ struct MainAppView: View {
                 "main-app.task.begin",
                 layer: "main-app"
             )
-            await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
+            try? await AIJobSessionStore.shared.removeLegacyUnscopedDataIfNeeded()
+            await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(
+                context: modelContext,
+                ownerUID: accountScope.uid
+            )
             AuthFlowDebugTrace.record(
                 "main-app.task.after-ai-restore",
                 layer: "main-app",
@@ -323,13 +341,18 @@ struct MainAppView: View {
             )
 
             do {
+                try appMigrationStore.runAccountIsolationCleanupIfNeeded(context: modelContext)
+
                 // One-time migration: removed logic based on cardCount and deckCount.
                 try appMigrationStore.runLegacyCardCountCleanupIfNeeded {
                     try modelContext.save()
                 }
 
-                try await appMigrationStore.runHomeAnalyticsBackfillIfNeeded {
-                    let repository = HomeAnalyticsRepository(container: modelContext.container)
+                try await appMigrationStore.runHomeAnalyticsBackfillIfNeeded(ownerUID: accountScope.uid) {
+                    let repository = HomeAnalyticsRepository(
+                        container: modelContext.container,
+                        ownerUID: accountScope.uid
+                    )
                     try await repository.rebuildAnalyticsFromReviewHistory()
                     await repository.tearDown()
                 }
@@ -340,12 +363,35 @@ struct MainAppView: View {
                     : description
                 showMigrationError = true
             }
+
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            startupPreparationRevision &+= 1
+            hasFinishedLocalStartupWork = true
+            releaseStartupIfReady()
         }
         .alert("Migration Error", isPresented: $showMigrationError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(migrationErrorMessage)
         }
+    }
+
+    private func markHomePrepared(revision: Int) {
+        preparedHomeRevision = revision
+        releaseStartupIfReady()
+    }
+
+    private func releaseStartupIfReady() {
+        guard !hasReleasedStartup,
+              hasFinishedLocalStartupWork,
+              preparedHomeRevision == startupPreparationRevision else {
+            return
+        }
+
+        hasReleasedStartup = true
+        onStartupPrepared()
     }
 
     @ViewBuilder
@@ -502,10 +548,14 @@ struct MainAppView: View {
         TabView(selection: tabViewSelection) {
             // HOME TAB
             NavigationStack(path: $router.homePath) {
-                HomeView()
+                HomeView(
+                    accountScope: accountScope,
+                    startupPreparationRevision: startupPreparationRevision,
+                    onStartupPrepared: markHomePrepared
+                )
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: DeckNavigationValue.self) { value in
-                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                        if let deck = ownedDeck(for: value.deckID) {
                             DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .home)
                                 .toolbar(.hidden, for: .navigationBar)
                         }
@@ -518,10 +568,10 @@ struct MainAppView: View {
 
             // LIBRARY TAB
             NavigationStack(path: $router.libraryPath) {
-                LibraryView()
+                LibraryView(accountScope: accountScope)
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: DeckNavigationValue.self) { value in
-                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                        if let deck = ownedDeck(for: value.deckID) {
                             DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .library)
                                 .toolbar(.hidden, for: .navigationBar)
                         }
@@ -537,7 +587,7 @@ struct MainAppView: View {
                 createWorkspaceRootView
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: DeckNavigationValue.self) { value in
-                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                        if let deck = ownedDeck(for: value.deckID) {
                             DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
                                 .toolbar(.hidden, for: .navigationBar)
                         }
@@ -550,7 +600,7 @@ struct MainAppView: View {
 
             // SETTINGS TAB
             NavigationStack(path: $router.settingsPath) {
-                SettingsView(allowsSwipeBack: false)
+                SettingsView(accountScope: accountScope, allowsSwipeBack: false)
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: AppRoute.self) { route in
                         appRouteDestination(for: route)
@@ -564,15 +614,17 @@ struct MainAppView: View {
     private func appRouteDestination(for route: AppRoute) -> some View {
         switch route {
         case .createDeck:
-            DeckWorkspaceView()
+            DeckWorkspaceView(accountScope: accountScope)
         case .generateDeck:
-            DeckWorkspaceView(launchAction: .showAIGenerationOptions)
+            DeckWorkspaceView(accountScope: accountScope, launchAction: .showAIGenerationOptions)
         case .settings:
-            SettingsView(allowsSwipeBack: true)
+            SettingsView(accountScope: accountScope, allowsSwipeBack: true)
         case .folder(let folder, let backLabel):
             // backLabel was frozen at push time by the call site (e.g. HomeDashboardView).
             // FolderView stores it as a constant — never reads router.activeTab reactively.
-            FolderView(folder: folder, backLabel: backLabel)
+            if folder.ownerUID == accountScope.uid {
+                FolderView(folder: folder, accountScope: accountScope, backLabel: backLabel)
+            }
         }
     }
 
@@ -580,17 +632,25 @@ struct MainAppView: View {
     private var createWorkspaceRootView: some View {
         ZStack {
             if let deckID = router.createWorkspaceEditingDeckID,
-               let deck = modelContext.safeModel(for: deckID, as: DeckModel.self) {
-                DeckWorkspaceView(deckToEdit: deck)
+               let deck = ownedDeck(for: deckID) {
+                DeckWorkspaceView(accountScope: accountScope, deckToEdit: deck)
                     .id(router.createWorkspaceRootIdentity)
                     .transition(createWorkspaceRootTransition)
             } else {
-                DeckWorkspaceView()
+                DeckWorkspaceView(accountScope: accountScope)
                     .id(router.createWorkspaceRootIdentity)
                     .transition(createWorkspaceRootTransition)
             }
         }
         .animation(.circularProgressSpring, value: router.createWorkspaceRootIdentity)
+    }
+
+    private func ownedDeck(for id: PersistentIdentifier) -> DeckModel? {
+        guard let deck = modelContext.safeModel(for: id, as: DeckModel.self),
+              deck.ownerUID == accountScope.uid else {
+            return nil
+        }
+        return deck
     }
 
     private var createWorkspaceRootTransition: AnyTransition {

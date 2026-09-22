@@ -147,8 +147,13 @@ final class DeckSharingManager: ObservableObject {
     func importDeck(
         from url: URL,
         into context: ModelContext,
-        destinationFolder: FolderModel? = nil
+        destinationFolder: FolderModel? = nil,
+        ownerUID: String
     ) async throws -> DeckModel {
+        guard !ownerUID.isEmpty,
+              destinationFolder == nil || destinationFolder?.ownerUID == ownerUID else {
+            throw DeckSharingError.importFailed("The imported deck couldn't be saved right now.")
+        }
         isImporting = true
         progress = 0
         currentOperation = "Opening file..."
@@ -209,6 +214,8 @@ final class DeckSharingManager: ObservableObject {
         // path and continues to preserve the remote deck's original timestamp.
         newDeck.createdAt = Date()
         newDeck.editedAt = document.deck.editedAt
+        newDeck.ownerUID = ownerUID
+        newDeck.cloudID = UUID().uuidString
         newDeck.folder = destinationFolder
         destinationFolder?.deckCount += 1
         destinationFolder?.editedAt = Date()
@@ -237,6 +244,8 @@ final class DeckSharingManager: ObservableObject {
             )
             newCard.createdAt = cardRecord.createdAt
             newCard.editedAt = cardRecord.editedAt
+            newCard.ownerUID = ownerUID
+            newCard.cloudID = UUID().uuidString
             newCard.deck = newDeck
 
             context.insert(newCard)

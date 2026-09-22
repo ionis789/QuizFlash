@@ -28,6 +28,12 @@ import UIKit
 /// their own `@Query` — all data flows from here, keeping the fetch logic
 /// centralised and testable.
 struct HomeView: View {
+    let accountScope: AccountDataScope
+    /// Revision requested by the app root after local startup work completes.
+    let startupPreparationRevision: Int
+    /// Reports that all display-ready Home caches were built for the requested revision.
+    let onStartupPrepared: @MainActor (Int) -> Void
+
     // MARK: - Environment
 
     @Environment(NavigationManager.self) private var router
@@ -60,6 +66,16 @@ struct HomeView: View {
     private static let edgeShadowDebugScreenID = EdgeShadowDebugScreenID.homeCalendar
     /// Keeps a black buffer below the short form while the keyboard enters.
     private static let createFolderSheetHeight: CGFloat = 360
+
+    init(
+        accountScope: AccountDataScope,
+        startupPreparationRevision: Int = 0,
+        onStartupPrepared: @escaping @MainActor (Int) -> Void = { _ in }
+    ) {
+        self.accountScope = accountScope
+        self.startupPreparationRevision = startupPreparationRevision
+        self.onStartupPrepared = onStartupPrepared
+    }
 
     // MARK: - Body
 
@@ -230,6 +246,9 @@ struct HomeView: View {
                     selectedDate: selectedDate,
                     weekStartDate: weekStartDate,
                     container: modelContext.container,
+                    accountScope: accountScope,
+                    startupPreparationRevision: startupPreparationRevision,
+                    onStartupPrepared: onStartupPrepared,
                     suspendsFolderCacheRefresh: suspendsFolderCacheRefresh,
                     folderModels: $cachedFolderModels,
                     folderSnapshots: $cachedFolderSnapshots,
@@ -261,7 +280,8 @@ struct HomeView: View {
             viewModel: recentDeckActionViewModel,
             context: modelContext,
             decks: cachedRecentlyOpenedDeckModels,
-            folders: cachedFolderModels
+            folders: cachedFolderModels,
+            ownerUID: accountScope.uid
         ))
         .modifier(LibraryAlerts(viewModel: recentDeckActionViewModel))
         .confirmationDialog(
@@ -312,6 +332,7 @@ struct HomeView: View {
             )
         case .moveDecks(let target):
             MoveDecksToFolderSheet(
+                accountScope: accountScope,
                 target: target,
                 safeAreaInsets: safeAreaInsets,
                 onMove: { selectedDeckIDs in
@@ -699,6 +720,9 @@ private struct HomeDataCoordinator: View {
     let selectedDate: Date
     let weekStartDate: Date
     let container: ModelContainer
+    let accountScope: AccountDataScope
+    let startupPreparationRevision: Int
+    let onStartupPrepared: @MainActor (Int) -> Void
     let suspendsFolderCacheRefresh: Bool
 
     @Binding var folderModels: [FolderModel]
@@ -710,6 +734,52 @@ private struct HomeDataCoordinator: View {
     @State private var homeDataSignatures = HomeDataSignatures()
     @State private var folderSignature = ""
     @State private var recentDeckSignature = ""
+
+    init(
+        viewModel: HomeViewModel,
+        selectedDate: Date,
+        weekStartDate: Date,
+        container: ModelContainer,
+        accountScope: AccountDataScope,
+        startupPreparationRevision: Int,
+        onStartupPrepared: @escaping @MainActor (Int) -> Void,
+        suspendsFolderCacheRefresh: Bool,
+        folderModels: Binding<[FolderModel]>,
+        folderSnapshots: Binding<[HomeFolderSnapshot]>,
+        recentDeckSnapshots: Binding<[LibraryDeckRowSnapshot]>,
+        recentDeckModels: Binding<[DeckModel]>,
+        allDeckCount: Binding<Int>
+    ) {
+        self.viewModel = viewModel
+        self.selectedDate = selectedDate
+        self.weekStartDate = weekStartDate
+        self.container = container
+        self.accountScope = accountScope
+        self.startupPreparationRevision = startupPreparationRevision
+        self.onStartupPrepared = onStartupPrepared
+        self.suspendsFolderCacheRefresh = suspendsFolderCacheRefresh
+        _folderModels = folderModels
+        _folderSnapshots = folderSnapshots
+        _recentDeckSnapshots = recentDeckSnapshots
+        _recentDeckModels = recentDeckModels
+        _allDeckCount = allDeckCount
+
+        let uid = accountScope.uid
+        _folders = Query(filter: #Predicate<FolderModel> { $0.ownerUID == uid }, sort: \FolderModel.createdAt)
+        _allDecks = Query(filter: #Predicate<DeckModel> { $0.ownerUID == uid }, sort: \DeckModel.title)
+        _userProfiles = Query(filter: #Predicate<UserProfile> { $0.ownerUID == uid })
+        _dailyLogs = Query(filter: #Predicate<DailyActivityLog> { $0.ownerUID == uid })
+        _homeStudyAggregates = Query(
+            filter: #Predicate<HomeDailyStudyAggregate> { $0.ownerUID == uid },
+            sort: \HomeDailyStudyAggregate.dayDate,
+            order: .reverse
+        )
+        _recentlyOpenedQuery = Query(
+            filter: #Predicate<DeckModel> { $0.ownerUID == uid },
+            sort: \DeckModel.lastOpenedAt,
+            order: .reverse
+        )
+    }
 
     private struct HomeDataSignatures: Equatable {
         var logs: Int = 0
@@ -752,7 +822,10 @@ private struct HomeDataCoordinator: View {
     }
 
     private var dashboardSignature: String {
-        homeDataSignatures.dashboardTaskSignature(selectedDateKey: selectedDateKey)
+        [
+            "\(startupPreparationRevision)",
+            homeDataSignatures.dashboardTaskSignature(selectedDateKey: selectedDateKey),
+        ].joined(separator: "||")
     }
 
     private var homeDataRefreshSignal: String {
@@ -826,15 +899,28 @@ private struct HomeDataCoordinator: View {
             .task(id: dashboardSignature) {
                 let currentSignatures = refreshCachedHomeInputs()
                 viewModel.updateLogsCache(logs: dailyLogs)
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    userProfile: profile,
+                    studyAggregates: homeStudyAggregates,
+                    analyticsRevision: currentSignatures.analytics,
+                    dailyCardsGoal: appPreferences.dailyCardsGoal
+                )
                 await viewModel.refreshDashboardSnapshot(
                     selectedDate: selectedDate,
                     weekStart: weekStartDate,
                     userProfile: profile,
                     container: container,
+                    ownerUID: accountScope.uid,
                     analyticsRevision: currentSignatures.analytics,
                     deckRevision: currentSignatures.decks,
                     dailyCardsGoal: appPreferences.dailyCardsGoal
                 )
+                guard !Task.isCancelled else { return }
+
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                onStartupPrepared(startupPreparationRevision)
             }
     }
 

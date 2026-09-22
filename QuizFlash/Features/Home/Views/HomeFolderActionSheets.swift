@@ -173,6 +173,8 @@ struct MoveDecksToFolderSheet: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var allDecks: [DeckModel]
 
+    let accountScope: AccountDataScope
+
     let target: HomeFolderActionTarget
     let safeAreaInsets: UIEdgeInsets
     let onMove: (Set<PersistentIdentifier>) -> Void
@@ -180,6 +182,20 @@ struct MoveDecksToFolderSheet: View {
     @State private var viewModel = LibraryViewModel()
     @State private var deckSnapshots: [LibraryDeckRowSnapshot] = []
     @State private var isCommittingMove = false
+
+    init(
+        accountScope: AccountDataScope,
+        target: HomeFolderActionTarget,
+        safeAreaInsets: UIEdgeInsets,
+        onMove: @escaping (Set<PersistentIdentifier>) -> Void
+    ) {
+        self.accountScope = accountScope
+        self.target = target
+        self.safeAreaInsets = safeAreaInsets
+        self.onMove = onMove
+        let uid = accountScope.uid
+        _allDecks = Query(filter: #Predicate<DeckModel> { $0.ownerUID == uid }, sort: \DeckModel.createdAt, order: .reverse)
+    }
 
     private var locale: Locale { appPreferences.resolvedLocale }
     private var candidateDecks: [DeckModel] {
