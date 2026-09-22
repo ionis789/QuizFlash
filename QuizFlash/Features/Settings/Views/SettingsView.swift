@@ -118,18 +118,16 @@ struct SettingsView: View {
             syncGoalDraftFromPreferences()
         }
         .onChange(of: profileName) { oldValue, newValue in
-            let shouldAnimate = pendingDisplayNameFeedback == newValue
+            let confirmsOptimisticUpdate = pendingDisplayNameFeedback == newValue
             settingsNameTrace(
                 "profileName.changed",
-                details: "oldCount=\(oldValue.count) newCount=\(newValue.count) equal=\(oldValue == newValue) pendingMatch=\(shouldAnimate)"
+                details: "oldCount=\(oldValue.count) newCount=\(newValue.count) equal=\(oldValue == newValue) confirmsOptimistic=\(confirmsOptimisticUpdate)"
             )
             displayedProfileName = newValue
-            guard shouldAnimate else { return }
-
-            pendingDisplayNameFeedback = nil
-            let nextToken = UUID()
-            settingsNameTrace("feedback.triggered", details: "token=\(nextToken.uuidString) source=profileNameChange")
-            displayNameFeedbackToken = nextToken
+            if confirmsOptimisticUpdate {
+                pendingDisplayNameFeedback = nil
+                settingsNameTrace("feedback.confirmed", details: "source=profileNameChange")
+            }
         }
         .onChange(of: displayNameFeedbackToken) { oldValue, newValue in
             settingsNameTrace(
@@ -880,6 +878,10 @@ struct SettingsView: View {
         )
         if previousDisplayName != normalizedDisplayName {
             pendingDisplayNameFeedback = normalizedDisplayName
+            displayedProfileName = normalizedDisplayName
+            let nextToken = UUID()
+            settingsNameTrace("feedback.triggered", details: "token=\(nextToken.uuidString) source=optimisticUpdate")
+            displayNameFeedbackToken = nextToken
         }
         Task { @MainActor in
             do {
@@ -890,6 +892,9 @@ struct SettingsView: View {
                     "update.succeeded",
                     details: "authCount=\(authDisplayName?.count ?? 0) profileCount=\(profileName.count) authMatchesSubmitted=\(authDisplayName == normalizedDisplayName) profileMatchesSubmitted=\(profileName == normalizedDisplayName)"
                 )
+                if pendingDisplayNameFeedback == normalizedDisplayName {
+                    pendingDisplayNameFeedback = nil
+                }
                 guard previousDisplayName != normalizedDisplayName else {
                     settingsNameTrace("feedback.skipped", details: "reason=unchanged")
                     return
@@ -898,6 +903,10 @@ struct SettingsView: View {
                 if pendingDisplayNameFeedback == normalizedDisplayName {
                     pendingDisplayNameFeedback = nil
                 }
+                displayedProfileName = previousDisplayName ?? profileName
+                let rollbackToken = UUID()
+                settingsNameTrace("feedback.rolledBack", details: "token=\(rollbackToken.uuidString)")
+                displayNameFeedbackToken = rollbackToken
                 settingsNameTrace("update.failed", details: "errorType=\(String(describing: type(of: error)))")
                 presentAuthError(error)
             }
