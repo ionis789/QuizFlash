@@ -28,7 +28,7 @@ struct SettingsView: View {
     @State private var selectedProfilePhoto: PhotosPickerItem?
     @State private var displayNameDraft = ""
     @State private var isEditingDisplayName = false
-    @State private var isSavingDisplayName = false
+    @State private var displayNameFeedbackToken: UUID?
     @State private var isPremiumSheetPresented = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountPasswordSheet = false
@@ -165,17 +165,21 @@ struct SettingsView: View {
         .fullScreenSheet(
             isPresented: $isEditingDisplayName,
             configuration: .sheet(
-                heightMode: .safeAreaAbsolute(220, maxFraction: 0.68),
+                heightMode: .fullScreen,
                 showsDefaultTopProgressiveBlur: false,
+                showsCloseButton: true,
                 avoidsKeyboard: true
             )
         ) { safeAreaInsets in
             KeyboardAdaptiveSheetContent {
-                editDisplayNameSheet
-                    .padding(.bottom, safeAreaInsets.bottom)
+                SettingsDisplayNameEditSheet(
+                    initialName: displayNameDraft,
+                    safeAreaInsets: safeAreaInsets,
+                    onSave: updateDisplayName
+                )
             }
         } background: {
-            themeManager.groupedScreenBackground
+            themeManager.screenBackground
         }
         .alert(
             AppLocalization.string("Something went wrong", locale: appPreferences.resolvedLocale),
@@ -391,7 +395,7 @@ struct SettingsView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                    .contentTransition(.identity)
+                    .statusTextMotion(trigger: displayNameFeedbackToken)
 
                 Image(systemName: "pencil")
                     .font(.system(size: 18, weight: .black))
@@ -399,10 +403,6 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .animation(nil, value: profileName)
-            .transaction { transaction in
-                transaction.animation = nil
-            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale))
@@ -696,48 +696,6 @@ struct SettingsView: View {
         .padding(.top, UIConstants.Spacing.extraLarge)
     }
 
-    private var editDisplayNameSheet: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text(AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale))
-                .font(.title3.weight(.bold))
-
-            TextField(
-                AppLocalization.string("Display Name", locale: appPreferences.resolvedLocale),
-                text: $displayNameDraft
-            )
-            .textInputAutocapitalization(.words)
-            .autocorrectionDisabled()
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .padding(.vertical, 12)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: UIConstants.Radius.medium))
-
-            HStack(spacing: UIConstants.Spacing.standard) {
-                Button(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale), role: .cancel) {
-                    isEditingDisplayName = false
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button {
-                    saveDisplayName()
-                } label: {
-                    if isSavingDisplayName {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text(AppLocalization.string("Save", locale: appPreferences.resolvedLocale))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(themeManager.accentColor.color)
-                .disabled(isSavingDisplayName)
-            }
-        }
-        .padding(UIConstants.Spacing.large)
-    }
-
     private func settingsBlock<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -872,15 +830,14 @@ struct SettingsView: View {
         return hasher.finalize()
     }
 
-    private func saveDisplayName() {
-        guard !isSavingDisplayName else { return }
-        isSavingDisplayName = true
-
+    private func updateDisplayName(_ normalizedDisplayName: String) {
+        let previousDisplayName = authManager.currentUser?.displayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         Task { @MainActor in
-            defer { isSavingDisplayName = false }
             do {
-                try await authManager.updateDisplayName(displayNameDraft)
-                isEditingDisplayName = false
+                try await authManager.updateDisplayName(normalizedDisplayName)
+                guard previousDisplayName != normalizedDisplayName else { return }
+                displayNameFeedbackToken = UUID()
             } catch {
                 presentAuthError(error)
             }
@@ -1269,6 +1226,124 @@ struct SettingsView: View {
             get: { appPreferences.padTabBarPosition },
             set: { appPreferences.padTabBarPosition = $0 }
         )
+    }
+}
+
+// MARK: - Display Name Sheet
+
+private struct SettingsDisplayNameEditSheet: View {
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(\.fullScreenSheetDismiss) private var dismissSheet
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
+    @State private var keyboardMonitor = KeyboardMonitor.shared
+    @FocusState private var isNameFocused: Bool
+
+    let safeAreaInsets: UIEdgeInsets
+    let onSave: (String) -> Void
+
+    @State private var name: String
+    @State private var isSubmitting = false
+    private let initialNormalizedName: String
+
+    init(
+        initialName: String,
+        safeAreaInsets: UIEdgeInsets,
+        onSave: @escaping (String) -> Void
+    ) {
+        self.safeAreaInsets = safeAreaInsets
+        self.onSave = onSave
+
+        let normalizedName = initialName.trimmingCharacters(in: .whitespacesAndNewlines)
+        initialNormalizedName = normalizedName
+        _name = State(initialValue: initialName)
+    }
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+    private var normalizedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var canSave: Bool {
+        !normalizedName.isEmpty
+            && normalizedName != initialNormalizedName
+            && !isSubmitting
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(AppLocalization.string("Display Name", locale: locale))
+                .font(.system(size: 26, weight: .black))
+                .foregroundStyle(themeManager.textPrimary)
+
+            TextField(
+                AppLocalization.string("Display Name", locale: locale),
+                text: $name
+            )
+            .font(.system(size: 22, weight: .bold))
+            .foregroundStyle(themeManager.textPrimary)
+            .tint(themeManager.roleColor(.buttonPrimaryFill))
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .focused($isNameFocused)
+            .padding(UIConstants.Spacing.large)
+            .duoSurface(cornerRadius: 24)
+
+            Button(action: saveChanges) {
+                Text(AppLocalization.string("Save", locale: locale))
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(
+                        canSave
+                            ? themeManager.roleColor(.buttonPrimaryForeground)
+                            : themeManager.textSecondary
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        Capsule().fill(
+                            canSave
+                                ? themeManager.roleColor(.buttonPrimaryFill)
+                                : themeManager.roleColor(.widgetSurfaceFill)
+                        )
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.top, max(topChromeClearance + 24, safeAreaInsets.top + 24))
+        .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.standard))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            isNameFocused = true
+        }
+    }
+
+    private func saveChanges() {
+        guard canSave else { return }
+        isSubmitting = true
+        let submittedName = normalizedName
+
+        Task { @MainActor in
+            let shouldWaitForKeyboard = isNameFocused || keyboardMonitor.isVisible
+            if shouldWaitForKeyboard {
+                isNameFocused = false
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil,
+                    from: nil,
+                    for: nil
+                )
+                try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
+            }
+
+            if let dismissSheet {
+                dismissSheet {
+                    onSave(submittedName)
+                }
+            } else {
+                onSave(submittedName)
+            }
+        }
     }
 }
 
