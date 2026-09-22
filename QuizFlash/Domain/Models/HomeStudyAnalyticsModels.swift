@@ -53,7 +53,7 @@ nonisolated enum HomeAnalyticsIdentifierCodec {
 final class HomeDailyStudyAggregate {
     var dayKey: String
     var ownerUID: String?
-    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
+    @Attribute(.unique) var accountAggregateKey: String?
     var dayDate: Date
     var uniqueCardCount: Int
     var rawReviewCount: Int
@@ -99,7 +99,7 @@ final class HomeDailyStudyAggregate {
 final class HomeDailyDeckAggregate {
     var aggregateKey: String
     var ownerUID: String?
-    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
+    @Attribute(.unique) var accountAggregateKey: String?
     var dayKey: String
     var dayDate: Date
     var deckIdentifier: String
@@ -149,7 +149,7 @@ final class HomeDailyDeckAggregate {
 final class HomeDailyCardAggregate {
     var aggregateKey: String
     var ownerUID: String?
-    @Attribute(.unique) var accountAggregateKey: String = UUID().uuidString
+    @Attribute(.unique) var accountAggregateKey: String?
     var dayKey: String
     var dayDate: Date
     var cardIdentifier: String

@@ -19,7 +19,7 @@ final class AppMigrationStore {
         // Preserve the shipped key so existing installs do not re-run this cleanup.
         static let legacyCardCountCleanupCompleted = "didMigrateCardCount_v1"
         static let homeAnalyticsBackfillCompleted = "didBackfillHomeAnalytics_v1"
-        static let accountIsolationCleanupCompleted = "didCleanUnownedAccountData_v1"
+        static let accountIsolationCleanupCompleted = "didCleanUnownedAccountData_v2"
         static let accountAnalyticsBackfillUIDs = "didBackfillAccountAnalyticsUIDs_v1"
     }
 

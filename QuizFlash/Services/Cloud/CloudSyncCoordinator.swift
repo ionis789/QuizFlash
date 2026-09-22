@@ -67,6 +67,19 @@ final class CloudSyncCoordinator {
 
     /// Starts background sync for one signed-in Firebase user.
     func configure(for user: AuthUserSnapshot?, modelContainer: ModelContainer) {
+        if let user,
+           activeUID == user.uid,
+           self.modelContainer === modelContainer,
+           deckListener != nil,
+           folderListener != nil {
+            trace(
+                "configure-skipped-active-session",
+                details: ["uid": backendTraceSafeID(user.uid)]
+            )
+            scheduleOutboxProcessing()
+            return
+        }
+
         stop()
         guard let user else {
             trace("configure-signed-out")

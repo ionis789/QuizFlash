@@ -67,6 +67,34 @@ struct QuizFlashApp: App {
 
     @UIApplicationDelegateAdaptor(QuizFlashAppDelegate.self) private var appDelegate
 
+    /// The single persistent container used by every app surface and background service.
+    /// Creating it explicitly prevents SwiftUI from silently substituting an empty
+    /// in-memory store when a persistent migration fails.
+    private let modelContainer: ModelContainer = {
+        let schema = Schema([
+            FolderModel.self,
+            DeckModel.self,
+            CardModel.self,
+            ReviewEvent.self,
+            UserProfile.self,
+            DailyActivityLog.self,
+            HomeDailyStudyAggregate.self,
+            HomeDailyDeckAggregate.self,
+            HomeDailyCardAggregate.self,
+            DeckPlayModeSettingsModel.self
+        ])
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
+
+        do {
+            return try ModelContainer(for: schema, configurations: configuration)
+        } catch {
+            fatalError("Unable to open the persistent QuizFlash store: \(error)")
+        }
+    }()
+
     @State private var authManager = AuthManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var aiProviderStore = AIProviderStore.shared
@@ -119,18 +147,7 @@ struct QuizFlashApp: App {
 #endif
                 }
         }
-            .modelContainer(for: [
-                FolderModel.self,
-                DeckModel.self,
-                CardModel.self,
-                ReviewEvent.self,
-                UserProfile.self,
-                DailyActivityLog.self,
-                HomeDailyStudyAggregate.self,
-                HomeDailyDeckAggregate.self,
-                HomeDailyCardAggregate.self,
-                DeckPlayModeSettingsModel.self
-            ])
+        .modelContainer(modelContainer)
     }
 
 }

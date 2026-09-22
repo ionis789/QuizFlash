@@ -45,6 +45,20 @@ struct CloudSessionBootstrapper: View {
                         "uid": backendTraceSafeID(user?.uid)
                     ]
                 )
+                cloudSyncCoordinator.configure(for: user, modelContainer: modelContext.container)
+                AuthFlowDebugTrace.record(
+                    "cloud-sync.configure-called",
+                    layer: "bootstrap",
+                    details: [
+                        "state": authManager.sessionState.debugName,
+                        "cancelled": String(Task.isCancelled)
+                    ]
+                )
+                await backendTrace(
+                    "cloud-sync-configure-called",
+                    layer: "bootstrap",
+                    details: ["uid": backendTraceSafeID(user?.uid)]
+                )
                 await backendTrace(
                     "profile-upsert-start",
                     layer: "bootstrap",
@@ -93,20 +107,6 @@ struct CloudSessionBootstrapper: View {
                         "usageProgress": String(format: "%.4f", subscriptionManager.cloudAIUsageProgress),
                         "error": subscriptionManager.lastErrorMessage ?? "<none>"
                     ]
-                )
-                cloudSyncCoordinator.configure(for: user, modelContainer: modelContext.container)
-                AuthFlowDebugTrace.record(
-                    "cloud-sync.configure-called",
-                    layer: "bootstrap",
-                    details: [
-                        "state": authManager.sessionState.debugName,
-                        "cancelled": String(Task.isCancelled)
-                    ]
-                )
-                await backendTrace(
-                    "cloud-sync-configure-called",
-                    layer: "bootstrap",
-                    details: ["uid": backendTraceSafeID(user?.uid)]
                 )
             }
     }

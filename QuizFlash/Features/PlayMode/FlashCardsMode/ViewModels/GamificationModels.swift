@@ -80,7 +80,7 @@ class DailyActivityLog {
     var ownerUID: String?
 
     /// Store-wide unique key. Firestore still uses `dateString` inside the UID path.
-    @Attribute(.unique) var accountDateKey: String = UUID().uuidString
+    @Attribute(.unique) var accountDateKey: String?
 
     /// The actual `Date` value for the day this log represents.
     var date: Date

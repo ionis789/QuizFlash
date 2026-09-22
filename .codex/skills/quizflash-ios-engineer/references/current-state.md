@@ -13,7 +13,8 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 ## Backend And AI
 
 - Firebase Auth UID is the durable identity across Firestore, the Cloudflare Worker, and RevenueCat.
-- The shared on-device SwiftData cache is account-scoped by Firebase UID across decks, folders, cards, review history, Home analytics, gamification/profile state, and resumable AI jobs. Logout preserves each account's private cache, while account switching recreates the app root and exposes only rows owned by the active UID.
+- The shared on-device SwiftData cache is account-scoped by Firebase UID across decks, folders, cards, review history, Home analytics, gamification/profile state, and resumable AI jobs. Logout preserves each account's private cache, while account switching recreates the app root and exposes only rows owned by the active UID. The app constructs one explicit persistent `ModelContainer` and fails closed if it cannot open, so a migration error cannot silently redirect saves into an empty transient store.
+- Cloud deck listeners and outbox processing start immediately after Firebase Auth resolves, independently of slower profile and subscription refreshes. Repeated bootstrap delivery for the same UID/container is idempotent and does not recreate listeners.
 - Firestore is authoritative for entitlement, AI quota, rolling billing anchor, usage, and account state. The iOS client may display cached state but cannot grant Premium or mutate protected usage fields.
 - Production AI runs through the deployed `quizflash-ai` Cloudflare Worker and its D1/Durable Object infrastructure. Firebase Cloud Functions remain source-only and are not the live DeepSeek path.
 - The Worker already provides authenticated generation sessions, raw DeepSeek proxying, per-call token telemetry, idempotent retry caching, rolling 30-day usage finalization, account deletion, prompt configuration, and RevenueCat reconciliation/webhook handling.
