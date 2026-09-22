@@ -110,12 +110,12 @@ struct SettingsView: View {
             syncGoalDraftFromPreferences()
         }
         .onChange(of: profileName) { _, newValue in
-            let confirmsOptimisticUpdate = pendingDisplayNameFeedback == newValue
+            if let pending = pendingDisplayNameFeedback {
+                guard pending == newValue else { return }
+                pendingDisplayNameFeedback = nil
+            }
             if displayedProfileName != newValue {
                 displayedProfileName = newValue
-            }
-            if confirmsOptimisticUpdate {
-                pendingDisplayNameFeedback = nil
             }
         }
         .task {
@@ -182,7 +182,7 @@ struct SettingsView: View {
             configuration: .sheet(
                 heightMode: .safeAreaAbsolute(265, maxFraction: 0.60),
                 showsDefaultTopProgressiveBlur: false,
-                showsCloseButton: true,
+                showsCloseButton: false,
                 avoidsKeyboard: true
             )
         ) { safeAreaInsets in
@@ -395,7 +395,7 @@ struct SettingsView: View {
 
     private var profileNameButton: some View {
         Button {
-            displayNameDraft = authManager.currentUser?.displayName ?? ""
+            displayNameDraft = displayedProfileName ?? profileName
             isEditingDisplayName = true
         } label: {
             HStack(spacing: UIConstants.Spacing.small) {
@@ -846,22 +846,21 @@ struct SettingsView: View {
     }
 
     private func updateDisplayName(_ normalizedDisplayName: String) {
-        let previousDisplayName = authManager.currentUser?.displayName?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let previousDisplayName = displayedProfileName ?? profileName
         if previousDisplayName != normalizedDisplayName {
             pendingDisplayNameFeedback = normalizedDisplayName
             displayedProfileName = normalizedDisplayName
             displayNameFeedbackToken = UUID()
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.08))
+            try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
             do {
                 try await authManager.updateDisplayName(normalizedDisplayName)
             } catch {
                 if pendingDisplayNameFeedback == normalizedDisplayName {
                     pendingDisplayNameFeedback = nil
                 }
-                displayedProfileName = previousDisplayName ?? profileName
+                displayedProfileName = previousDisplayName
                 displayNameFeedbackToken = UUID()
                 presentAuthError(error)
             }
@@ -1268,6 +1267,7 @@ private struct SettingsDisplayNameEditSheet: View {
 
     @State private var name: String
     @State private var isSubmitting = false
+    @State private var isClosing = false
     private let initialNormalizedName: String
 
     init(
@@ -1337,6 +1337,16 @@ private struct SettingsDisplayNameEditSheet: View {
         .padding(.top, max(topChromeClearance + 24, safeAreaInsets.top + 24))
         .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.standard))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .topTrailing) {
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: AppLocalization.string("Close", locale: locale),
+                action: closeSheet
+            )
+            .disabled(isSubmitting || isClosing)
+            .padding(.top, safeAreaInsets.top + UIConstants.Spacing.medium)
+            .padding(.trailing, UIConstants.Spacing.medium)
+        }
         .onAppear {
             isNameFocused = true
         }
@@ -1360,13 +1370,29 @@ private struct SettingsDisplayNameEditSheet: View {
                 try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
             }
 
-            if let dismissSheet {
-                dismissSheet {
-                    onSave(submittedName)
-                }
-            } else {
-                onSave(submittedName)
+            onSave(submittedName)
+            dismissSheet?()
+        }
+    }
+
+    private func closeSheet() {
+        guard !isClosing else { return }
+        isClosing = true
+
+        Task { @MainActor in
+            let shouldWaitForKeyboard = isNameFocused || keyboardMonitor.isVisible
+            if shouldWaitForKeyboard {
+                isNameFocused = false
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil,
+                    from: nil,
+                    for: nil
+                )
+                try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
             }
+
+            dismissSheet?()
         }
     }
 }
