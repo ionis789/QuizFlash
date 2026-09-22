@@ -111,7 +111,13 @@ struct FolderView: View {
 
     private var contentWithModifiers: some View {
         mainContent
-            .modifier(LibraryModalsAndDialogs(viewModel: viewModel, context: context, decks: decks, folders: folders))
+            .modifier(LibraryModalsAndDialogs(
+                viewModel: viewModel,
+                context: context,
+                decks: decks,
+                folders: folders,
+                currentFolder: folder
+            ))
             .modifier(LibraryAlerts(viewModel: viewModel))
     }
 
@@ -121,6 +127,7 @@ struct FolderView: View {
         LibraryLayout(
             decks: decks,
             folders: folders,
+            currentFolder: folder,
             viewModel: viewModel,
             router: router,
             title: .verbatim(folder.title),
@@ -142,6 +149,11 @@ struct FolderView: View {
             onDeleteSelected: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                     viewModel.deleteSelectedDecks(from: decks, context: context)
+                }
+            },
+            onRemoveSelectedFromFolder: {
+                withBottomChromeAnimation {
+                    viewModel.removeSelectedDecksFromFolder(from: decks, context: context)
                 }
             },
             onBack: { dismiss() },

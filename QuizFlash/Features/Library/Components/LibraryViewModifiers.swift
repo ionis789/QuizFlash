@@ -26,6 +26,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
     var context: ModelContext
     var decks: [DeckModel]
     var folders: [FolderModel]
+    var currentFolder: FolderModel? = nil
 
     private var locale: Locale {
         appPreferences.resolvedLocale
@@ -76,7 +77,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 allowedContentTypes: [.json],
                 allowsMultipleSelection: true
             ) { result in
-                viewModel.handleFileImport(result, context: context)
+                viewModel.handleFileImport(result, into: currentFolder, context: context)
             }
             .confirmationDialog(
                 viewModel.selectedDecks.count == 1
@@ -85,14 +86,14 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 isPresented: $viewModel.showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
-                Button(localized("Delete"), role: .destructive) {
+                Button(localized("Delete Permanently"), role: .destructive) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         viewModel.deleteSelectedDecks(from: decks, context: context)
                     }
                 }
                 Button(localized("Cancel"), role: .cancel) { }
             } message: {
-                Text(localized("This action cannot be undone."))
+                Text(localized("The selected decks and all their cards will be permanently deleted."))
             }
             .confirmationDialog(
                 localizedFormat("Delete \"%@\"?", viewModel.deckToDelete?.title ?? ""),
@@ -102,14 +103,14 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 ),
                 titleVisibility: .visible
             ) {
-                Button(localized("Delete"), role: .destructive) {
+                Button(localized("Delete Permanently"), role: .destructive) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         viewModel.confirmSingleDeletion(context: context)
                     }
                 }
                 Button(localized("Cancel"), role: .cancel) { viewModel.deckToDelete = nil }
             } message: {
-                Text(localized("This deck and all its cards will be deleted."))
+                Text(localized("This deck and all its cards will be permanently deleted."))
             }
             .confirmationDialog(
                 moveDialogTitle,
@@ -123,14 +124,16 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 ),
                 titleVisibility: .visible
             ) {
-                Button(localized("Library (All Decks)")) {
-                    performMove(to: nil)
+                if showsNoFolderDestination {
+                    Button(localized("No Folder")) {
+                        performMove(to: nil)
+                    }
                 }
 
-                if !folders.isEmpty {
+                if !availableDestinationFolders.isEmpty {
                     Divider()
 
-                    ForEach(folders, id: \.persistentModelID) { folder in
+                    ForEach(availableDestinationFolders, id: \.persistentModelID) { folder in
                         Button(folder.title) {
                             performMove(to: folder)
                         }
@@ -174,6 +177,25 @@ struct LibraryModalsAndDialogs: ViewModifier {
         return viewModel.selectedDecks.count == 1
             ? localizedFormat("Move %d deck", viewModel.selectedDecks.count)
             : localizedFormat("Move %d decks", viewModel.selectedDecks.count)
+    }
+
+    private var availableDestinationFolders: [FolderModel] {
+        folders.filter { folder in
+            targetedDecks.contains {
+                $0.folder?.persistentModelID != folder.persistentModelID
+            }
+        }
+    }
+
+    private var showsNoFolderDestination: Bool {
+        currentFolder == nil && targetedDecks.contains { $0.folder != nil }
+    }
+
+    private var targetedDecks: [DeckModel] {
+        if let target = viewModel.deckToMove {
+            return decks.filter { $0.id == target.id }
+        }
+        return decks.filter { viewModel.selectedDecks.contains($0.id) }
     }
 
     private var moveDialogMessage: String {

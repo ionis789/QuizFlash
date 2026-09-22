@@ -280,7 +280,12 @@ extension LibraryLayout {
                     viewModel.toggleSelection(for: deckID)
                 },
                 onExport: { target in viewModel.exportSingleDeck(target, from: decks) },
+                showsRemoveFromFolder: currentFolder != nil,
+                onRemoveFromFolder: { target in
+                    viewModel.removeSingleDeckFromFolder(target, from: decks, context: context)
+                },
                 onMoveToFolder: { target in viewModel.deckToMove = target },
+                canMoveToFolder: !availableDestinationFolders.isEmpty,
                 onDelete: { target in viewModel.deckToDelete = target }
             )
             .padding(.top, UIConstants.Spacing.small)
@@ -332,7 +337,12 @@ extension LibraryLayout {
                     viewModel.toggleSelection(for: deckID)
                 },
                 onExport: { target in viewModel.exportSingleDeck(target, from: decks) },
+                showsRemoveFromFolder: currentFolder != nil,
+                onRemoveFromFolder: { target in
+                    viewModel.removeSingleDeckFromFolder(target, from: decks, context: context)
+                },
                 onMoveToFolder: { target in viewModel.deckToMove = target },
+                canMoveToFolder: !availableDestinationFolders.isEmpty,
                 onDelete: { target in viewModel.deckToDelete = target }
             )
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")

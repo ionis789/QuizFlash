@@ -26,13 +26,39 @@ extension LibraryViewModel {
         if let target = deckToDelete,
            let deck = context.safeModel(for: target.id, as: DeckModel.self) {
             let sourceFolder = deck.folder
-            sourceFolder?.deckCount -= 1
+            sourceFolder?.deckCount = max(0, (sourceFolder?.deckCount ?? 0) - 1)
             sourceFolder?.editedAt = Date()
             CloudSyncCoordinator.shared.enqueueDelete(for: deck)
             context.delete(deck)
             syncChangedFolders([sourceFolder], context: context)
         }
         deckToDelete = nil
+    }
+
+    /// Removes one deck from its folder while preserving the deck and all cards.
+    func removeSingleDeckFromFolder(
+        _ target: LibraryDeckActionTarget,
+        from allDecks: [DeckModel],
+        context: ModelContext
+    ) {
+        moveDecks(
+            with: [target.id],
+            from: allDecks,
+            to: nil,
+            context: context,
+            exitsSelectionModeOnSuccess: false
+        )
+    }
+
+    /// Removes the selected decks from their folder while preserving their content.
+    func removeSelectedDecksFromFolder(from allDecks: [DeckModel], context: ModelContext) {
+        moveDecks(
+            with: selectedDecks,
+            from: allDecks,
+            to: nil,
+            context: context,
+            exitsSelectionModeOnSuccess: true
+        )
     }
 
     func moveSingleDeck(
@@ -67,7 +93,11 @@ extension LibraryViewModel {
         )
     }
 
-    func handleFileImport(_ result: Result<[URL], Error>, context: ModelContext) {
+    func handleFileImport(
+        _ result: Result<[URL], Error>,
+        into destinationFolder: FolderModel?,
+        context: ModelContext
+    ) {
         switch result {
         case .success(let urls):
             let jsonURLs = urls.filter { $0.pathExtension.lowercased() == "json" }
@@ -88,7 +118,11 @@ extension LibraryViewModel {
 
                 for url in jsonURLs {
                     do {
-                        let deck = try await DeckSharingManager.shared.importDeck(from: url, into: context)
+                        let deck = try await DeckSharingManager.shared.importDeck(
+                            from: url,
+                            into: context,
+                            destinationFolder: destinationFolder
+                        )
                         CloudSyncCoordinator.shared.enqueueUpsert(for: deck, context: context)
                         importedCount += 1
                         lastImportedName = deck.title
@@ -99,6 +133,9 @@ extension LibraryViewModel {
 
                 self.isImporting = false
                 if importedCount > 0 {
+                    if let destinationFolder {
+                        CloudSyncCoordinator.shared.enqueueUpsert(for: destinationFolder, context: context)
+                    }
                     self.importedDeckName = importedCount == 1 ? lastImportedName : "\(importedCount) decks"
                     self.showImportSuccess = true
                 }
@@ -168,7 +205,7 @@ private extension LibraryViewModel {
         var changedFolders: [FolderModel] = []
         for deck in allDecks where ids.contains(deck.id) {
             let sourceFolder = deck.folder
-            sourceFolder?.deckCount -= 1
+            sourceFolder?.deckCount = max(0, (sourceFolder?.deckCount ?? 0) - 1)
             sourceFolder?.editedAt = Date()
             if let sourceFolder {
                 changedFolders.append(sourceFolder)
@@ -206,7 +243,7 @@ private extension LibraryViewModel {
             }
 
             let now = Date()
-            deck.folder?.deckCount -= 1
+            deck.folder?.deckCount = max(0, (deck.folder?.deckCount ?? 0) - 1)
             deck.folder?.editedAt = now
             destinationFolder?.deckCount += 1
             destinationFolder?.editedAt = now

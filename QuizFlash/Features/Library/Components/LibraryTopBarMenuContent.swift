@@ -48,10 +48,5 @@ struct LibraryTopBarMenuContent: View {
             Label(AppLocalization.string("Sort By", locale: locale), systemImage: "arrow.up.arrow.down")
         }
 
-        Menu {
-
-        } label: {
-            Label(AppLocalization.string("Group By", locale: locale), systemImage: "arrow.up.arrow.down")
-        }
     }
 }

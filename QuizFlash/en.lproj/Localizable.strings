@@ -294,6 +294,7 @@
 "Default %@" = "Default %@";
 "Defined" = "Defined";
 "Delete" = "Delete";
+"Delete Permanently" = "Delete Permanently";
 "Delete \"%@\"?" = "Delete \"%@\"?";
 "Delete %d card?" = "Delete %d card?";
 "Delete %d cards?" = "Delete %d cards?";
@@ -400,7 +401,6 @@
 "Google Sign-In is not configured." = "Google Sign-In is not configured.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Google sign-in is not ready yet. Please try email sign-in.";
 "Green" = "Green";
-"Group By" = "Group By";
 "Group by Card Type" = "Group by Card Type";
 "GUIDED BRIEFING" = "GUIDED BRIEFING";
 "Hard" = "Hard";
@@ -493,6 +493,8 @@
 "Move Error" = "Move Error";
 "Move selected decks" = "Move selected decks";
 "Move to Folder" = "Move to Folder";
+"Move to Another Folder" = "Move to Another Folder";
+"No Folder" = "No Folder";
 "Move Up" = "Move Up";
 "moves" = "moves";
 "Multiple" = "Multiple";
@@ -769,6 +771,10 @@
 "This account is currently disabled." = "This account is currently disabled.";
 "This action cannot be undone." = "This action cannot be undone.";
 "This deck and all its cards will be deleted." = "This deck and all its cards will be deleted.";
+"This deck and all its cards will be permanently deleted." = "This deck and all its cards will be permanently deleted.";
+"The selected decks and all their cards will be permanently deleted." = "The selected decks and all their cards will be permanently deleted.";
+"Remove from Folder" = "Remove from Folder";
+"Remove selected decks from folder" = "Remove selected decks from folder";
 "This deletes your Firebase account. Local decks stay on this device." = "This deletes your Firebase account. Local decks stay on this device.";
 "This is the prompt learners will see." = "This is the prompt learners will see.";
 "This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters." = "This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.";

@@ -141,9 +141,14 @@ final class DeckSharingManager: ObservableObject {
     /// - Parameters:
     ///   - url: The file URL of the deck JSON document (may be security-scoped).
     ///   - context: The `ModelContext` in which the imported `DeckModel` will be saved.
+    ///   - destinationFolder: The folder that should receive the imported deck, when import starts there.
     /// - Returns: The newly created and persisted `DeckModel`.
     /// - Throws: `DeckSharingError` if the file cannot be read, decoded, or saved.
-    func importDeck(from url: URL, into context: ModelContext) async throws -> DeckModel {
+    func importDeck(
+        from url: URL,
+        into context: ModelContext,
+        destinationFolder: FolderModel? = nil
+    ) async throws -> DeckModel {
         isImporting = true
         progress = 0
         currentOperation = "Opening file..."
@@ -201,6 +206,9 @@ final class DeckSharingManager: ObservableObject {
         )
         newDeck.createdAt = document.deck.createdAt
         newDeck.editedAt = document.deck.editedAt
+        newDeck.folder = destinationFolder
+        destinationFolder?.deckCount += 1
+        destinationFolder?.editedAt = Date()
 
         context.insert(newDeck)
 
@@ -241,6 +249,7 @@ final class DeckSharingManager: ObservableObject {
         do {
             try context.save()
         } catch {
+            destinationFolder?.deckCount = max(0, (destinationFolder?.deckCount ?? 0) - 1)
             logger.error("Failed to persist imported deck: \(error.localizedDescription, privacy: .public)")
             throw DeckSharingError.importFailed("The imported deck couldn't be saved right now.")
         }

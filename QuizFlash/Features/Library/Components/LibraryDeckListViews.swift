@@ -34,7 +34,10 @@ struct LibraryListView: View {
     let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onExport: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    var showsRemoveFromFolder = false
+    let onRemoveFromFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    var canMoveToFolder = true
     let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
     func isSectionHeaderRecoveryVisible(for sectionID: String) -> Bool {
@@ -57,7 +60,12 @@ struct LibraryListView: View {
                     onNavigate: { onNavigate(deck.id) },
                     onToggleSelection: { onToggleSelection(deck.id) },
                     onExport: { onExport(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
+                    showsRemoveFromFolder: showsRemoveFromFolder,
+                    onRemoveFromFolder: {
+                        onRemoveFromFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title))
+                    },
                     onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
+                    canMoveToFolder: canMoveToFolder,
                     onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
                 )
                 .equatable()
@@ -96,7 +104,10 @@ struct LibraryFlatListView: View {
     let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onExport: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    var showsRemoveFromFolder = false
+    let onRemoveFromFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    var canMoveToFolder = true
     let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
     var body: some View {
@@ -110,7 +121,12 @@ struct LibraryFlatListView: View {
                 onNavigate: { onNavigate(deck.id) },
                 onToggleSelection: { onToggleSelection(deck.id) },
                 onExport: { onExport(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
+                showsRemoveFromFolder: showsRemoveFromFolder,
+                onRemoveFromFolder: {
+                    onRemoveFromFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title))
+                },
                 onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
+                canMoveToFolder: canMoveToFolder,
                 onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
             )
             .equatable()

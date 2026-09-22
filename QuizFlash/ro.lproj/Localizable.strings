@@ -294,6 +294,7 @@
 "Default %@" = "%@ implicit";
 "Defined" = "Definită";
 "Delete" = "Șterge";
+"Delete Permanently" = "Șterge definitiv";
 "Delete \"%@\"?" = "Ștergi „%@”?";
 "Delete %d card?" = "Ștergi %d card?";
 "Delete %d cards?" = "Ștergi %d carduri?";
@@ -400,7 +401,6 @@
 "Google Sign-In is not configured." = "Google Sign-In nu este configurat.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.";
 "Green" = "Verde";
-"Group By" = "Grupează după";
 "Group by Card Type" = "Grupează după tipul cardului";
 "GUIDED BRIEFING" = "BRIEFING DIRIGAT";
 "Hard" = "Greu";
@@ -493,6 +493,8 @@
 "Move Error" = "Eroare la mutare";
 "Move selected decks" = "Mută deckurile selectate";
 "Move to Folder" = "Mută în folder";
+"Move to Another Folder" = "Mută în alt folder";
+"No Folder" = "Fără folder";
 "Move Up" = "Mută sus";
 "moves" = "mutare";
 "Multiple" = "Multiple";
@@ -769,6 +771,10 @@
 "This account is currently disabled." = "Acest cont este dezactivat momentan.";
 "This action cannot be undone." = "Această acțiune nu poate fi anulată.";
 "This deck and all its cards will be deleted." = "Acest deck și toate cardurile lui vor fi șterse.";
+"This deck and all its cards will be permanently deleted." = "Acest deck și toate cardurile lui vor fi șterse definitiv.";
+"The selected decks and all their cards will be permanently deleted." = "Deckurile selectate și toate cardurile lor vor fi șterse definitiv.";
+"Remove from Folder" = "Elimină din folder";
+"Remove selected decks from folder" = "Elimină deckurile selectate din folder";
 "This deletes your Firebase account. Local decks stay on this device." = "Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.";
 "This is the prompt learners will see." = "Acesta este enunțul văzut de cursanți.";
 "This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters." = "Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.";

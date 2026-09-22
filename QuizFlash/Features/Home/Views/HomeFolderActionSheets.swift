@@ -255,6 +255,7 @@ struct MoveDecksToFolderSheet: View {
                             onNavigate: viewModel.toggleSelection,
                             onToggleSelection: viewModel.toggleSelection,
                             onExport: { _ in },
+                            onRemoveFromFolder: { _ in },
                             onMoveToFolder: { _ in },
                             onDelete: { _ in }
                         )

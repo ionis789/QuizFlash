@@ -13,12 +13,14 @@ let kLibraryChromeSpace = "libraryChrome"
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
+    @Environment(\.modelContext) var context
     @Environment(AppPreferences.self) var appPreferences
     @Environment(ThemeManager.self) var themeManager
     @Environment(CloudSyncCoordinator.self) var cloudSyncCoordinator
 
     let decks: [DeckModel]
     let folders: [FolderModel]
+    var currentFolder: FolderModel? = nil
     @Bindable var viewModel: LibraryViewModel
     let router: NavigationManager
 
@@ -31,6 +33,7 @@ struct LibraryLayout: View {
     let onCardTap: (PersistentIdentifier) -> Void
     let onDeckNavigate: (PersistentIdentifier) -> Void
     let onDeleteSelected: () -> Void
+    var onRemoveSelectedFromFolder: (() -> Void)? = nil
     /// Non-nil when the layout is hosted inside a pushed screen (e.g. FolderView).
     /// Wired to the host's dismiss action so LibraryTopBarView can render a back button.
     var onBack: (() -> Void)? = nil
@@ -100,6 +103,10 @@ struct LibraryLayout: View {
     }
     var browseStickyHiddenSectionHeaderIDs: Set<String> {
         Set([visualPassedCompactTitleSectionID].compactMap { $0 })
+    }
+    var availableDestinationFolders: [FolderModel] {
+        guard let currentFolder else { return folders }
+        return folders.filter { $0.persistentModelID != currentFolder.persistentModelID }
     }
     var activeLayoutPresentation: LibrarySearchPresentation {
         isSearchResultsPresented ? .searchResults : .browse
@@ -208,7 +215,9 @@ struct LibraryLayout: View {
                         viewModel: viewModel,
                         decks: decks,
                         onDeleteTap: { viewModel.showDeleteConfirmation = true },
-                        onMoveTap: { viewModel.showMoveConfirmation = true }
+                        onMoveTap: { viewModel.showMoveConfirmation = true },
+                        onRemoveFromFolderTap: onRemoveSelectedFromFolder,
+                        canMoveToAnotherFolder: !availableDestinationFolders.isEmpty
                     )
                 }
                 .transition(.bottomChrome)

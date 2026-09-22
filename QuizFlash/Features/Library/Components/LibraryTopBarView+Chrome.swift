@@ -135,12 +135,7 @@ extension LibraryTopBarView {
                         finishMenuInteraction()
                         viewModel.showFileImporter = true
                     },
-                    librarySortMenu(finishMenuInteraction: finishMenuInteraction),
-                    UIMenu(
-                        title: AppLocalization.string("Group By", locale: locale),
-                        image: UIImage(systemName: "arrow.up.arrow.down"),
-                        children: []
-                    )
+                    librarySortMenu(finishMenuInteraction: finishMenuInteraction)
                 ])
             }
         )

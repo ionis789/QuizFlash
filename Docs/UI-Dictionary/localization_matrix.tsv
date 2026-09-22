@@ -218,8 +218,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
@@ -242,8 +242,8 @@ Choose a comfortable base size for QuizFlash interface text.	Choose a comfortabl
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
 Choose a pace that feels easy to keep.	Choose a pace that feels easy to keep.	Alege un ritm ușor de păstrat.	Выбери темп, которого легко придерживаться.
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -329,6 +329,7 @@ Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	�
 Delete Account	Delete Account	Șterge contul	Удалить аккаунт
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
 Delete Folder?	Delete Folder?	Ștergi folderul?	Удалить папку?
+Delete Permanently	Delete Permanently	Șterge definitiv	Удалить навсегда
 Delete?	Delete?	Ștergi?	Удалить?
 Depth	Depth	Intensitate	Глубина
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
@@ -409,8 +410,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate more	Generate more	Generează mai multe	Сгенерировать ещё
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
@@ -434,7 +435,6 @@ Good night	Good night	Noapte bună	Доброй ночи
 Google Sign-In is not configured.	Google Sign-In is not configured.	Google Sign-In nu este configurat.	Google Sign-In не настроен.
 Google sign-in is not ready yet. Please try email sign-in.	Google sign-in is not ready yet. Please try email sign-in.	Conectarea cu Google nu este gata încă. Încearcă autentificarea cu email.	Вход через Google пока не готов. Попробуйте войти по email.
 Green	Green	Verde	Зелёный
-Group By	Group By	Grupează după	Группировать по
 Group by Card Type	Group by Card Type	Grupează după tipul cardului	Группировать по типу карточки
 GUIDED BRIEFING	GUIDED BRIEFING	BRIEFING DIRIGAT	БРИФИНГ С УПРАВЛЕНИЕМ
 Hard	Hard	Greu	Сложно
@@ -537,6 +537,7 @@ Move Down	Move Down	Mută jos	Переместить вниз
 Move Error	Move Error	Eroare la mutare	Ошибка перемещения
 Move selected decks	Move selected decks	Mută deckurile selectate	Переместить выбранные колоды
 Move to %@	Move to %@	Mută în %@	Переместить в %@
+Move to Another Folder	Move to Another Folder	Mută în alt folder	Переместить в другую папку
 Move to Folder	Move to Folder	Mută în folder	Переместить в папку
 Move Up	Move Up	Mută sus	Переместить вверх
 moves	moves	mutare	движений
@@ -571,6 +572,7 @@ No decks in this folder.	No decks in this folder.	Nu există deckuri în acest f
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
 No decks yet	No decks yet	Nu există încă deckuri	Колод пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
+No Folder	No Folder	Fără folder	Без папки
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No goal	No goal	Fără țintă	Без цели
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
@@ -693,6 +695,8 @@ Refresh	Refresh	Reîmprospătează	Обновить
 Refresh Plan	Refresh Plan	Actualizează planul	Обновить план
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
+Remove from Folder	Remove from Folder	Elimină din folder	Убрать из папки
+Remove selected decks from folder	Remove selected decks from folder	Elimină deckurile selectate din folder	Убрать выбранные колоды из папки
 Rename	Rename	Redenumește	Переименовать
 Rename Folder	Rename Folder	Redenumește folderul	Переименовать папку
 Render	Render	Randare	Рендер
@@ -848,6 +852,7 @@ The production allocation plan did not match the requested target.	The productio
 The purchase could not be completed. Please try again.	The purchase could not be completed. Please try again.	Achiziția nu a putut fi finalizată. Încearcă din nou.	Не удалось завершить покупку. Повторите попытку.
 The saved lab manifest is not supported by this build.	The saved lab manifest is not supported by this build.	Manifestul salvat al laboratorului nu este acceptat de acest build.	Сохранённый манифест лаборатории не поддерживается этой сборкой.
 The selected card target exceeds the active plan.	The selected card target exceeds the active plan.	Numărul selectat de carduri depășește planul activ.	Выбранное количество карточек превышает лимит активного плана.
+The selected decks and all their cards will be permanently deleted.	The selected decks and all their cards will be permanently deleted.	Deckurile selectate și toate cardurile lor vor fi șterse definitiv.	Выбранные колоды и все их карточки будут удалены навсегда.
 The sign-in credential could not be created.	The sign-in credential could not be created.	Datele de conectare nu au putut fi create.	Не удалось создать учетные данные для входа.
 The sign-in window is not ready yet.	The sign-in window is not ready yet.	Fereastra de conectare nu este gata încă.	Окно входа еще не готово.
 The source could not be prepared by the production pipeline.	The source could not be prepared by the production pipeline.	Sursa nu a putut fi pregătită de fluxul real de generare.	Источник не удалось подготовить через рабочий поток генерации.
@@ -856,6 +861,7 @@ Thickness	Thickness	Grosime	Толщина
 This account is currently disabled.	This account is currently disabled.	Acest cont este dezactivat momentan.	Этот аккаунт сейчас отключен.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
+This deck and all its cards will be permanently deleted.	This deck and all its cards will be permanently deleted.	Acest deck și toate cardurile lui vor fi șterse definitiv.	Эта колода и все ее карточки будут удалены навсегда.
 This deletes your Firebase account. Local decks stay on this device.	This deletes your Firebase account. Local decks stay on this device.	Contul Firebase va fi șters. Deck-urile locale rămân pe acest dispozitiv.	Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
@@ -866,8 +872,8 @@ This removes the selected draft cards from the editor. Existing deck data change
 This sign-in method is already linked to another account.	This sign-in method is already linked to another account.	Această metodă de conectare este deja legată de alt cont.	Этот способ входа уже связан с другим аккаунтом.
 This sign-in method is not available right now.	This sign-in method is not available right now.	Această metodă de conectare nu este disponibilă momentan.	Этот способ входа сейчас недоступен.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This week	This week	Săptămâna aceasta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This week	This week	Săptămâna aceasta	Эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
 This zone already has text. Choose how to use the imported media.	This zone already has text. Choose how to use the imported media.	Această zonă are deja text. Alege cum folosești media importată.	В этой зоне уже есть текст. Выберите, как использовать импортированное медиа.
 Title	Title	Titlu	Заголовок

@@ -17,7 +17,10 @@ struct LibraryDeckListRow: View, Equatable {
     let onNavigate: @MainActor @Sendable () -> Void
     let onToggleSelection: @MainActor @Sendable () -> Void
     let onExport: @MainActor @Sendable () -> Void
+    let showsRemoveFromFolder: Bool
+    let onRemoveFromFolder: @MainActor @Sendable () -> Void
     let onMoveToFolder: @MainActor @Sendable () -> Void
+    let canMoveToFolder: Bool
     let onDelete: @MainActor @Sendable () -> Void
 
     @Environment(ThemeManager.self) private var themeManager
@@ -32,7 +35,10 @@ struct LibraryDeckListRow: View, Equatable {
         onNavigate: @escaping @MainActor @Sendable () -> Void,
         onToggleSelection: @escaping @MainActor @Sendable () -> Void,
         onExport: @escaping @MainActor @Sendable () -> Void,
+        showsRemoveFromFolder: Bool = false,
+        onRemoveFromFolder: @escaping @MainActor @Sendable () -> Void = { },
         onMoveToFolder: @escaping @MainActor @Sendable () -> Void,
+        canMoveToFolder: Bool = true,
         onDelete: @escaping @MainActor @Sendable () -> Void
     ) {
         self.deck = deck
@@ -43,7 +49,10 @@ struct LibraryDeckListRow: View, Equatable {
         self.onNavigate = onNavigate
         self.onToggleSelection = onToggleSelection
         self.onExport = onExport
+        self.showsRemoveFromFolder = showsRemoveFromFolder
+        self.onRemoveFromFolder = onRemoveFromFolder
         self.onMoveToFolder = onMoveToFolder
+        self.canMoveToFolder = canMoveToFolder
         self.onDelete = onDelete
     }
 
@@ -52,7 +61,9 @@ struct LibraryDeckListRow: View, Equatable {
             lhs.isFirstInSection == rhs.isFirstInSection &&
             lhs.isSelecting == rhs.isSelecting &&
             lhs.isSelected == rhs.isSelected &&
-            lhs.showsContextMenu == rhs.showsContextMenu
+            lhs.showsContextMenu == rhs.showsContextMenu &&
+            lhs.showsRemoveFromFolder == rhs.showsRemoveFromFolder &&
+            lhs.canMoveToFolder == rhs.canMoveToFolder
     }
 
     private var topContentPadding: CGFloat {
@@ -102,26 +113,41 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     private var contextMenuActions: [CustomContextMenuAction] {
-        [
+        var actions = [
             CustomContextMenuAction(
                 title: localized("Export"),
                 systemImage: "square.and.arrow.up",
                 role: .normal,
                 action: { onExport() }
-            ),
-            CustomContextMenuAction(
-                title: localized("Move to Folder"),
+            )
+        ]
+
+        if showsRemoveFromFolder {
+            actions.append(CustomContextMenuAction(
+                title: localized("Remove from Folder"),
+                systemImage: "folder.badge.minus",
+                role: .normal,
+                action: { onRemoveFromFolder() }
+            ))
+        }
+
+        if canMoveToFolder {
+            actions.append(CustomContextMenuAction(
+                title: localized(showsRemoveFromFolder ? "Move to Another Folder" : "Move to Folder"),
                 systemImage: "folder",
                 role: .normal,
                 action: { onMoveToFolder() }
-            ),
-            CustomContextMenuAction(
-                title: localized("Delete"),
-                systemImage: "trash",
-                role: .destructive,
-                action: { onDelete() }
-            ),
-        ]
+            ))
+        }
+
+        actions.append(CustomContextMenuAction(
+            title: localized("Delete Permanently"),
+            systemImage: "trash",
+            role: .destructive,
+            action: { onDelete() }
+        ))
+
+        return actions
     }
 
     private var rowContent: some View {

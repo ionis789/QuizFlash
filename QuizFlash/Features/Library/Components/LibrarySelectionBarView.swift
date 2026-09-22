@@ -17,6 +17,8 @@ struct LibrarySelectionBarView: View {
     let decks: [DeckModel]
     let onDeleteTap: () -> Void
     var onMoveTap: (() -> Void)? = nil
+    var onRemoveFromFolderTap: (() -> Void)? = nil
+    var canMoveToAnotherFolder = true
 
     private var selectedCount: Int { viewModel.selectedDecks.count }
     private var hasSelection: Bool { selectedCount > 0 }
@@ -35,43 +37,62 @@ struct LibrarySelectionBarView: View {
     var body: some View {
         SelectionActionToolbar(
             selectedCount: selectedCount,
-            actions: [
-                .text(
-                    id: "selectAll",
-                    title: localized("Select All"),
-                    accessibilityLabel: localized("Select all decks"),
-                    isEnabled: canSelectAll,
-                    action: {
-                        withAnimation(.selectionToolbarSpring) {
-                            viewModel.selectAllVisibleDecks(from: decks)
-                        }
-                    }
-                ),
-                .icon(
-                    id: "folder",
-                    systemName: "folder",
-                    accessibilityLabel: localized("Move selected decks"),
-                    isEnabled: hasSelection,
-                    action: { onMoveTap?() }
-                ),
-                .icon(
-                    id: "export",
-                    systemName: "square.and.arrow.up",
-                    accessibilityLabel: localized("Export selected decks"),
-                    isEnabled: hasSelection && !viewModel.isExporting,
-                    showsProgress: viewModel.isExporting,
-                    action: { viewModel.exportSelectedDecks(from: decks) }
-                ),
-                .icon(
-                    id: "delete",
-                    systemName: "trash",
-                    accessibilityLabel: deleteAccessibilityLabel,
-                    isEnabled: hasSelection,
-                    tint: .destructive,
-                    action: onDeleteTap
-                )
-            ]
+            actions: toolbarActions
         )
+    }
+
+    private var toolbarActions: [SelectionActionToolbarAction] {
+        var actions: [SelectionActionToolbarAction] = [
+            .text(
+                id: "selectAll",
+                title: localized("Select All"),
+                accessibilityLabel: localized("Select all decks"),
+                isEnabled: canSelectAll,
+                action: {
+                    withAnimation(.selectionToolbarSpring) {
+                        viewModel.selectAllVisibleDecks(from: decks)
+                    }
+                }
+            )
+        ]
+
+        if let onRemoveFromFolderTap {
+            actions.append(.icon(
+                id: "removeFromFolder",
+                systemName: "folder.badge.minus",
+                accessibilityLabel: localized("Remove selected decks from folder"),
+                isEnabled: hasSelection,
+                action: onRemoveFromFolderTap
+            ))
+        }
+
+        actions.append(contentsOf: [
+            .icon(
+                id: "folder",
+                systemName: "folder",
+                accessibilityLabel: localized("Move selected decks"),
+                isEnabled: hasSelection && canMoveToAnotherFolder,
+                action: { onMoveTap?() }
+            ),
+            .icon(
+                id: "export",
+                systemName: "square.and.arrow.up",
+                accessibilityLabel: localized("Export selected decks"),
+                isEnabled: hasSelection && !viewModel.isExporting,
+                showsProgress: viewModel.isExporting,
+                action: { viewModel.exportSelectedDecks(from: decks) }
+            ),
+            .icon(
+                id: "delete",
+                systemName: "trash",
+                accessibilityLabel: deleteAccessibilityLabel,
+                isEnabled: hasSelection,
+                tint: .destructive,
+                action: onDeleteTap
+            )
+        ])
+
+        return actions
     }
 
     private var deleteAccessibilityLabel: String {

@@ -294,6 +294,7 @@
 "Default %@" = "По умолчанию %@";
 "Defined" = "Чёткая";
 "Delete" = "Удалить";
+"Delete Permanently" = "Удалить навсегда";
 "Delete \"%@\"?" = "Удалить \"%@\"?";
 "Delete %d card?" = "Удалить %d карточку?";
 "Delete %d cards?" = "Удалить %d карточки?";
@@ -400,7 +401,6 @@
 "Google Sign-In is not configured." = "Google Sign-In не настроен.";
 "Google sign-in is not ready yet. Please try email sign-in." = "Вход через Google пока не готов. Попробуйте войти по email.";
 "Green" = "Зелёный";
-"Group By" = "Группировать по";
 "Group by Card Type" = "Группировать по типу карточки";
 "GUIDED BRIEFING" = "БРИФИНГ С УПРАВЛЕНИЕМ";
 "Hard" = "Сложно";
@@ -493,6 +493,8 @@
 "Move Error" = "Ошибка перемещения";
 "Move selected decks" = "Переместить выбранные колоды";
 "Move to Folder" = "Переместить в папку";
+"Move to Another Folder" = "Переместить в другую папку";
+"No Folder" = "Без папки";
 "Move Up" = "Переместить вверх";
 "moves" = "движений";
 "Multiple" = "Несколько";
@@ -769,6 +771,10 @@
 "This account is currently disabled." = "Этот аккаунт сейчас отключен.";
 "This action cannot be undone." = "Это действие нельзя отменить.";
 "This deck and all its cards will be deleted." = "Эта колода и все ее карточки будут удалены.";
+"This deck and all its cards will be permanently deleted." = "Эта колода и все ее карточки будут удалены навсегда.";
+"The selected decks and all their cards will be permanently deleted." = "Выбранные колоды и все их карточки будут удалены навсегда.";
+"Remove from Folder" = "Убрать из папки";
+"Remove selected decks from folder" = "Убрать выбранные колоды из папки";
 "This deletes your Firebase account. Local decks stay on this device." = "Аккаунт Firebase будет удален. Локальные колоды останутся на этом устройстве.";
 "This is the prompt learners will see." = "Так учащиеся увидят задание.";
 "This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters." = "Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.";
