@@ -299,7 +299,7 @@ struct HomeView: View {
                 mode: .rename,
                 safeAreaInsets: safeAreaInsets,
                 onSave: { title, _ in updateFolder(target, title: title, colorHex: nil) },
-                onSaved: { completeFolderEditFeedback(for: target.id) }
+                onSaved: { completeFolderEditFeedback(for: target.id, kind: .renamed) }
             )
         case .changeColor(let target):
             HomeFolderEditSheet(
@@ -307,7 +307,7 @@ struct HomeView: View {
                 mode: .changeColor,
                 safeAreaInsets: safeAreaInsets,
                 onSave: { _, colorHex in updateFolder(target, title: nil, colorHex: colorHex) },
-                onSaved: { completeFolderEditFeedback(for: target.id) }
+                onSaved: { completeFolderEditFeedback(for: target.id, kind: .changedColor) }
             )
         case .moveDecks(let target):
             MoveDecksToFolderSheet(
@@ -469,7 +469,7 @@ struct HomeView: View {
             decks.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             affectedFolders.forEach { CloudSyncCoordinator.shared.enqueueUpsert(for: $0, context: modelContext) }
             refreshCachedFolderSnapshots()
-            showFolderActionFeedback(for: destination.persistentModelID)
+            showFolderActionFeedback(for: destination.persistentModelID, kind: .movedDecks)
         } catch {
             for deck in decks {
                 deck.folder = originalFolders[deck.persistentModelID] ?? nil
@@ -498,13 +498,19 @@ struct HomeView: View {
         }
     }
 
-    private func completeFolderEditFeedback(for folderID: PersistentIdentifier) {
+    private func completeFolderEditFeedback(
+        for folderID: PersistentIdentifier,
+        kind: HomeFolderActionFeedback.Kind
+    ) {
         refreshCachedFolderSnapshots()
-        showFolderActionFeedback(for: folderID)
+        showFolderActionFeedback(for: folderID, kind: kind)
     }
 
-    private func showFolderActionFeedback(for folderID: PersistentIdentifier) {
-        let feedback = HomeFolderActionFeedback(folderID: folderID)
+    private func showFolderActionFeedback(
+        for folderID: PersistentIdentifier,
+        kind: HomeFolderActionFeedback.Kind
+    ) {
+        let feedback = HomeFolderActionFeedback(folderID: folderID, kind: kind)
         folderActionFeedback = feedback
 
         Task { @MainActor in

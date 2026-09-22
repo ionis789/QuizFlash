@@ -25,6 +25,7 @@ struct HomeFolderEditSheet: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.fullScreenSheetDismiss) private var dismissSheet
     @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
+    @State private var keyboardMonitor = KeyboardMonitor.shared
     @FocusState private var isTitleFocused: Bool
 
     let target: HomeFolderActionTarget
@@ -35,6 +36,7 @@ struct HomeFolderEditSheet: View {
 
     @State private var title: String
     @State private var colorHex: String
+    @State private var isSaving = false
 
     private let colorOptions = ["#34C759", "#AF9FFF", "#FF9F0A", "#FF5C7A", "#32ADE6"]
 
@@ -55,7 +57,18 @@ struct HomeFolderEditSheet: View {
     }
 
     private var locale: Locale { appPreferences.resolvedLocale }
-    private var canSave: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var normalizedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var canSave: Bool { !normalizedTitle.isEmpty && hasChanges && !isSaving }
+    private var hasChanges: Bool {
+        switch mode {
+        case .rename:
+            normalizedTitle != target.title
+        case .changeColor:
+            colorHex.caseInsensitiveCompare(target.colorHex) != .orderedSame
+        }
+    }
     private var heading: String {
         AppLocalization.string(mode == .rename ? "Rename Folder" : "Change Folder Color", locale: locale)
     }
@@ -89,15 +102,7 @@ struct HomeFolderEditSheet: View {
                 .duoSurface(cornerRadius: 24)
             }
 
-            Button {
-                if onSave(title, colorHex) {
-                    if let dismissSheet {
-                        dismissSheet(completion: onSaved)
-                    } else {
-                        onSaved()
-                    }
-                }
-            } label: {
+            Button(action: saveChanges) {
                 Text(AppLocalization.string("Save", locale: locale))
                     .font(.system(size: 18, weight: .black))
                     .foregroundStyle(canSave ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textSecondary)
@@ -114,6 +119,32 @@ struct HomeFolderEditSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             if mode == .rename { isTitleFocused = true }
+        }
+    }
+
+    private func saveChanges() {
+        guard canSave, onSave(normalizedTitle, colorHex) else { return }
+        isSaving = true
+
+        Task { @MainActor in
+            let shouldWaitForKeyboard = mode == .rename
+                && (isTitleFocused || keyboardMonitor.isVisible)
+            if shouldWaitForKeyboard {
+                isTitleFocused = false
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil,
+                    from: nil,
+                    for: nil
+                )
+                try? await Task.sleep(for: .seconds(FullScreenSheetMotion.duration))
+            }
+
+            if let dismissSheet {
+                dismissSheet(completion: onSaved)
+            } else {
+                onSaved()
+            }
         }
     }
 

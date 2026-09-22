@@ -421,8 +421,8 @@ struct HomeDashboardView: View {
                     HomeDashboardFolderCard(
                         snapshot: folder,
                         usesRegularMetrics: usesRegularMetrics,
-                        actionFeedbackToken: folderActionFeedback?.folderID == folder.id
-                            ? folderActionFeedback?.token
+                        actionFeedback: folderActionFeedback?.folderID == folder.id
+                            ? folderActionFeedback
                             : nil,
                         onOpen: { onOpenFolder(folder.id) },
                         onRename: onRenameFolder,
@@ -479,7 +479,14 @@ struct HomeFolderSnapshot: Identifiable, Equatable {
 }
 
 struct HomeFolderActionFeedback: Equatable {
+    enum Kind: Equatable {
+        case movedDecks
+        case renamed
+        case changedColor
+    }
+
     let folderID: PersistentIdentifier
+    let kind: Kind
     let token = UUID()
 }
 
@@ -1613,7 +1620,7 @@ private struct HomeDashboardFolderCard: View {
 
     let snapshot: HomeFolderSnapshot
     let usesRegularMetrics: Bool
-    let actionFeedbackToken: UUID?
+    let actionFeedback: HomeFolderActionFeedback?
     let onOpen: () -> Void
     let onRename: (HomeFolderActionTarget) -> Void
     let onChangeColor: (HomeFolderActionTarget) -> Void
@@ -1621,6 +1628,21 @@ private struct HomeDashboardFolderCard: View {
     let onDelete: (HomeFolderActionTarget) -> Void
 
     @State private var activeFeedbackToken: UUID?
+    @State private var activeRenameFeedbackToken: UUID?
+    @State private var activeMoveFeedbackToken: UUID?
+
+    private var glowFeedbackToken: UUID? {
+        guard actionFeedback?.kind != .renamed else { return nil }
+        return actionFeedback?.token
+    }
+
+    private var renameFeedbackToken: UUID? {
+        actionFeedback?.kind == .renamed ? actionFeedback?.token : nil
+    }
+
+    private var moveFeedbackToken: UUID? {
+        actionFeedback?.kind == .movedDecks ? actionFeedback?.token : nil
+    }
 
     private var folderColor: Color {
         Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
@@ -1674,9 +1696,17 @@ private struct HomeDashboardFolderCard: View {
                     CubicKeyframe(0, duration: actionFeedbackDuration(0.52))
                 }
             }
-            .onChange(of: actionFeedbackToken, initial: true) { _, newToken in
+            .onChange(of: glowFeedbackToken, initial: true) { _, newToken in
                 guard let newToken else { return }
                 activeFeedbackToken = newToken
+            }
+            .onChange(of: renameFeedbackToken, initial: true) { _, newToken in
+                guard let newToken else { return }
+                activeRenameFeedbackToken = newToken
+            }
+            .onChange(of: moveFeedbackToken, initial: true) { _, newToken in
+                guard let newToken else { return }
+                activeMoveFeedbackToken = newToken
             }
             .onTapGesture(perform: onOpen)
             .customContextMenu(id: snapshot.id, actions: contextMenuActions) {
@@ -1735,12 +1765,12 @@ private struct HomeDashboardFolderCard: View {
                         .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .statusTextMotion(trigger: snapshot.title)
+                        .statusTextMotion(trigger: activeRenameFeedbackToken)
 
                     Text(deckCountText)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(themeManager.textSecondary)
-                        .statusTextMotion(trigger: snapshot.deckCount)
+                        .statusTextMotion(trigger: activeMoveFeedbackToken)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
