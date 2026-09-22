@@ -315,6 +315,19 @@ extension DeckWorkspaceViewModel {
         let sessionID = aiGenerationSessionID
         let cloudSession = cloudAIGenerationSession
 
+        await backendTrace(
+            "generation-completed-in-workspace",
+            layer: "deck.persistence",
+            details: [
+                "drafts": String(draftCards.count),
+                "generated": String(generatedCardCount),
+                "hasTitle": String(!deckTitle.isEmpty),
+                "editing": String(resolvedEditingDeckID != nil),
+                "hasChanges": String(hasUnsavedChanges),
+                "uid": backendTraceSafeID(accountOwnerUID),
+            ]
+        )
+
         if let cloudSession {
             await CloudAIProxyClient.shared.finalizeGeneration(
                 cloudSession,

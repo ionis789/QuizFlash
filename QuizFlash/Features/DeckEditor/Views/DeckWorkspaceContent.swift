@@ -457,6 +457,19 @@ extension DeckWorkspaceView {
     }
 
     func handleSave() {
+        let traceDetails = [
+            "drafts": String(viewModel.draftCards.count),
+            "editing": String(viewModel.isEditingExistingDeck),
+            "hasChanges": String(viewModel.hasUnsavedChanges),
+            "uid": backendTraceSafeID(accountScope.uid),
+        ]
+        Task {
+            await backendTrace(
+                "save-action-received",
+                layer: "deck.workspace",
+                details: traceDetails
+            )
+        }
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
         allowDismissWithoutConfirmation = true
@@ -466,6 +479,13 @@ extension DeckWorkspaceView {
             onSuccessfulSave: onSuccessfulSave
         )
         if !didStartDismissFlow {
+            Task {
+                await backendTrace(
+                    "save-action-not-started",
+                    layer: "deck.workspace",
+                    details: traceDetails
+                )
+            }
             allowDismissWithoutConfirmation = false
         } else {
             refreshSessionPresentationState()

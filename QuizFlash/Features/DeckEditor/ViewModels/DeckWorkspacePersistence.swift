@@ -184,6 +184,16 @@ extension DeckWorkspaceViewModel {
         ownerUID: String,
         onSuccessfulSave: (() -> Void)? = nil
     ) -> Bool {
+        traceDeckPersistence(
+            "save-requested",
+            ownerUID: ownerUID,
+            details: [
+                "drafts": String(draftCards.count),
+                "editing": String(resolvedEditingDeckID != nil),
+                "hasChanges": String(hasUnsavedChanges),
+                "hasTitle": String(!deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty),
+            ]
+        )
         saveOverlayTask?.cancel()
         showSuccessOverlay = false
 
@@ -194,13 +204,27 @@ extension DeckWorkspaceViewModel {
         successOverlayDeckTitle = resolvedSavedTitle
 
         if resolvedEditingDeckID != nil && !hasUnsavedChanges {
+            traceDeckPersistence(
+                "save-rejected-no-changes",
+                ownerUID: ownerUID
+            )
             return false
         }
 
         let savedDeck: DeckModel
         var changedFolders: [FolderModel] = []
         if let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) {
-            guard deck.ownerUID == ownerUID else { return false }
+            guard deck.ownerUID == ownerUID else {
+                traceDeckPersistence(
+                    "save-rejected-owner-mismatch",
+                    ownerUID: ownerUID,
+                    details: [
+                        "deck": backendTraceSafeID(deck.cloudID),
+                        "deckOwner": backendTraceSafeID(deck.ownerUID),
+                    ]
+                )
+                return false
+            }
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
             var folderChanged = false
@@ -260,6 +284,8 @@ extension DeckWorkspaceViewModel {
                     if let editedAt = draft.editedAt {
                         newCard.editedAt = editedAt
                     }
+                    newCard.ownerUID = ownerUID
+                    newCard.cloudID = UUID().uuidString
                     newCard.deck = deck
                     deck.cards.append(newCard)
                     context.insert(newCard)
@@ -317,9 +343,27 @@ extension DeckWorkspaceViewModel {
         do {
             try context.save()
         } catch {
+            traceDeckPersistence(
+                "save-failed",
+                ownerUID: ownerUID,
+                details: [
+                    "deck": backendTraceSafeID(savedDeck.cloudID),
+                    "error": error.localizedDescription,
+                ]
+            )
             presentPersistenceError(error)
             return false
         }
+
+        traceDeckPersistence(
+            "save-succeeded",
+            ownerUID: ownerUID,
+            details: [
+                "cards": String(savedDeck.cardCount),
+                "deck": backendTraceSafeID(savedDeck.cloudID),
+                "deckOwner": backendTraceSafeID(savedDeck.ownerUID),
+            ]
+        )
 
         CloudSyncCoordinator.shared.enqueueUpsert(for: savedDeck, context: context)
         for folder in uniqueFoldersForSync(changedFolders) {
@@ -347,6 +391,18 @@ extension DeckWorkspaceViewModel {
         }
 
         return true
+    }
+
+    private func traceDeckPersistence(
+        _ event: String,
+        ownerUID: String,
+        details: [String: String] = [:]
+    ) {
+        var payload = details
+        payload["uid"] = backendTraceSafeID(ownerUID)
+        Task {
+            await backendTrace(event, layer: "deck.persistence", details: payload)
+        }
     }
 
     /// Permanently deletes the currently edited deck and its cards from SwiftData.

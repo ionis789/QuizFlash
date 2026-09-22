@@ -63,6 +63,25 @@ struct LibraryView: View {
         contentWithModifiers
             .toolbar(.hidden, for: .navigationBar)
             .customTabBarVisibility(tabRule)
+            .onAppear {
+                traceLibrarySnapshot(event: "library-appeared")
+            }
+            .onChange(of: decks.count) { _, _ in
+                traceLibrarySnapshot(event: "library-deck-count-changed")
+            }
+    }
+
+    private func traceLibrarySnapshot(event: String) {
+        let details = [
+            "decks": String(decks.count),
+            "folders": String(folders.count),
+            "newestDeck": backendTraceSafeID(decks.first?.cloudID),
+            "newestOwner": backendTraceSafeID(decks.first?.ownerUID),
+            "uid": backendTraceSafeID(accountScope.uid),
+        ]
+        Task {
+            await backendTrace(event, layer: "library.query", details: details)
+        }
     }
 
     // MARK: - Content Modifiers
