@@ -69,6 +69,34 @@ final class DeckSharingManagerTests: XCTestCase {
         }
     }
 
+    func testManualImportUsesCurrentCreationDate() async throws {
+        let originalCreationDate = Date(timeIntervalSince1970: 946_684_800)
+        let document = DeckJSONDocument(
+            deck: DeckJSONDeckMetadata(
+                title: "Imported Today",
+                colorHex: "#ABCDEF",
+                createdAt: originalCreationDate,
+                editedAt: originalCreationDate
+            ),
+            cards: []
+        )
+        let fileURL = try writeJSONDocument(document, filename: "imported-today.json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let context = try TestModelContainerFactory.makeContext()
+        let importStartedAt = Date()
+        let importedDeck = try await DeckSharingManager.shared.importDeck(
+            from: fileURL,
+            into: context
+        )
+        let importFinishedAt = Date()
+
+        XCTAssertNotEqual(importedDeck.createdAt, originalCreationDate)
+        XCTAssertGreaterThanOrEqual(importedDeck.createdAt, importStartedAt)
+        XCTAssertLessThanOrEqual(importedDeck.createdAt, importFinishedAt)
+        XCTAssertEqual(importedDeck.editedAt, originalCreationDate)
+    }
+
     func testExportImportRoundTripPreservesZoneTreesAndMedia() async throws {
         let exportContext = try TestModelContainerFactory.makeContext()
         let deck = DeckModel(title: "Rich JSON", colorHex: "#112233")

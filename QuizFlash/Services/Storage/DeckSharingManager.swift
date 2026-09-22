@@ -204,7 +204,10 @@ final class DeckSharingManager: ObservableObject {
             title: document.deck.title,
             colorHex: document.deck.colorHex
         )
-        newDeck.createdAt = document.deck.createdAt
+        // A file import creates a new local deck copy, so it belongs at the top
+        // of creation-date-sorted lists. Cloud restoration uses its own import
+        // path and continues to preserve the remote deck's original timestamp.
+        newDeck.createdAt = Date()
         newDeck.editedAt = document.deck.editedAt
         newDeck.folder = destinationFolder
         destinationFolder?.deckCount += 1
