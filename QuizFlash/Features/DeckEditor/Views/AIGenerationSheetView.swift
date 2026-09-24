@@ -243,21 +243,21 @@ struct AIGenerationSheetView: View {
             }
 
             compactOptionRow(
-                title: AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
+                title: instructionsTitle
             ) {
                 instructionsEditor
             }
         }
     }
 
-    private var instructionsEditor: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: UIConstants.Size.iconSmall, weight: .bold))
-                .foregroundStyle(accent)
-                .frame(width: UIConstants.Size.iconLarge, height: UIConstants.Size.iconLarge)
-                .background(accent.opacity(0.12), in: Circle())
+    private var instructionsTitle: String {
+        let instructions = AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
+        let optional = AppLocalization.string("Optional", locale: appPreferences.resolvedLocale)
+        return "\(instructions) (\(optional))"
+    }
 
+    private var instructionsEditor: some View {
+        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
             TextField(
                 "",
                 text: userInstructionsBinding,
