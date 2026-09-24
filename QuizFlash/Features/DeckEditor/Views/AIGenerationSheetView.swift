@@ -257,26 +257,31 @@ struct AIGenerationSheetView: View {
     }
 
     private var instructionsEditor: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-            TextField(
-                "",
-                text: userInstructionsBinding,
-                prompt: Text(
-                    AppLocalization.string(
-                        "Add focus, style, or constraints",
-                        locale: appPreferences.resolvedLocale
-                    )
+        TextField(
+            "",
+            text: userInstructionsBinding,
+            prompt: Text(
+                AppLocalization.string(
+                    "Add focus, style, or constraints",
+                    locale: appPreferences.resolvedLocale
                 )
-                .foregroundStyle(.tertiary),
-                axis: .vertical
             )
-            .font(.body)
-            .lineLimit(1 ... 4)
-            .focused($isInstructionsFocused)
-            .accessibilityLabel(
-                AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
-            )
-
+            .foregroundStyle(.tertiary),
+            axis: .vertical
+        )
+        .font(.body)
+        .lineLimit(1 ... 4)
+        .focused($isInstructionsFocused)
+        .accessibilityLabel(
+            AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
+        )
+        .padding(
+            .trailing,
+            viewModel.aiGenerationOptions.userInstructions.isEmpty
+                ? 0
+                : UIConstants.Size.iconLarge + UIConstants.Spacing.small
+        )
+        .overlay(alignment: .topTrailing) {
             if !viewModel.aiGenerationOptions.userInstructions.isEmpty {
                 Button {
                     viewModel.aiGenerationOptions.userInstructions = ""
@@ -285,6 +290,7 @@ struct AIGenerationSheetView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: UIConstants.Size.iconStandard))
                         .foregroundStyle(.tertiary)
+                        .frame(width: UIConstants.Size.iconLarge, height: UIConstants.Size.iconLarge)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(
