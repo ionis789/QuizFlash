@@ -43,7 +43,7 @@ extension LibraryTopBarView {
                 .offset(y: CollapsibleTitleChromeMetrics.floatingTitleVerticalOffset)
                 .allowsHitTesting(false)
 
-                ZStack {
+                HStack(alignment: .center) {
                     leadingControl(maxSearchFieldWidth: maxLeadingSearchWidth)
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.width
@@ -52,7 +52,8 @@ extension LibraryTopBarView {
                                 leadingControlWidth = newWidth
                             }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+
+                    Spacer(minLength: 0)
 
                     trailingControl
                         .onGeometryChange(for: CGFloat.self) { proxy in
@@ -62,7 +63,6 @@ extension LibraryTopBarView {
                                 trailingControlWidth = newWidth
                             }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 }
             }
         }
