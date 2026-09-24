@@ -99,6 +99,9 @@ extension LibraryTopBarView {
             dismissSearchButton
                 .opacity(searchProgress)
                 .scaleEffect(0.86 + (0.14 * searchProgress))
+                .offset(
+                    y: -(UIConstants.Size.capsuleHeight - UIConstants.Size.actionButton) / 2
+                )
                 .allowsHitTesting(viewModel.isSearching || searchProgress > 0.999)
         }
         .animation(searchChromeTransition, value: searchProgress)
