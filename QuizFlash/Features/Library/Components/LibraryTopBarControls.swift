@@ -133,8 +133,7 @@ struct LibraryTopBarDismissSearchButton: View {
         ChromeSoftCircleSymbolButton(
             systemName: "xmark",
             accessibilityLabel: AppLocalization.string("Close search", locale: appPreferences.resolvedLocale),
-            action: action,
-            size: UIConstants.Size.capsuleHeight
+            action: action
         )
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
