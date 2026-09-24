@@ -271,7 +271,7 @@ struct AIGenerationSheetView: View {
                 axis: .vertical
             )
             .font(.body)
-            .lineLimit(3 ... 6)
+            .lineLimit(1 ... 4)
             .focused($isInstructionsFocused)
             .accessibilityLabel(
                 AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
@@ -293,7 +293,6 @@ struct AIGenerationSheetView: View {
             }
         }
         .padding(UIConstants.Spacing.standard)
-        .frame(minHeight: UIConstants.Size.cardMinHeight, alignment: .top)
         .duoControlSurface(cornerRadius: UIConstants.Radius.card, tint: accent)
         .overlay {
             RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
