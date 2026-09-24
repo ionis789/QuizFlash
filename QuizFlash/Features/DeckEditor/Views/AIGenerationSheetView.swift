@@ -281,7 +281,7 @@ struct AIGenerationSheetView: View {
                 ? 0
                 : UIConstants.Size.iconLarge + UIConstants.Spacing.small
         )
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .trailing) {
             if !viewModel.aiGenerationOptions.userInstructions.isEmpty {
                 Button {
                     viewModel.aiGenerationOptions.userInstructions = ""
