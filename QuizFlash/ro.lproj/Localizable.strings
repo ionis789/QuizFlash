@@ -123,6 +123,7 @@
 "Add Below" = "Adaugă dedesubt";
 "Add cards to this deck first." = "Adaugă mai întâi carduri în acest deck.";
 "Add Explanation" = "Adaugă explicație";
+"Add focus, style, or constraints" = "Adaugă un subiect, un stil sau anumite cerințe";
 "Add Left" = "Adaugă la stânga";
 "Add manually" = "Adaugă manual";
 "Add Media Answer" = "Adaugă răspuns media";
@@ -207,6 +208,7 @@
 "cards" = "carduri";
 "Cards Count" = "Carduri Număr";
 "Cards Goal" = "Țintă carduri";
+"Cards to Generate" = "Carduri de generat";
 "cards moved" = "carduri mutate";
 "CARDS(%@)" = "CARDURI(%@)";
 "CARDS(%d)" = "CARDURI(%d)";
@@ -716,7 +718,6 @@
 "Sort By" = "Sortează după";
 "Sort Cards" = "Sortează cardurile";
 "Source" = "Sursă";
-"Source Coverage" = "Acoperirea sursei";
 "Source Range" = "Interval sursă";
 "Split Zone" = "Împarte zona";
 "Stable this week" = "Stabil săptămâna asta";

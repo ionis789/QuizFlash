@@ -30,6 +30,7 @@ struct AIGenerationSheetView: View {
     @State private var headerHeight: CGFloat = 0
     @State private var isSubmittingGeneration = false
     @State private var showAIDataConsent = false
+    @FocusState private var isInstructionsFocused: Bool
     @AppStorage("privacy.aiDataSharing.deepSeek.v1") private var hasAIDataSharingConsent = false
 
     private var accent: Color {
@@ -131,7 +132,7 @@ struct AIGenerationSheetView: View {
                 }
 
                 section(
-                    title: AppLocalization.string("Source Coverage", locale: appPreferences.resolvedLocale)
+                    title: AppLocalization.string("Cards to Generate", locale: appPreferences.resolvedLocale)
                 ) {
                     sourceCoverageContent
                 }
@@ -244,18 +245,65 @@ struct AIGenerationSheetView: View {
             compactOptionRow(
                 title: AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
             ) {
-                TextField(
-                    AppLocalization.string("Optional", locale: appPreferences.resolvedLocale),
-                    text: userInstructionsBinding,
-                    axis: .vertical
-                )
-                .font(.body)
-                .lineLimit(2 ... 5)
-                .padding(.horizontal, UIConstants.Spacing.standard)
-                .padding(.vertical, 12)
-                .duoControlSurface(cornerRadius: 16)
+                instructionsEditor
             }
         }
+    }
+
+    private var instructionsEditor: some View {
+        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: UIConstants.Size.iconSmall, weight: .bold))
+                .foregroundStyle(accent)
+                .frame(width: UIConstants.Size.iconLarge, height: UIConstants.Size.iconLarge)
+                .background(accent.opacity(0.12), in: Circle())
+
+            TextField(
+                "",
+                text: userInstructionsBinding,
+                prompt: Text(
+                    AppLocalization.string(
+                        "Add focus, style, or constraints",
+                        locale: appPreferences.resolvedLocale
+                    )
+                )
+                .foregroundStyle(.tertiary),
+                axis: .vertical
+            )
+            .font(.body)
+            .lineLimit(3 ... 6)
+            .focused($isInstructionsFocused)
+            .accessibilityLabel(
+                AppLocalization.string("Instructions", locale: appPreferences.resolvedLocale)
+            )
+
+            if !viewModel.aiGenerationOptions.userInstructions.isEmpty {
+                Button {
+                    viewModel.aiGenerationOptions.userInstructions = ""
+                    isInstructionsFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: UIConstants.Size.iconStandard))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    AppLocalization.string("Clear", locale: appPreferences.resolvedLocale)
+                )
+            }
+        }
+        .padding(UIConstants.Spacing.standard)
+        .frame(minHeight: UIConstants.Size.cardMinHeight, alignment: .top)
+        .duoControlSurface(cornerRadius: UIConstants.Radius.card, tint: accent)
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                .stroke(accent.opacity(isInstructionsFocused ? 0.72 : 0), lineWidth: 2)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+        .onTapGesture {
+            isInstructionsFocused = true
+        }
+        .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isInstructionsFocused)
     }
 
     private var userInstructionsBinding: Binding<String> {

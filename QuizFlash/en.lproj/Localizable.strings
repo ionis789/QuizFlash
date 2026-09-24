@@ -123,6 +123,7 @@
 "Add Below" = "Add Below";
 "Add cards to this deck first." = "Add cards to this deck first.";
 "Add Explanation" = "Add Explanation";
+"Add focus, style, or constraints" = "Add focus, style, or constraints";
 "Add Left" = "Add Left";
 "Add manually" = "Add manually";
 "Add Media Answer" = "Add Media Answer";
@@ -207,6 +208,7 @@
 "cards" = "cards";
 "Cards Count" = "Cards Count";
 "Cards Goal" = "Cards Goal";
+"Cards to Generate" = "Cards to Generate";
 "cards moved" = "cards moved";
 "CARDS(%@)" = "CARDS(%@)";
 "CARDS(%d)" = "CARDS(%d)";
@@ -716,7 +718,6 @@
 "Sort By" = "Sort By";
 "Sort Cards" = "Sort Cards";
 "Source" = "Source";
-"Source Coverage" = "Source Coverage";
 "Source Range" = "Source Range";
 "Split Zone" = "Split Zone";
 "Stable this week" = "Stable this week";

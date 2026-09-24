@@ -123,6 +123,7 @@
 "Add Below" = "Добавить ниже";
 "Add cards to this deck first." = "Сначала добавьте карточки в эту колоду.";
 "Add Explanation" = "Добавить объяснение";
+"Add focus, style, or constraints" = "Укажите тему, стиль или требования";
 "Add Left" = "Добавить слева";
 "Add manually" = "Добавить вручную";
 "Add Media Answer" = "Добавить ответ с медиа";
@@ -207,6 +208,7 @@
 "cards" = "карточки";
 "Cards Count" = "Количество карт";
 "Cards Goal" = "Цель по карточкам";
+"Cards to Generate" = "Карточки для создания";
 "cards moved" = "карточек пройдено";
 "CARDS(%@)" = "КАРТОЧКИ(%@)";
 "CARDS(%d)" = "КАРТОЧКИ(%d)";
@@ -716,7 +718,6 @@
 "Sort By" = "Сортировать по";
 "Sort Cards" = "Сортировать карточки";
 "Source" = "Источник";
-"Source Coverage" = "Покрытие источника";
 "Source Range" = "Исходный диапазон";
 "Split Zone" = "Разделить зону";
 "Stable this week" = "Стабильно на этой неделе";

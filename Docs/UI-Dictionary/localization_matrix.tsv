@@ -128,6 +128,7 @@ Add at least two answers.	Add at least two answers.	Adaugă cel puțin două ră
 Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
 Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
+Add focus, style, or constraints	Add focus, style, or constraints	Adaugă un subiect, un stil sau anumite cerințe	Укажите тему, стиль или требования
 Add Images	Add Images	Adaugă imagini	Добавить изображения
 Add Left	Add Left	Adaugă la stânga	Добавить слева
 Add manually	Add manually	Adaugă manual	Добавить вручную
@@ -224,6 +225,7 @@ Cards Count	Cards Count	Carduri Număr	Количество карт
 Cards Goal	Cards Goal	Țintă carduri	Цель по карточкам
 cards moved	cards moved	carduri mutate	карточек пройдено
 cards per day	cards per day	carduri pe zi	карточек в день
+Cards to Generate	Cards to Generate	Carduri de generat	Карточки для создания
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
 CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
 Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
@@ -792,7 +794,6 @@ Something went wrong	Something went wrong	Ceva nu a mers bine	Что-то пош
 Sort By	Sort By	Sortează după	Сортировать по
 Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточки
 Source	Source	Sursă	Источник
-Source Coverage	Source Coverage	Acoperirea sursei	Покрытие источника
 Source Range	Source Range	Interval sursă	Исходный диапазон
 Sources are processed in this exact order.	Sources are processed in this exact order.	Sursele sunt procesate exact în această ordine.	Источники обрабатываются строго в этом порядке.
 Split Zone	Split Zone	Împarte zona	Разделить зону
