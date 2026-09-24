@@ -15,6 +15,7 @@ let kLibraryChromeSpace = "libraryChrome"
 struct LibraryLayout: View {
     @Environment(\.modelContext) var context
     @Environment(AppPreferences.self) var appPreferences
+    @Environment(DevelopmentPreferences.self) var developmentPreferences
     @Environment(ThemeManager.self) var themeManager
     @Environment(CloudSyncCoordinator.self) var cloudSyncCoordinator
 
@@ -231,10 +232,12 @@ struct LibraryLayout: View {
             }
 
 #if DEBUG
-            LibraryHeaderDebugCopyButton()
-                .padding(.trailing, UIConstants.Spacing.standard)
-                .padding(.bottom, 104)
-                .zIndex(100)
+            if developmentPreferences.libraryHeaderLayoutDebugEnabled {
+                LibraryHeaderDebugCopyButton()
+                    .padding(.trailing, UIConstants.Spacing.standard)
+                    .padding(.bottom, 104)
+                    .zIndex(100)
+            }
 #endif
         }
         .coordinateSpace(name: kLibraryChromeSpace)

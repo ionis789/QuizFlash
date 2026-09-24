@@ -869,6 +869,8 @@
 "Shows quiz scroll and caret diagnostics." = "Shows quiz scroll and caret diagnostics.";
 "Play mode controls" = "Play mode controls";
 "Shows temporary controls in study modes." = "Shows temporary controls in study modes.";
+"Library header debug" = "Library header debug";
+"Shows the copyable Library header layout report." = "Shows the copyable Library header layout report.";
 "Edge shadow tuner" = "Edge shadow tuner";
 "Shows per-screen edge-shadow controls." = "Shows per-screen edge-shadow controls.";
 "Mock AI shortcut" = "Mock AI shortcut";

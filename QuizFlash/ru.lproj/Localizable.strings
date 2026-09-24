@@ -869,6 +869,8 @@
 "Shows quiz scroll and caret diagnostics." = "Показывает диагностику прокрутки и курсора квиза.";
 "Play mode controls" = "Управление режимом игры";
 "Shows temporary controls in study modes." = "Показывает временные элементы управления в режимах обучения.";
+"Library header debug" = "Отладка заголовка библиотеки";
+"Shows the copyable Library header layout report." = "Показывает копируемый отчёт о макете заголовка библиотеки.";
 "Edge shadow tuner" = "Настройка теней краёв";
 "Shows per-screen edge-shadow controls." = "Показывает настройку теней краёв для каждого экрана.";
 "Mock AI shortcut" = "Ярлык симуляции ИИ";

@@ -500,6 +500,7 @@ Let's review	Let's review	Hai să repetăm	Повторим
 Let's study	Let's study	Hai să studiem	Начнём учиться
 Library	Library	Bibliotecă	Библиотека
 Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
+Library header debug	Library header debug	Debug header Library	Отладка заголовка библиотеки
 List	List	Listă	Список
 Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
@@ -777,6 +778,7 @@ Shows quiz scroll and caret diagnostics.	Shows quiz scroll and caret diagnostics
 Shows temporary controls in study modes.	Shows temporary controls in study modes.	Afișează controale temporare în modurile de studiu.	Показывает временные элементы управления в режимах обучения.
 Shows text measurement guides in deck cards.	Shows text measurement guides in deck cards.	Afișează ghidajele de măsurare a textului în cardurile deckului.	Показывает направляющие измерения текста в карточках колоды.
 Shows text-block guides inside card zones.	Shows text-block guides inside card zones.	Afișează ghidajele blocurilor de text în zonele cardului.	Показывает направляющие текстовых блоков внутри зон карточки.
+Shows the copyable Library header layout report.	Shows the copyable Library header layout report.	Afișează raportul copiabil al layoutului headerului Library.	Показывает копируемый отчёт о макете заголовка библиотеки.
 Shows the mock generation shortcut in the deck workspace.	Shows the mock generation shortcut in the deck workspace.	Afișează scurtătura de generare simulată în workspace-ul deckului.	Показывает ярлык тестовой генерации в рабочей области колоды.
 Side	Side	Parte	Сторона
 Sign In	Sign In	Conectare	Войти

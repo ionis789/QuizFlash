@@ -869,6 +869,8 @@
 "Shows quiz scroll and caret diagnostics." = "Afișează diagnosticul de scroll și cursor pentru quiz.";
 "Play mode controls" = "Controale mod de joc";
 "Shows temporary controls in study modes." = "Afișează controale temporare în modurile de studiu.";
+"Library header debug" = "Debug header Library";
+"Shows the copyable Library header layout report." = "Afișează raportul copiabil al layoutului headerului Library.";
 "Edge shadow tuner" = "Reglaj umbre margini";
 "Shows per-screen edge-shadow controls." = "Afișează controalele umbrelor de margine pentru fiecare ecran.";
 "Mock AI shortcut" = "Scurtătură AI simulat";

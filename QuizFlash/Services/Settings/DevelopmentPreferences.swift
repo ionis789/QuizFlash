@@ -22,6 +22,7 @@ final class DevelopmentPreferences {
         static let zoneEditorDebugHUDEnabled = "preferences.development.zoneEditorDebugHUDEnabled"
         static let quizEditorDebugEnabled = "preferences.development.quizEditorDebugEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
+        static let libraryHeaderLayoutDebugEnabled = "preferences.development.libraryHeaderLayoutDebugEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
         static let edgeShadowDebugDefaultsVersion = "preferences.development.edgeShadowDebugDefaultsVersion"
@@ -100,6 +101,16 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Shows the copyable Library header layout diagnostics control.
+    var libraryHeaderLayoutDebugEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                libraryHeaderLayoutDebugEnabled,
+                forKey: Keys.libraryHeaderLayoutDebugEnabled
+            )
+        }
+    }
+
     /// Shows per-screen floating controls used to tune edge-shadow overlays.
     var edgeShadowTuningEnabled: Bool {
         didSet {
@@ -140,6 +151,9 @@ final class DevelopmentPreferences {
         self.playModeDeveloperModeEnabled = userDefaults.object(
             forKey: Keys.playModeDeveloperModeEnabled
         ) as? Bool ?? false
+        self.libraryHeaderLayoutDebugEnabled = userDefaults.object(
+            forKey: Keys.libraryHeaderLayoutDebugEnabled
+        ) as? Bool ?? false
         self.edgeShadowTuningEnabled = userDefaults.object(
             forKey: Keys.edgeShadowTuningEnabled
         ) as? Bool ?? false
@@ -153,6 +167,7 @@ final class DevelopmentPreferences {
         self.zoneEditorDebugHUDEnabled = false
         self.quizEditorDebugEnabled = false
         self.playModeDeveloperModeEnabled = false
+        self.libraryHeaderLayoutDebugEnabled = false
         self.edgeShadowTuningEnabled = false
         self.edgeShadowDebugSettingsByScreen = [:]
 #endif

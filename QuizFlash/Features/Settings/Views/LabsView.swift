@@ -188,6 +188,13 @@ struct LabsView: View {
                 )
                 SettingsCardDivider()
                 debugToggle(
+                    icon: "rectangle.and.text.magnifyingglass",
+                    title: "Library header debug",
+                    detail: "Shows the copyable Library header layout report.",
+                    keyPath: \.libraryHeaderLayoutDebugEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
                     icon: "shadow",
                     title: "Edge shadow tuner",
                     detail: "Shows per-screen edge-shadow controls.",
