@@ -16,12 +16,12 @@ extension LibraryTopBarView {
     func searchLeadingControl(maxWidth: CGFloat) -> some View {
         if viewModel.isSearching || searchProgress > 0.001 {
             searchFieldVisual(maxWidth: maxWidth)
-                .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .leading)
+                .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .center)
                 .contentShape(Capsule())
         } else {
             Button(action: activateSearch) {
                 searchFieldVisual(maxWidth: maxWidth)
-                    .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .leading)
+                    .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .center)
                     .contentShape(Capsule())
             }
             .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
