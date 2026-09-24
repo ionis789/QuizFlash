@@ -45,6 +45,10 @@ extension LibraryTopBarView {
 
                 HStack(alignment: .center) {
                     leadingControl(maxSearchFieldWidth: maxLeadingSearchWidth)
+                        .libraryHeaderDebugFrame(
+                            role: "leading.control.outer",
+                            mode: headerDebugMode
+                        )
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.width
                         } action: { newWidth in
@@ -56,6 +60,10 @@ extension LibraryTopBarView {
                     Spacer(minLength: 0)
 
                     trailingControl
+                        .libraryHeaderDebugFrame(
+                            role: "trailing.control.outer",
+                            mode: headerDebugMode
+                        )
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.width
                         } action: { newWidth in
@@ -67,6 +75,7 @@ extension LibraryTopBarView {
             }
         }
         .frame(height: UIConstants.Size.capsuleHeight)
+        .libraryHeaderDebugFrame(role: "chrome.container", mode: headerDebugMode)
     }
 
     var shouldShowCollapsedTitlePill: Bool {
@@ -92,11 +101,35 @@ extension LibraryTopBarView {
     var trailingControl: some View {
         ZStack {
             moreSettingsButton
+                .background {
+#if DEBUG
+                    LibraryHeaderDebugSurfaceProbe(
+                        role: "more.circle.surface",
+                        mode: headerDebugMode,
+                        size: CGSize(
+                            width: UIConstants.Size.actionButton,
+                            height: UIConstants.Size.actionButton
+                        )
+                    )
+#endif
+                }
                 .opacity(1 - searchProgress)
                 .scaleEffect(1 - (0.14 * searchProgress))
                 .allowsHitTesting(!viewModel.isSearching && searchProgress <= 0.001)
 
             dismissSearchButton
+                .background {
+#if DEBUG
+                    LibraryHeaderDebugSurfaceProbe(
+                        role: "close.circle.surface",
+                        mode: headerDebugMode,
+                        size: CGSize(
+                            width: UIConstants.Size.actionButton,
+                            height: UIConstants.Size.actionButton
+                        )
+                    )
+#endif
+                }
                 .opacity(searchProgress)
                 .scaleEffect(0.86 + (0.14 * searchProgress))
                 .allowsHitTesting(viewModel.isSearching || searchProgress > 0.999)

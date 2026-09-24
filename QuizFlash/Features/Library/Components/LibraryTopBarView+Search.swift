@@ -52,6 +52,12 @@ extension LibraryTopBarView {
             LibraryTopBarSearchFieldBackground()
         }
         .clipShape(Capsule())
+        .libraryHeaderDebugFrame(
+            role: headerDebugMode == "normal"
+                ? "search.circle.surface"
+                : "search.field.surface",
+            mode: headerDebugMode
+        )
     }
 
     func searchFieldVisualWidth(maxWidth: CGFloat) -> CGFloat {

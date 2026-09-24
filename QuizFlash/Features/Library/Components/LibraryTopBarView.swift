@@ -81,8 +81,30 @@ struct LibraryTopBarView: View {
                 searchFieldExpansionProgress = viewModel.isSearching ? 1 : 0
                 isSearchFieldInteractive = viewModel.isSearching
                 isSearchFocused = false
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.beginIfNeeded(
+                    isSearching: viewModel.isSearching,
+                    progress: searchProgress
+                )
+                LibraryHeaderLayoutDiagnostics.recordState(
+                    event: "topbar.appear",
+                    isSearching: viewModel.isSearching,
+                    progress: searchProgress,
+                    isInteractive: isSearchFieldInteractive,
+                    isFocused: isSearchFocused
+                )
+#endif
             }
             .onChange(of: viewModel.isSearching) { _, active in
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.recordState(
+                    event: "search.state.changed",
+                    isSearching: active,
+                    progress: searchProgress,
+                    isInteractive: isSearchFieldInteractive,
+                    isFocused: isSearchFocused
+                )
+#endif
                 guard !active else {
                     scheduleSearchFieldActivation()
                     return
@@ -94,11 +116,51 @@ struct LibraryTopBarView: View {
                 isSearchFieldInteractive = false
                 isSearchFocused = false
             }
+            .onChange(of: searchProgress) { _, progress in
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.recordState(
+                    event: "search.progress",
+                    isSearching: viewModel.isSearching,
+                    progress: progress,
+                    isInteractive: isSearchFieldInteractive,
+                    isFocused: isSearchFocused
+                )
+#endif
+            }
+            .onChange(of: isSearchFocused) { _, focused in
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.recordState(
+                    event: "search.focus.changed",
+                    isSearching: viewModel.isSearching,
+                    progress: searchProgress,
+                    isInteractive: isSearchFieldInteractive,
+                    isFocused: focused
+                )
+#endif
+            }
+            .onChange(of: isSearchFieldInteractive) { _, interactive in
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.recordState(
+                    event: "search.interactive.changed",
+                    isSearching: viewModel.isSearching,
+                    progress: searchProgress,
+                    isInteractive: interactive,
+                    isFocused: isSearchFocused
+                )
+#endif
+            }
             .onChange(of: dismissSearchRequestID) { _, _ in
                 guard viewModel.isSearching else { return }
                 dismissSearch()
             }
             .onDisappear {
+#if DEBUG
+                LibraryHeaderLayoutDiagnostics.recordLifecycle(
+                    "topbar.disappear",
+                    isSearching: viewModel.isSearching,
+                    progress: searchProgress
+                )
+#endif
                 searchDismissTask?.cancel()
                 searchFieldActivationTask?.cancel()
                 isSearchFieldInteractive = false

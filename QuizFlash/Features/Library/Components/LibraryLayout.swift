@@ -229,6 +229,13 @@ struct LibraryLayout: View {
                     .zIndex(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+
+#if DEBUG
+            LibraryHeaderDebugCopyButton()
+                .padding(.trailing, UIConstants.Spacing.standard)
+                .padding(.bottom, 104)
+                .zIndex(100)
+#endif
         }
         .coordinateSpace(name: kLibraryChromeSpace)
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
