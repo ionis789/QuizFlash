@@ -28,7 +28,7 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
             details: ["firebaseConfigured": String(FirebaseApp.app() != nil)]
         )
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         Task { @MainActor in
             AIGenerationLabLaunchRunner.shared.startIfRequested()
         }
@@ -52,12 +52,6 @@ final class QuizFlashAppDelegate: NSObject, UIApplicationDelegate {
                 "handled": String(handled)
             ]
         )
-#if DEBUG
-        print(
-            "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "
-                + "Google callback URL handled=\(handled)"
-        )
-#endif
         return handled
     }
 }
@@ -99,7 +93,9 @@ struct QuizFlashApp: App {
     @State private var themeManager = ThemeManager.shared
     @State private var aiProviderStore = AIProviderStore.shared
     @State private var appPreferences = AppPreferences.shared
+#if QUIZFLASH_DEVELOPMENT
     @State private var developmentPreferences = DevelopmentPreferences.shared
+#endif
     @State private var appMigrationStore = AppMigrationStore.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var cloudUserProfileService = CloudUserProfileService.shared
@@ -113,13 +109,16 @@ struct QuizFlashApp: App {
     var body: some Scene {
         WindowGroup {
             CloudSessionBootstrapper()
+                .developmentDiagnostics()
                 .id(appPreferences.languageRefreshKey)
                 .fontDesign(.rounded)
                 .environment(authManager)
                 .environment(themeManager)
                 .environment(aiProviderStore)
                 .environment(appPreferences)
+#if QUIZFLASH_DEVELOPMENT
                 .environment(developmentPreferences)
+#endif
                 .environment(appMigrationStore)
                 .environment(subscriptionManager)
                 .environment(cloudUserProfileService)
@@ -139,12 +138,6 @@ struct QuizFlashApp: App {
                             "handled": String(handled)
                         ]
                     )
-#if DEBUG
-                    print(
-                        "AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) "
-                            + "Google SwiftUI callback URL handled=\(handled)"
-                    )
-#endif
                 }
         }
         .modelContainer(modelContainer)

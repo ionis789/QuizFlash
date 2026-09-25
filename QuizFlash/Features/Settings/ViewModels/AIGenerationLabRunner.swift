@@ -3,7 +3,7 @@
 //  QuizFlash
 //
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import Foundation
 import UIKit
 

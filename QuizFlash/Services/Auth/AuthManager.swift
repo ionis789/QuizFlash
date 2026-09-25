@@ -14,8 +14,9 @@ import GoogleSignIn
 import Observation
 import UIKit
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 private func authSessionFlowDebugLog(_ message: String) {
+    guard AuthFlowDebugTrace.isEnabled else { return }
     print("AUTH_SESSION_FLOW \(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)")
 }
 #endif
@@ -29,18 +30,29 @@ private func authSessionFlowDebugLog(_ message: String) {
 /// single filter.
 @MainActor
 enum AuthFlowDebugTrace {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     private static let maximumBufferedEvents = 80
     private static var sequence = 0
     private static var attemptID = "launch"
     private static var bufferedEvents: [String] = []
 #endif
 
+    static var isEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.authFlow
+        )
+#else
+        false
+#endif
+    }
+
     static func beginAttempt(
         provider: String,
         state: AuthSessionState
     ) -> String {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard isEnabled else { return currentAttemptID }
         attemptID = String(UUID().uuidString.prefix(8))
         sequence = 0
         bufferedEvents.removeAll(keepingCapacity: true)
@@ -58,7 +70,7 @@ enum AuthFlowDebugTrace {
     }
 
     static var currentAttemptID: String {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         attemptID
 #else
         "release"
@@ -70,7 +82,8 @@ enum AuthFlowDebugTrace {
         layer: @autoclosure () -> String,
         details: @autoclosure () -> [String: String] = [:]
     ) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard isEnabled else { return }
         let resolvedEvent = event()
         let resolvedLayer = layer()
         sequence += 1
@@ -95,7 +108,8 @@ enum AuthFlowDebugTrace {
         layer: String,
         state: AuthSessionState
     ) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard isEnabled else { return }
         record(
             event,
             layer: layer,
@@ -107,7 +121,29 @@ enum AuthFlowDebugTrace {
 #endif
     }
 
-#if DEBUG
+    static func report() -> String {
+#if QUIZFLASH_DEVELOPMENT
+        let header = [
+            "QuizFlash Authentication Trace",
+            "attemptID=\(attemptID)",
+            "eventCount=\(bufferedEvents.count)",
+            ""
+        ]
+        return (header + (bufferedEvents.isEmpty ? ["<no authentication events recorded>"] : bufferedEvents))
+            .joined(separator: "\n")
+#else
+        return ""
+#endif
+    }
+
+    static func clear() {
+#if QUIZFLASH_DEVELOPMENT
+        sequence = 0
+        bufferedEvents.removeAll(keepingCapacity: true)
+#endif
+    }
+
+#if QUIZFLASH_DEVELOPMENT
     private static func windowSnapshot() -> String {
         let scenes = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }

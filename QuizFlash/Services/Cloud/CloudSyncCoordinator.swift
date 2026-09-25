@@ -729,7 +729,10 @@ final class CloudSyncCoordinator {
         _ event: @autoclosure () -> String,
         details: @autoclosure () -> [String: String] = [:]
     ) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.backendTrace
+        ) else { return }
         let resolvedEvent = event()
         let resolvedDetails = details()
         Task {
@@ -1624,7 +1627,10 @@ actor CloudSyncRemoteImportActor {
         _ event: @autoclosure () -> String,
         details: @autoclosure () -> [String: String] = [:]
     ) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.backendTrace
+        ) else { return }
         let resolvedEvent = event()
         let resolvedDetails = details()
         Task {

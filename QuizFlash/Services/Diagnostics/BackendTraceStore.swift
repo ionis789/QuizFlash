@@ -14,7 +14,10 @@ nonisolated func backendTrace(
     layer: @autoclosure () -> String,
     details: @autoclosure () -> [String: String] = [:]
 ) async {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+    guard DevelopmentDiagnosticPreference.isEnabled(
+        DevelopmentDiagnosticPreference.Key.backendTrace
+    ) else { return }
     await BackendTraceStore.shared.record(
         event(),
         layer: layer(),
@@ -25,14 +28,14 @@ nonisolated func backendTrace(
 
 @inline(__always)
 nonisolated func backendTraceSafeID(_ value: String?) -> String {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     BackendTraceStore.safeID(value)
 #else
     ""
 #endif
 }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 // MARK: - Backend Trace Store
 
 actor BackendTraceStore {

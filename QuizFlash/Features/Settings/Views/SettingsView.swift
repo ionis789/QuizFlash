@@ -605,7 +605,7 @@ struct SettingsView: View {
                 }
             }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
             settingsBlock {
                 NavigationLink {
                     LabsView()

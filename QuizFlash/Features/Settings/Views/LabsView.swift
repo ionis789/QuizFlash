@@ -1,4 +1,4 @@
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import SwiftUI
 
 /// Development-only home for active diagnostics and configuration tools.
@@ -152,6 +152,20 @@ struct LabsView: View {
                 .noPressEffectButtonStyle()
 
                 SettingsCardDivider()
+                NavigationLink {
+                    RuntimeDiagnosticsView()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "waveform.path.ecg.rectangle",
+                        tint: .cyan,
+                        title: SettingsTextContent.verbatim(localized("Runtime diagnostic reports")),
+                        detail: nil,
+                        value: nil
+                    )
+                }
+                .noPressEffectButtonStyle()
+
+                SettingsCardDivider()
                 debugToggle(
                     icon: "square.grid.3x3",
                     title: "Deck grid guides",
@@ -195,6 +209,76 @@ struct LabsView: View {
                 )
                 SettingsCardDivider()
                 debugToggle(
+                    icon: "pin",
+                    title: "Library sticky header trace",
+                    detail: "Logs section-header pinning and handoff geometry.",
+                    keyPath: \.libraryStickyHeaderDebugEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "hand.tap",
+                    title: "Window touch probe",
+                    detail: "Logs global touch delivery and hit-test targets.",
+                    keyPath: \.windowTouchProbeEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "rectangle.bottomhalf.inset.filled",
+                    title: "Sheet diagnostics",
+                    detail: "Records custom-sheet lifecycle and touch events.",
+                    keyPath: \.fullScreenSheetDiagnosticsEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "person.badge.key",
+                    title: "Authentication trace",
+                    detail: "Requires relaunch to capture the complete startup flow.",
+                    keyPath: \.authFlowDiagnosticsEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "contextualmenu.and.cursorarrow",
+                    title: "Context menu trace",
+                    detail: "Logs custom context-menu gesture and placement events.",
+                    keyPath: \.customContextMenuLoggingEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "server.rack",
+                    title: "Backend trace collection",
+                    detail: "Records sanitized Firebase and subscription events.",
+                    keyPath: \.backendTraceEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "wand.and.stars.inverse",
+                    title: "AI generation trace collection",
+                    detail: "Records structured AI generation runs.",
+                    keyPath: \.aiGenerationTraceEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "doc.text.magnifyingglass",
+                    title: "PDF import trace",
+                    detail: "Records PDF picker, copy, and extraction stages.",
+                    keyPath: \.pdfImportTraceEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "rectangle.and.pencil.and.ellipsis",
+                    title: "Editor runtime trace",
+                    detail: "Records editor focus, keyboard, scroll, and layout events.",
+                    keyPath: \.zoneEditorRuntimeTraceEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
+                    icon: "house.and.flag",
+                    title: "Home layout trace",
+                    detail: "Logs adaptive Home layout decisions when geometry changes.",
+                    keyPath: \.homeLayoutTraceEnabled
+                )
+                SettingsCardDivider()
+                debugToggle(
                     icon: "shadow",
                     title: "Edge shadow tuner",
                     detail: "Shows per-screen edge-shadow controls.",
@@ -207,6 +291,19 @@ struct LabsView: View {
                     detail: "Shows the mock generation shortcut in the deck workspace.",
                     keyPath: \.deckWorkspaceMockAIEnabled
                 )
+                SettingsCardDivider()
+                Button {
+                    developmentPreferences.disableAllDiagnostics()
+                } label: {
+                    SettingsNavigationRow(
+                        icon: "power",
+                        tint: .red,
+                        title: SettingsTextContent.verbatim(localized("Disable all diagnostics")),
+                        detail: nil,
+                        value: nil
+                    )
+                }
+                .noPressEffectButtonStyle()
             }
         }
     }

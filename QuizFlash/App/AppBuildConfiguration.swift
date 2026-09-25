@@ -23,7 +23,7 @@ nonisolated enum AppBuildFlavor: String, Sendable {
 
 nonisolated enum AppBuildConfiguration {
     static let current: AppBuildFlavor = {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         .development
 #else
         .production

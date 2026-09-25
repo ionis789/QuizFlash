@@ -5,7 +5,7 @@
 //  Copyable backend communication diagnostics.
 //
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import SwiftUI
 import UIKit
 

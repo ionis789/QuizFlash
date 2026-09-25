@@ -17,7 +17,9 @@ struct QuizCardEditorView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     @State private var highlightContext: HighlightContext?
@@ -85,7 +87,15 @@ struct QuizCardEditorView: View {
     }
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var isQuizDebugAvailable: Bool { AppFeatures.current.showsVisualDebugOverlays }
-    private var isQuizDebugRecordingActive: Bool { isQuizDebugAvailable && developmentPreferences.quizEditorDebugEnabled }
+    private var isQuizDebugRecordingActive: Bool { isQuizDebugAvailable && quizEditorDebugEnabled }
+
+    private var quizEditorDebugEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        developmentPreferences.quizEditorDebugEnabled
+#else
+        false
+#endif
+    }
     private var bottomContentPadding: CGFloat {
         let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
         return chromePadding + keyboardDismissPadding
@@ -357,7 +367,7 @@ struct QuizCardEditorView: View {
             updateFloatingFormatBarKeyboardHeight()
             scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
-        .onChange(of: developmentPreferences.quizEditorDebugEnabled) { _, isEnabled in
+        .onChange(of: quizEditorDebugEnabled) { _, isEnabled in
             if isEnabled {
                 ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(true)
                 recordQuizScroll(

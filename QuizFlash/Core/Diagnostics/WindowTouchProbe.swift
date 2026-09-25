@@ -5,7 +5,7 @@
 //  Development-only touch delivery probe.
 //
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import OSLog
 import SwiftUI
 import UIKit
@@ -13,8 +13,7 @@ import UIKit
 // MARK: - WindowTouchProbe
 
 struct WindowTouchProbe: UIViewRepresentable {
-
-    private static let isEnabled = ProcessInfo.processInfo.environment["QUIZFLASH_TOUCH_PROBE"] == "1"
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -27,7 +26,7 @@ struct WindowTouchProbe: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.update(isEnabled: Self.isEnabled)
+        context.coordinator.update(isEnabled: developmentPreferences.windowTouchProbeEnabled)
     }
 
     // MARK: - Coordinator

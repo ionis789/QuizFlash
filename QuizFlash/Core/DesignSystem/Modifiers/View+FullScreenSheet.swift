@@ -26,7 +26,7 @@ final class FullScreenSheetModalPresentationState {
     }
 }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 /// Bounded, copyable lifecycle trace for modal-touch investigations.
 @MainActor
 final class FullScreenSheetTouchDiagnostics {
@@ -39,16 +39,19 @@ final class FullScreenSheetTouchDiagnostics {
     var hasActiveSheet: Bool { !activeSheets.isEmpty }
 
     func registerSheet(_ id: UUID, identifier: String?) {
+        guard isEnabled else { return }
         activeSheets[id] = identifier ?? "unnamed"
         record("sheet.presented", details: "id=\(id.uuidString) identifier=\(activeSheets[id] ?? "unnamed")")
     }
 
     func unregisterSheet(_ id: UUID) {
+        guard isEnabled else { return }
         let identifier = activeSheets.removeValue(forKey: id) ?? "unknown"
         record("sheet.dismissed", details: "id=\(id.uuidString) identifier=\(identifier)")
     }
 
     func record(_ event: String, details: String = "") {
+        guard isEnabled else { return }
         nextSequence += 1
         let suffix = details.isEmpty ? "" : " \(details)"
         events.append("\(nextSequence). \(event)\(suffix)")
@@ -58,6 +61,11 @@ final class FullScreenSheetTouchDiagnostics {
     }
 
     func copyReportToPasteboard() {
+        guard isEnabled else { return }
+        UIPasteboard.general.string = report()
+    }
+
+    func report() -> String {
         let sheetSummary = activeSheets
             .map { "\($0.value):\($0.key.uuidString)" }
             .sorted()
@@ -67,7 +75,18 @@ final class FullScreenSheetTouchDiagnostics {
             "activeSheets=\(sheetSummary)",
             "events:"
         ] + events).joined(separator: "\n")
-        UIPasteboard.general.string = report
+        return report
+    }
+
+    func clear() {
+        events.removeAll(keepingCapacity: true)
+        nextSequence = 0
+    }
+
+    private var isEnabled: Bool {
+        DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.fullScreenSheet
+        )
     }
 }
 #endif
@@ -473,6 +492,10 @@ private struct FullScreenSheetDebugProbe: View {
 
 private func fullScreenSheetDebugLog(_ identifier: String?, _ message: String) {
     guard let identifier else { return }
+    let sheetEnabled = DevelopmentDiagnosticPreference.isEnabled(
+        DevelopmentDiagnosticPreference.Key.fullScreenSheet
+    )
+    guard sheetEnabled || AuthFlowDebugTrace.isEnabled else { return }
     print("AUTH_LAYOUT_DEBUG \(debugTimestamp()) sheet=\(identifier) \(message)")
 }
 
@@ -773,7 +796,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @ViewBuilder var background: Background
 
     @Environment(AppPreferences.self) private var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var offset: CGFloat = 0
@@ -995,7 +1020,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
 #if DEBUG
         .background {
-            if let debugIdentifier = configuration.debugIdentifier {
+            if DevelopmentDiagnosticPreference.isEnabled(
+                DevelopmentDiagnosticPreference.Key.fullScreenSheet
+            ), let debugIdentifier = configuration.debugIdentifier {
                 FullScreenSheetDebugProbe(
                     metrics: FullScreenSheetDebugMetrics(
                         identifier: debugIdentifier,
@@ -1161,6 +1188,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         dragProgress: CGFloat,
         usesPartialSheetBackground: Bool
     ) -> some View {
+#if QUIZFLASH_DEVELOPMENT
         if AppFeatures.current.showsVisualDebugOverlays,
            usesPartialSheetBackground,
            let color = Color(hex: developmentPreferences.partialSheetBackgroundHex) {
@@ -1168,6 +1196,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         } else {
             backgroundView(dragProgress: dragProgress)
         }
+#else
+        backgroundView(dragProgress: dragProgress)
+#endif
     }
 
     @ViewBuilder

@@ -24,6 +24,7 @@ enum AuthHandoffVisualDiagnostics {
 
     static func beginRootReleaseMonitoring(handoffID: UUID) {
 #if DEBUG
+        guard AuthFlowDebugTrace.isEnabled else { return }
         AuthHandoffDisplayLinkMonitor.shared.start(
             handoffID: handoffID,
             authAttemptID: AuthFlowDebugTrace.currentAttemptID
@@ -38,6 +39,7 @@ enum AuthHandoffVisualDiagnostics {
 
     static func schedulePostReleaseCheckpoints(handoffID: UUID) {
 #if DEBUG
+        guard AuthFlowDebugTrace.isEnabled else { return }
         for delayMilliseconds in [250, 1_000] {
             Task { @MainActor in
                 if delayMilliseconds > 0 {
@@ -72,6 +74,7 @@ enum AuthHandoffVisualDiagnostics {
         details additionalDetails: [String: String]
     ) {
 #if DEBUG
+        guard AuthFlowDebugTrace.isEnabled else { return }
         var details = additionalDetails
         details["expectedRoot"] = expectedRoot
         details["applicationState"] = String(describing: UIApplication.shared.applicationState)
@@ -88,6 +91,7 @@ enum AuthHandoffVisualDiagnostics {
         details additionalDetails: [String: String] = [:]
     ) {
 #if DEBUG
+        guard AuthFlowDebugTrace.isEnabled else { return }
         var details = additionalDetails
         details["expectedRoot"] = expectedRoot
         details["applicationState"] = String(describing: UIApplication.shared.applicationState)
@@ -125,6 +129,7 @@ enum AuthHandoffVisualDiagnostics {
         details: [String: String] = [:]
     ) {
 #if DEBUG
+        guard AuthFlowDebugTrace.isEnabled else { return }
         guard let probe = registeredProbes[role]?.value else {
             AuthFlowDebugTrace.record(
                 "probe.snapshot.missing",

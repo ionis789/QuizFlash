@@ -8,7 +8,7 @@
 import Foundation
 
 nonisolated enum PDFImportDebugStore {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     private static let storageKey = "diagnostics.pdfImport.events"
     private static let maxEvents = 140
 
@@ -25,7 +25,10 @@ nonisolated enum PDFImportDebugStore {
         _ stage: @autoclosure () -> String,
         details: @autoclosure () -> [String: String] = [:]
     ) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
+        guard DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.pdfImportTrace
+        ) else { return }
         var events = loadEvents()
         let nextSequence = (events.last?.sequence ?? 0) + 1
         let detail = details()
@@ -52,13 +55,13 @@ nonisolated enum PDFImportDebugStore {
     }
 
     static func clear() {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         UserDefaults.standard.removeObject(forKey: storageKey)
 #endif
     }
 
     static func report() -> String {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         let events = loadEvents()
         var lines = [
             "QuizFlash PDF Import Debug",
@@ -89,14 +92,14 @@ nonisolated enum PDFImportDebugStore {
     }
 
     static func eventCount() -> Int {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         loadEvents().count
 #else
         0
 #endif
     }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     private static func loadEvents() -> [Event] {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let events = try? JSONDecoder().decode([Event].self, from: data) else {

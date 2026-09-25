@@ -102,7 +102,9 @@ struct ZoneEditorCanvas: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.inheritedZoneAlignmentDefaults) private var inheritedZoneAlignmentDefaults
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     @State private var zoneFrames: [ZoneEditorResolvedZoneFrame] = []
@@ -2453,6 +2455,7 @@ struct ZoneEditorCanvas: View {
         )
     }
 
+#if QUIZFLASH_DEVELOPMENT
     private func handleWindowTouchProbe(_ snapshot: ZoneEditorWindowTouchSnapshot) {
         let selected = selectedPath?.id ?? "nil"
         let rootID = content.rootZone.id.uuidString.prefix(6)
@@ -2590,6 +2593,7 @@ struct ZoneEditorCanvas: View {
             "WINDOW SELECT path=\(tappedFrame.path.id) frame=\(traceRect(tappedFrame.frame))"
         )
     }
+#endif
 
     private func recordInteractionTrace(_ event: String) {
         guard showsDebugTools else { return }
@@ -2647,6 +2651,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var windowTouchProbeBackground: AnyView {
+#if QUIZFLASH_DEVELOPMENT
         guard showsDebugTools else {
             return AnyView(Color.clear)
         }
@@ -2656,13 +2661,16 @@ struct ZoneEditorCanvas: View {
                 handleWindowTouchProbe(snapshot)
             }
         )
+#else
+        AnyView(Color.clear)
+#endif
     }
 
     @ViewBuilder
     private var debugOverlay: some View {
-        if showsDebugTools && (developmentPreferences.zoneEditorDebugHUDEnabled || showsGridDebugOverlay) {
+        if showsDebugTools && (zoneEditorDebugHUDEnabled || showsGridDebugOverlay) {
             VStack(alignment: .leading, spacing: 3) {
-                if developmentPreferences.zoneEditorDebugHUDEnabled {
+                if zoneEditorDebugHUDEnabled {
                     Text("DBG ON")
                         .font(.caption2.monospaced().weight(.bold))
                         .foregroundStyle(.black)
@@ -2974,14 +2982,30 @@ struct ZoneEditorCanvas: View {
     }
 
     private var showsEditorDebugHUD: Bool {
+#if QUIZFLASH_DEVELOPMENT
         AppFeatures.current.showsVisualDebugOverlays
             && showsDebugOverlays
             && developmentPreferences.zoneEditorDebugHUDEnabled
+#else
+        false
+#endif
     }
 
     private var showsGridDebugOverlay: Bool {
+#if QUIZFLASH_DEVELOPMENT
         AppFeatures.current.showsVisualDebugOverlays
             && showsDebugOverlays
             && developmentPreferences.zoneContentLayoutDebugEnabled
+#else
+        false
+#endif
+    }
+
+    private var zoneEditorDebugHUDEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        developmentPreferences.zoneEditorDebugHUDEnabled
+#else
+        false
+#endif
     }
 }

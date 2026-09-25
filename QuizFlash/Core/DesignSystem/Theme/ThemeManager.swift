@@ -580,10 +580,12 @@ enum AccentColorOption: String, CaseIterable, Identifiable {
 @Observable
 final class ThemeManager {
 
+#if QUIZFLASH_DEVELOPMENT
     private enum Keys {
         static let colorOverrides = "preferences.development.themeColorOverrides"
         static let roleOverrides = "preferences.development.themeRoleOverrides"
     }
+#endif
 
     // MARK: - Singleton
 
@@ -813,14 +815,20 @@ final class ThemeManager {
     /// Maintains API compatibility for call sites that still inject a local defaults store.
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+#if QUIZFLASH_DEVELOPMENT
         self.colorOverrideHexes = userDefaults.dictionary(forKey: Keys.colorOverrides) as? [String: String] ?? [:]
         self.roleOverrideTokenNames = userDefaults.dictionary(forKey: Keys.roleOverrides) as? [String: String] ?? [:]
         enforceFixedScreenBackgroundIfNeeded()
         migrateLegacySurfaceTokenIfNeeded()
         migrateLegacyDangerRoleOverridesIfNeeded()
+#else
+        self.colorOverrideHexes = [:]
+        self.roleOverrideTokenNames = [:]
+#endif
     }
 
     private func persistOverrides() {
+#if QUIZFLASH_DEVELOPMENT
         if colorOverrideHexes.isEmpty {
             userDefaults.removeObject(forKey: Keys.colorOverrides)
         } else {
@@ -832,6 +840,7 @@ final class ThemeManager {
         } else {
             userDefaults.set(roleOverrideTokenNames, forKey: Keys.roleOverrides)
         }
+#endif
     }
 
     private func enforceFixedScreenBackgroundIfNeeded() {

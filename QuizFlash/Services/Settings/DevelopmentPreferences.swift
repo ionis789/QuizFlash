@@ -8,6 +8,27 @@
 import Foundation
 import Observation
 
+#if QUIZFLASH_DEVELOPMENT
+/// Thread-safe lookup used by diagnostic code that cannot depend on the main-actor settings model.
+nonisolated enum DevelopmentDiagnosticPreference {
+    enum Key {
+        static let libraryStickyHeader = "preferences.development.libraryStickyHeaderDebugEnabled"
+        static let windowTouchProbe = "preferences.development.windowTouchProbeEnabled"
+        static let fullScreenSheet = "preferences.development.fullScreenSheetDiagnosticsEnabled"
+        static let authFlow = "preferences.development.authFlowDiagnosticsEnabled"
+        static let customContextMenu = "preferences.development.customContextMenuLoggingEnabled"
+        static let backendTrace = "preferences.development.backendTraceEnabled"
+        static let aiGenerationTrace = "preferences.development.aiGenerationTraceEnabled"
+        static let pdfImportTrace = "preferences.development.pdfImportTraceEnabled"
+        static let zoneEditorRuntimeTrace = "preferences.development.zoneEditorRuntimeTraceEnabled"
+        static let homeLayoutTrace = "preferences.development.homeLayoutTraceEnabled"
+    }
+
+    static func isEnabled(_ key: String, userDefaults: UserDefaults = .standard) -> Bool {
+        userDefaults.bool(forKey: key)
+    }
+}
+
 /// Shared developer preferences consumed by labs, diagnostics, and debug overlays.
 @Observable
 @MainActor
@@ -23,6 +44,16 @@ final class DevelopmentPreferences {
         static let quizEditorDebugEnabled = "preferences.development.quizEditorDebugEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let libraryHeaderLayoutDebugEnabled = "preferences.development.libraryHeaderLayoutDebugEnabled"
+        static let libraryStickyHeaderDebugEnabled = DevelopmentDiagnosticPreference.Key.libraryStickyHeader
+        static let windowTouchProbeEnabled = DevelopmentDiagnosticPreference.Key.windowTouchProbe
+        static let fullScreenSheetDiagnosticsEnabled = DevelopmentDiagnosticPreference.Key.fullScreenSheet
+        static let authFlowDiagnosticsEnabled = DevelopmentDiagnosticPreference.Key.authFlow
+        static let customContextMenuLoggingEnabled = DevelopmentDiagnosticPreference.Key.customContextMenu
+        static let backendTraceEnabled = DevelopmentDiagnosticPreference.Key.backendTrace
+        static let aiGenerationTraceEnabled = DevelopmentDiagnosticPreference.Key.aiGenerationTrace
+        static let pdfImportTraceEnabled = DevelopmentDiagnosticPreference.Key.pdfImportTrace
+        static let zoneEditorRuntimeTraceEnabled = DevelopmentDiagnosticPreference.Key.zoneEditorRuntimeTrace
+        static let homeLayoutTraceEnabled = DevelopmentDiagnosticPreference.Key.homeLayoutTrace
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
         static let edgeShadowDebugDefaultsVersion = "preferences.development.edgeShadowDebugDefaultsVersion"
@@ -111,6 +142,88 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Logs the sticky Library section-header handoff and pinning geometry.
+    var libraryStickyHeaderDebugEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                libraryStickyHeaderDebugEnabled,
+                forKey: Keys.libraryStickyHeaderDebugEnabled
+            )
+        }
+    }
+
+    /// Installs the global passthrough touch probe used for delivery investigations.
+    var windowTouchProbeEnabled: Bool {
+        didSet {
+            userDefaults.set(windowTouchProbeEnabled, forKey: Keys.windowTouchProbeEnabled)
+        }
+    }
+
+    /// Records bounded custom-sheet lifecycle and touch diagnostics.
+    var fullScreenSheetDiagnosticsEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                fullScreenSheetDiagnosticsEnabled,
+                forKey: Keys.fullScreenSheetDiagnosticsEnabled
+            )
+        }
+    }
+
+    /// Records authentication and authenticated-root handoff diagnostics.
+    var authFlowDiagnosticsEnabled: Bool {
+        didSet {
+            userDefaults.set(authFlowDiagnosticsEnabled, forKey: Keys.authFlowDiagnosticsEnabled)
+        }
+    }
+
+    /// Emits the custom context-menu interaction timeline.
+    var customContextMenuLoggingEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                customContextMenuLoggingEnabled,
+                forKey: Keys.customContextMenuLoggingEnabled
+            )
+        }
+    }
+
+    /// Records Firebase, subscription, and backend communication events.
+    var backendTraceEnabled: Bool {
+        didSet {
+            userDefaults.set(backendTraceEnabled, forKey: Keys.backendTraceEnabled)
+        }
+    }
+
+    /// Records structured AI generation runs and payload metadata.
+    var aiGenerationTraceEnabled: Bool {
+        didSet {
+            userDefaults.set(aiGenerationTraceEnabled, forKey: Keys.aiGenerationTraceEnabled)
+        }
+    }
+
+    /// Records PDF picker, copy, and extraction stages.
+    var pdfImportTraceEnabled: Bool {
+        didSet {
+            userDefaults.set(pdfImportTraceEnabled, forKey: Keys.pdfImportTraceEnabled)
+        }
+    }
+
+    /// Records the bounded editor focus, keyboard, scroll, and layout timeline.
+    var zoneEditorRuntimeTraceEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                zoneEditorRuntimeTraceEnabled,
+                forKey: Keys.zoneEditorRuntimeTraceEnabled
+            )
+        }
+    }
+
+    /// Logs adaptive Home layout decisions when geometry changes.
+    var homeLayoutTraceEnabled: Bool {
+        didSet {
+            userDefaults.set(homeLayoutTraceEnabled, forKey: Keys.homeLayoutTraceEnabled)
+        }
+    }
+
     /// Shows per-screen floating controls used to tune edge-shadow overlays.
     var edgeShadowTuningEnabled: Bool {
         didSet {
@@ -129,7 +242,6 @@ final class DevelopmentPreferences {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-#if DEBUG
         self.partialSheetBackgroundHex = userDefaults.string(
             forKey: Keys.partialSheetBackgroundHex
         ) ?? Self.defaultPartialSheetBackgroundHex
@@ -154,23 +266,63 @@ final class DevelopmentPreferences {
         self.libraryHeaderLayoutDebugEnabled = userDefaults.object(
             forKey: Keys.libraryHeaderLayoutDebugEnabled
         ) as? Bool ?? false
+        self.libraryStickyHeaderDebugEnabled = userDefaults.object(
+            forKey: Keys.libraryStickyHeaderDebugEnabled
+        ) as? Bool ?? false
+        self.windowTouchProbeEnabled = userDefaults.object(
+            forKey: Keys.windowTouchProbeEnabled
+        ) as? Bool ?? false
+        self.fullScreenSheetDiagnosticsEnabled = userDefaults.object(
+            forKey: Keys.fullScreenSheetDiagnosticsEnabled
+        ) as? Bool ?? false
+        self.authFlowDiagnosticsEnabled = userDefaults.object(
+            forKey: Keys.authFlowDiagnosticsEnabled
+        ) as? Bool ?? false
+        self.customContextMenuLoggingEnabled = userDefaults.object(
+            forKey: Keys.customContextMenuLoggingEnabled
+        ) as? Bool ?? false
+        self.backendTraceEnabled = userDefaults.object(
+            forKey: Keys.backendTraceEnabled
+        ) as? Bool ?? false
+        self.aiGenerationTraceEnabled = userDefaults.object(
+            forKey: Keys.aiGenerationTraceEnabled
+        ) as? Bool ?? false
+        self.pdfImportTraceEnabled = userDefaults.object(
+            forKey: Keys.pdfImportTraceEnabled
+        ) as? Bool ?? false
+        self.zoneEditorRuntimeTraceEnabled = userDefaults.object(
+            forKey: Keys.zoneEditorRuntimeTraceEnabled
+        ) as? Bool ?? false
+        self.homeLayoutTraceEnabled = userDefaults.object(
+            forKey: Keys.homeLayoutTraceEnabled
+        ) as? Bool ?? false
         self.edgeShadowTuningEnabled = userDefaults.object(
             forKey: Keys.edgeShadowTuningEnabled
         ) as? Bool ?? false
         Self.migrateEdgeShadowDebugDefaultsIfNeeded(in: userDefaults)
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
-#else
-        self.partialSheetBackgroundHex = Self.defaultPartialSheetBackgroundHex
-        self.deckWorkspaceMockAIEnabled = false
-        self.deckGridTextLayoutDebugEnabled = false
-        self.zoneContentLayoutDebugEnabled = false
-        self.zoneEditorDebugHUDEnabled = false
-        self.quizEditorDebugEnabled = false
-        self.playModeDeveloperModeEnabled = false
-        self.libraryHeaderLayoutDebugEnabled = false
-        self.edgeShadowTuningEnabled = false
-        self.edgeShadowDebugSettingsByScreen = [:]
-#endif
+    }
+
+    /// Turns every runtime diagnostic off without changing saved tuner values.
+    func disableAllDiagnostics() {
+        deckWorkspaceMockAIEnabled = false
+        deckGridTextLayoutDebugEnabled = false
+        zoneContentLayoutDebugEnabled = false
+        zoneEditorDebugHUDEnabled = false
+        quizEditorDebugEnabled = false
+        playModeDeveloperModeEnabled = false
+        libraryHeaderLayoutDebugEnabled = false
+        libraryStickyHeaderDebugEnabled = false
+        windowTouchProbeEnabled = false
+        fullScreenSheetDiagnosticsEnabled = false
+        authFlowDiagnosticsEnabled = false
+        customContextMenuLoggingEnabled = false
+        backendTraceEnabled = false
+        aiGenerationTraceEnabled = false
+        pdfImportTraceEnabled = false
+        zoneEditorRuntimeTraceEnabled = false
+        homeLayoutTraceEnabled = false
+        edgeShadowTuningEnabled = false
     }
 
     func setPartialSheetBackgroundHex(_ hex: String) {
@@ -249,3 +401,4 @@ final class DevelopmentPreferences {
     }
 
 }
+#endif

@@ -301,17 +301,18 @@ actor AIDebugTraceStore {
     }
 
     func isEnabled() -> Bool {
+#if QUIZFLASH_DEVELOPMENT
         guard AppFeatures.current.enablesAITraceTooling else {
             return false
         }
 
-        // Trace collection is part of the Development build contract. Older
-        // builds exposed an opt-out preference that can otherwise survive an
-        // upgrade and leave the Labs report permanently empty.
-        userDefaults.removeObject(
-            forKey: AIDebugTracePreferenceKeys.debugTracingEnabled
+        return DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.aiGenerationTrace,
+            userDefaults: userDefaults
         )
-        return true
+#else
+        false
+#endif
     }
 
     func startRun(_ descriptor: AIDebugTraceRunDescriptor) async -> AIDebugTraceScope? {
@@ -814,7 +815,7 @@ extension AIFlashcardService {
         metadata: [String: String] = [:],
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         if AIDebugTraceContext.currentScope != nil {
             return try await operation()
         }
@@ -856,7 +857,7 @@ extension AIFlashcardService {
         metadata: @autoclosure () -> [String: String] = [:],
         payload: @autoclosure () -> String? = nil
     ) async {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         await debugTraceStore.record(
             stage: stage,
             message: message(),
@@ -874,7 +875,7 @@ extension AIFlashcardService {
         metadata: @autoclosure () -> [String: String] = [:],
         payload: @autoclosure () -> String? = nil
     ) async {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         await trace(
             stage,
             message(),

@@ -572,6 +572,16 @@ final class ZoneEditorDebugStore {
 
     private init() {}
 
+    private var isDiagnosticsEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.zoneEditorRuntimeTrace
+        )
+#else
+        false
+#endif
+    }
+
     var hudLines: [String] {
         [
             "#\(eventIndex) \(lastEvent)",
@@ -602,12 +612,13 @@ final class ZoneEditorDebugStore {
     }
 
     func recordEvent(_ value: String) {
+        guard isDiagnosticsEnabled else { return }
         eventIndex += 1
         lastEvent = value
     }
 
     func setLayoutRecordingEnabled(_ isEnabled: Bool) {
-        isRecordingEnabled = isEnabled
+        isRecordingEnabled = isDiagnosticsEnabled && isEnabled
     }
 
     func recordLayoutEvent(
@@ -616,7 +627,7 @@ final class ZoneEditorDebugStore {
         pathID: String? = nil,
         details: @autoclosure () -> String
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays, isRecordingEnabled else { return }
+        guard isDiagnosticsEnabled, isRecordingEnabled else { return }
 
         eventCounters[stage, default: 0] += 1
         refreshCounterSummaryIfNeeded(for: stage)
@@ -642,7 +653,7 @@ final class ZoneEditorDebugStore {
         _ stage: String,
         details: @autoclosure () -> String = ""
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isDiagnosticsEnabled else { return }
 
         dismissFlowEventIndex += 1
         eventCounters["dismiss.\(stage)", default: 0] += 1
@@ -671,7 +682,7 @@ final class ZoneEditorDebugStore {
         _ stage: String,
         details: @autoclosure () -> String = ""
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isDiagnosticsEnabled else { return }
         sheetDismissTraceActiveUntil = Date().addingTimeInterval(8)
         sheetDismissTraceSessionIndex += 1
         let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
@@ -694,7 +705,7 @@ final class ZoneEditorDebugStore {
         _ stage: String,
         details: @autoclosure () -> String = ""
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isDiagnosticsEnabled else { return }
         guard isSheetDismissTraceActive || stage.contains("begin") || stage.contains("start") else { return }
 
         sheetDismissTraceEventIndex += 1
@@ -773,7 +784,7 @@ final class ZoneEditorDebugStore {
         _ stage: String,
         details: @autoclosure () -> String = ""
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isDiagnosticsEnabled else { return }
 
         editorStateEventIndex += 1
         eventCounters["state.\(stage)", default: 0] += 1
@@ -1082,7 +1093,7 @@ final class ZoneEditorDebugStore {
         textView: UITextView?,
         details: @autoclosure () -> String = ""
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard isDiagnosticsEnabled else { return }
 
         nativeTextEventIndex += 1
         eventCounters["native.\(stage)", default: 0] += 1
@@ -1131,6 +1142,7 @@ final class ZoneEditorDebugStore {
     }
 
     private func setLine(_ storage: inout String, _ value: String) {
+        guard isDiagnosticsEnabled else { return }
         guard storage != value else { return }
         storage = value
     }

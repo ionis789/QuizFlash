@@ -54,7 +54,9 @@ struct FlashCardsPlayModeView: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
@@ -159,7 +161,7 @@ struct FlashCardsPlayModeView: View {
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)
 
-                    if developmentPreferences.playModeDeveloperModeEnabled {
+                    if playModeDeveloperModeEnabled {
                         playModeDeveloperToolsOverlay(
                             safeBottomInset: resolvedSafeBottomInset,
                             containerSize: geo.size
@@ -237,7 +239,7 @@ struct FlashCardsPlayModeView: View {
             developerSwipeDebugState.reset()
             resetCardPreloadWindow()
         }
-        .onChange(of: developmentPreferences.playModeDeveloperModeEnabled) { _, isEnabled in
+        .onChange(of: playModeDeveloperModeEnabled) { _, isEnabled in
             guard !isEnabled else { return }
             showsDeveloperPanel = false
             developerSwipeDebugState.showsLiveSwipeOverlay = false
@@ -557,7 +559,15 @@ struct FlashCardsPlayModeView: View {
     }
 
     private var shouldCollectCurrentLayoutDebug: Bool {
-        developmentPreferences.playModeDeveloperModeEnabled && showsDeveloperPanel
+        playModeDeveloperModeEnabled && showsDeveloperPanel
+    }
+
+    private var playModeDeveloperModeEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        developmentPreferences.playModeDeveloperModeEnabled
+#else
+        false
+#endif
     }
 
     private var currentLayoutDebugReport: String? {
@@ -1011,7 +1021,7 @@ struct FlashCardsPlayModeView: View {
             updateLiveSwipeFeedback(with: snapshot)
             updateSwipeFeedbackPresentation(with: snapshot)
 
-            if developmentPreferences.playModeDeveloperModeEnabled, showsDeveloperPanel {
+            if playModeDeveloperModeEnabled, showsDeveloperPanel {
                 swipeFeedbackState.liveSwipeFeedbackSnapshot = snapshot
                 developerSwipeDebugState.update(with: snapshot)
             }

@@ -289,7 +289,9 @@ struct FlipCard: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
 
     // MARK: - State
 
@@ -615,8 +617,12 @@ struct FlipCard: View {
     }
 
     private var showsZoneContentGuides: Bool {
+#if QUIZFLASH_DEVELOPMENT
         AppFeatures.current.showsVisualDebugOverlays
             && developmentPreferences.zoneContentLayoutDebugEnabled
+#else
+        false
+#endif
     }
 
     private var visibleMarker: FaceMarker {

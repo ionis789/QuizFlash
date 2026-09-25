@@ -1,4 +1,4 @@
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers

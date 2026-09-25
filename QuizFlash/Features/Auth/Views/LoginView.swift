@@ -10,8 +10,9 @@ import AuthenticationServices
 import GoogleSignIn
 import UIKit
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 private func authLayoutDebugLog(_ message: String) {
+    guard AuthFlowDebugTrace.isEnabled else { return }
     print("AUTH_LAYOUT_DEBUG \(String(format: "%.3f", Date().timeIntervalSince1970)) login \(message)")
 }
 #endif

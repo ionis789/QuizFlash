@@ -1,7 +1,8 @@
 import SwiftUI
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 func authLaunchDebugLog(_ message: String) {
+    guard AuthFlowDebugTrace.isEnabled else { return }
     print("AUTH_LAUNCH_HANDOFF \(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)")
 }
 #endif

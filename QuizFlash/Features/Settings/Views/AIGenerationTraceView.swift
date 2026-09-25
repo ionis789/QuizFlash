@@ -5,7 +5,7 @@
 //  Copyable diagnostics for complete AI generation runs.
 //
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import SwiftUI
 import UIKit
 

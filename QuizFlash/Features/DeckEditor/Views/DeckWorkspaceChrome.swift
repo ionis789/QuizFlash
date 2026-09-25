@@ -215,10 +215,14 @@ extension DeckWorkspaceView {
     }
 
     var shouldShowMockAIHeaderAction: Bool {
+#if QUIZFLASH_DEVELOPMENT
         developmentPreferences.deckWorkspaceMockAIEnabled
             && !hasUnifiedAISession
             && !viewModel.isSelectingCards
             && !shouldShowFloatingGenerate
+#else
+        false
+#endif
     }
 
     var shouldShowPrimaryGenerateAction: Bool {

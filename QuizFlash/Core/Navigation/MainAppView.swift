@@ -39,7 +39,9 @@ struct MainAppView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(AppPreferences.self) private var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(AppMigrationStore.self) private var appMigrationStore
     @Environment(ThemeManager.self) private var themeManager
 
@@ -450,12 +452,16 @@ struct MainAppView: View {
     }
 
     private var tabBarBlurDebugSettings: EdgeShadowDebugSettings {
+#if QUIZFLASH_DEVELOPMENT
         developmentPreferences.edgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
+#else
+        .default
+#endif
     }
 
     @ViewBuilder
     private func tabBarBlurDebugControls(in proxy: GeometryProxy) -> some View {
-        #if DEBUG
+        #if QUIZFLASH_DEVELOPMENT
             if developmentPreferences.edgeShadowTuningEnabled, !keyboardMonitor.isVisible {
                 EdgeShadowDebugFloatingPanel(
                     mode: .progressiveBlur,

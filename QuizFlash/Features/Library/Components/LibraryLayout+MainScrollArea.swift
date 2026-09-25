@@ -440,6 +440,7 @@ extension LibraryLayout {
         }
 
 #if DEBUG
+        guard developmentPreferences.libraryStickyHeaderDebugEnabled else { return }
         let previousPinnedSectionID = pinnedStartDebugSectionID
         if isScrollingUp,
            let previousPinnedSectionID,

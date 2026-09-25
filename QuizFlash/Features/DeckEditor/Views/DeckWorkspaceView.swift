@@ -36,7 +36,9 @@ struct DeckWorkspaceView: View {
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
     @Environment(AppPreferences.self) var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) var developmentPreferences
+#endif
     @Environment(SubscriptionManager.self) var subscriptionManager
     @Environment(ThemeManager.self) var themeManager
 

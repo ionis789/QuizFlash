@@ -39,7 +39,9 @@ struct HomeView: View {
     @Environment(NavigationManager.self) private var router
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(\.modelContext) private var modelContext
 
     // MARK: - View Models
@@ -596,12 +598,16 @@ struct HomeView: View {
     }
 
     private var homeShadowDebugSettings: EdgeShadowDebugSettings {
+#if QUIZFLASH_DEVELOPMENT
         developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
+#else
+        .default
+#endif
     }
 
     @ViewBuilder
     private func debugShadowControls(safeAreaTop: CGFloat) -> some View {
-        #if DEBUG
+        #if QUIZFLASH_DEVELOPMENT
             if developmentPreferences.edgeShadowTuningEnabled {
                 EdgeShadowDebugFloatingPanel(
                     mode: .progressiveBlur,
@@ -671,7 +677,8 @@ struct HomeView: View {
         layoutContext: HomeAdaptiveLayoutContext,
         calendarLayout: HomeCalendarAdaptiveLayout
     ) {
-        #if DEBUG
+        #if QUIZFLASH_DEVELOPMENT
+            guard developmentPreferences.homeLayoutTraceEnabled else { return }
             let signature = homeLayoutSignature(
                 containerWidth: containerWidth,
                 safeAreaTop: safeAreaTop,

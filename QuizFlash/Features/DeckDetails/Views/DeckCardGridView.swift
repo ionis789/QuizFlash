@@ -456,7 +456,9 @@ private struct MiniCardPreview: View, Equatable {
     var isSelected: Bool = false
     var isSuspended: Bool = false
 
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(\.colorScheme) private var colorScheme
     @State private var renderedTextSize: CGSize = .zero
 
@@ -653,8 +655,12 @@ private struct MiniCardPreview: View, Equatable {
     }
 
     private var showsLayoutDebug: Bool {
+#if QUIZFLASH_DEVELOPMENT
         AppFeatures.current.showsVisualDebugOverlays
             && developmentPreferences.deckGridTextLayoutDebugEnabled
+#else
+        false
+#endif
     }
 
     private func roundedUIFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {

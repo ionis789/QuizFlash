@@ -1510,6 +1510,7 @@ private final class ZoneEditorTapProbe: NSObject, UIGestureRecognizerDelegate {
     }
 }
 
+#if QUIZFLASH_DEVELOPMENT
 struct ZoneEditorWindowTouchSnapshot {
     let phase: String
     let windowPoint: CGPoint
@@ -1765,6 +1766,7 @@ private final class ZoneEditorPassiveTouchRecognizer: UIGestureRecognizer {
         false
     }
 }
+#endif
 
 struct ZoneEditorScrollViewLocator: UIViewRepresentable {
     var resolveToken = 0

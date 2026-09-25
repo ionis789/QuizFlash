@@ -1,6 +1,6 @@
 # QuizFlash Current State
 
-Last refreshed: 2026-09-22.
+Last refreshed: 2026-09-25.
 
 Read this file at the start of every QuizFlash task. It is a living snapshot, not a changelog. When a material implementation or external rollout state changes, replace or remove the stale statement in the same task; do not append historical notes.
 
@@ -9,6 +9,7 @@ Read this file at the start of every QuizFlash task. It is a living snapshot, no
 - QuizFlash is a pre-release iOS 17+ Swift 6 app built with SwiftUI, SwiftData, Firebase, Cloudflare Workers, DeepSeek, and RevenueCat.
 - The supported app languages are English, Romanian, and Russian. App-owned copy must stay synchronized across all three localizations and `Docs/UI-Dictionary/localization_matrix.tsv`.
 - The supported card types are flashcards and quizzes. Home is a study dashboard; the removed exam-goals product area must not be restored implicitly.
+- Developer diagnostics are default-off persistent switches grouped under the Development-only Labs settings. Debug builds define `QUIZFLASH_DEVELOPMENT` and install as `QuizFlash Dev`; Release builds omit the developer settings store, diagnostics UI, probes, and diagnostic state injection at compile time.
 
 ## Backend And AI
 

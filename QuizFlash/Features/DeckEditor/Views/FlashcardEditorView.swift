@@ -17,7 +17,9 @@ struct FlashcardEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
@@ -329,7 +331,7 @@ struct FlashcardEditorView: View {
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
         }
-        .onChange(of: developmentPreferences.zoneEditorDebugHUDEnabled) { _, _ in
+        .onChange(of: zoneEditorDebugHUDEnabled) { _, _ in
             configureZoneEditorDebugRecording()
         }
         .onChange(of: frontZoneContent.rootZone) { _, _ in
@@ -494,7 +496,15 @@ struct FlashcardEditorView: View {
 
     private var showsEditorPerformanceDebug: Bool {
         AppFeatures.current.showsVisualDebugOverlays
-            && developmentPreferences.zoneEditorDebugHUDEnabled
+            && zoneEditorDebugHUDEnabled
+    }
+
+    private var zoneEditorDebugHUDEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        developmentPreferences.zoneEditorDebugHUDEnabled
+#else
+        false
+#endif
     }
 
     private func configureZoneEditorDebugRecording() {

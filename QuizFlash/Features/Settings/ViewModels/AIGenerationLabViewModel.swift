@@ -1,4 +1,4 @@
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
 import CryptoKit
 import Foundation
 import ImageIO

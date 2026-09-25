@@ -66,7 +66,9 @@ private struct QuizModeSessionView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
     @Environment(AppPreferences.self) private var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
 
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
@@ -153,7 +155,7 @@ private struct QuizModeSessionView: View {
                         .zIndex(25)
                 }
 
-                if developmentPreferences.playModeDeveloperModeEnabled
+                if playModeDeveloperModeEnabled
                     && !viewModel.isShowingRetryPrompt
                     && !viewModel.isComplete {
                     quizLayoutDebugButton
@@ -232,6 +234,14 @@ private struct QuizModeSessionView: View {
             quizCardPreloadTask?.cancel()
             viewModel.tearDown()
         }
+    }
+
+    private var playModeDeveloperModeEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        developmentPreferences.playModeDeveloperModeEnabled
+#else
+        false
+#endif
     }
 
     private func header(safeTopInset: CGFloat, horizontalPadding: CGFloat) -> some View {

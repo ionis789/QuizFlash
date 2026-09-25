@@ -15,7 +15,9 @@ let kLibraryChromeSpace = "libraryChrome"
 struct LibraryLayout: View {
     @Environment(\.modelContext) var context
     @Environment(AppPreferences.self) var appPreferences
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) var developmentPreferences
+#endif
     @Environment(ThemeManager.self) var themeManager
     @Environment(CloudSyncCoordinator.self) var cloudSyncCoordinator
 
@@ -60,7 +62,7 @@ struct LibraryLayout: View {
     @State var isCompactChromeSearchRecoveryAnimating = false
     @State var compactChromeRecoverySectionHeaderID: String?
     @State var visualPassedCompactTitleSectionID: String?
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     @State var pinnedStartDebugSectionID: String?
     @State var passedCompactTitleDebugSectionID: String?
 #endif
@@ -231,7 +233,7 @@ struct LibraryLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
             if developmentPreferences.libraryHeaderLayoutDebugEnabled {
                 LibraryHeaderDebugCopyButton()
                     .padding(.trailing, UIConstants.Spacing.standard)

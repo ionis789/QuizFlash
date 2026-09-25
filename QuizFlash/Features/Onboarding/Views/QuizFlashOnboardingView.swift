@@ -2294,5 +2294,4 @@ private struct QuizFlashOnboardingDeviceFrameMetrics {
     )
     .environment(AppPreferences.shared)
     .environment(ThemeManager.shared)
-    .environment(DevelopmentPreferences.shared)
 }

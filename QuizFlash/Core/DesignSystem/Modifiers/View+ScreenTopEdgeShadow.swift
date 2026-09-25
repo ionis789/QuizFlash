@@ -13,7 +13,9 @@ enum ScreenTopEdgeStyle {
 }
 
 private struct ScreenTopEdgeShadowModifier: ViewModifier {
+#if QUIZFLASH_DEVELOPMENT
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+#endif
 
     let topHeight: CGFloat
     let bottomHeight: CGFloat
@@ -43,7 +45,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
                         )
                     }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
                     if let debugScreenID, developmentPreferences.edgeShadowTuningEnabled {
                         EdgeShadowDebugFloatingPanel(
                             mode: debugPanelMode,
@@ -63,8 +65,12 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     }
 
     private var resolvedDebugSettings: EdgeShadowDebugSettings {
+#if QUIZFLASH_DEVELOPMENT
         guard let debugScreenID else { return .default }
         return developmentPreferences.edgeShadowSettings(for: debugScreenID)
+#else
+        .default
+#endif
     }
 
     private var resolvedTopHeight: CGFloat {
@@ -205,7 +211,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         return resolvedDebugSettings.bottomProgressiveBlurConfiguration
     }
 
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
     private var debugPanelMode: TopChromeDebugPanelMode {
         switch style {
         case .shadow:

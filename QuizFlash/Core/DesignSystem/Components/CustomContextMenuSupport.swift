@@ -12,7 +12,7 @@ enum CustomContextMenuLog {
     static let logger = QuizFlashLog.make("CustomContextMenu")
 
     static func debug(_ message: String) {
-#if DEBUG
+#if QUIZFLASH_DEVELOPMENT
         logger.debug("\(message, privacy: .public)")
 #endif
     }
@@ -70,7 +70,15 @@ struct CustomContextMenuConfig {
     var menuRevealDelay: Double = 0.065
     var rowStagger: Double = 0.032
     var menuCornerRadius: CGFloat = 32
-    var isLoggingEnabled = false
+    var isLoggingEnabled: Bool {
+#if QUIZFLASH_DEVELOPMENT
+        DevelopmentDiagnosticPreference.isEnabled(
+            DevelopmentDiagnosticPreference.Key.customContextMenu
+        )
+#else
+        false
+#endif
+    }
     var estimatedMenuSize: CGSize? = nil
 }
 
